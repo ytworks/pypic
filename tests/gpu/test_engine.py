@@ -415,6 +415,18 @@ def test_cg_handles_exact_convergence_between_checks():
     assert float(cp.max(cp.abs(x[(slice(None),) + sim.own] - b[(slice(None),) + sim.own]))) < 1e-12
 
 
+def test_cg_inner_product_matches_the_owned_unknowns():
+    """The two-stage CG inner product sums exactly the owned, unconstrained E unknowns (issue #5)."""
+    bc = (("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
+    cfg = SimConfig(n_cells=(12, 8, 6), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[], boundaries=bc,
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    rng = np.random.default_rng(3)
+    a, b = (rng.standard_normal((3,) + sim.grid.shape) for _ in range(2))
+    ref = float(np.sum(cp.asnumpy(sim.Wmask) * a * b))
+    assert abs(float(sim._dot(cp.asarray(a), cp.asarray(b))) - ref) <= 1e-13 * np.sum(np.abs(a * b))
+
+
 @pytest.mark.parametrize("theta", [1e-3, 0.05, 0.3, 3.0])
 def test_maxwell_juttner_sampling(theta):
     from scipy.special import kve

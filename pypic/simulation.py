@@ -417,8 +417,10 @@ class Simulation:
     _wdot = cp.ReductionKernel("T w, T a, T b", "T y", "w * a * b", "a + b", "y = a", "0", "pypic_wdot")
 
     def _dot(self, a, b):
-        """Global inner product over owned, unconstrained E unknowns (stays on the device)."""
-        return self.comm.allreduce(self._wdot(self.Wmask, a, b).reshape(1)).reshape(())
+        """Global inner product over owned, unconstrained E unknowns (stays on the device).
+        Two stages (inner axes, then the rest): a full reduction to one scalar runs as a single
+        thread block in CuPy's ReductionKernel, ~36x slower on a 1e6-cell grid (issue #5)."""
+        return self.comm.allreduce(self._wdot(self.Wmask, a, b, axis=(2, 3)).sum().reshape(1)).reshape(())
 
     def _applyD(self, B):
         if self.absorb:
