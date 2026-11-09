@@ -62,7 +62,7 @@ the centres of the magnetic islands (plasmoids).
   become one or two big islands.
 - **Top right, electron density with field lines**: the plasma is swept into the islands, which become
   dense blobs bounded by closed field lines.
-- **Bottom left, reconnected flux Ψ(t)** of the lower sheet: the flux between the O and X points, which
+- **Bottom left, reconnected flux Ψ(t)** of the lower sheet: |A(O) − A(X)| between the main O point and the deepest X point, which
   grows each time field lines are reconnected.
 - **Bottom right, electron spectrum**: from the initial thermal distributions (grey) a hard power-law tail
   grows to γ ≈ 50 and beyond.
@@ -73,7 +73,7 @@ the centres of the magnetic islands (plasmoids).
 
 `pair_sigma10_large` (second realization). J_z with the field lines (the same contour levels of A_z in
 every panel) at t = 0 and at the times when the reconnected flux of the lower sheet reaches 15, 40, 65 and
-90 % of its final value, and at the end; Ψ(t) below with those times marked. Ψ = A(O) − A(X) is measured
+90 % of its final value, and at the end; Ψ(t) below with those times marked. Ψ = |A(O) − A(X)| is measured
 between the marked points themselves (the main O point and the deepest X point of the lower sheet), so the
 curve starts when the tearing has made X and O points (before that there is nothing to measure).
 
@@ -101,8 +101,10 @@ spectrum, because the power law needs a larger system and a longer time to devel
 ![large run](images/reconnection/pair_sigma10_large-reconnection.png)
 
 `pair_sigma10_large` (first realization). **Left**: J_z at the time of the peak reconnection rate.
-**Middle**: the reconnection rate dΨ/dt/(B₀v_A) from the flux function along the lower sheet, against the
-published ≈ 0.1. **Right**: the final spectrum with the power-law fit over σ/2 ≤ γ − 1 ≤ 5σ.
+**Middle**: the reconnection rate as the example's analysis reports it, d(Ψ_y₁)/dt/(B₀v_A), against the
+published ≈ 0.1. Ψ_y₁ = max_x A_z − min_x A_z is taken along the fixed line y = y₁ (the initial position of
+the lower sheet). This is a different measure from the X/O-point flux of the field-line chart: when the sheet
+bends, the fixed line also crosses the bulging field lines and Ψ_y₁ grows although no extra flux reconnects. **Right**: the final spectrum with the power-law fit over σ/2 ≤ γ − 1 ≤ 5σ.
 
 <details><summary>The second realization and the gate run</summary>
 
@@ -111,7 +113,7 @@ published ≈ 0.1. **Right**: the final spectrum with the power-law fit over σ/
 
 </details>
 
-| run | box [c/ω_pe] | p (dN/dγ ∝ γ^−p) | Werner 2016 | rate, peak | rate, mean while active | magnetic energy converted | E∥ share, top 1 % | equilibrium deviation / B₀ |
+| run | box [c/ω_pe] | p (dN/dγ ∝ γ^−p) | Werner 2016 | rate on y = y₁, peak | rate on y = y₁, mean while active | magnetic energy converted | E∥ share, top 1 % | equilibrium deviation / B₀ |
 |---|---|---|---|---|---|---|---|---|
 | `pair_sigma10` (gate) | 100 × 100 | {{ r.pair_sigma10.power_law_index | .2f }} ± {{ r.pair_sigma10.power_law_err | .2f }} | {{ r.pair_sigma10.werner2016_index | .2f }} | {{ r.pair_sigma10.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10.equilibrium_max_dev_over_B0 | .4f }} |
 | `pair_sigma10_large` | 400 × 200 | {{ r.pair_sigma10_large.power_law_index | .2f }} ± {{ r.pair_sigma10_large.power_law_err | .2f }} | {{ r.pair_sigma10_large.werner2016_index | .2f }} | {{ r.pair_sigma10_large.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10_large.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10_large.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10_large.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10_large.equilibrium_max_dev_over_B0 | .4f }} |

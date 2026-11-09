@@ -168,9 +168,10 @@ def null_points(A: np.ndarray, xa: np.ndarray, ya: np.ndarray, y_sheet: float, h
 
 def xo_flux(A: np.ndarray, xa: np.ndarray, ya: np.ndarray, y_sheet: float, half_width: float,
             prominence: float) -> float:
-    """Reconnected flux of one sheet between the X and O points that the markers show: A at the main
-    O point minus A at the deepest X point. NaN when the sheet has no X point or no O point (before the
-    tearing, or where its null line has left the search band): a missing value, never a guess."""
+    """Reconnected flux of one sheet between the X and O points that the markers show:
+    |A(main O) - A(deepest X)| (A has a maximum across one sheet and a minimum across the other).
+    NaN when the sheet has no X point or no O point (before the tearing, or where its null line has left
+    the search band): a missing value, never a guess."""
     xs, os_, across_max = stationary_points(A, xa, ya, y_sheet, half_width, prominence)
     if not xs or not os_:
         return float("nan")
@@ -247,7 +248,7 @@ def fieldlines(run_dir: str, path: str, n_snap: int = 6) -> str:
         ax.set_title(f"t = {t[i]:.0f} / ω_pe,  {state}" + ("  (peak rate)" if i == i_pk else ""))
     ax = fig.add_subplot(gs[2, :])
     ax.plot(t, psi / (info["B0"] * info["Lx"]), color=P.color(0),  # NaN (no X/O point) leaves a gap
-            label="reconnected flux Ψ = A(O) − A(X), lower sheet")
+            label="reconnected flux Ψ = |A(O) − A(X)|, lower sheet")
     for i in picks:
         ax.axvline(t[i], color=P.INK["muted"], lw=0.8, ls=":")
     ax.set_xlabel(r"$\omega_{pe} t$")
@@ -334,7 +335,7 @@ class FluxPanel:
         ax.set_ylim(0, 1.1 * top if top > 0 else 1.0)
         ax.set_xlabel(r"$\omega_{pe} t$")
         ax.set_ylabel(r"$\Psi / (B_0 L_x)$")
-        ax.set_title("reconnected flux A(O) − A(X), lower sheet")
+        ax.set_title("reconnected flux |A(O) − A(X)|, lower sheet")
 
     def update(self, t):
         i = max(0, int(np.searchsorted(self.t, t + 1e-9, side="right")) - 1)

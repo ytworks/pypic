@@ -98,3 +98,38 @@ def test_nothing_is_merged_when_the_code_changed_during_the_analysis():
     B = _builder()
     with pytest.raises(RuntimeError):
         B.merge_collected({"examples": {}}, {}, ("a" * 40, ""), ("b" * 40, ""), "2026-02-02")
+
+
+def test_the_wiki_images_are_kept_when_the_collect_is_refused(tmp_path, monkeypatch):
+    import argparse
+    import subprocess as sp
+
+    import pypic.provenance
+
+    B = _builder()
+    wiki = tmp_path / "wiki"
+    (wiki / "images" / "reconnection").mkdir(parents=True)
+    (wiki / "images" / "reconnection" / "power_law.png").write_bytes(b"old")
+    monkeypatch.setattr(B, "ROOT", tmp_path)
+    monkeypatch.setattr(B, "DATA", tmp_path / "data.json")
+    monkeypatch.setattr(B, "check_recorded", lambda *a: None)
+    monkeypatch.setattr(B, "_complete", lambda d: True)
+
+    def worker(cmd, **kw):  # a collect worker: writes its charts and its JSON
+        out = Path(cmd[cmd.index("--wiki") + 1]) / "images" / cmd[3]
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "power_law.png").write_bytes(b"new")
+        Path(cmd[cmd.index("--json") + 1]).write_text(json.dumps({"page": "Magnetic-Reconnection", "cases": {}}))
+        return sp.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(B.subprocess, "run", worker)
+    states = iter([("a" * 40, ""), ("b" * 40, "")])  # the code changes during the analysis
+    monkeypatch.setattr(pypic.provenance, "code_state", lambda root: next(states))
+    args = argparse.Namespace(wiki=str(wiki), example=["reconnection"], jobs=1)
+    assert B.cmd_collect(args) == 1
+    assert (wiki / "images" / "reconnection" / "power_law.png").read_bytes() == b"old"
+    assert not (tmp_path / "data.json").exists()
+
+    states = iter([("a" * 40, ""), ("a" * 40, "")])  # unchanged code: the new charts are published
+    assert B.cmd_collect(args) == 0
+    assert (wiki / "images" / "reconnection" / "power_law.png").read_bytes() == b"new"

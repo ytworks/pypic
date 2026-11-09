@@ -372,10 +372,12 @@ def cmd_collect(args) -> int:
 
     state = code_state(ROOT)  # the code the analysis runs with, checked again before anything is written
     tmp = ROOT / "output" / "wiki" / "_collect"
-    tmp.mkdir(parents=True, exist_ok=True)
+    stage = tmp / "stage"  # charts and GIFs go here first; the wiki gets them only once everything checks out
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir(parents=True)
 
     def one(ex):
-        cmd = [sys.executable, str(Path(__file__).resolve()), "_collect_one", ex, "--wiki", str(wiki),
+        cmd = [sys.executable, str(Path(__file__).resolve()), "_collect_one", ex, "--wiki", str(stage),
                "--json", str(tmp / f"{ex}.json")]
         r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
         return ex, r
@@ -396,6 +398,10 @@ def cmd_collect(args) -> int:
     except RuntimeError as e:
         print(e, file=sys.stderr)
         return 1
+    for ex in names:  # replace each collected example's images as a whole (no stale files are left)
+        dst = wiki / "images" / ex
+        shutil.rmtree(dst, ignore_errors=True)
+        shutil.copytree(stage / "images" / ex, dst)
     DATA.write_text(json.dumps(data, indent=1, ensure_ascii=False, allow_nan=False) + "\n")
     print(f"wrote {DATA.relative_to(ROOT)}")
     return 0

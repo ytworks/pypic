@@ -55,7 +55,7 @@ Sironi & Spitkovsky（2014）は σ = 1、3、10、50 で p ≈ 4、3、2、1.5 
   閉じたループにつなぎ変わります。島はシートに沿って動いて合体し、その間の X 点で磁力線がつなぎ変わり続け、
   最後には各シートが 1〜2 個の大きな島になります。
 - **右上、電子密度と磁力線**: プラズマは島に掃き集められ、閉じた磁力線に囲まれた高密度の塊になります。
-- **左下、つなぎ変わった磁束 Ψ(t)**（下側のシート）: O 点と X 点の間の磁束で、磁力線がつなぎ変わるたびに
+- **左下、つなぎ変わった磁束 Ψ(t)**（下側のシート）: 主 O 点と最も深い X 点の間の磁束 |A(O) − A(X)| で、磁力線がつなぎ変わるたびに
   増えます。
 - **右下、電子のスペクトル**: 初期の熱的分布（灰色）から、γ ≈ 50 以上まで伸びる硬いべき乗則のテイルが育ちます。
 
@@ -65,7 +65,7 @@ Sironi & Spitkovsky（2014）は σ = 1、3、10、50 で p ≈ 4、3、2、1.5 
 
 `pair_sigma10_large`（2 つ目の実現）。t = 0、下側シートのつなぎ変わった磁束が最終値の 15、40、65、90 % に
 達した時刻、および終了時の J_z と磁力線（全パネルで A_z の同じ等高線値）、下段はそれらの時刻を印した Ψ(t)
-です。Ψ = A(O) − A(X) は印を付けた点そのもの（下側シートの主 O 点と最も深い X 点）の間で測るので、テアリング
+です。Ψ = |A(O) − A(X)| は印を付けた点そのもの（下側シートの主 O 点と最も深い X 点）の間で測るので、テアリング
 で X 点と O 点ができてから曲線が始まります（それ以前は測る対象がありません）。
 
 - **t = 0**: 磁力線は各シートをはさんでまっすぐ逆向きに走っています。Harris 平衡です。
@@ -90,8 +90,10 @@ Werner et al.（2016）のフィット（破線）、Sironi & Spitkovsky（2014�
 
 ![大きな run](images/reconnection/pair_sigma10_large-reconnection.png)
 
-`pair_sigma10_large`（1 つ目の実現）。**左**: リコネクション率が最大の時刻の J_z。**中央**: 下側シートに沿った
-磁束関数から求めたリコネクション率 dΨ/dt/(B₀v_A) と、発表値の ≈ 0.1。**右**: 最終スペクトルと
+`pair_sigma10_large`（1 つ目の実現）。**左**: リコネクション率が最大の時刻の J_z。**中央**: example の解析が報告する
+リコネクション率 d(Ψ_y₁)/dt/(B₀v_A) と、発表値の ≈ 0.1。Ψ_y₁ = max_x A_z − min_x A_z は、固定した直線 y = y₁
+（下側シートの初期位置）に沿って取った値です。磁力線の図の X/O 点間の磁束とは別の指標で、シートが曲がると
+固定した直線が膨らんだ磁力線も横切るため、余分に磁束がつなぎ変わらなくても Ψ_y₁ は増えます。**右**: 最終スペクトルと
 σ/2 ≤ γ − 1 ≤ 5σ でのべき乗則フィット。
 
 <details><summary>2 つ目の実現とゲート用 run</summary>
@@ -101,7 +103,7 @@ Werner et al.（2016）のフィット（破線）、Sironi & Spitkovsky（2014�
 
 </details>
 
-| run | 計算領域 [c/ω_pe] | p（dN/dγ ∝ γ^−p） | Werner 2016 | 率の最大値 | 活動期の平均率 | 変換された磁場エネルギー | E∥ の寄与（上位 1 %） | 平衡からのずれ / B₀ |
+| run | 計算領域 [c/ω_pe] | p（dN/dγ ∝ γ^−p） | Werner 2016 | y = y₁ 上の率の最大値 | y = y₁ 上の活動期の平均率 | 変換された磁場エネルギー | E∥ の寄与（上位 1 %） | 平衡からのずれ / B₀ |
 |---|---|---|---|---|---|---|---|---|
 | `pair_sigma10`（ゲート） | 100 × 100 | {{ r.pair_sigma10.power_law_index | .2f }} ± {{ r.pair_sigma10.power_law_err | .2f }} | {{ r.pair_sigma10.werner2016_index | .2f }} | {{ r.pair_sigma10.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10.equilibrium_max_dev_over_B0 | .4f }} |
 | `pair_sigma10_large` | 400 × 200 | {{ r.pair_sigma10_large.power_law_index | .2f }} ± {{ r.pair_sigma10_large.power_law_err | .2f }} | {{ r.pair_sigma10_large.werner2016_index | .2f }} | {{ r.pair_sigma10_large.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10_large.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10_large.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10_large.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10_large.equilibrium_max_dev_over_B0 | .4f }} |
