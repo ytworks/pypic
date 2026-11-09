@@ -129,7 +129,8 @@ EXAMPLES: dict[str, dict] = {
                                                 "pair_sigma10_large-run-e879cfd6.json"),
         },
         "movies": ["pair_sigma10_large_run2"],
-        "gif": {"dpi": 60},
+        "gif": {"dpi": 52},
+        "figures": [("pair_sigma10_large_run2", "fieldlines", "fieldlines.png")],
         "summary": {"kind": "results", "file": "power_law.png"},
     },
 }
@@ -292,6 +293,9 @@ def collect_example(ex: str, wiki: Path) -> dict:
             paths = [A.summary(results, str(img / summ["file"]))]
         for p in paths:
             out["images"][Path(p).name] = Path(p).stat().st_size
+    for case, fn, name in spec.get("figures", []):  # extra charts: (case, function of the example, file)
+        p = getattr(A, fn)(str(runs[case]), str(img / name))
+        out["images"][Path(p).name] = Path(p).stat().st_size
     movies = spec.get("movies", [])
     if movies == "all":
         p = A.movie({k: str(v) for k, v in runs.items()}, str(img / "orbits.gif"))

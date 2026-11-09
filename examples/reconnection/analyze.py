@@ -113,14 +113,194 @@ def summary(results: dict[str, dict], path: str) -> str:
     return P.save(fig, path, dpi=110)
 
 
+def flux_maps(run_dir: str):
+    """(run, slice series, x, y, A(t) list): the flux function A_z of every slice output; its contours
+    are the in-plane magnetic field lines (B = curl(A_z z))."""
+    run = open_run(run_dir)
+    sl = run.series("slice_xy")
+    xa, ya = sl.plane_axes("Bx")
+    dxs, dys = xa[1] - xa[0], ya[1] - ya[0]
+    A = [flux_function(sl.read("Bx", i), sl.read("By", i), dxs, dys) for i in range(len(sl.t))]
+    return run, sl, xa, ya, A
+
+
+def null_points(A: np.ndarray, xa: np.ndarray, ya: np.ndarray, y_sheet: float, half_width: float,
+                prominence: float) -> tuple[list, list]:
+    """X and O points of one current sheet: along the sheet the field line B_x = dA/dy = 0 is followed
+    (the extremum of A across the band |y - y_sheet| < half_width in every column); the extrema of A along
+    that line are X points where A is a saddle and O points (island centres) where it is an extremum."""
+    from scipy.signal import find_peaks
+
+    band = np.nonzero(np.abs(ya - y_sheet) < half_width)[0]
+    sub = A[:, band]
+    mid = sub[:, len(band) // 2]
+    # across the sheet A has a maximum or a minimum on the null line, the same kind everywhere
+    across_max = np.median(sub.max(axis=1) - mid) < np.median(mid - sub.min(axis=1))
+    j = np.argmax(sub, axis=1) if across_max else np.argmin(sub, axis=1)
+    a = sub[np.arange(len(xa)), j]
+    yl = ya[band][j]
+    n = len(a)
+    ext = np.concatenate([a, a, a])  # periodic in x
+    hi, _ = find_peaks(ext, prominence=prominence)
+    lo, _ = find_peaks(-ext, prominence=prominence)
+    hi = [i - n for i in hi if n <= i < 2 * n]
+    lo = [i - n for i in lo if n <= i < 2 * n]
+    # an extremum of the same kind as across the sheet is an O point; the opposite kind is an X point
+    o_idx, x_idx = (hi, lo) if across_max else (lo, hi)
+    return [(xa[i], yl[i]) for i in x_idx], [(xa[i], yl[i]) for i in o_idx]
+
+
+def _levels(A0: np.ndarray, n: int = 26) -> np.ndarray:
+    return np.linspace(float(A0.min()), float(A0.max()), n + 2)[1:-1]
+
+
+def _draw_field(ax, data, A, xa, ya, levels, info, vlim, label, signed=True, step=2):
+    ext = [xa[0], xa[-1], ya[0], ya[-1]]
+    im = P.field_map(ax, data, ext, signed=signed, vlim=vlim, label=label, xlabel="x [c/ωpe]",
+                     ylabel="y [c/ωpe]")
+    cs = ax.contour(xa[::step], ya[::step], A[::step, ::step].T, levels=levels, colors=P.INK["primary"],
+                    linewidths=0.45, alpha=0.75, linestyles="solid")
+    marks = []
+    prom = 0.02 * float(levels[-1] - levels[0])
+    for ys in info["y_sheets"]:
+        xs, os_ = null_points(A, xa, ya, ys, 4 * info["delta"] + 6.0, prom)
+        if xs:
+            marks += ax.plot(*zip(*xs), "x", ms=7, mew=2, color="#eda100", label=None)
+        if os_:
+            marks += ax.plot(*zip(*os_), "o", ms=5, mfc="none", mew=1.5, color="#008300", label=None)
+    return im, cs, marks
+
+
+def fieldlines(run_dir: str, path: str, n_snap: int = 6) -> str:
+    """Key chart of reconnection: J_z with the magnetic field lines (contours of the flux function, the
+    same levels in every panel) at n_snap times, X points (×) and O points (○) of both sheets, and the
+    reconnected flux of the lower sheet against time with the snapshot times marked."""
+    run, sl, xa, ya, A = flux_maps(run_dir)
+    info = run.meta["planner"]
+    t = sl.t
+    psi = np.array([_psi(a, xa, ya, info["y_sheets"][0]) for a in A])
+    i_pk = int(np.argmax(np.gradient(psi, t)))
+    # snapshots where the reconnected flux reaches given fractions of its final value
+    fr = np.linspace(0.15, 0.9, n_snap - 2)
+    picks = [0] + [int(np.argmax(psi >= f * psi[-1])) for f in fr] + [len(t) - 1]
+    picks = sorted(set(picks))
+    levels = _levels(A[0])
+    vlim = P.robust_limits([sl.read("Jz", i) for i in picks], signed=True)
+    P.style()
+    fig = P.plt.figure(figsize=(16, 9.6))
+    gs = fig.add_gridspec(3, 3, height_ratios=[1, 1, 0.8])
+    for k, i in enumerate(picks):
+        ax = fig.add_subplot(gs[k // 3, k % 3])
+        _draw_field(ax, sl.read("Jz", i), A[i], xa, ya, levels, info, vlim, "J_z")
+        ax.set_title(f"t = {t[i]:.0f} / ω_pe,  Ψ = {psi[i] / psi[-1]:.0%} of final"
+                     + ("  (peak rate)" if i == i_pk else ""))
+    ax = fig.add_subplot(gs[2, :])
+    ax.plot(t, psi / (info["B0"] * info["Lx"]), color=P.color(0), label="reconnected flux Ψ (lower sheet)")
+    for i in picks:
+        ax.axvline(t[i], color=P.INK["muted"], lw=0.8, ls=":")
+    ax.set_xlabel(r"$\omega_{pe} t$")
+    ax.set_ylabel(r"$\Psi / (B_0 L_x)$")
+    ax.plot([], [], "x", color="#eda100", mew=2, label="X point (field lines reconnect)")
+    ax.plot([], [], "o", mfc="none", color="#008300", mew=1.5, label="O point (plasmoid centre)")
+    ax.plot([], [], color=P.INK["primary"], lw=0.8, label="field lines (contours of A_z, fixed levels)")
+    ax.legend(loc="lower right")
+    fig.tight_layout()
+    return P.save(fig, path, dpi=100)
+
+
+def _psi(A, xa, ya, y_sheet):
+    j = int(np.argmin(np.abs(ya - y_sheet)))
+    line = A[:, j]
+    return float(line.max() - line.min())
+
+
+class FieldLinePanel:
+    """Movie panel: a slice component with the magnetic field lines (fixed contour levels of A_z) and the
+    X / O points redrawn at every frame (pypic.analysis.animate.Panel interface)."""
+
+    def __init__(self, run_dir, comp="Jz", signed=True, flux=None):
+        self.run, self.sl, self.xa, self.ya, self.A = flux or flux_maps(run_dir)
+        self.info = self.run.meta["planner"]
+        self.comp, self.signed = comp, signed
+        self.t = self.sl.t
+        self.levels = _levels(self.A[0])
+        self.vlim = P.robust_limits([self.sl.read(comp, i) for i in range(0, len(self.t), max(1, len(self.t) // 12))],
+                                    signed=signed)
+        self.art = []
+
+    def times(self):
+        return self.t
+
+    def prepare(self, frame_times):
+        pass
+
+    def init(self, ax):
+        self.ax = ax
+
+    def update(self, t):
+        i = max(0, int(np.searchsorted(self.t, t + 1e-9, side="right")) - 1)
+        self.ax.clear()
+        lab = {"Jz": "J_z", "n:electron": "n_e"}.get(self.comp, self.comp)
+        if not hasattr(self, "_cbar"):
+            im, cs, marks = _draw_field(self.ax, self.sl.read(self.comp, i), self.A[i], self.xa, self.ya, self.levels,
+                                        self.info, self.vlim, lab, self.signed)
+            self._cbar = True
+        else:
+            ext = [self.xa[0], self.xa[-1], self.ya[0], self.ya[-1]]
+            cmap = P.DIVERGING if self.signed else P.SEQUENTIAL
+            self.ax.imshow(np.asarray(self.sl.read(self.comp, i)).T, origin="lower", extent=ext, aspect="auto",
+                           cmap=cmap, vmin=self.vlim[0], vmax=self.vlim[1], interpolation="nearest")
+            self.ax.contour(self.xa[::2], self.ya[::2], self.A[i][::2, ::2].T, levels=self.levels,
+                            colors=P.INK["primary"], linewidths=0.45, alpha=0.75, linestyles="solid")
+            prom = 0.02 * float(self.levels[-1] - self.levels[0])
+            for ys in self.info["y_sheets"]:
+                xs, os_ = null_points(self.A[i], self.xa, self.ya, ys, 4 * self.info["delta"] + 6.0, prom)
+                if xs:
+                    self.ax.plot(*zip(*xs), "x", ms=7, mew=2, color="#eda100")
+                if os_:
+                    self.ax.plot(*zip(*os_), "o", ms=5, mfc="none", mew=1.5, color="#008300")
+            self.ax.set_xlabel("x [c/ωpe]")
+            self.ax.set_ylabel("y [c/ωpe]")
+        self.ax.set_title(f"{lab} + field lines (× X point, ○ O point)  t={self.t[i]:.0f}")
+
+
+class FluxPanel:
+    """Movie panel: reconnected flux of the lower sheet, revealed up to the frame time."""
+
+    def __init__(self, flux):
+        run, sl, xa, ya, A = flux
+        info = run.meta["planner"]
+        self.t = sl.t
+        self.psi = np.array([_psi(a, xa, ya, info["y_sheets"][0]) for a in A]) / (info["B0"] * info["Lx"])
+
+    def times(self):
+        return self.t
+
+    def prepare(self, frame_times):
+        pass
+
+    def init(self, ax):
+        ax.plot(self.t, self.psi, color=P.INK["grid"], lw=1.0)
+        (self.line,) = ax.plot([], [], color=P.color(0), lw=1.6)
+        ax.set_xlim(self.t[0], self.t[-1])
+        ax.set_ylim(0, 1.1 * float(self.psi.max()))
+        ax.set_xlabel(r"$\omega_{pe} t$")
+        ax.set_ylabel(r"$\Psi / (B_0 L_x)$")
+        ax.set_title("reconnected flux (lower sheet)")
+
+    def update(self, t):
+        i = max(0, int(np.searchsorted(self.t, t + 1e-9, side="right")) - 1)
+        self.line.set_data(self.t[: i + 1], self.psi[: i + 1])
+
+
 def movie(run_dir: str, out: str | None = None, fps: int = 15, n_frames: int = 80,
           dpi: int = 110) -> str:
     from pypic.analysis import Movie
 
-    run = open_run(run_dir)
-    m = Movie(run, title="relativistic pair reconnection")
-    m.slice("slice_xy", "Jz").slice("slice_xy", "n:electron", signed=False).spectrum("spectrum", "electron")
-    m.history()
+    flux = flux_maps(run_dir)
+    m = Movie(flux[0], title="relativistic pair reconnection", panel_size=(6.4, 3.6))
+    m.add(FieldLinePanel(run_dir, "Jz", True, flux)).add(FieldLinePanel(run_dir, "n:electron", False, flux))
+    m.add(FluxPanel(flux)).spectrum("spectrum", "electron")
     return m.save(out or os.path.join(run_dir, "reconnection.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 
