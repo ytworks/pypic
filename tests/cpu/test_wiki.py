@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 IMAGE = re.compile(r"images/[\w\-./]+\.(?:png|gif)")
 
@@ -76,3 +78,23 @@ def test_each_page_names_the_analysis_commit_of_its_own_data(tmp_path):
         for suffix in ("", "-ja"):
             assert f"`{e['analysis_commit'][:9]}`" in (tmp_path / f"{e['page']}{suffix}.md").read_text(), ex
     assert "`bbbbbbbbb`" not in (tmp_path / "Two-Stream-Instability.md").read_text()
+
+
+def test_a_partial_collect_keeps_the_history_of_the_other_examples(tmp_path):
+    B = _builder()
+    data = json.loads((ROOT / "docs" / "wiki" / "data.json").read_text())
+    legacy = {"analysis_commit": "a" * 40, "generated": "2026-01-01",
+              "examples": {ex: {k: v for k, v in e.items() if k not in ("analysis_commit", "generated")}
+                           for ex, e in data["examples"].items()}}  # the format with one commit for all
+    new = B.merge_collected(legacy, {"particle_orbits": legacy["examples"]["particle_orbits"]},
+                            ("b" * 40, ""), ("b" * 40, ""), "2026-02-02")
+    assert new["examples"]["particle_orbits"]["analysis_commit"] == "b" * 40
+    assert new["examples"]["reconnection"]["analysis_commit"] == "a" * 40
+    assert new["examples"]["reconnection"]["generated"] == "2026-01-01"
+    B.render(new, tmp_path)
+
+
+def test_nothing_is_merged_when_the_code_changed_during_the_analysis():
+    B = _builder()
+    with pytest.raises(RuntimeError):
+        B.merge_collected({"examples": {}}, {}, ("a" * 40, ""), ("b" * 40, ""), "2026-02-02")

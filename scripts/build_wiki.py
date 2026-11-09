@@ -339,6 +339,24 @@ def check_recorded(ex: str, case: str, c: dict) -> str | None:
     return None
 
 
+def merge_collected(data: dict, collected: dict, before: tuple, after: tuple, today: str) -> dict:
+    """data.json with the newly collected examples, each stamped with the code state of its analysis.
+    ``before`` and ``after`` are pypic.provenance.code_state() around the analysis: if the code changed
+    meanwhile the results belong to no single commit, and nothing is merged (RuntimeError)."""
+    if before != after:
+        raise RuntimeError("the code changed while collecting: nothing written; collect again")
+    data = {**data, "examples": dict(data.get("examples", {}))}
+    # older data.json files have one analysis commit for every example: hand it to each before dropping it
+    legacy = {k: data.pop(k) for k in ("analysis_commit", "generated") if k in data}
+    for ex, e in data["examples"].items():
+        data["examples"][ex] = {**legacy, **e}
+    commit = before[0] + ("-dirty" if before[1] else "")
+    for ex, e in collected.items():  # each example keeps the commit and date of its own analysis
+        data["examples"][ex] = {**e, "analysis_commit": commit, "generated": today}
+    data["examples"] = {ex: data["examples"][ex] for ex in EXAMPLES if ex in data["examples"]}
+    return data
+
+
 def cmd_collect(args) -> int:
     wiki = Path(args.wiki).resolve()
     names = [e for e in EXAMPLES if not args.example or e in args.example]
@@ -350,6 +368,9 @@ def cmd_collect(args) -> int:
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
+    from pypic.provenance import code_state
+
+    state = code_state(ROOT)  # the code the analysis runs with, checked again before anything is written
     tmp = ROOT / "output" / "wiki" / "_collect"
     tmp.mkdir(parents=True, exist_ok=True)
 
@@ -368,16 +389,13 @@ def cmd_collect(args) -> int:
                 print(r.stderr[-4000:], file=sys.stderr)
     if failed:
         return 1
-    from pypic.provenance import commit_label
-
     data = json.loads(DATA.read_text()) if DATA.exists() else {"examples": {}}
-    commit, today = commit_label(ROOT), dt.date.today().isoformat()
-    for ex in names:  # each example keeps the commit and date of its own analysis
-        data["examples"][ex] = {**json.loads((tmp / f"{ex}.json").read_text()),
-                                "analysis_commit": commit, "generated": today}
-    data.pop("analysis_commit", None)
-    data.pop("generated", None)
-    data["examples"] = {ex: data["examples"][ex] for ex in EXAMPLES if ex in data["examples"]}
+    collected = {ex: json.loads((tmp / f"{ex}.json").read_text()) for ex in names}
+    try:
+        data = merge_collected(data, collected, state, code_state(ROOT), dt.date.today().isoformat())
+    except RuntimeError as e:
+        print(e, file=sys.stderr)
+        return 1
     DATA.write_text(json.dumps(data, indent=1, ensure_ascii=False, allow_nan=False) + "\n")
     print(f"wrote {DATA.relative_to(ROOT)}")
     return 0
@@ -393,7 +411,7 @@ LABELS = {
         "fields": "external / initial fields", "filter": "current filter", "gpus": "GPUs",
         "wall": "wall time", "source": "data", "fresh": "fresh run", "recorded": "recorded production run",
         "commit": "simulation commit", "run_id": "run id", "created": "started", "gpu": "GPU",
-        "evidence": "recorded evidence", "none": "none", "passes": "binomial, {n} passes",
+        "evidence": "recorded evidence", "dir": "output directory", "none": "none", "passes": "binomial, {n} passes",
         "param": "planner parameter", "refined": "refined run (Δt/2)",
     },
     "ja": {
@@ -403,7 +421,7 @@ LABELS = {
         "fields": "外部場・初期場", "filter": "電流フィルタ", "gpus": "GPU 数",
         "wall": "計算時間", "source": "データ", "fresh": "新規実行", "recorded": "記録済み本番実行",
         "commit": "シミュレーションのコミット", "run_id": "run id", "created": "開始時刻", "gpu": "GPU",
-        "evidence": "記録済みエビデンス", "none": "なし", "passes": "二項フィルタ {n} パス",
+        "evidence": "記録済みエビデンス", "dir": "出力ディレクトリ", "none": "なし", "passes": "二項フィルタ {n} パス",
         "param": "プランナーのパラメータ", "refined": "細分化実行（Δt/2）",
     },
 }
@@ -494,13 +512,14 @@ def table_provenance(ex: dict, lang: str) -> str:
         short = commit[:9] + ("-dirty" if commit.endswith("-dirty") else "")
         ev = f"`{c['evidence']}`" if c.get("evidence") else "—"
         rows.append([f"`{name}`", L[c["source"]], f"`{short}`", p.get("run_id") or "—", p.get("created") or "—",
-                     f"{p.get('world_size')} × {p.get('gpu_name') or 'GPU'}", ev])
+                     f"{p.get('world_size')} × {p.get('gpu_name') or 'GPU'}", f"`{p.get('run_dir')}`", ev])
         if c.get("provenance_refined"):
             q = c["provenance_refined"]
             rows.append([f"`{name}` ({L['refined']})", L["fresh"], f"`{(q['git_commit'] or '—')[:9]}`",
                          q.get("run_id") or "—", q.get("created") or "—",
-                         f"{q.get('world_size')} × {q.get('gpu_name') or 'GPU'}", "—"])
-    return _table([L["case"], L["source"], L["commit"], L["run_id"], L["created"], L["gpu"], L["evidence"]], rows)
+                         f"{q.get('world_size')} × {q.get('gpu_name') or 'GPU'}", f"`{q.get('run_dir')}`", "—"])
+    return _table([L["case"], L["source"], L["commit"], L["run_id"], L["created"], L["gpu"], L["dir"], L["evidence"]],
+                  rows)
 
 
 TABLES = {"conditions": table_conditions, "params": table_params, "provenance": table_provenance}
