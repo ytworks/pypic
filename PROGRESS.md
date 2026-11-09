@@ -33,9 +33,9 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D8, Accep
 | Harness: CPU CI + GPU gates | Introduced 2026-11-09 (PR #1) |
 | Research output + analysis (PR #2) | Phase 1 complete (output, ids, analysis, Buneman); phases 2–4 (examples) in progress |
 
-- GPU gates: ALL PASSED on 0aac3a7, 8 GPUs (`bench/results/2026-11-09-0aac3a717-gpu-gates.json`):
-  growth error +2.9 / −1.8 / −2.6 / +3.5 % (ei/ep/eip/ei_implicit), Gauss ≤ 3.5e-12, div B ≤ 1.0e-14,
-  implicit energy 1.9e-10; 23 GPU tests pass.
+- GPU gates: ALL PASSED on 62859d2, 8 GPUs (`bench/results/2026-11-09-62859d246-gpu-gates.json`):
+  growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss ≤ 7.6e-12,
+  div B ≤ 1.5e-14, implicit energy 1.9e-10; 29 GPU tests pass (incl. output 1-vs-2-GPU equality).
 - Known gaps: no particle injection at open faces (R1); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
