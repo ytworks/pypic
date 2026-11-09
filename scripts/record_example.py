@@ -36,10 +36,19 @@ def main() -> int:
     if not example:
         print("run.json has no meta.example: was the run started by an example's run.py?", file=sys.stderr)
         return 2
+    # run.json is data: its example name only selects one of this repository's examples, whose
+    # analyze.py is loaded by its path (nothing from the run directory is put on sys.path)
+    known = {p.name: p / "analyze.py" for p in (ROOT / "examples").iterdir() if (p / "analyze.py").is_file()}
+    if example not in known:
+        print(f"meta.example {example!r} is not an example of this repository ({sorted(known)})", file=sys.stderr)
+        return 2
     config = Path(meta.get("config_file", "unknown")).stem
-    code = ("import json, sys; sys.path.insert(0, sys.argv[1]); from analyze import analyze; "
-            "print(json.dumps(analyze(sys.argv[2], show_plot=False), default=float))")
-    r = subprocess.run([sys.executable, "-c", code, str(ROOT / "examples" / example), str(run_dir)], cwd=ROOT,
+    code = ("import importlib.util, json, sys\n"
+            "spec = importlib.util.spec_from_file_location('analyze', sys.argv[1])\n"
+            "mod = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(mod)\n"
+            "print(json.dumps(mod.analyze(sys.argv[2], show_plot=False), default=float))")
+    r = subprocess.run([sys.executable, "-c", code, str(known[example]), str(run_dir)], cwd=ROOT,
                        capture_output=True, text=True)
     if r.returncode != 0:
         print(r.stderr[-3000:], file=sys.stderr)

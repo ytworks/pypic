@@ -93,8 +93,12 @@ class SeriesWriter:
         for k, v in data.items():
             v = np.asarray(v)
             comp = self.comp if v.dtype.kind in "fc" else {}
-            self.ds[k] = self.f.create_dataset(k, shape=(0,) + v.shape, maxshape=(None,) + v.shape, dtype=v.dtype,
-                                               chunks=(self.rows,) + v.shape, **comp)
+            # an empty dimension (e.g. no tracked particle) needs a positive chunk size, which HDF5
+            # accepts only for an unlimited dimension
+            self.ds[k] = self.f.create_dataset(k, shape=(0,) + v.shape,
+                                               maxshape=(None,) + tuple(n if n else None for n in v.shape),
+                                               dtype=v.dtype, chunks=(self.rows,) + tuple(max(n, 1) for n in v.shape),
+                                               **comp)
         self._before_swmr()
         self.f.swmr_mode = True
 

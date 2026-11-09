@@ -43,6 +43,26 @@ def hyperbolic(t, x0, q, m, E, axis=0):
     return x, uu
 
 
+def _frame_time(lab_time, t):
+    """Frame time tp of every lab time t, given the increasing map lab_time(tp) with
+    lab_time(0) = 0: the bracket is doubled until it covers max(t), then bisected (exact to
+    float64; a fixed frame-time grid can stop short of t when the frame moves near c)."""
+    t = np.asarray(t, dtype=float)
+    hi = max(1.0, float(t.max()))
+    for _ in range(200):
+        if lab_time(np.array([hi]))[0] >= t.max():
+            break
+        hi *= 2.0
+    else:  # pragma: no cover - lab_time grows at least like tp / gamma_frame
+        raise RuntimeError("lab time does not reach the requested time")
+    lo, up = np.zeros_like(t), np.full_like(t, hi)
+    for _ in range(100):
+        mid = 0.5 * (lo + up)
+        below = lab_time(mid) < t
+        lo, up = np.where(below, mid, lo), np.where(below, up, mid)
+    return 0.5 * (lo + up)
+
+
 def exb_drift(E, B):
     """Guiding-centre drift speed along x for E along y, B along z (|E| < |B|)."""
     return E / B
@@ -56,22 +76,22 @@ def e_gt_b(t, x0, q, m, E, B):
     Ep = E / gf  # frame moving with +beta along x: B' = 0, E' = E / gamma_f along y
     upx = -gf * beta  # the particle, at rest in the lab, moves at -beta there
     a = q * Ep / m
+    g0 = np.sqrt(1 + upx * upx)
+
     # orbit in the frame, parametrised by its time tp (the particle starts at the origin, tp = 0)
-    tp = np.linspace(0, 2.0 * t.max() + 1.0, 200001)
+    def xp_of(tp):
+        return upx / a * np.arcsinh(a * tp / g0)
+
+    # back to the lab: t = gf (tp + beta xp), x = gf (xp + beta tp)
+    tp = _frame_time(lambda s: gf * (s + beta * xp_of(s)), t)
     upy = a * tp
     gp = np.sqrt(1 + upx * upx + upy * upy)
-    g0 = np.sqrt(1 + upx * upx)
     yp = (gp - g0) / a
-    xp = upx / a * np.arcsinh(a * tp / g0)
-    # back to the lab: t = gf (tp + beta xp), x = gf (xp + beta tp)
-    tl = gf * (tp + beta * xp)
-    xl = gf * (xp + beta * tp)
-    ux_l = gf * (upx + beta * gp)
-    x = np.interp(t, tl, xl) + x0[0]
-    y = np.interp(t, tl, yp) + x0[1]
-    ux = np.interp(t, tl, ux_l)
-    uy = np.interp(t, tl, upy)
-    return np.stack([x, y, np.full_like(t, x0[2])]), np.stack([ux, uy, np.zeros_like(t)])
+    xp = xp_of(tp)
+    x = gf * (xp + beta * tp) + x0[0]
+    y = yp + x0[1]
+    ux = gf * (upx + beta * gp)
+    return np.stack([x, y, np.full_like(t, x0[2])]), np.stack([ux, upy, np.zeros_like(t)])
 
 
 def plane_wave(t, x0, q, m, E0, omega, phi0=0.0, n_psi=400001):
@@ -109,11 +129,14 @@ def exb(t, x0, q, m, E, B):
     t = np.asarray(t, dtype=float)
     beta = E / B
     gd = 1.0 / np.sqrt(1 - beta * beta)
-    tp = np.linspace(0, 2.0 * t.max() / gd + 1.0, 200001)
-    Xp, Up = gyration(tp, (0.0, 0.0, 0.0), (-gd * beta, 0.0, 0.0), q, m, B / gd)
+
+    def frame(tp):
+        return gyration(tp, (0.0, 0.0, 0.0), (-gd * beta, 0.0, 0.0), q, m, B / gd)
+
+    # back to the lab: t = gd (tp + beta x'), x = gd (x' + beta tp)
+    tp = _frame_time(lambda s: gd * (s + beta * frame(s)[0][0]), t)
+    Xp, Up = frame(tp)
     gp = np.sqrt(1 + np.sum(Up ** 2, axis=0))
-    tl = gd * (tp + beta * Xp[0])
-    xl = gd * (Xp[0] + beta * tp)
     ux = gd * (Up[0] + beta * gp)
-    return (np.stack([np.interp(t, tl, xl) + x0[0], np.interp(t, tl, Xp[1]) + x0[1], np.full_like(t, x0[2])]),
-            np.stack([np.interp(t, tl, ux), np.interp(t, tl, Up[1]), np.zeros_like(t)]))
+    return (np.stack([gd * (Xp[0] + beta * tp) + x0[0], Xp[1] + x0[1], np.full_like(t, x0[2])]),
+            np.stack([ux, Up[1], np.zeros_like(t)]))

@@ -68,6 +68,10 @@ Override YAML values with `--set key=value`, e.g. `--set u_drift=0.3 --set solve
 Any `SimConfig` field can be overridden with `--set overrides.ppc=64`, and any output setting with
 `--set output.budget_GB=5` or `--set output.codec=deflate`.
 
+A run writes to `output/<example>/<config>/` by default, or to the directory given with `--out DIR`.
+A directory that already holds a run is refused, so the files of two runs never mix. `--overwrite`
+replaces that run: its output files are removed first, and nothing else in the directory is touched.
+
 ### Main parameters (`TwoStreamParams`)
 
 - **Plasma**

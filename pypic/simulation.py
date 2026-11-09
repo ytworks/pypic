@@ -15,6 +15,7 @@ from .kernelsrc import PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
 from .particles import ID_LIMIT, Species
+from .profiles import invert_cos_density
 
 
 class ImplicitStepError(RuntimeError):
@@ -222,6 +223,7 @@ class Simulation:
         Returns True if particles were moved (E is then non-zero)."""
         cfg, g = self.cfg, self.grid
         moving = False
+        residual = 0.0  # largest |F(x) - x0| / L of the density inverses on this rank
         for si, (sc, sp) in enumerate(zip(cfg.species, self.species)):
             disp = None
             for bi, b in enumerate(sc.beams):
@@ -241,12 +243,9 @@ class Simulation:
                             disp = cp.zeros((3, sp.cap))
                         if "displacement" in pt:
                             disp[a, lo:hi] += float(pt["displacement"]) * cp.sin(k * x0 + ph)
-                        else:  # exact inverse of the cumulative density: x + (alpha/k)(sin(kx+ph) - sin ph) = x0
-                            al = float(pt["density"])
-                            x = x0.copy()
-                            for _ in range(40):
-                                f = x + al / k * (cp.sin(k * x + ph) - math.sin(ph)) - x0
-                                x -= f / (1.0 + al * cp.cos(k * x + ph))
+                        else:  # exact inverse of the cumulative density (bracketed, converges for |alpha| < 1)
+                            x, res = invert_cos_density(x0, float(pt["density"]), k, ph, cp)
+                            residual = max(residual, res / g.L[a])
                             disp[a, lo:hi] += x - x0
             if disp is not None:
                 sp.P = cp.concatenate([sp.P, disp], axis=0)  # rows 8..10: remaining displacement
@@ -254,6 +253,11 @@ class Simulation:
         if not any(b.perturbation and any(("density" in p or "displacement" in p) for p in b.perturbation)
                    for sc in cfg.species for b in sc.beams):
             return False  # decided from the configuration: identical on every rank
+        # every rank reaches this reduction (the branch above depends on the configuration only)
+        residual = self.comm.allreduce_scalar(residual, "max")
+        if residual > 1e-12:
+            raise RuntimeError(f"density perturbation: the inverse of the cumulative density did not converge "
+                               f"(max residual {residual:.3g} L)")
         h = [0.9 * d for d in g.dx]
         local = 0.0
         for sp in self.species:
@@ -268,7 +272,7 @@ class Simulation:
                     lst = sp.flag_list()
                     launch(self.k_displace, sp.n, (sp.P, np.int32(sp.n), np.int32(sp.cap), np.float64(h[0]),
                                                    np.float64(h[1]), np.float64(h[2]), g.Jx, g.Jy, g.Jz,
-                                                   np.float64(sp.q), self.flag[i:i + 1], lst, np.int32(lst.size)))
+                                                   np.float64(sp.qdep), self.flag[i:i + 1], lst, np.int32(lst.size)))
             self._migrate()
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
         self._filter_J()

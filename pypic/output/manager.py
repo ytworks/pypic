@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import shutil
 import subprocess
 
 import numpy as np
@@ -78,9 +79,32 @@ class OutputManager:
         # provenance of the code that runs, taken once: run.json is rewritten later (metadata, run
         # statistics), when the working tree may have changed without affecting this run
         self.git_commit = _git_commit() if self.root else None
+        self._claim_directory()
         if self.root:
-            os.makedirs(self.cfg.dir, exist_ok=True)
             self.write_run_json()
+
+    # entries a run writes into its directory (removed by output.overwrite; nothing else is touched)
+    RUN_ENTRIES = ("run.json", "scalars.h5", "reduced", "fields", "particles", "tracks")
+
+    def _claim_directory(self):
+        """Refuse a directory that already holds run output: files the new run does not rewrite
+        (other dump iterations, other diagnostics) would be read as part of it. Decided on rank 0
+        and reduced, so every rank raises together. output.overwrite removes those entries first."""
+        d = self.cfg.dir
+        present = [e for e in self.RUN_ENTRIES if os.path.lexists(os.path.join(d, e))] if self.root else []
+        refuse = float(bool(present) and not self.cfg.overwrite)
+        if self.sim.comm.allreduce_scalar(refuse, "max") > 0:
+            found = f" ({', '.join(present)})" if present else ""
+            raise FileExistsError(f"{d} already holds run output{found}: choose another output.dir, or set "
+                                  "output.overwrite (--overwrite) to replace it")
+        if self.root:
+            os.makedirs(d, exist_ok=True)
+            for e in present:
+                p = os.path.join(d, e)
+                if os.path.isdir(p) and not os.path.islink(p):
+                    shutil.rmtree(p)
+                else:
+                    os.remove(p)
 
     # ------------------------------------------------------------------ metadata
     def edpic(self) -> dict:

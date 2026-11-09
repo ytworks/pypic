@@ -79,3 +79,41 @@ def test_profiles():
     assert np.allclose(f, [-1.0, 0.0, 1.0, 0.0, -1.0], atol=1e-9)
     assert np.allclose(evaluate({"shape": "step", "x0": 1.0, "x1": 2.0}, np.array([0.5, 1.0, 1.99, 2.0])),
                        [0, 1, 1, 0])
+
+
+def test_density_perturbation_inverse_converges_where_the_density_nearly_vanishes():
+    """Review of PR #2: with alpha = 0.99, Newton's method on the cumulative density left 185 of
+    these 8192 positions unconverged (and the virtual move then needed ~1e16 rounds)."""
+    from pypic.profiles import invert_cos_density
+
+    L, alpha = 8.0, 0.99
+    k = 2 * math.pi / L
+    x0 = np.random.default_rng(12345).random(8192) * L
+    x, res = invert_cos_density(x0, alpha, k, 0.0)
+    assert res < 1e-12 * L
+    assert np.max(np.abs(x + alpha / k * np.sin(k * x) - x0)) < 1e-12 * L
+    assert np.all(np.diff(x[np.argsort(x0)]) >= 0)  # the map keeps the particle order
+
+
+def test_drift_frame_orbits_cover_the_requested_lab_time():
+    """Review of PR #2: exb (|E| -> |B|) and e_gt_b (|E| -> |B|+) mapped a fixed frame-time grid to the
+    lab and stopped short of t_end. Compared with a direct integration of the Lorentz force."""
+    from scipy.integrate import solve_ivp
+
+    T = _example_theory("particle_orbits")
+
+    def lorentz(E, B, t):
+        def f(_, s):
+            u = s[3:]
+            g = math.sqrt(1 + u @ u)
+            v = u / g
+            return np.concatenate([v, [v[1] * B, E - v[0] * B, 0.0]])  # q = m = 1
+        return solve_ivp(f, (0, t[-1]), np.zeros(6), t_eval=t, rtol=1e-11, atol=1e-11).y
+
+    t = np.linspace(0, 10 * math.pi, 501)
+    for fn, E, B in ((T.exb, 0.99, 1.0), (T.e_gt_b, 1.01, 1.0)):
+        x, u = fn(t, (0.0, 0.0, 0.0), 1.0, 1.0, E, B)
+        ref = lorentz(E, B, t)
+        scale = np.max(np.abs(ref[:2]))
+        assert np.max(np.abs(x[:2] - ref[:2])) < 1e-6 * scale, fn.__name__
+        assert np.max(np.abs(u[:2] - ref[3:5])) < 1e-6 * np.max(np.abs(ref[3:5])), fn.__name__

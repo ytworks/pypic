@@ -124,14 +124,17 @@ def work_by_component(tracks, charge: float, mass: float):
 
 
 def parallel_perpendicular_work(tracks, charge: float, mass: float):
-    """Work split into E parallel and perpendicular to the local B (reconnection / shock studies)."""
+    """Work split into E parallel and perpendicular to the local B (reconnection / shock studies).
+    Where B = 0 at the particle there is no parallel direction: E counts as perpendicular there,
+    so W_par + W_perp is always the total work of :func:`work_by_component`."""
     t = tracks.t
-    u = np.stack([tracks["ux"], tracks["uy"], tracks["uz"]])
+    u = np.stack([tracks["ux"], tracks["uy"], tracks["uz"]]).astype(np.float64)
     g = np.sqrt(1.0 + np.sum(u ** 2, axis=0))
     v = u / g
-    E = np.stack([tracks["Ex"], tracks["Ey"], tracks["Ez"]])
-    B = np.stack([tracks["Bx"], tracks["By"], tracks["Bz"]])
-    b = B / np.maximum(np.sqrt(np.sum(B ** 2, axis=0)), 1e-300)
+    E = np.stack([tracks["Ex"], tracks["Ey"], tracks["Ez"]]).astype(np.float64)
+    B = np.stack([tracks["Bx"], tracks["By"], tracks["Bz"]]).astype(np.float64)
+    bm = np.sqrt(np.sum(B ** 2, axis=0))
+    b = np.divide(B, bm, out=np.zeros_like(B), where=bm > 0)  # lost particles: E is NaN, work skipped
     Epar = np.sum(E * b, axis=0) * b
     Eperp = E - Epar
     dt = np.diff(t)[:, None]

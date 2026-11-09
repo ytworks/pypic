@@ -85,6 +85,28 @@ def _datasets(path):
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 2, reason="needs >= 2 GPUs")
+def test_a_second_run_does_not_mix_with_the_first(tmp_path):
+    """Review of PR #2: a re-run into the same directory kept the first run's other dumps, which
+    the reader listed as part of the new run. The directory is refused unless output.overwrite,
+    which removes the old run's files."""
+
+    def run(steps, overwrite=False):
+        cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.2,) * 3, dt=0.08, n_steps=steps,
+                        species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0, 0, 0), 0.01)]),
+                                 SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), 0.001)])],
+                        ppc=2, output=OutputConfig(dir=str(tmp_path), overwrite=overwrite, diagnostics=[
+                            dict(name="f", kind="fields", fields=["Ex"], every=1)]))
+        sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+        sim.run()
+        sim.close()
+
+    run(2)
+    with pytest.raises(FileExistsError):
+        run(1)
+    run(1, overwrite=True)
+    assert open_run(str(tmp_path)).fields("f").iterations == [0, 1]
+
+
 def test_output_is_independent_of_the_gpu_count(tmp_path):
     """Every output file of a mixed-boundary run (all diagnostic kinds, particles sorted by id)
     is the same on 1 and 2 GPUs to float32 round-off."""

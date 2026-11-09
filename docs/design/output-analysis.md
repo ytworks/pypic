@@ -26,6 +26,10 @@ acceleration, with animations; one example per classic problem with an analytic 
   each, datasets `t`, `step` and one per quantity of shape (n_out, …), SWMR (readable while running).
   Rows are buffered and written a whole chunk at a time: rewriting a partly filled compressed chunk
   leaks its old file space (measured: 11 MB instead of 1.3 MB for frequent track rows).
+- One run per directory: a directory that already holds run output (`run.json`, `scalars.h5`,
+  `reduced/`, `fields/`, `particles/`, `tracks/`) is refused on every rank. `output.overwrite`
+  (`--overwrite`) removes exactly those entries first. Otherwise dumps a re-run does not rewrite
+  would be read as part of it (review amendment, PR #2).
 - `run.json`: configuration, resolved schedule, layout of every diagnostic, time centering, units,
   ED-PIC attributes, git commit, rank grid, and experiment metadata (`meta`: planner theory,
   run statistics). The reader (`pypic.analysis.open_run`) relies only on these files.
@@ -98,3 +102,16 @@ Why: these numbers are research results with statistical spread, not contracts.
 
 Full research output (modes, lineout, phase space ×100, spectra, 6 field dumps, slices, 2000
 tracks): 32 MB on disk for 62 MB raw; wall time 18.3 s vs 15.6 s without output.
+
+## Review amendments
+
+- 2026-11-09 (PR #2 review):
+  - **Run directory**: one run per directory (OUT-D1). An occupied directory is refused unless `output.overwrite` is set.
+  - **Empty tracks**: a series with an empty dimension, such as a tracks diagnostic that selects no particle of a species, is written with an unlimited chunked dimension.
+  - **Runner overrides**: `output.*` values from the YAML file or `--set` are validated through `OutputConfig`, so diagnostics given as dicts become typed objects.
+  - **`fit_two_wave`**:
+    - The relative weights 1/|z| are computed in float64 and floored at 1e-6 of the largest |z|. Exact zeros, as in complex64 data, kept infinite weights before.
+    - a and b are returned for t = 0 rather than for the window start, so the documented model reproduces the signal.
+    - An envelope-based weight was tried and rejected: it moved the Buneman growth fit from −6.7 % to −13.4 %.
+  - **`parallel_perpendicular_work`**: computed in float64. Where B = 0 at the particle there is no parallel direction, so E counts as perpendicular there and W_par + W_perp equals the total work.
+  - **`record_example.py`**: accepts only the name of an example in this repository and loads that example's `analyze.py` by its path.

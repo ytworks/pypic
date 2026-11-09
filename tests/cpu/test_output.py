@@ -158,3 +158,79 @@ def test_movie_writes_an_animation(tmp_path):
     from PIL import Image
 
     assert Image.open(out).n_frames == 6
+
+
+class _Tracks:
+    """Minimal stand-in for analysis.run.Tracks (float32 rows, as written by default)."""
+
+    def __init__(self, t, **q):
+        self.t = np.asarray(t, dtype=np.float64)
+        self.q = {k: np.asarray(v, dtype=np.float32) for k, v in q.items()}
+
+    def __getitem__(self, k):
+        return self.q[k]
+
+
+def test_parallel_perpendicular_work_keeps_the_work_where_B_vanishes():
+    """Review of PR #2: float32 tracks with B = 0 gave NaN directions and the work vanished."""
+    from pypic.analysis.particles import parallel_perpendicular_work, work_by_component
+
+    t = np.array([0.0, 0.5, 1.0])
+    one = np.ones((3, 2))
+    zero = np.zeros((3, 2))
+    # particle 0: no B; particle 1: B along x (E has parallel and perpendicular parts)
+    tr = _Tracks(t, ux=np.stack([t, t], 1), uy=zero, uz=zero, Ex=one, Ey=0.5 * one, Ez=zero,
+                 Bx=np.stack([zero[:, 0], one[:, 1]], 1), By=zero, Bz=zero)
+    w = work_by_component(tr, 1.0, 1.0)
+    total = w["W_x"] + w["W_y"] + w["W_z"]
+    pp = parallel_perpendicular_work(tr, 1.0, 1.0)
+    assert total[-1, 0] > 0.4
+    assert np.allclose(pp["W_par"] + pp["W_perp"], total, rtol=1e-6, atol=0)
+    assert pp["W_par"][-1, 0] == 0 and np.isclose(pp["W_par"][-1, 1], total[-1, 1], rtol=1e-6)
+
+
+def test_two_wave_fit_returns_the_signal_and_handles_zero_samples():
+    """Review of PR #2: a, b were returned for the window start instead of t = 0, and complex64
+    modes with exact zeros got infinite weights (LinAlgError)."""
+    from pypic.analysis.spectral import fit_damped, fit_two_wave
+
+    t = np.linspace(3, 16, 261)
+    g0, w0, a0, b0 = -0.04, 1.2, 2 + 0.3j, 0.4 - 0.1j
+    z = np.exp(g0 * t) * (a0 * np.exp(-1j * w0 * t) + b0 * np.exp(1j * w0 * t))
+    g, w, a, b = fit_two_wave(t, z, -0.03, 1.1)
+    rec = np.exp(g * t) * (a * np.exp(-1j * w * t) + b * np.exp(1j * w * t))
+    assert np.max(np.abs(rec - z)) < 1e-6 * np.max(np.abs(z))
+    t = np.linspace(0, 12, 241)
+    z = (np.exp(-0.08 * t) * np.sin(1.2 * t)).astype(np.complex64)  # standing wave, z(0) = 0 exactly
+    r = fit_damped(t, z, omega0=1.2, gamma0=-0.08, t_max=8)
+    assert abs(r["gamma"] + 0.08) < 1e-4 and abs(r["omega"] - 1.2) < 1e-4
+
+
+def test_tracks_with_no_selected_particle(tmp_path):
+    """Review of PR #2: a tracks diagnostic that selects no particle of a species (id stride, or all
+    particles gone before t_start) failed with a zero chunk size; it records empty rows."""
+    from pypic.analysis.run import Tracks
+
+    path = str(tmp_path / "tr.h5")
+    w = h5.TrackWriter(path, {"time_offsets": json.dumps({"x": 0.0})}, "zstd", 3, ids=np.zeros(0))
+    for i in range(3):
+        w.append(10 * i, 0.5 * i, {"x": np.zeros(0, np.float32), "ux": np.zeros(0, np.float32)})
+    w.close()
+    tr = Tracks(path, {}, "e")
+    assert tr["x"].shape == (3, 0) and tr.ids.size == 0 and np.allclose(tr.t, [0, 0.5, 1])
+
+
+def test_record_example_loads_only_repository_examples(tmp_path):
+    """Review of PR #2: meta.example from run.json chose the directory that analyze.py was
+    imported from, so a run directory could run its own code."""
+    root = os.path.join(os.path.dirname(__file__), "..", "..")
+    planted = tmp_path / "planted"
+    planted.mkdir()
+    marker = tmp_path / "marker"
+    (planted / "analyze.py").write_text(f"open({str(marker)!r}, 'w').close()\nraise SystemExit(3)\n")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "run.json").write_text(json.dumps({"meta": {"example": str(planted)}}))
+    r = subprocess.run([sys.executable, os.path.join(root, "scripts", "record_example.py"), str(run)],
+                       capture_output=True, text=True)
+    assert r.returncode == 2 and not marker.exists(), r.stderr

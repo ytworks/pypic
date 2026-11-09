@@ -73,3 +73,32 @@ def evaluate(spec: dict, x, xp=np):
     else:  # pragma: no cover - validate() rejects it
         raise ValueError(name)
     return spec.get("scale", 1.0) * f + spec.get("offset", 0.0)
+
+
+def invert_cos_density(x0, alpha: float, k: float, phase: float = 0.0, xp=np, iterations: int = 64):
+    """Positions that carry the density n0 (1 + alpha cos(k x + phase)) when the positions x0 are
+    uniform: the root x of the cumulative density
+
+        F(x) = x + (alpha / k) (sin(k x + phase) - sin phase) = x0,    |alpha| < 1.
+
+    F is increasing (F' >= 1 - |alpha| > 0) and |F(x) - x| <= 2 |alpha| / k, so every root lies in
+    [x0 - 2|alpha|/k, x0 + 2|alpha|/k]. Bisection on that bracket converges for every particle
+    (64 halvings take the bracket below the float64 spacing of x); Newton's method does not where
+    F' ~ 1 - |alpha| is small. Returns (x, max |F(x) - x0|), the residual for the caller to check."""
+    x0 = xp.asarray(x0, dtype=float)
+    if x0.size == 0:
+        return x0.copy(), 0.0
+    s0 = math.sin(phase)
+    w = 2.0 * abs(alpha) / k
+    lo, hi = x0 - w, x0 + w
+
+    def F(x):
+        return x + alpha / k * (xp.sin(k * x + phase) - s0) - x0
+
+    for _ in range(iterations):
+        mid = 0.5 * (lo + hi)
+        below = F(mid) < 0
+        lo = xp.where(below, mid, lo)
+        hi = xp.where(below, hi, mid)
+    x = 0.5 * (lo + hi)
+    return x, float(xp.max(xp.abs(F(x))))

@@ -176,11 +176,13 @@ def test_perturbation_across_ranks_matches_single_gpu(solver, variant):
 @pytest.mark.parametrize("solver", ["explicit", "implicit"])
 def test_test_species_do_not_change_the_plasma(solver):
     """A test species (loaded beam + explicit particles) feels the fields but deposits nothing, is
-    outside the budget and does not shift the plasma's random numbers (PIC-D9)."""
+    outside the budget and does not shift the plasma's random numbers (PIC-D9). Its beam has a
+    density perturbation: the virtual move that sets it up deposits nothing either (review of
+    PR #2: it used the real charge and changed E)."""
     plasma = [SpeciesConfig("e", -1, 1, [Beam(1.0, (0.1, 0, 0), 0.01)]),
               SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), 1e-3)])]
-    test = SpeciesConfig("t", -1, 1, [Beam(0.3, (0.5, 0, 0), 0.0)], test=True,
-                         particles=[[0.5, 0.5, 0.5, 2.0, 0, 0], [1.0, 0.2, 0.3, 0, 1.0, 0]])
+    test = SpeciesConfig("t", -1, 1, [Beam(0.3, (0.5, 0, 0), 0.0, perturbation=[{"axis": "x", "density": 0.5}])],
+                         test=True, particles=[[0.5, 0.5, 0.5, 2.0, 0, 0], [1.0, 0.2, 0.3, 0, 1.0, 0]])
     hist = []
     for sp in (plasma, [test] + plasma):  # declared first: must not consume the plasma's RNG streams
         cfg = SimConfig(n_cells=(16, 8, 8), dx=(0.2,) * 3, dt=0.08 if solver == "explicit" else 0.3, solver=solver,

@@ -48,3 +48,6 @@ python scripts/record_example.py output/relativistic_shock/pair_2d_long
 
 `record_example.py` writes `bench/results/<date>-<commit>-example-<example>-<config>.json`. The commit, dirty flag and GPU count come from the run's `run.json`. It also adds a `type: example` entry to `index.json`, and CI validates both record types. Commit the record together with any summary in the example's README.
 
+- An output directory that already holds a run is refused. To repeat a run in the same place, add `--overwrite`, which removes that run's output files first.
+- `record_example.py` runs only the `analyze.py` of an example in this repository, chosen by the run's `meta.example`.
+

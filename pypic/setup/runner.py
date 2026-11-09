@@ -3,7 +3,7 @@
     python examples/<name>/run.py --config examples/<name>/configs/<cfg>.yaml
     python -m pypic.launch -n 8 examples/<name>/run.py --config ...
     options: --set key=value (parameters) / --set overrides.key=value (any SimConfig field)
-             --set output.key=value (OutputConfig field), --out DIR, --plan-only, --progress N
+             --set output.key=value (OutputConfig field), --out DIR, --overwrite, --plan-only, --progress N
 
 A planner is ``plan(params, n_gpus) -> (SimConfig, report: str, info: dict)``; ``info`` (theory
 predictions and chosen numbers) goes to run.json -> meta.planner for the analysis.
@@ -11,10 +11,13 @@ predictions and chosen numbers) goes to run.json -> meta.planner for the analysi
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import sys
 
 import yaml
+
+from ..config import OutputConfig
 
 
 def parse_value(v: str):
@@ -43,6 +46,8 @@ def run_example(example: str, plan, params_from_dict, argv=None, doc: str | None
     ap.add_argument("--set", action="append", default=[],
                     help="key=value (parameters), overrides.key=value (SimConfig), output.key=value")
     ap.add_argument("--out", default=None, help="output directory (default output/<example>/<config name>)")
+    ap.add_argument("--overwrite", action="store_true",
+                    help="replace the run already in the output directory (its output files are removed)")
     ap.add_argument("--plan-only", action="store_true")
     ap.add_argument("--progress", type=int, default=100)
     a = ap.parse_args(argv)
@@ -54,11 +59,14 @@ def run_example(example: str, plan, params_from_dict, argv=None, doc: str | None
     params = params_from_dict(d)
     cfg, report, info = plan(params, n_gpus=world)
     name = os.path.splitext(os.path.basename(a.config))[0]
-    cfg.output.dir = a.out or os.path.join("output", example, name)
-    for k, v in out_over.items():
-        if not hasattr(cfg.output, k):
-            raise KeyError(f"unknown output field {k!r}")
-        setattr(cfg.output, k, v)
+    # output.* (YAML section or --set): merged into the planner's output and validated like any
+    # OutputConfig (diagnostics given as dicts become Diagnostic objects)
+    out = {f.name: getattr(cfg.output, f.name) for f in dataclasses.fields(cfg.output)}
+    out.update(out_over)
+    out["dir"] = a.out or out_over.get("dir") or os.path.join("output", example, name)
+    if a.overwrite:
+        out["overwrite"] = True
+    cfg.output = OutputConfig.from_dict(out)
     from ..output.schedule import report as output_report
 
     full_report = report + "\n" + output_report(cfg)

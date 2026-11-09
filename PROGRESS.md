@@ -47,6 +47,14 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-09 — [amendment] PR #2 review fixes
+- What:
+  - The density-perturbation inverse is a bisection with a residual check reduced over ranks. Newton stalled at α → 1.
+  - A test species' virtual move deposits `qdep`.
+  - One run per output directory (`output.overwrite` / `--overwrite`).
+  - Also fixed: empty tracks, typed `output.*` overrides, `fit_two_wave` (finite weights, coefficients at t = 0), the work split at B = 0, the drift-frame orbit theory up to t_end, and `record_example.py` (repository examples only).
+- Why: the review reproduced 10 bugs (1 P1, 9 P2). Each fix has a regression test that failed on the old code.
+- Refs: review amendments in `docs/design/engine.md` and `docs/design/output-analysis.md`; PR #2
 ### 2026-11-09 — [progress] Production runs of the acceleration examples
 - What:
   - pair_3d: 3-D jump conditions, β_sh −3.7 %, n₂/n₁ +3.5 %.

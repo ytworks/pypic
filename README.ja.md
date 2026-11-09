@@ -69,6 +69,10 @@ python examples/two_stream/analyze.py output/two_stream/ep --movie
 `SimConfig` の任意の項目は `--set overrides.ppc=64`、出力の設定は `--set output.budget_GB=5` や
 `--set output.codec=deflate` のように上書きします。
 
+出力先は既定で `output/<example>/<config>/` です。`--out DIR` で変えられます。
+すでに実行結果がある出力先は拒否するので、2 回分のファイルが混ざることはありません。
+`--overwrite` を付けると前の実行を置き換えます。前の実行の出力ファイルだけを先に消し、それ以外のファイルには触れません。
+
 ### 主なパラメータ (`TwoStreamParams`)
 
 - **プラズマ**

@@ -122,13 +122,19 @@ def linear_window(t, amp, above_noise=2.0, sat_drop=1.0):
 
 def fit_two_wave(ts, zs, gamma0, omega0):
     """Fit z(t) = exp(gamma t) (a exp(-i w t) + b exp(i w t)) to complex samples by variable
-    projection (a, b linear; gamma, w nonlinear), relative residuals. Returns (gamma, w, a, b)."""
+    projection (a, b linear; gamma, w nonlinear), relative residuals: weights 1/|z| in float64,
+    floored at 1e-6 of the largest |z| so that exact zeros (a standing wave sampled at a node,
+    complex64 data) keep a finite weight. Returns (gamma, w > 0, a, b), a and b for the time
+    origin t = 0."""
     from scipy.optimize import minimize
 
-    ts = np.asarray(ts, dtype=float)
-    zs = np.asarray(zs)
+    ts = np.asarray(ts, dtype=np.float64)
+    zs = np.asarray(zs).astype(np.complex128)
     tt = ts - ts[0]
-    wgt = 1.0 / np.maximum(np.abs(zs), 1e-300)
+    amp = np.abs(zs)
+    if not amp.max() > 0:
+        raise ValueError("fit_two_wave: all samples are zero")
+    wgt = 1.0 / np.maximum(amp, 1e-6 * amp.max())
 
     def solve(pv):
         gg, ww = pv
@@ -143,9 +149,14 @@ def fit_two_wave(ts, zs, gamma0, omega0):
     w0 = abs(omega0)
     best = min((minimize(resid, [gamma0, w], method="Nelder-Mead", options={"xatol": 1e-6, "fatol": 1e-12})
                 for w in (w0, 0.8 * w0, 1.25 * w0)), key=lambda r: r.fun)
-    g, w = float(best.x[0]), abs(float(best.x[1]))
+    g, w = float(best.x[0]), float(best.x[1])
     _, coef = solve(best.x)
-    return g, w, coef[0] * np.exp(-g * ts[0]), coef[1] * np.exp(-g * ts[0])
+    # back from tt = t - t0 to t: exp(g tt) exp(-+i w tt) = exp(g t) exp(-+i w t) exp(-g t0) exp(+-i w t0)
+    a = coef[0] * np.exp(-g * ts[0] + 1j * w * ts[0])
+    b = coef[1] * np.exp(-g * ts[0] - 1j * w * ts[0])
+    if w < 0:  # the same model with w > 0 has the coefficients swapped
+        w, a, b = -w, b, a
+    return g, w, a, b
 
 
 def fit_growth(t, z, min_pts=8, omega_r=0.0):

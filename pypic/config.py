@@ -195,6 +195,9 @@ class OutputConfig:
     timescales: dict = field(default_factory=dict)  # name -> time in 1/omega_pe (set by the planners)
     scalars: bool = True  # write the energy / conservation history (every diag_interval steps)
     diagnostics: list = field(default_factory=list)  # list[Diagnostic]
+    # a directory that already holds run output is refused, so the files of two runs never mix;
+    # overwrite=True removes that run's output files first (only those, see OutputManager)
+    overwrite: bool = False
 
     def __post_init__(self):
         if self.codec not in ("zstd", "deflate", "none"):

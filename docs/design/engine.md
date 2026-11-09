@@ -68,10 +68,10 @@ same physical macro-particles on any number of GPUs.
 ### PIC-D9 — Initial-state extensions (2026-11-09, PR #2)
 - **Perturbations** (`Beam.perturbation`):
   - Velocity modes are added directly.
-  - Density modes (exact inverse of the cumulative density) and displacement modes move the loaded particles virtually. The move goes in rounds of less than one cell; each round's current is deposited with Esirkepov and the particles migrate between rounds (the number of rounds is agreed by all ranks). Then E −= Δt J, so div E = ρ holds to round-off from a neutral start, on any number of GPUs.
+  - Density modes (exact inverse of the cumulative density, by bisection on a bracket that holds for every particle when |α| < 1; the residual is checked on all ranks before anything moves) and displacement modes move the loaded particles virtually. The move goes in rounds of less than one cell; each round's current is deposited with Esirkepov and the particles migrate between rounds (the number of rounds is agreed by all ranks). Then E −= Δt J, so div E = ρ holds to round-off from a neutral start, on any number of GPUs.
 - **Explicit half step**: with non-zero initial E or B, a Boris step of −Δt/2 turns the loaded momenta into u^{−1/2}.
 - **Test species** (`SpeciesConfig.test`, `particles`):
-  - They use separate force and deposit charges (`qdep = 0`).
+  - They use separate force and deposit charges (`qdep = 0`), also in the virtual move of their perturbations.
   - They are excluded from the budget and from Gauss's law.
   - They are loaded after the plasma species, so they never change the plasma's random numbers.
   - Explicit particle lists get ids after all beam ids.
@@ -104,3 +104,6 @@ Why: the numerical Cherenkov instability of relativistic flows (shocks, reconnec
   reflecting wall of a decomposed axis stays with the edge rank (migration used to drop it).
   The in-memory mode / phase-space diagnostics and `Simulation.save()` were replaced by the
   output system (`docs/design/output-analysis.md`).
+- 2026-11-09 (PR #2 review):
+  - The density-perturbation inverse used Newton's method, which did not converge where the density nearly vanishes. With α = 0.99, 170 of 8192 particles were left, and the virtual move then asked for ~1e16 rounds. It is now a bisection with a residual check reduced over ranks.
+  - The virtual move deposited a test species' real charge. It now uses `qdep`.
