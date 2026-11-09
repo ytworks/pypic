@@ -33,13 +33,14 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 | Harness: CPU CI + GPU gates | Introduced 2026-11-09 (PR #1) |
 | Research output + analysis (PR #2) | Complete: output, ids, analysis package, 8 analytic-solution examples with gates |
 
-- GPU gates: ALL PASSED on 0ad88d7, 4 GPUs (`bench/results/2026-11-09-0ad88d7bf-gpu-gates.json`; GPUs 0-1
-  were occupied): growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss ≤ 3e-12,
+- GPU gates: ALL PASSED on 6dee42f, 8 GPUs (`bench/results/2026-11-09-6dee42f1d-gpu-gates.json`):
+  growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss ≤ 7.5e-12,
   implicit energy 1.9e-10; 16 analytic-example gates (ANA-D2) pass; 45 GPU tests pass.
-  Phase 1 (62859d2) also passed on 8 GPUs (`bench/results/2026-11-09-62859d246-gpu-gates.json`).
 - Known gaps: no particle injection at open faces (R1); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
+- Production runs not yet done: relativistic_shock pair_2d_long / pair_3d (Fermi tail), reconnection
+  pair_sigma10_large (power law), plasma_expansion beyond tau = 10.
 
 ## Change Log
 
