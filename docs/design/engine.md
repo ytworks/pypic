@@ -1,6 +1,6 @@
 # Engine design
 
-Status: **Accepted** (2026-11-09, PR #1).
+Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -57,6 +57,41 @@ k_max / gamma_max / omega_r and derives box, grid, dt (CFL, omega_pe dt, omega_c
 oscillation resolution) and run length, reporting each margin; every value is overridable.
 Why: the owner asked that time step and plasma parameters be set optimally for the experiment.
 
+### PIC-D8 — Persistent particle ids (2026-11-09, PR #2)
+Particle storage gains an 8th row: an integer-valued float64 id, assigned by the loader as
+`((beam - 1) · N_cells + global cell) · ppc + slot` (linear global cell index), so ids are unique and
+independent of the rank layout; they move with the particle through sort, migration and removal.
+Initialisation refuses runs with `n_beams · N_cells · ppc ≥ 2^53` (exact float64 integers).
+Why: tracked orbits and particle samples for acceleration studies (OUT-D1/D2) must follow the
+same physical macro-particles on any number of GPUs.
+
+### PIC-D9 — Initial-state extensions (2026-11-09, PR #2)
+- **Perturbations** (`Beam.perturbation`):
+  - Velocity modes are added directly.
+  - Density modes (exact inverse of the cumulative density, by bisection on a bracket that holds for every particle when |α| < 1; the residual is checked on all ranks before anything moves) and displacement modes move the loaded particles virtually. The move goes in rounds of less than one cell; each round's current is deposited with Esirkepov and the particles migrate between rounds (the number of rounds is agreed by all ranks). Then E −= Δt J, so div E = ρ holds to round-off from a neutral start, on any number of GPUs.
+- **Explicit half step**: with non-zero initial E or B, a Boris step of −Δt/2 turns the loaded momenta into u^{−1/2}.
+- **Test species** (`SpeciesConfig.test`, `particles`):
+  - They use separate force and deposit charges (`qdep = 0`), also in the virtual move of their perturbations.
+  - They are excluded from the budget and from Gauss's law.
+  - They are loaded after the plasma species, so they never change the plasma's random numbers.
+  - Explicit particle lists get ids after all beam ids.
+- **Initial fields**:
+  - Uniform `E0`. It is rejected if it is tangential to a conducting face.
+  - Plane waves that are the exact discrete eigenmode of each solver (Yee with the stored-B half-step average, or Crank–Nicolson).
+  - 1-D profiles (`pypic.profiles`) of a component along another axis, so the divergence is zero bitwise.
+- **Density profiles** (`Beam.profile`): the profile sets the particle weights; shapes below 1e-10 are cut and those particles removed. Equal profiles keep the plasma exactly neutral, and neutrality is checked slot by slot.
+
+Why: the analytic-solution examples (Landau and Dawson, orbits, Mora expansion, Harris sheets) need these initial states without giving up any conservation contract.
+
+### PIC-D10 — Binomial current filter (2026-11-09, PR #2)
+- `current_filter: {passes: N, compensate: bool}`: N passes of (1, 2, 1)/4 along every axis, plus an optional (−N/4, 1 + N/2, −N/4) compensator. It is applied after the ghost reduction and before the wall boundary conditions.
+- **Wall rules**: node-type data are mirrored about the face node; wall-normal staggered data have a zero ghost; the hi face node is filtered too. With these rules the filter is symmetric and commutes with the discrete divergence.
+- The Gauss check filters ρ in the same way.
+- Implicit particles gather F·E_h, so the energy identity Σ E_h·(F J) = Σ (F E_h)·J stays exact.
+- Periodic and reflecting faces only; open faces are rejected.
+
+Why: the numerical Cherenkov instability of relativistic flows (shocks, reconnection outflows). Verified: transfer function to 1e-12; Gauss ≤ 1e-12 and implicit energy ≤ 1e-11 with walls; 1 vs 2 GPUs with a decomposed wall axis.
+
 ## Review amendments
 
 - 2026-11-09 (PR #1 review): CG guards against 0/0 after exact convergence; exact MJ sampling;
@@ -64,3 +99,11 @@ Why: the owner asked that time step and plasma parameters be set optimally for t
   nested planner overrides converted through `SimConfig.from_dict`; launcher polls all ranks.
 - 2026-11-09 (PR #1 second review): implicit orbit folding chooses the wall from the unfolded
   midpoint (charge conservation for |d| > L/2); typed `SpeciesConfig` overrides accepted.
+- 2026-11-09 (PR #2): implicit-step error flags are reduced over ranks before raising (a
+  rank-local raise left the other ranks in a collective); a particle exactly on the upper
+  reflecting wall of a decomposed axis stays with the edge rank (migration used to drop it).
+  The in-memory mode / phase-space diagnostics and `Simulation.save()` were replaced by the
+  output system (`docs/design/output-analysis.md`).
+- 2026-11-09 (PR #2 review):
+  - The density-perturbation inverse used Newton's method, which did not converge where the density nearly vanishes. With α = 0.99, 170 of 8192 particles were left, and the virtual move then asked for ~1e16 rounds. It is now a bisection with a residual check reduced over ranks.
+  - The virtual move deposited a test species' real charge. It now uses `qdep`.

@@ -1,0 +1,5 @@
+case: plane_wave
+a0: 2.0
+n_particles: 8
+periods: 3
+cells_per_wavelength: 128   # 128 -> 256 is in the asymptotic 2nd-order range (64 -> 128 is not)

@@ -32,8 +32,10 @@ the GPU gates (`scripts/gpu_gates.py`, procedure in `docs/gpu-runbook.md`) check
 ## Multi-GPU rules (each one was a real bug)
 
 - Every collective (`allreduce*`, `exchange`, `total_particles`, gauss/energy diagnostics,
-  migration) must be reached by every rank. Never call one inside a rank-0-only branch such as
-  `if self.verbose:` or `if rank == 0:` — compute it first on all ranks.
+  migration, output diagnostics and their gathers) must be reached by every rank. Never call one
+  inside a rank-0-only branch such as `if self.verbose:` or `if rank == 0:` — compute it first on
+  all ranks; only the file writing itself is rank 0 only. Per-rank error flags are reduced before
+  any rank raises.
 - Buffers handed to NCCL inside a group (including temporary contiguous copies) must stay
   referenced until `groupEnd()` returns.
 - Halo exchange and migration reach only the adjacent rank: the ghost width must not exceed the

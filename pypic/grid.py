@@ -8,14 +8,10 @@ import numpy as np
 
 from .backend import compile_module, launch
 from .kernelsrc import FIELD_SOURCES, grid_defines
+from .output.names import STAGGER  # noqa: F401  (staggering offsets of each component, re-exported)
 from .parallel.decomp import Decomposition
 
 FIELD_NAMES = ("Ex", "Ey", "Ez", "Bx", "By", "Bz")
-# staggering offsets (x,y,z) of each component
-STAGGER = {
-    "Ex": (0.5, 0, 0), "Ey": (0, 0.5, 0), "Ez": (0, 0, 0.5),
-    "Bx": (0, 0.5, 0.5), "By": (0.5, 0, 0.5), "Bz": (0.5, 0.5, 0),
-}
 
 
 class YeeGrid:
@@ -91,10 +87,10 @@ class YeeGrid:
         # a stacked 4-D array is exchanged as one block (one message per face for all components)
         return [arrays] if isinstance(arrays, cp.ndarray) else list(arrays)
 
-    def fill_ghosts(self, arrays):
+    def fill_ghosts(self, arrays, axes=(0, 1, 2)):
         g = self.g
         arrays = self._as_list(arrays)
-        for a in range(3):
+        for a in axes:
             ax = self.d.axes[a]
             n = ax.n_int
             for F in arrays:
@@ -140,6 +136,42 @@ class YeeGrid:
                     self._slab(F, a, 0, g)[...] = 0
                 if ax.hi is not None:
                     self._slab(F, a, n + g, n + 2 * g)[...] = 0
+
+    # ------------------------------------------------------------- filtering
+    def filter(self, arrays, staggers, passes: int, compensate: bool = False):
+        """Binomial (1,2,1)/4 filter, `passes` times along every axis (+ compensator), in place on
+        the owned cells (PIC-D10). Ghosts come from the neighbours (periodic / rank faces); at a
+        conducting wall node-type data are mirrored about the face node (face row (3/4, 1/4)) and
+        wall-normal staggered data have a zero ghost, which makes the filter symmetric and commute
+        with the discrete divergence. Call after reduce_ghosts and before apply_bc_J; the hi face
+        node of node-type data is filtered too (wall deposits live there)."""
+        if passes <= 0:
+            return
+        g = self.g
+        w = [(0.25, 0.5, 0.25)] * passes
+        if compensate:
+            w.append((-passes / 4.0, 1.0 + passes / 2.0, -passes / 4.0))
+        arrays = list(arrays)
+        for a in range(3):
+            ax = self.d.axes[a]
+            lo_wall = self.d.bc[a][0] != "periodic" and ax.lo is None
+            hi_wall = self.d.bc[a][1] != "periodic" and ax.hi is None
+            f = g + ax.n_int  # hi face node index (ghost for periodic / rank faces)
+            for wl, wc, wr in w:
+                self.fill_ghosts(arrays, axes=(a,))
+                for F, st in zip(arrays, staggers):
+                    node = st[a] == 0
+                    if lo_wall:
+                        self._slab(F, a, g - 1, g)[...] = self._slab(F, a, g, g + 1) if node else 0.0
+                    if hi_wall:
+                        if node:
+                            self._slab(F, a, f + 1, f + 2)[...] = self._slab(F, a, f, f + 1)
+                        else:
+                            self._slab(F, a, f, f + 1)[...] = 0.0
+                    hi = f + 1 if (hi_wall and node) else f
+                    new = (wl * self._slab(F, a, g - 1, hi - 1) + wc * self._slab(F, a, g, hi)
+                           + wr * self._slab(F, a, g + 1, hi + 1))
+                    self._slab(F, a, g, hi)[...] = new
 
     # --------------------------------------------------- boundary conditions
     def _wall_planes(self):

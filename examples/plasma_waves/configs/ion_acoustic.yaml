@@ -1,0 +1,11 @@
+# Ion-acoustic waves: T_e/T_i = 50, light ions (m_i/m_e = 25) so that omega ~ k c_s is resolved in
+# a few thousand plasma periods; kinetic theory with electron and ion Landau damping.
+geometry: ion_acoustic
+theta_e: 0.01
+Ti_over_Te: 0.02
+mass_ratio: 25
+nx: 512
+n_transverse: 8
+ppc: 64
+t_end: 1500
+k_window: 10.0

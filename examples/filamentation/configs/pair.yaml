@@ -1,0 +1,10 @@
+# Symmetric counter-streaming pair plasma (electrons and positrons, u0 = +-0.5 c): the transverse
+# filamentation (Weibel) mode grows at Gamma(k) -> beta omega_p,tot / sqrt(gamma) = 0.60 omega_pe.
+mixture: e-p
+u0: 0.5
+theta: 1.0e-4
+L_perp_wavelengths: 4
+cells_per_skin_depth: 10
+nx: 4
+ppc: 16
+growth_times: 25

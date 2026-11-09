@@ -1,0 +1,4 @@
+case: e_gt_b
+E: 0.5
+B: 0.3
+periods: 10

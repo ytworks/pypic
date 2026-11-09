@@ -132,3 +132,34 @@ def init_from_env():
 
 def encode_uid(uid) -> str:
     return bytes(uid).hex()
+
+
+# ------------------------------------------------------------------ gathers (output)
+def gather_blocks(comm, local: cp.ndarray, shapes) -> list | None:
+    """Collect one block per rank on rank 0 (collective: every rank must call it).
+    ``shapes[r]`` is the block shape of rank r, known on every rank (e.g. from the decomposition).
+    Returns the list of blocks (index = rank) on rank 0, None elsewhere."""
+    if comm.size == 1:
+        return [local]
+    local = cp.ascontiguousarray(local)
+    if comm.rank == 0:
+        bufs = [local] + [cp.empty(tuple(shapes[r]), dtype=local.dtype) for r in range(1, comm.size)]
+        comm.exchange([], [(bufs[r], r) for r in range(1, comm.size)])
+        return bufs
+    comm.exchange([(local, 0)], [])
+    return None
+
+
+def gather_columns(comm, local: cp.ndarray) -> cp.ndarray | None:
+    """Concatenate (rows, n_r) arrays of all ranks along the columns on rank 0 (collective).
+    Column counts are exchanged first (one allreduce), then the data."""
+    if comm.size == 1:
+        return local
+    cnt = cp.zeros(comm.size, dtype=cp.int64)
+    cnt[comm.rank] = local.shape[1]
+    counts = cp.asnumpy(comm.allreduce(cnt))
+    shapes = [(local.shape[0], int(c)) for c in counts]
+    blocks = gather_blocks(comm, local, shapes)
+    if blocks is None:
+        return None
+    return cp.concatenate(blocks, axis=1)

@@ -1,0 +1,8 @@
+# Cold plasma oscillation started with v = v0 sin(k x0), k v0 = 0.5 omega_pe (v0 = 0.1 c: relativistic
+# frequency shift 3 beta^2/16 = 0.19 %): every sheet oscillates at omega_pe with amplitude v0 sin(k x0) / omega_pe.
+case: dawson
+k_v0: 0.5
+u0: 0.1
+cells_per_wavelength: 64
+n_transverse: 8
+ppc: 64

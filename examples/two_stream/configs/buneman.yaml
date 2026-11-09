@@ -1,0 +1,15 @@
+# Buneman instability: all electrons drift through ions at rest. The net current is neutralised by a
+# uniform external current (remove_mean_current, set by the planner). Cold-limit growth rate
+# gamma = (sqrt(3)/2)(m_e/2m_i)^(1/3) omega_pe = 0.056 for m_i/m_e = 1836; the planner solves the full
+# warm relativistic dispersion relation (gamma_max, k_max ~ omega_pe/v0).
+mixture: e-i
+mass_ratio: 1836.15267
+mode: buneman
+u_drift: 0.2
+T_e_eV: 51.1             # theta_e = 1e-4, v_te = 0.01 c << v0
+T_i_eV: 5.11
+solver: explicit
+n_wavelengths: 4
+transverse_ratio: 0.0625     # thin transverse box: k_perp >= 20 suppresses the competing filamentation
+ppc: 16
+growth_times: 12          # linear phase + first saturation (t ~ 150 of 223 /omega_pe)

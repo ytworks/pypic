@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 *.h5
 *.npz
-output/
+/output/
 *.png
 .pytest_cache/
 *.egg-info/

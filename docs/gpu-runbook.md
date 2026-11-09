@@ -15,12 +15,16 @@ tests); everything that executes kernels runs here. Criteria: `.claude/rules/num
 
 ## Procedure
 
-1. Commit the change (the gates record the commit; a dirty tree is flagged).
-2. `python scripts/gpu_gates.py --gpus 8` (about 10 minutes):
-   - `gpu-tests`: `pytest tests/gpu`, including the 1-vs-2-GPU equivalence test;
-   - `two-stream:{ei,ep,eip,ei_implicit}` on 8 GPUs: growth rate vs theory, Gauss law,
-     div B, implicit energy.
-   While iterating use `--quick` or `--configs ei --skip-tests` (not recorded).
+1. Commit the change (the gates record the commit). The record is flagged dirty when the code differs from the commit, including untracked files under `pypic/`, `examples/`, `scripts/` or `tests/` (`pypic.provenance`).
+2. `python scripts/gpu_gates.py --gpus 8` (about 30-40 minutes):
+   - `gpu-tests`: `pytest tests/gpu`, including the 1-vs-2-GPU equivalence tests;
+   - `two-stream:{ei,ep,eip,ei_implicit,buneman}` on 8 GPUs: growth rate vs theory, Gauss law,
+     div B, implicit energy;
+   - the analytic-solution examples (`<example>:<config>`, criteria in `docs/design/output-analysis.md`
+     ANA-D2); `particle_orbits` runs on one GPU at Δt and Δt/2 (convergence).
+   While iterating use `--quick`, `--configs ei --skip-tests` or `--examples landau_damping:landau`
+   (not recorded).
+   A hung run is killed with its whole process group (no ranks are left spinning on the GPUs).
 3. On ALL PASSED the script writes `bench/results/<date>-<commit>-gpu-gates.json` and updates
    `bench/results/index.json`. Commit both (CI validates the index), and update
    `PROGRESS.md` → Current Status if the gate status changed.
@@ -32,3 +36,21 @@ tests); everything that executes kernels runs here. Criteria: `.claude/rules/num
 Wall time and ns/particle/step are recorded per gate but never decide a verdict. For scaling
 studies run `examples/two_stream/run.py` with `--set cells_per_wavelength=64 --set t_end=4`
 on 1/2/4/8 GPUs.
+
+## Production runs (reported, not gated)
+
+Long or large example configurations measure results that are not analytic, such as power-law indices, γ_max(t) and reconnection rates. Run them on a clean commit, then record the analysis:
+
+```bash
+python -m pypic.launch -n 8 examples/relativistic_shock/run.py --config examples/relativistic_shock/configs/pair_2d_long.yaml
+python scripts/record_example.py output/relativistic_shock/pair_2d_long
+```
+
+`record_example.py` writes `bench/results/<date>-<commit>-example-<example>-<config>.json`. The commit, dirty flag and GPU count come from the run's `run.json`. It also adds a `type: example` entry to `index.json`, and CI validates both record types. Commit the record together with any summary in the example's README.
+
+- An output directory that already holds a run is refused. To repeat a run in the same place, add `--overwrite`, which removes that run's output files first.
+- `record_example.py` runs only the `analyze.py` of an example in this repository, chosen by the run's `meta.example`.
+- Each run has its own record, named with the run id from `run.json`. Separate runs of a configuration are kept; recording a run again replaces its record.
+- Do not switch the checkout or edit `examples/` or `pypic/` while `record_example.py` runs: it refuses to record when the analysis code changed during the analysis.
+- Unmeasured metrics are written as `null`.
+

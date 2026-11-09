@@ -1,4 +1,7 @@
-"""Linear theory for multi-beam electrostatic (k parallel to the drift) two-stream instability.
+"""Streaming instabilities: multi-beam electrostatic two-stream / Buneman (k parallel to the
+drift) and transverse filamentation (Weibel) of counter-streaming beams.
+
+Electrostatic two-stream / Buneman (k || x, drift along x):
 
 Relativistic warm-fluid dispersion relation (k || x, drift along x):
 
@@ -94,6 +97,44 @@ def fastest_mode(species, warm: bool = True, kmin: float = 1e-3, kmax: float | N
     k = float(res.x)
     g, wr = growth_rate(comps, k)
     return LinearResult(k, g, wr, ks, gs)
+
+
+def buneman_cold(mass_ratio: float, Z: float = 1.0) -> float:
+    """Cold Buneman growth rate (sqrt(3)/2) (Z m_e / 2 m_i)^(1/3) omega_pe."""
+    return math.sqrt(3.0) / 2.0 * (Z / (2.0 * mass_ratio)) ** (1.0 / 3.0)
+
+
+def filamentation_growth(k, comps) -> np.ndarray:
+    """Growth rate of the purely transverse (k perpendicular to the drifts) filamentation /
+    current-filamentation (Weibel) mode of cold beams drifting along x. comps: iterable of
+    (omega_p^2, u) per beam (omega_p^2 = n q^2 / m, u = proper drift velocity along x).
+
+    Linearising the cold relativistic fluid equations with fields E_x, B_z ~ exp(i(k y - omega t)):
+    the response along the drift has the longitudinal mass gamma^3 m, the density perturbation
+    comes from the transverse (mass gamma m) magnetic force, and
+
+        Gamma^4 + Gamma^2 (k^2 + b) - k^2 A = 0,   b = sum wp^2 / gamma^3,  A = sum wp^2 beta^2 / gamma
+
+    (c = 1); Gamma -> sqrt(A) = beta wp / sqrt(gamma) for k >> wp/c (symmetric beams)."""
+    k = np.asarray(k, dtype=float)
+    A = b = 0.0
+    for wp2, u in comps:
+        g = math.sqrt(1.0 + u * u)
+        A += wp2 * (u / g) ** 2 / g
+        b += wp2 / g ** 3
+    s = k * k + b
+    return np.sqrt(np.maximum(0.5 * (np.sqrt(s * s + 4.0 * k * k * A) - s), 0.0))
+
+
+def filamentation_cold(k, u0: float, wp: float = 1.0) -> np.ndarray:
+    """Two symmetric cold beams (+-u0) of total plasma frequency wp (see filamentation_growth)."""
+    return filamentation_growth(k, [(0.5 * wp * wp, u0), (0.5 * wp * wp, -u0)])
+
+
+def filamentation_species(k, species) -> np.ndarray:
+    """filamentation_growth for SpeciesConfig beams (drift along x, temperatures ignored)."""
+    return filamentation_growth(k, [(b.density * s.charge ** 2 / s.mass, b.drift[0]) for s in species
+                                    for b in s.beams])
 
 
 def filamentation_estimate(species) -> float:

@@ -1,0 +1,10 @@
+# Production: larger box and longer run for a converged power law (p -> 1.9 + 0.7/sqrt(sigma) = 2.1).
+sigma: 10
+n_cs_over_nb: 5
+delta: 1.0
+Lx: 400
+Ly: 200
+cells_per_skin: 4
+nz: 4
+ppc: 8
+t_end: 2000

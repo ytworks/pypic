@@ -24,7 +24,8 @@ GPU で高速化した 3 次元・特殊相対論的・電磁 Particle-in-Cell (
 - **配合**: `e-i` / `e-p` / `e-i-p` から選び、常に電気的中性 (`n_e = Z n_i + n_p`) で生成します。全ビームを同じ位置に配置するので、初期の ρ は厳密に 0、E も 0 です。
 - **自動パラメータ設定**: 線形分散関係から最大成長モードを求め、箱の大きさ・格子・時間刻み・計算時間・ppc・メモリ・GPU 分割を決めて、各制約に対する余裕をレポートします。どの値も上書きできます。
 - **初期分布**: Maxwell–Jüttner 分布に相対論的ドリフトを与えます (Zenitani 2015)。乱数はカウンタベースなので、GPU 数を変えても同じ初期粒子になります。
-- **診断**: 運動エネルギー (粒子種別)、電場・磁場エネルギー、全エネルギー収支 (境界からの流出と吸収層での散逸を含む)、運動量、max\|∇·E−ρ\|、max\|∇·B\|、E_x のモード (複素フーリエ係数)、(x, u_x) 位相空間。
+- **診断**: 運動エネルギー (粒子種別)、電場・磁場エネルギー、全エネルギー収支 (境界からの流出と吸収層での散逸を含む)、運動量、max\|∇·E−ρ\|、max\|∇·B\|。
+- **研究用の出力** (HDF5。[出力と解析](#出力と解析) を参照): openPMD 形式の場・粒子ダンプに加え、軽量な縮約診断 (ラインアウト、断面、フーリエモード、k スペクトル、位相空間とエネルギーのヒストグラム、追跡粒子の軌道) を書き出します。出力間隔は計算の物理から決まり、ファイルの内容は GPU 数によらず同じです。
 
 単位系は正規化単位で、`c = ε0 = 1`、長さ `c/ω_pe`、時間 `1/ω_pe`、電荷 `e`、質量 `m_e`、密度 `n0` (全電子密度) です。
 温度は `m_e c²` 単位 (`T_e`) で与えます。`T_e_eV` のように eV で与えることもできます。
@@ -33,8 +34,8 @@ GPU で高速化した 3 次元・特殊相対論的・電磁 Particle-in-Cell (
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e ".[gpu,multigpu,dev]"   # GPU マシン (CuPy, NCCL, pytest, ruff)
-.venv/bin/pip install -e ".[dev,kernelcheck]"    # CPU のみ: 設定層、tests/cpu、カーネルのコンパイル検査
+.venv/bin/pip install -e ".[gpu,multigpu,dev,viz]"   # GPU マシン (CuPy, NCCL, pytest, ruff, MP4 動画)
+.venv/bin/pip install -e ".[dev,kernelcheck,viz]"    # CPU のみ: 設定層、解析、tests/cpu、カーネル検査
 ```
 エンジンの実行には CUDA 13 ドライバと CuPy (`cupy-cuda13x`、extra `gpu`) が必要です。
 マルチ GPU には `nvidia-nccl-cu13` (extra `multigpu`) が必要です。
@@ -50,8 +51,8 @@ python examples/two_stream/run.py --config examples/two_stream/configs/ei.yaml -
 python examples/two_stream/run.py --config examples/two_stream/configs/ei.yaml
 # 8 GPU で実行する
 python -m pypic.launch -n 8 examples/two_stream/run.py --config examples/two_stream/configs/ep.yaml
-# 解析する (線形理論との成長率比較、保存則、位相空間 → output/<name>/summary.png)
-python examples/two_stream/analyze.py output/ep
+# 解析する (線形理論との成長率比較、保存則、位相空間 → output/two_stream/ep/summary.png、--movie で動画も)
+python examples/two_stream/analyze.py output/two_stream/ep --movie
 ```
 
 用意している設定ファイル:
@@ -62,9 +63,15 @@ python examples/two_stream/analyze.py output/ep
 | `configs/ep.yaml` | 電子・陽電子 | 中性のペアビームが対向 (`mode: symmetric`) |
 | `configs/eip.yaml` | 電子・イオン・陽電子 | 正電荷の 30% を陽電子が担う (`positron_fraction`) |
 | `configs/ei_implicit.yaml` | 電子・イオン | e-i と同じ物理を陰解法 (エネルギー厳密保存) で計算 |
+| `configs/buneman.yaml` | 電子・イオン | Buneman 不安定性: 静止イオン中を全電子がドリフト。γ ≈ (√3/2)(m_e/2m_i)^{1/3} ω_pe |
 
 `--set key=value` で YAML の値を上書きできます。例: `--set u_drift=0.3 --set solver=implicit`。
-`SimConfig` の任意の項目は `--set overrides.ppc=64` のように上書きします。
+`SimConfig` の任意の項目は `--set overrides.ppc=64`、出力の設定は `--set output.budget_GB=5` や
+`--set output.codec=deflate` のように上書きします。
+
+出力先は既定で `output/<example>/<config>/` です。`--out DIR` で変えられます。
+すでに実行結果がある出力先は拒否するので、2 回分のファイルが混ざることはありません。
+`--overwrite` を付けると前の実行を置き換えます。前の実行の出力ファイルだけを先に消し、それ以外のファイルには触れません。
 
 ### 主なパラメータ (`TwoStreamParams`)
 
@@ -92,6 +99,36 @@ python examples/two_stream/analyze.py output/ep
 4. 陽解法で `Δx > π λ_De` のときは、有限格子加熱の警告を出し、陰解法を勧めます。
 5. 粒子数、GPU あたりのメモリ、rank の配置を見積もります。
 
+## 解析解・既知解のある例題
+
+各例題は同じ構成です。
+- `examples/<name>/` に次のものがあります。
+  - planner: 物理から格子・時間刻み・実行長・出力間隔を決めます。
+  - 設定ファイル。
+  - `theory.py`: 解析解・理論値。
+  - `analyze.py`: 判定 JSON と図を出し、`--movie` で動画を作ります。
+- ゲート用の設定を `scripts/gpu_gates.py` で実行します。判定基準は各 README に書いてあります。
+
+| example | 物理 | 比較対象 | 結果 (ゲート用設定) |
+|---|---|---|---|
+| [`two_stream`](examples/two_stream) | 静電二流体 (e-i, e-p, e-i-p, 陰解法)、Buneman | 温かい流体の多ビーム分散関係 | 成長率 −2.3〜+3.5 %、Buneman −4.7 % |
+| [`plasma_waves`](examples/plasma_waves) | 熱雑音の ω–k: Langmuir、電磁波、X/O 波、バーンスタイン波、ホイッスラー、イオン音波 | 運動論・冷たい磁化プラズマの分散関係 | Langmuir 1.4 %、電磁波 0.3 %、X/O 0.07 %、バーンスタイン 0.5〜0.7 % (中央値) |
+| [`landau_damping`](examples/landau_damping) | ランダウ減衰、Dawson 振動、波の破砕、相対論的振動 | Z 関数の根、シートの厳密解 | γ +4.6 %、ω −0.1 %、Dawson 0.3 %、交差時刻 −1.2 %、相対論的周期 0.08 % |
+| [`filamentation`](examples/filamentation) | 電流フィラメンテーション (Weibel) | 冷たい相対論的分散関係 | 成長率 2.2 % (モードの中央値) |
+| [`particle_orbits`](examples/particle_orbits) | ジャイロ運動、E×B、双曲運動、E > B、平面波 (8 の字) | 相対論的な厳密軌道 | 誤差 ≤ 0.3 %、2 次収束 (比 3.76〜4.00) |
+| [`plasma_expansion`](examples/plasma_expansion) | 真空への膨張による TNSA 型イオン加速 | Mora 2003 の自己相似解 | 速度分布 −8 %、E_max −15 % (無衝突電子の効果。README 参照) |
+| [`relativistic_shock`](examples/relativistic_shock) | γ₀ = 15 の対プラズマ衝撃波、Fermi 加速 | 相対論的 Rankine–Hugoniot (Synge 気体) | β_sh −8 %、n₂/n₁ +4.6 % |
+| [`reconnection`](examples/reconnection) | σ = 10 の対プラズマ再結合、プラズモイド、べき分布 | Harris 平衡、公表値 (経験式) | 平衡 B₀ の 1.1 %、再結合速度 ≈ 0.1〜0.2、p = 2.4 (小さな箱) |
+
+これらの例題のために、エンジンに次の機能を追加しました (`docs/design/engine.md` の PIC-D9、PIC-D10)。
+
+- **初期摂動** (`Beam.perturbation`): 密度・変位・速度のモードです。電荷を保存する仮想移動で与えるので、ガウスの法則が厳密に成り立ちます。
+- **密度プロファイル** (`Beam.profile`)。
+- **テスト粒子種と明示的な粒子リスト** (`SpeciesConfig.test`、`particles`)。
+- **初期場**: 一様な `E0` と、厳密な平面波・1 次元プロファイルを与える `initial_fields`。
+- **二項電流フィルタ** (`current_filter`): 相対論的な流れで生じる数値チェレンコフ雑音を抑えます。
+- **`remove_mean_current`**: Buneman のように正味の電流がある設定に使います。
+
 ## ライブラリとして使う
 
 ```python
@@ -100,10 +137,77 @@ cfg = SimConfig(n_cells=(64, 32, 32), dx=(0.1,) * 3, dt=0.05, n_steps=1000, solv
                 boundaries=(("open", "open"), ("periodic", "periodic"), ("reflecting", "reflecting")),
                 species=[SpeciesConfig("electron", -1, 1, [Beam(1.0, (0.1, 0, 0), 1e-3)]),
                          SpeciesConfig("ion", 1, 1836, [Beam(1.0, (0, 0, 0), 1e-6)])], ppc=16)
+cfg.output = OutputConfig(dir="output/my_run", timescales={"plasma_period": 6.283}, diagnostics=[
+    {"name": "lineout", "kind": "lineout", "fields": ["Ex"], "axis": "x"},          # 出力間隔は自動
+    {"name": "phase", "kind": "histogram", "quantities": ["x", "ux"], "bins": [256, 128], "every": {"count": 100}},
+    {"name": "fields", "kind": "fields", "fields": ["E", "B", "n:electron"], "coarsen": [2, 2, 2], "every": {"t": 10.0}},
+])
 sim = Simulation(cfg)      # 複数 GPU で動かすときは python -m pypic.launch -n N で起動する
 sim.run(progress=100)
-sim.save()                 # output/history.npz
+sim.close()                # 出力ファイルを書き切って閉じる
 ```
+(`from pypic.config import OutputConfig`)。`output.dir` を与えなければファイルは書かず、エネルギー履歴は
+`sim.history` に残るだけです。
+
+## 出力と解析
+
+設計: [`docs/design/output-analysis.md`](docs/design/output-analysis.md)。
+
+```
+output/<run>/run.json                      設定、出力スケジュール、単位、各量の時刻、理論値 (meta)
+            scalars.h5                     エネルギー・運動量・保存則の履歴
+            reduced/<diag>.h5              lineout, slice, modes, kspectrum, histogram (時系列)
+            fields/<diag>/<diag>_%08d.h5   openPMD の場 (E, B, J, rho, 粒子種のモーメント)
+            particles/<diag>/<diag>_%08d.h5   openPMD の粒子 (id 順)
+            tracks/<diag>_<species>.h5     追跡粒子の軌道 (x, u と粒子位置での E, B)
+```
+
+| kind | 内容 |
+|---|---|
+| `fields` | 3 次元の場 (`E`, `B`, `J`, `rho`, `n:<sp>`, `flux:<sp>`, `ekin:<sp>`)。`coarsen` でブロック平均、`region` で切り出し |
+| `slice` | 2 次元断面の時系列 |
+| `lineout` | 他の 2 軸で平均した 1 次元プロファイル (x–t 図、ω–k 図) |
+| `modes` | 指定した `(mx, my, mz)` の複素フーリエ振幅 (3 次元での成長率・減衰率) |
+| `kspectrum` | 殻平均した \|F(k)\|² |
+| `histogram` | x y z ux uy uz u gamma ekin の 1〜3 次元重み付きヒストグラム (エネルギースペクトル、位相空間) |
+| `particles` | 粒子の標本 (id の `stride`、`select: {gamma_min: ...}`、`region`) |
+| `tracks` | 固定した粒子集合の軌道 (`stride`)。粒子位置の E、B も記録できます |
+
+- **出力間隔は物理から決まります。** `every` には次の形を書けます。
+  - `25` (ステップ)、`{t: 0.5}`、`{count: 100}`
+  - `{per: growth_time, samples: 10}`、`{nyquist: shortest_period, oversample: 2}`
+  - `auto`: planner が設定した時間スケールについて、診断の種類ごとの要件をすべて当てはめ、最も厳しい間隔を採ります。スペクトル系では「最速振動のナイキスト間隔 (間隔内で時間平均してエイリアスを防ぐ)」と「成長時間あたり 10 点以上」の両方を満たします。
+
+  planner のレポートに診断ごとの間隔・回数・容量の表が出て、エイリアスの恐れがあれば警告します。`budget_GB` を指定すると、`auto` の間隔だけを広げて総容量を上限内に収めます。
+- **軽量なファイル**
+  - 既定は float32 で、byte-shuffle と zstd による可逆圧縮です (`hdf5plugin`)。
+  - `codec: deflate` にすると、どの HDF5 ツールでも読めます。
+  - `keep_bits: n` は非可逆で、仮数を丸めます。相対誤差は 2^-(n+1) 以下です。
+  - 容量を最も減らすのは、全ダンプの代わりに縮約診断を書くことです。
+- **解析** (`pypic.analysis`、CPU のみで動きます)
+
+  ```python
+  from pypic.analysis import open_run, Movie
+  run = open_run("output/two_stream/ei"); print(run.summary())       # 出力間隔、容量、圧縮率
+  lo = run.series("lineout"); lo["Ex"], lo.t, lo.x("Ex")             # (n_t, n_x) と座標
+  f = run.fields("fields"); fd = f.get(f.iterations[-1], "Ez")       # データ + 座標 + 時刻
+  Movie(run).phase("phase", "electron").xt("lineout", "Ex").history().save("movie.mp4")
+  ```
+
+  モジュールは次のとおりです。
+  - `spectral`: ω–k 図、稜線の抽出、成長率・減衰率の当てはめ。
+  - `particles`: スペクトル、べき指数の当てはめ、Maxwell–Jüttner 温度、カットオフエネルギー、追跡粒子に E の各成分がした仕事、B に平行・垂直な成分がした仕事。
+  - `fields`: 磁束関数、前面の位置。
+  - `plot`、`animate`、`xdmf`: 図、動画、ParaView / VisIt での 3 次元表示。
+
+  同じことをコマンドラインからも実行できます。
+
+  ```bash
+  python -m pypic.analysis info  output/two_stream/ei
+  python -m pypic.analysis plot  output/two_stream/ei
+  python -m pypic.analysis movie output/two_stream/ei --panel phase:phase:electron --panel xt:lineout:Ex -o ei.mp4
+  python -m pypic.analysis xdmf  output/two_stream/ei --diag fields
+  ```
 
 ## テストと CI
 
@@ -146,7 +250,8 @@ python scripts/gpu_gates.py --gpus 8   # GPU 検証ゲート。結果を bench/r
 | `CLAUDE.md` / `AGENTS.md` | Claude Code / Codex の入口。セッション開始時の手順、テスト方針、各ファイルの置き場所 |
 | `PROGRESS.md` | セッション間の記憶。Product / Current Status / Change Log の 3 節。サイズ予算を SessionStart フックと CI で強制し、古いエントリは `docs/progress/archive/` に退避する |
 | `.claude/rules/` | `progress-log.md` (PROGRESS.md の運用規則)、`numerics-invariants.md` (保存則の契約、ゲート基準、マルチ GPU の規則) |
-| `docs/design/engine.md` | ID 付きの設計判断 (PIC-D1..D7) とレビューによる修正 |
+| `docs/design/engine.md` | ID 付きの設計判断 (PIC-D1..D8) とレビューによる修正 |
+| `docs/design/output-analysis.md` | 出力と解析の設計判断 (OUT-D1..D4、ANA-D1) |
 | `docs/roadmap.md`, `docs/plans/` | 次の作業 (R1..R7) と、変更ごとの実装計画 |
 | `docs/gpu-runbook.md`, `bench/results/` | GPU ゲートの手順と、記録された検証結果 |
 
@@ -185,10 +290,12 @@ pypic/
   kernelsrc.py           カーネルソースの組み立てとコンパイル時定数 (純 Python)
   grid.py                Yee 格子、ghost 交換、境界条件、CPML、場の診断
   particles.py           SoA 粒子、ソート、rank 間移動
-  simulation.py          陽解法・陰解法のメインループ、CG、診断、保存
-  parallel/              NCCL 通信、3 次元領域分割
+  simulation.py          陽解法・陰解法のメインループ、CG、エネルギー・保存則の診断
+  output/                出力間隔の決定 (schedule)、HDF5/openPMD 書き出し、GPU 上の診断、manager
+  analysis/              読み出し、スペクトル・粒子・場の解析、図、動画、XDMF、CLI (CPU のみ)
+  parallel/              NCCL 通信、3 次元領域分割、rank 0 への集約
   launch.py              マルチ GPU ランチャ
-  setup/                 配合 (species)、分散関係 (dispersion)、パラメータ自動設定 (planner)
+  setup/                 配合 (species)、分散関係 (dispersion)、planner、example 共通の実行部品 (runner)
 examples/two_stream/     run.py, analyze.py, configs/*.yaml
 tests/cpu/, tests/gpu/   CPU のみのテスト (CI) / GPU テスト
 scripts/                 check_kernels, gpu_gates, verify_bench_results, check_progress_size
@@ -203,4 +310,5 @@ bench/results/           記録された GPU ゲートの検証結果 (index.jso
 - **陽解法の開放境界**: エネルギー収支のうち、ポインティング流束の評価は近似です。
 - **陰解法の開放境界**: 整合導電層を使います。散逸エネルギーは厳密に計上されますが、吸収性能は CPML より劣ります。
 - **`mode: buneman`**: 正味の電流を持つので、k=0 モードが ω_pe で振動します。
+- **粒子 id**: すべての粒子が id を持ちます (保存領域の 8 行目。粒子メモリは 14 % 増えます)。
 - **精度**: 現在は倍精度のみです。今後の候補は、float32 モード、共有メモリを使った電流付与、通信と計算のオーバーラップです。

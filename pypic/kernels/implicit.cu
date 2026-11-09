@@ -183,8 +183,8 @@ extern "C" __global__ void implicit_push(const double* __restrict__ P, double* P
                                          const double* __restrict__ Ez, const double* __restrict__ Bx,
                                          const double* __restrict__ By, const double* __restrict__ Bz,
                                          double* Jx, double* Jy, double* Jz, const double q, const double m,
-                                         const int first, const double tol, const int maxit, int* err,
-                                         int* itmax) {
+                                         const double qdep, const int first, const double tol, const int maxit,
+                                         int* err, int* itmax) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
     const double p0[3] = {P[p], P[cap + p], P[2 * cap + p]};
@@ -327,14 +327,15 @@ extern "C" __global__ void implicit_push(const double* __restrict__ P, double* P
     // ghost-width guard
     if (fabs(d[0]) > (GH - 1) * DX || fabs(d[1]) > (GH - 1) * DY || fabs(d[2]) > (GH - 1) * DZ) err[0] = 2;
     double dummy[3];
-    path_op(p0, d, 1, Ex, Ey, Ez, dummy, q * w, Jx, Jy, Jz, err);
+    if (qdep != 0.0) path_op(p0, d, 1, Ex, Ey, Ez, dummy, qdep * w, Jx, Jy, Jz, err);  // test species: no deposit
     for (int a = 0; a < 3; a++) { Pn[a * cap + p] = d[a]; Pn[(3 + a) * cap + p] = u1[a]; }
 }
 
 // Commit the converged step: x1 = x0 + d with reflections folded (u flipped), open-boundary
 // removal, periodic wrap on non-decomposed axes and migration flagging.
 extern "C" __global__ void implicit_finalize(double* P, const double* __restrict__ Pn, const int n, const int cap,
-                                             const double q, const double m, double* diag, int* flag, int* list, const int listcap) {
+                                             const double q, const double m, const double qdep, double* diag, int* flag,
+                                             int* list, const int listcap) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     double lke = 0.0, lq = 0.0;
     if (p < n) {
@@ -355,7 +356,7 @@ extern "C" __global__ void implicit_finalize(double* P, const double* __restrict
         double w = P[6 * cap + p];
         if (dead) {
             lke = w * m * (sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]) - 1.0);
-            lq = q * w;
+            lq = qdep * w;
             P[6 * cap + p] = 0.0;
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
         } else {

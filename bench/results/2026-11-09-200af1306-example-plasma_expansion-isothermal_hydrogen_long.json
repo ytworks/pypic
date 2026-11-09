@@ -1,0 +1,40 @@
+{
+  "type": "example",
+  "date": "2026-11-09",
+  "commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+  "dirty": false,
+  "gpus": 8,
+  "analysis_commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "example": "plasma_expansion",
+  "config": "isothermal_hydrogen_long",
+  "params": {
+    "Te": 0.01,
+    "mass_ratio": 1836.15267,
+    "tau_end": 30,
+    "slab_lambda_D": 400,
+    "ppc": 256
+  },
+  "run": {
+    "wall_time_s": 297.95071834197734,
+    "ns_per_particle_step": 13.31074211700293,
+    "gpus": 8,
+    "steps": 54649
+  },
+  "passed": true,
+  "metrics": {
+    "tau_end": 29.973605540428164,
+    "E_max_final": 0.277509715993322,
+    "E_max_theory_final": 0.3351745548898852,
+    "E_max_median_rel_error": 0.11703070515205768,
+    "E_max_max_rel_error": 0.18844427397818622,
+    "front_median_rel_error": 0.06113655678529473,
+    "spectrum_rms_log_ratio": 0.8001774196354936,
+    "electron_temperature_final_over_initial": 0.952799682940899,
+    "velocity_profile_median_rel_error": 0.09534424112441237,
+    "regime": "isothermal (thick slab)",
+    "passed": true,
+    "gauss_max": 6.7415691085148666e-15
+  },
+  "note": "production run (reported, not gated)"
+}

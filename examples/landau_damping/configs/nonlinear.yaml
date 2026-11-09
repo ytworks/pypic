@@ -1,0 +1,10 @@
+# Nonlinear Landau damping (alpha = 0.5): initial damping, then particle trapping (bounce
+# oscillations of the field amplitude, phase-space vortices). Classic Vlasov benchmark.
+case: nonlinear
+k_lambda_D: 0.5
+alpha: 0.5
+theta_e: 0.001
+cells_per_wavelength: 32
+n_transverse: 16
+ppc: 512
+t_end: 100

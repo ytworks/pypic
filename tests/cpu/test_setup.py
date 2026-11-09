@@ -22,8 +22,8 @@ def test_compositions_neutral():
 
 
 def test_symmetric_two_stream_growth_rate():
-    from pypic.setup.dispersion import fastest_mode
     from pypic.setup.species import Composition, TwoStreamBeams, build_species
+    from pypic.theory.streaming import fastest_mode
 
     u = 0.05
     sp = build_species(Composition("e-i", 1e8), TwoStreamBeams("electron", u_drift=u, T_e=0.0))
@@ -52,3 +52,23 @@ def test_nested_overrides_are_converted():
     assert isinstance(cfg.species[0], SpeciesConfig) and cfg.species[0].beams[0].drift == (0.1, 0, 0)
     with pytest.raises(KeyError):
         plan_two_stream(TwoStreamParams(overrides={"implicit": {"no_such_field": 1}}))
+
+
+def test_runner_output_overrides_are_typed(capsys):
+    """Review of PR #2: output.* from the command line (or the YAML) was assigned unconverted, so
+    diagnostics given as dicts failed in the scheduler."""
+    import os
+
+    from pypic.setup.planner import params_from_dict, plan_two_stream
+    from pypic.setup.runner import run_example
+
+    cfg = os.path.join(os.path.dirname(__file__), "..", "..", "examples", "two_stream", "configs", "ei.yaml")
+    diags = "output.diagnostics=[{name: fd, kind: fields, fields: [E], every: 10}]"
+    rc = run_example("two_stream", plan_two_stream, params_from_dict,
+                     argv=["--config", cfg, "--plan-only", "--set", diags])
+    assert rc == 0
+    row = [ln.split() for ln in capsys.readouterr().out.splitlines() if ln.strip().startswith("fd ")]
+    assert row and row[0][1:3] == ["fields", "10"]
+    with pytest.raises(KeyError):
+        run_example("two_stream", plan_two_stream, params_from_dict,
+                    argv=["--config", cfg, "--plan-only", "--set", "output.no_such_field=1"])

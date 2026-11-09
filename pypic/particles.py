@@ -7,7 +7,8 @@ import numpy as np
 from .backend import launch
 from .config import Beam  # noqa: F401  (re-exported for backwards compatibility)
 
-NROW = 7  # x y z ux uy uz w
+NROW = 8  # x y z ux uy uz w id   (id: integer-valued float64, PIC-D8)
+ID_LIMIT = 2 ** 53  # float64 represents every integer below this exactly
 
 
 class Species:
@@ -19,13 +20,15 @@ class Species:
         self.P = cp.zeros((NROW, self.cap), dtype=cp.float64)
         self.n = 0
         self.Pn = None  # implicit scheme work array
+        self.test = False  # test species: no charge deposit, not in the energy budget (PIC-D9)
+        self.qdep = self.q
 
     # ---------------------------------------------------------------- storage
     def ensure_capacity(self, need: int):
         if need <= self.cap:
             return
         cap = int(need * 1.25) + 1024
-        P = cp.zeros((NROW, cap), dtype=cp.float64)
+        P = cp.zeros((self.P.shape[0], cap), dtype=cp.float64)
         P[:, : self.n] = self.P[:, : self.n]
         self.P, self.cap = P, cap
         if self.Pn is not None:
@@ -40,19 +43,22 @@ class Species:
     # ---------------------------------------------------------------- loading
     def load(self, grid, kernel, beam: Beam, ppc: int, seed: int, stream: int):
         """Append ppc particles per physical cell of this rank. Positions depend only on
-        (seed, global cell, slot): beams loaded with equal seed share positions."""
+        (seed, global cell, slot): beams loaded with equal seed share positions. Particle ids are
+        ((stream - 1) * N_cells + global cell) * ppc + slot, independent of the rank layout."""
         ax = grid.d.axes
         nl = [a.n_phys for a in ax]
         ntot = nl[0] * nl[1] * nl[2] * ppc
         self.ensure_capacity(self.n + ntot)
         w = beam.density * grid.cell_volume / ppc
+        gn = grid.d.n_cells
+        id_base = (stream - 1) * gn[0] * gn[1] * gn[2] * ppc
         launch(kernel, ntot, (
             self.P, np.int32(self.cap), np.int64(self.n), np.int32(ppc),
             np.int32(nl[0]), np.int32(nl[1]), np.int32(nl[2]),
             np.int32(ax[0].phys_lo), np.int32(ax[1].phys_lo), np.int32(ax[2].phys_lo),
-            np.int32(grid.d.n_cells[0]), np.int32(grid.d.n_cells[1]),
+            np.int32(gn[0]), np.int32(gn[1]), np.int32(gn[2]),
             np.uint64(seed), np.uint64(stream), np.float64(w), np.float64(beam.theta),
-            np.float64(beam.drift[0]), np.float64(beam.drift[1]), np.float64(beam.drift[2])))
+            np.float64(beam.drift[0]), np.float64(beam.drift[1]), np.float64(beam.drift[2]), np.float64(id_base)))
         self.n += ntot
 
     def sort(self, kernel):
@@ -100,6 +106,23 @@ class Species:
             self.P[:, self.n: self.n + m] = Q
             self.n += m
 
+    @staticmethod
+    def _leaving(Q, grid, a):
+        """Masks of particles leaving the sub-domain through the low / high side of axis a. At a
+        global non-periodic face there is no neighbour: a particle exactly on the face (x = L
+        on a reflecting wall) stays with the edge rank instead of being dropped."""
+        ax = grid.d.axes[a]
+        x = Q[a]
+        if ax.lo is not None:
+            to_lo = x < ax.phys_lo * grid.dx[a]
+        else:
+            to_lo = cp.zeros(x.shape, dtype=cp.bool_)
+        if ax.hi is not None:
+            to_hi = x >= (ax.phys_lo + ax.n_phys) * grid.dx[a]
+        else:
+            to_hi = cp.zeros(x.shape, dtype=cp.bool_)
+        return to_lo, to_hi
+
     def _exchange(self, Q, grid, comm):
         """Send particles in Q that lie outside the local sub-domain to neighbours, axis by axis;
         returns the particles that now belong to this rank (periodically wrapped)."""
@@ -107,11 +130,7 @@ class Species:
             ax = grid.d.axes[a]
             if ax.nproc == 1:
                 continue
-            lo = ax.phys_lo * grid.dx[a]
-            hi = (ax.phys_lo + ax.n_phys) * grid.dx[a]
-            x = Q[a]
-            to_lo = x < lo
-            to_hi = x >= hi
+            to_lo, to_hi = self._leaving(Q, grid, a)
             s_lo = cp.ascontiguousarray(Q[:, to_lo])
             s_hi = cp.ascontiguousarray(Q[:, to_hi])
             Q = Q[:, ~(to_lo | to_hi)]
@@ -129,8 +148,8 @@ class Species:
             if ax.lo is not None:
                 cnt_recv.append((r_lo, ax.lo))
             comm.exchange(cnt_send, cnt_recv)
-            b_hi = cp.empty((NROW, int(r_hi[0])))
-            b_lo = cp.empty((NROW, int(r_lo[0])))
+            b_hi = cp.empty((Q.shape[0], int(r_hi[0])))
+            b_lo = cp.empty((Q.shape[0], int(r_lo[0])))
             sends, recvs = [], []
             if ax.lo is not None:
                 sends.append((s_lo, ax.lo))
@@ -157,11 +176,7 @@ class Species:
             ax = grid.d.axes[a]
             if ax.nproc == 1:
                 continue
-            lo = ax.phys_lo * grid.dx[a]
-            hi = (ax.phys_lo + ax.n_phys) * grid.dx[a]
-            x = P[a]
-            to_lo = x < lo
-            to_hi = x >= hi
+            to_lo, to_hi = self._leaving(P, grid, a)
             stay = ~(to_lo | to_hi)
             s_lo = cp.ascontiguousarray(P[:, to_lo])
             s_hi = cp.ascontiguousarray(P[:, to_hi])
@@ -182,8 +197,8 @@ class Species:
                 cnt_recv.append((r_lo, ax.lo))
             comm.exchange(cnt_send, cnt_recv)
             n_hi, n_lo = int(r_hi[0]), int(r_lo[0])
-            b_hi = cp.empty((NROW, n_hi))
-            b_lo = cp.empty((NROW, n_lo))
+            b_hi = cp.empty((P.shape[0], n_hi))
+            b_lo = cp.empty((P.shape[0], n_lo))
             sends, recvs = [], []
             if ax.lo is not None:
                 sends.append((s_lo, ax.lo))

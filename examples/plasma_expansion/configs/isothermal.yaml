@@ -1,0 +1,7 @@
+# Isothermal expansion (gate): T_e = 5.1 keV, m_i/m_e = 100 (the solution depends on
+# tau = omega_pi t / sqrt(2e) only), thick slab (200 lambda_D) -> compare with Mora 2003 up to tau = 10.
+Te: 0.01
+mass_ratio: 100
+tau_end: 10
+slab_lambda_D: 200
+ppc: 256

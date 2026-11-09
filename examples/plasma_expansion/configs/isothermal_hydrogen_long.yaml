@@ -1,0 +1,7 @@
+# Production: proton mass, to tau = 30 (late-time approach to Mora's asymptotic front law and the
+# growing electron cooling in the expanding region; reported, recorded with scripts/record_example.py).
+Te: 0.01
+mass_ratio: 1836.15267
+tau_end: 30
+slab_lambda_D: 400
+ppc: 256

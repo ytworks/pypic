@@ -26,7 +26,7 @@ def plasma(solver="explicit", bc=None, n=(16, 8, 8), dt=None, drift=0.2, theta=1
     cfg = SimConfig(n_cells=n, dx=(0.2, 0.2, 0.2), dt=dt, n_steps=steps, solver=solver, boundaries=bc,
                     species=[SpeciesConfig("e", -1, 1, electrons),
                              SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), theta / 25)])],
-                    ppc=4, diag_interval=5, gauss_interval=5, mode_diag=0, npml=6, **kw)
+                    ppc=4, diag_interval=5, gauss_interval=5, npml=6, **kw)
     return Simulation(cfg, comm=SelfComm(), verbose=False)
 
 
@@ -44,7 +44,7 @@ def inject(sp, pos, u, w=1e-20):
 def test_boris_gyration_conserves_gamma_and_period():
     B = 0.5
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, species=[SpeciesConfig("e", -1, 1, [])],
-                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, mode_diag=0, sort_interval=0)
+                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sp = sim.species[0]
     u0 = 2.0  # relativistic: gamma = sqrt(5)
@@ -68,7 +68,7 @@ def test_boris_gyration_conserves_gamma_and_period():
 def test_exb_drift():
     E, B = 0.1, 0.5
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, species=[SpeciesConfig("e", -1, 1, [])],
-                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, mode_diag=0, sort_interval=0)
+                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sim.grid.Ey[...] = E  # uniform Ey
     sp = sim.species[0]
@@ -107,6 +107,167 @@ def test_implicit_exact_energy_and_gauss(bc):
     assert np.nanmax(h["divB"]) < 1e-12
 
 
+@pytest.mark.parametrize("solver", ["explicit", "implicit"])
+def test_mean_current_removal_keeps_conservation(solver):
+    """Net electron current (Buneman set-up) with remove_mean_current: the box-averaged E stays
+    zero (no k = 0 plasma oscillation), Gauss's law is exact and the implicit energy stays exact."""
+    cfg = SimConfig(n_cells=(16, 8, 8), dx=(0.2,) * 3, dt=0.08 if solver == "explicit" else 0.3, solver=solver,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.3, 0, 0), 0.01)]),
+                             SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), 0.001)])],
+                    ppc=4, diag_interval=5, gauss_interval=5, remove_mean_current=True)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(30)
+    o = sim.grid.owned_slice()
+    assert abs(float(cp.mean(sim.grid.Ex[o]))) < 1e-13  # without the removal <E_x> ~ -<J_x> t ~ 0.3
+    assert np.nanmax(sim.history["gauss"]) < 1e-12
+    if solver == "implicit":
+        e = np.asarray(sim.history["budget"])
+        assert np.max(np.abs(e - e[0])) / e[0] < 1e-11
+
+
+@pytest.mark.parametrize("solver", ["explicit", "implicit"])
+def test_perturbation_is_gauss_exact_with_the_requested_density(solver):
+    """Density mode n = n0 (1 + alpha cos kx) set up by a charge-conserving virtual move (PIC-D9):
+    Gauss's law exact at t = 0 and after stepping, the density mode and the field energy are the
+    requested ones, the implicit energy stays exact."""
+    alpha, m = 0.3, 2
+    cfg = SimConfig(n_cells=(32, 8, 8), dx=(0.1,) * 3, dt=0.05 if solver == "explicit" else 0.2, solver=solver,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0, 0, 0), 0.001, perturbation=[
+                        {"axis": "x", "mode": m, "density": alpha}])]),
+                             SpeciesConfig("i", 1, 100, [Beam(1.0, (0, 0, 0), 1e-5)])],
+                    ppc=16, diag_interval=5, gauss_interval=5)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    assert sim.gauss_error()[0] < 1e-13
+    sp = sim.species[0]
+    x, w = cp.asnumpy(sp.P[0, : sp.n]), cp.asnumpy(sp.P[6, : sp.n])
+    L = sim.grid.L[0]
+    k = 2 * math.pi * m / L
+    nk = abs(np.sum(w * np.exp(-1j * k * x)) / np.sum(w))
+    assert abs(nk - alpha / 2) < 4 / math.sqrt(sp.n)  # random positions: noise ~ 1/sqrt(N)
+    V = L * 0.8 * 0.8
+    assert abs(sim.grid.field_energy()[0] / (alpha ** 2 / (4 * k * k) * V) - 1) < 0.02
+    sim.run(20)
+    assert np.nanmax(sim.history["gauss"]) < 1e-12
+    if solver == "implicit":
+        e = np.asarray(sim.history["budget"])
+        assert np.max(np.abs(e - e[0])) / e[0] < 1e-11
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 2, reason="needs >= 2 GPUs")
+@pytest.mark.parametrize("solver", ["explicit", "implicit"])
+@pytest.mark.parametrize("variant", ["plain", "filter"])
+def test_perturbation_across_ranks_matches_single_gpu(solver, variant):
+    """A displacement of 21 cells (more than a rank's 16) is moved in rounds with migration: the
+    run is the same on 1 and 2 GPUs and Gauss's law holds; `filter` adds reflecting walls on the
+    decomposed axis and the current filter."""
+    script = os.path.join(HERE, "mgpu_perturb.py")
+    outs = {}
+    for n in (1, 2):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, solver, variant],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    for k in ("kinetic", "electric", "magnetic"):
+        a, b = np.asarray(outs[1][k]), np.asarray(outs[2][k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10
+    assert np.nanmax(np.asarray(outs[2]["gauss"], dtype=float)) < 1e-12
+
+
+@pytest.mark.parametrize("solver", ["explicit", "implicit"])
+def test_test_species_do_not_change_the_plasma(solver):
+    """A test species (loaded beam + explicit particles) feels the fields but deposits nothing, is
+    outside the budget and does not shift the plasma's random numbers (PIC-D9). Its beam has a
+    density perturbation: the virtual move that sets it up deposits nothing either (review of
+    PR #2: it used the real charge and changed E)."""
+    plasma = [SpeciesConfig("e", -1, 1, [Beam(1.0, (0.1, 0, 0), 0.01)]),
+              SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), 1e-3)])]
+    test = SpeciesConfig("t", -1, 1, [Beam(0.3, (0.5, 0, 0), 0.0, perturbation=[{"axis": "x", "density": 0.5}])],
+                         test=True, particles=[[0.5, 0.5, 0.5, 2.0, 0, 0], [1.0, 0.2, 0.3, 0, 1.0, 0]])
+    hist = []
+    for sp in (plasma, [test] + plasma):  # declared first: must not consume the plasma's RNG streams
+        cfg = SimConfig(n_cells=(16, 8, 8), dx=(0.2,) * 3, dt=0.08 if solver == "explicit" else 0.3, solver=solver,
+                        species=sp, ppc=4, diag_interval=5, gauss_interval=5, B0=(0, 0, 0.3))
+        sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+        sim.run(30)
+        hist.append(sim.history)
+    for k in ("kinetic", "electric", "budget"):
+        a, b = np.asarray(hist[0][k]), np.asarray(hist[1][k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-12, k
+    assert np.nanmax(hist[1]["gauss"]) < 1e-12
+
+
+@pytest.mark.parametrize("solver", ["explicit", "implicit"])
+def test_plane_wave_is_an_exact_eigenmode(solver):
+    """initial_fields plane_wave is the discrete eigenmode of the solver (Yee with the stored-B
+    half-step average, or Crank-Nicolson): after 400 steps it equals the analytic discrete wave."""
+    from pypic.initial_fields import omega_of
+
+    N, dx = 64, 0.1
+    dt = 0.05 if solver == "explicit" else 0.2
+    cfg = SimConfig(n_cells=(N, 4, 4), dx=(dx,) * 3, dt=dt, solver=solver, species=[], diag_interval=0,
+                    gauss_interval=0, initial_fields=[{"kind": "plane_wave", "axis": "x", "mode": 3,
+                                                       "polarization": "y", "amplitude": 0.7, "phase": 0.4}])
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    k = 2 * math.pi * 3 / (N * dx)
+    w = omega_of(k, dx, dt, solver == "implicit")
+    sim.run(400)
+    g = sim.grid
+    s = g.physical_slice()
+    x = g.global_positions(0, 0.0)[s[0]] * dx
+    assert np.max(np.abs(cp.asnumpy(g.Ey[s][:, 0, 0]) - 0.7 * np.cos(k * x - w * 400 * dt + 0.4))) < 1e-12
+
+
+def test_density_profile_is_exact_and_neutral():
+    """A step profile shared by electrons and ions: only particles inside are kept, rho = 0."""
+    prof = {"axis": "x", "shape": "step", "x0": 0.0, "x1": 3.0}
+    cfg = SimConfig(n_cells=(32, 4, 4), dx=(0.25,) * 3, dt=0.1, ppc=8,
+                    boundaries=(("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic")),
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0, 0, 0), 0.01, profile=prof)]),
+                             SpeciesConfig("i", 1, 100, [Beam(1.0, (0, 0, 0), 0.0, profile=prof)])],
+                    diag_interval=5, gauss_interval=5)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    e = sim.species[0]
+    assert e.n == 12 * 4 * 4 * 8 and float(cp.max(e.P[0, : e.n])) < 3.0
+    assert sim.gauss_error()[0] < 1e-13
+    sim.run(20)
+    assert np.nanmax(sim.history["gauss"]) < 1e-12
+
+
+def test_current_filter_transfer_function():
+    """(1,2,1)/4 x N on cos(kx): amplitude cos^2N(k dx/2), times 1 + (N/2)(1 - cos k dx) with the compensator."""
+    cfg = SimConfig(n_cells=(32, 4, 4), dx=(0.1,) * 3, dt=0.05, species=[], diag_interval=0, gauss_interval=0)
+    g = Simulation(cfg, comm=SelfComm(), verbose=False).grid
+    x = g.global_positions(0, 0.0) * 0.1
+    for N, comp in ((4, False), (4, True)):
+        for m in (1, 4, 8):
+            k = 2 * math.pi * m / g.L[0]
+            F = cp.asarray(np.broadcast_to(np.cos(k * x)[:, None, None], g.shape).copy())
+            g.filter([F], [(0, 0, 0)], N, comp)
+            T = math.cos(k * 0.05) ** (2 * N) * ((1 + N / 2 * (1 - math.cos(k * 0.1))) if comp else 1)
+            assert abs(float(cp.max(F[g.physical_slice()])) - T) < 1e-12
+
+
+@pytest.mark.parametrize("solver", ["explicit", "implicit"])
+@pytest.mark.parametrize("bc", ["periodic", "reflecting"])
+def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
+    """With a 4-pass compensated current filter (PIC-D10) and particles bouncing at the walls,
+    Gauss's law (against the identically filtered rho) and the implicit energy stay exact."""
+    from pypic.config import CurrentFilter
+
+    cfg = SimConfig(n_cells=(16, 8, 8), dx=(0.2,) * 3, dt=0.08 if solver == "explicit" else 0.3, solver=solver,
+                    boundaries=((bc, bc), ("periodic",) * 2, (bc, bc)),
+                    species=[SpeciesConfig("e", -1, 1, [Beam(0.5, (0.5, 0.1, 0), 0.05),
+                                                        Beam(0.5, (-0.5, 0, 0.1), 0.05)]),
+                             SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), 0.01)])],
+                    ppc=4, diag_interval=5, gauss_interval=5, current_filter=CurrentFilter(4, True))
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(40)
+    assert np.nanmax(sim.history["gauss"]) < 1e-12
+    if solver == "implicit":
+        e = np.asarray(sim.history["budget"])
+        assert np.max(np.abs(e - e[0])) / e[0] < 1e-11
+
+
 def test_reflecting_keeps_particles():
     bc = (("reflecting", "reflecting"),) * 3
     sim = plasma("explicit", bc=bc, drift=0.5, theta=0.01)
@@ -133,8 +294,7 @@ def test_open_boundary_removes_particles():
 def test_vacuum_wave_dispersion():
     """A y-polarised plane wave along x follows the Yee dispersion relation."""
     N, dx, dt = 64, 0.1, 0.05
-    cfg = SimConfig(n_cells=(N, 4, 4), dx=(dx,) * 3, dt=dt, species=[], diag_interval=0, gauss_interval=0,
-                    mode_diag=0)
+    cfg = SimConfig(n_cells=(N, 4, 4), dx=(dx,) * 3, dt=dt, species=[], diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     g = sim.grid
     k = 2 * math.pi * 4 / (N * dx)
@@ -158,7 +318,7 @@ def test_cpml_absorbs_pulse():
     N, dx = 96, 0.1
     cfg = SimConfig(n_cells=(N, 4, 4), dx=(dx,) * 3, dt=0.05, species=[], npml=12,
                     boundaries=(("open", "open"), ("periodic", "periodic"), ("periodic", "periodic")),
-                    diag_interval=0, gauss_interval=0, mode_diag=0)
+                    diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     g = sim.grid
     xi = g.global_positions(0, 0.0) * dx
@@ -173,21 +333,24 @@ def test_cpml_absorbs_pulse():
     assert e1 / e0 < 1e-4, e1 / e0
 
 
-def test_two_stream_growth_matches_theory():
-    """Small 3-D electron two-stream run: measured growth of the k_max mode vs linear theory."""
-    sys.path.insert(0, os.path.join(HERE, "..", "..", "examples", "two_stream"))
-    from analyze import fit_growth
-
+def test_two_stream_growth_matches_theory(tmp_path):
+    """Small 3-D electron two-stream run: measured growth of the k_max mode (read back from the
+    modes output at the cadence the planner derived) vs linear theory."""
+    from pypic.analysis import open_run
+    from pypic.analysis.spectral import fit_growth
     from pypic.setup.planner import TwoStreamParams, plan_two_stream
 
     p = TwoStreamParams(mixture="e-i", mass_ratio=1836.0, u_drift=0.2, T_e=1e-4, n_wavelengths=2,
                         cells_per_wavelength=32, transverse_ratio=0.125, ppc=32, growth_times=14,
                         n_records=300)
     cfg, _, info = plan_two_stream(p)
-    cfg.phase_space_interval = 0
+    cfg.output.diagnostics = [d for d in cfg.output.diagnostics if d.name == "modes"]
+    cfg.output.dir = str(tmp_path)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sim.run()
-    gfit, _ = fit_growth(np.asarray(sim.mode_t), np.asarray(sim.modes)[:, 1])
+    sim.close()
+    md = open_run(str(tmp_path)).series("modes")
+    gfit, _ = fit_growth(md.t, md["Ex"][:, 1])
     assert abs(gfit - info["gamma_max"]) / info["gamma_max"] < 0.15, (gfit, info["gamma_max"])
 
 
@@ -212,7 +375,7 @@ def test_cg_handles_exact_convergence_between_checks():
     """A curl-free uniform field is solved in one CG step (A = I on that mode); the following
     iteration must not divide 0/0 before the next convergence check."""
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[],
-                    diag_interval=0, gauss_interval=0, mode_diag=0)
+                    diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     b = cp.zeros((3,) + sim.grid.shape)
     for c, v in enumerate((1.0, -2.0, 0.5)):
@@ -229,7 +392,7 @@ def test_maxwell_juttner_sampling(theta):
 
     cfg = SimConfig(n_cells=(32, 32, 32), dx=(0.5,) * 3, dt=0.1, ppc=8,
                     species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0, 0, 0), theta)])],
-                    diag_interval=0, gauss_interval=0, mode_diag=0)
+                    diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sp = sim.species[0]
     u = cp.asnumpy(sp.P[3:6, : sp.n])
@@ -255,7 +418,7 @@ def test_unconverged_implicit_step_is_not_committed():
 
 def test_ghost_wider_than_local_grid_is_rejected():
     cfg = SimConfig(n_cells=(4, 4, 4), dx=(1.0,) * 3, dt=3.5, solver="implicit", species=[],
-                    diag_interval=0, gauss_interval=0, mode_diag=0)
+                    diag_interval=0, gauss_interval=0)
     with pytest.raises(ValueError, match="ghost width"):
         Simulation(cfg, comm=SelfComm(), verbose=False)
 
@@ -268,7 +431,7 @@ def test_implicit_reflection_with_displacement_beyond_half_box_conserves_charge(
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(1.0,) * 3, dt=5.1, solver="implicit",
                     boundaries=(("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic")),
                     species=[SpeciesConfig("e", -1, 1, []), SpeciesConfig("p", 1, 1, [])],
-                    diag_interval=0, gauss_interval=0, mode_diag=0, sort_interval=0)
+                    diag_interval=0, gauss_interval=0, sort_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     e, p = sim.species
     inject(e, [0.1, 2.3, 2.3], [-4.9, 0.04, 0.03], w=1e-3)  # d_x ~ -5 cells: reflects, ends at x ~ 4.9

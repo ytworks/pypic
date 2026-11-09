@@ -9,14 +9,17 @@ description = "GPU-accelerated multi-GPU 3D relativistic electromagnetic Particl
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-# The set-up layer (config, species, dispersion, planner) is pure Python and runs on CPU;
-# the engine itself needs the `gpu` extra.
-dependencies = ["numpy", "scipy", "pyyaml", "matplotlib"]
+# The set-up layer (config, species, dispersion, planner), the output writers/readers and the
+# analysis tools (pypic.analysis) are pure Python and run on CPU; the engine needs the `gpu` extra.
+# h5py + hdf5plugin: HDF5/openPMD output with the zstd filter (OUT-D1, OUT-D3).
+dependencies = ["numpy", "scipy", "pyyaml", "matplotlib", "h5py>=3.10", "hdf5plugin>=4.4"]
 
 [project.optional-dependencies]
 gpu = ["cupy-cuda13x>=13"]
 multigpu = ["nvidia-nccl-cu13>=2.27.7,<3"]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "openPMD-validator"]
+# MP4 movies (bundled ffmpeg binary); without it pypic.analysis.animate writes GIF
+viz = ["imageio-ffmpeg"]
 # NVRTC only (no GPU or driver needed): compile-check the CUDA kernels on CPU CI.
 kernelcheck = ["nvidia-cuda-nvrtc>=13,<14"]
 
