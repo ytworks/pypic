@@ -26,12 +26,14 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D7, Accep
 | M1 Explicit core (Yee, Boris, Esirkepov) | Complete |
 | M2 Boundaries (periodic, CPML/open, reflecting) | Complete; open-boundary injection not implemented (R1) |
 | M3 Multi-GPU (NCCL decomposition, launcher) | Complete; 1 vs 2/8 GPU equal to ~1e-15 |
-| M4 Mixtures + planner + two-stream example | Complete; growth within 4 % of theory |
-| M5 Implicit energy-conserving scheme | Complete; energy 1.9e-10 over 679 steps |
+| M4 Mixtures + planner + two-stream example | Complete; growth within 3.5 % of theory |
+| M5 Implicit energy-conserving scheme | Complete; energy error 1.9e-10 over 679 steps |
 | M6 Performance | Partial: 1.0 ns/particle/step on 1 GPU; 4.0× on 8 GPUs (R3–R5 open) |
 | Harness: CPU CI + GPU gates | Introduced 2026-11-09 (this PR) |
 
-- GPU gates: pending a recorded run on this commit (`bench/results/index.json`).
+- GPU gates: ALL PASSED on fcbc4ce, 8 GPUs (`bench/results/2026-11-09-fcbc4ced5-gpu-gates.json`):
+  growth error +2.9 / −1.8 / −2.6 / +3.5 % (ei/ep/eip/ei_implicit), Gauss ≤ 3.5e-12, div B ≤ 1.0e-14,
+  implicit energy 1.9e-10; 22 GPU tests pass.
 - Known gaps: no particle injection at open faces (R1); no field/particle output or restart (R2).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 
@@ -43,7 +45,7 @@ Newest first; only the most recent entries are kept here (see the size budget in
 ### 2026-11-09 — [progress] CPU CI and development harness
 - What: GitHub Actions CPU job (ruff, PROGRESS budget, bench evidence index, NVRTC compile check of all kernels for sm_80/sm_120, `tests/cpu`); tests split into `tests/cpu` (no CuPy) and `tests/gpu`; CuPy became the `gpu` extra; GPU gates script recording evidence in `bench/results/`; CLAUDE.md/AGENTS.md, rules, design record, roadmap, runbook.
 - Why: keep the conservation guarantees verifiable across sessions and contributors; CI runners have no GPU, so GPU evidence is recorded and validated instead.
-- Refs: PR #1; `.github/workflows/ci.yml`, `scripts/{check_kernels,gpu_gates,verify_bench_results,check_progress_size}.py`
+- Refs: PR #1; `.github/workflows/ci.yml`, `scripts/{check_kernels,gpu_gates,verify_bench_results,check_progress_size}.py`; first evidence `bench/results/2026-11-09-fcbc4ced5-gpu-gates.json`
 
 ### 2026-11-09 — [amendment] PR #1 review fixes
 - What: CG 0/0 guard; exact Maxwell–Jüttner sampling (Gamma-mixture rejection for theta < 1); non-converged implicit steps raise and are not committed; ghost width validated against cells per rank; nested planner overrides via `SimConfig.from_dict`; launcher polls all ranks.
