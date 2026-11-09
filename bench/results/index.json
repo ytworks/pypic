@@ -1,6 +1,30 @@
 {
   "entries": [
     {
+      "file": "2026-11-10-20b2e74c1-example-relativistic_shock-pair_2d_long-run-40c0ca85.json",
+      "type": "example",
+      "date": "2026-11-10",
+      "commit": "20b2e74c1b77f694518d82f955ce28760280a915",
+      "dirty": false,
+      "run_id": "40c0ca85",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "relativistic_shock",
+      "config": "pair_2d_long"
+    },
+    {
+      "file": "2026-11-10-d9637cd9f-example-reconnection-pair_sigma10_large-run-e879cfd6.json",
+      "type": "example",
+      "date": "2026-11-10",
+      "commit": "d9637cd9f8dd96da73a85067c568c47958fea811",
+      "dirty": false,
+      "run_id": "e879cfd6",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "reconnection",
+      "config": "pair_sigma10_large"
+    },
+    {
       "file": "2026-11-10-ea836cfa5-gpu-gates.json",
       "date": "2026-11-10",
       "commit": "ea836cfa5f2394daffa2467f144533c099ce5b95",

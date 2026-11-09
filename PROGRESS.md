@@ -47,6 +47,12 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Second recorded realizations of the production runs
+- What: `pair_sigma10_large` (run e879cfd6) and `pair_2d_long` (run 40c0ca85) were run again and recorded, one record per run.
+  - Reconnection, two recorded runs: p = 2.10 / 2.10 and rate 0.064 / 0.074 v_A.
+  - Shock, two recorded runs: β_sh −5.9 / −7.6 %, n₂/n₁ +6.9 / +8.1 %, tail p 3.91 / 3.85, γ_max ∝ t^0.36 / t^0.41.
+- Why: the 2026-11-09 entry "Production runs of the acceleration examples" quoted a first realization of each that was never recorded (second review). Those values are withdrawn: p = 2.15 and rate 0.080; −4.2 %, +7.8 %, p 3.93 and t^0.42.
+- Refs: `bench/results/*-run-e879cfd6.json`, `*-run-40c0ca85.json`; `examples/{reconnection,relativistic_shock}/README.md`; ANA-D3
 ### 2026-11-10 — [amendment] PR #2 third review: rank-0 file errors, untracked code
 - What:
   - Every rank-0 file operation of the output shares its outcome with all ranks (`OutputError` on every rank).

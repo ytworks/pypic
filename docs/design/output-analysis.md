@@ -101,7 +101,7 @@ Why: agreement with analytic and linear theory is the test policy's observable r
 - The analysis commit is taken before the analysis code is loaded. If the code changes while the analysis runs, nothing is recorded.
 - One definition of provenance (`pypic.provenance`) serves run.json, the gate records and the example records. A commit is "-dirty" when a tracked file differs from it, or an untracked, not ignored file exists, under the code paths (`pypic/`, `examples/`, `scripts/`, `tests/`, `pyproject.toml`). Documentation and recorded evidence are not code.
 - Evidence files (gates and examples) are strict JSON: a metric that could not be measured is `null`, never NaN. `verify_bench_results.py` rejects anything else in CI.
-- Each record is one realization. The atomic current deposit has no fixed order, so turbulent runs from the same seed diverge at round-off level. Two runs of `pair_sigma10_large` gave p = 2.15 and 2.10, and the READMEs quote both.
+- Each record is one realization. The atomic current deposit has no fixed order, so turbulent runs from the same seed diverge at round-off level. The two recorded runs of `pair_sigma10_large` gave p = 2.10 both times, with reconnection rates 0.064 and 0.074. The READMEs quote recorded runs only.
 
 Why: these numbers are research results with statistical spread, not contracts.
 
@@ -126,6 +126,7 @@ tracks): 32 MB on disk for 62 MB raw; wall time 18.3 s vs 15.6 s without output.
   - **Separate runs**: two runs of one configuration recorded on one day overwrote each other. Records now carry the run id.
   - **Analysis commit**: it was read after the analysis, so a checkout during the analysis was recorded as the code that produced the metrics. It is now taken before the analysis and checked after.
   - **Strict JSON**: unmeasured metrics were written as NaN, which is not JSON. They are now null. The five existing evidence files that held NaN were normalized (NaN → null, nothing else changed).
+  - **Unrecorded realization**: the READMEs compared two runs each of `pair_sigma10_large` and `pair_2d_long`, but only one run of each had been recorded. Each configuration was run again and recorded (2026-11-10). The READMEs now quote the two recorded runs, and the unrecorded values are dropped.
 - 2026-11-10 (PR #2 third review):
   - **Rank-0 file errors**: a failure to create or clean the output directory raised on rank 0 only, and the other ranks went on into the next collective. Every rank-0 file operation of the output now shares its outcome with all ranks (OUT-D2).
   - **Untracked code**: an untracked helper imported by an analysis was outside the provenance check, so the record looked clean and editing the helper during the analysis passed. Untracked code files are now part of the provenance (`pypic.provenance`). This applies to run.json and the gate records too. For tracked changes the check is now limited to the code paths, so an uncommitted evidence index no longer marks the next run dirty.

@@ -33,10 +33,12 @@ python examples/relativistic_shock/analyze.py output/relativistic_shock/pair_2d 
 | run | box | shock speed | n₂/n₁ | tail | γ_max(t) |
 |---|---|---|---|---|---|
 | `pair_2d` (gate) | quasi-2-D, t = 400 | 0.472 (−5.1 % vs 2-D Synge) | 3.06 (+1.7 %) | thermal only | — |
-| `pair_2d_long` | quasi-2-D, t = 2000 | −4.2 / −5.9 % | +7.8 / +6.9 % | p = 3.93 / 3.91 on γ ≈ 40–100; ~16 % non-thermal | ∝ t^0.42 / t^0.36 |
+| `pair_2d_long` | quasi-2-D, t = 2000 | −5.9 / −7.6 % | +6.9 / +8.1 % | p = 3.91 / 3.85 on γ ≈ 40–100; 15–16 % non-thermal | ∝ t^0.36 / t^0.41 |
 | `pair_3d` | 3-D, t = 600 | 0.320 (−3.7 % vs 3-D Synge 0.332) | 4.15 (+3.5 % vs 4.01) | thermal | — |
 
-- **Two realizations**: the long run was made twice with the same code and seed; the two values in each cell come from those two runs. The GPU deposit adds currents atomically in a non-deterministic order, so round-off differences grow in this turbulent flow and the runs are independent realizations. The spread is a measure of the statistical uncertainty.
+- **Two realizations**: the long run has two recorded runs, each a record of its own in `bench/results/`: one at 200af13, and run 40c0ca85 at 20b2e74. The engine changes between the two commits do not touch this configuration, and the seed is the same. The two values in each cell come from those two runs.
+  - The GPU deposit adds currents atomically in a non-deterministic order, so round-off differences grow in this turbulent flow and the runs are independent realizations. The spread is a measure of the statistical uncertainty.
+  - An earlier run (−4.2 %, +7.8 %, p = 3.93, t^0.42) was quoted here before but never recorded, so it is no longer quoted.
 - **Dimensionality**: the 3-D run confirms the jump to the 3-D gas values (β_sh ≈ 1/3, n₂/n₁ ≈ 4), while the quasi-2-D runs follow the 2-D gas values (0.50, 3.0).
 - **The tail is still young at t = 2000 ω_pe⁻¹**: that is ≈ 520 relativistic plasma times ω_p,rel⁻¹ = √γ₀/ω_pe. Spitkovsky's p ≈ 2.4 was measured at ≈ 2250 ω_p,rel⁻¹, about 8700 ω_pe⁻¹; the index flattens and the cutoff grows (∝ t^1/2) with time. A converged index needs t ≳ 8000 ω_pe⁻¹ and a box L ≳ 1.5 c t, which is about 10⁹ particles in quasi-2-D.
 - **Shock-speed fit**: the speed is fitted between 0.3 and 0.7 of the validity time. Later on, the reflected-particle precursor reaches the receding plasma edge, and an earlier window that ran to 0.95 t_valid gave −20 % in 3-D.

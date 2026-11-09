@@ -32,10 +32,13 @@ python examples/reconnection/analyze.py output/reconnection/pair_sigma10 --movie
 
 ## Production result (8 GPUs, recorded in `bench/results/`)
 
-`pair_sigma10_large.yaml` runs a 400 × 200 c/ω_pe box to t = 2000 with 10⁸ particles. It was run twice with the same code and seed; the two runs differ only through the non-deterministic order of the atomic current deposit, which turbulence amplifies, so they are independent realizations.
-- **power law**: dN/dγ ∝ γ^−p with p = 2.15 ± 0.03 and 2.10 ± 0.03 over σ/2 ≤ γ−1 ≤ 5σ, against 1.9 + 0.7/√σ = 2.12 (Werner et al. 2016), within 1.5 %;
-- **reconnection rate**: 0.080 and 0.064 v_A on average over the active phase, with a peak of 0.19 from the initial tearing and a second burst from plasmoid mergers;
-- **energy**: 77 % of the magnetic energy is converted;
-- **acceleration channel**: the 1 % most energetic tracked electrons gained essentially nothing from E∥ (share ≈ 0); their energy came from E⊥, the motional field of the outflows and plasmoids. The tracks are sampled every 2.5 ω_pe⁻¹, so this split is indicative.
+`pair_sigma10_large.yaml` runs a 400 × 200 c/ω_pe box to t = 2000 with 10⁸ particles.
+
+It has two recorded runs, each a record of its own in `bench/results/`: one at 200af13, and run e879cfd6 at d9637cd. The engine changes between the two commits do not touch this configuration. The seed is the same; the runs differ only through the non-deterministic order of the atomic current deposit, which turbulence amplifies, so they are independent realizations.
+- **power law**: dN/dγ ∝ γ^−p with p = 2.10 ± 0.03 in both runs, over σ/2 ≤ γ−1 ≤ 5σ, against 1.9 + 0.7/√σ = 2.12 (Werner et al. 2016), within 1 %;
+- **reconnection rate**: 0.064 and 0.074 v_A on average over the active phase, with a peak of 0.19 from the initial tearing and a second burst from plasmoid mergers;
+- **energy**: 77 % and 76 % of the magnetic energy is converted;
+- **acceleration channel**: the 1 % most energetic tracked electrons gained essentially nothing from E∥ (share +0.005 and −0.005); their energy came from E⊥, the motional field of the outflows and plasmoids. The tracks are sampled every 2.5 ω_pe⁻¹, so this split is indicative.
+- An earlier run (p = 2.15, rate 0.080) was quoted here before but never recorded, so it is no longer quoted.
 
 The small gate box (100 × 100, t = 400) gives p = 2.4: the power law needs the larger system and the longer time.
