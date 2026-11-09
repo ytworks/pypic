@@ -64,7 +64,8 @@ class SimConfig:
         d = dict(d)
         sp = []
         for s in d.pop("species", []):
-            s = dict(s)
+            # accept SpeciesConfig instances (Python API overrides) as well as plain dicts (YAML)
+            s = asdict(s) if isinstance(s, SpeciesConfig) else dict(s)
             beams = [b if isinstance(b, Beam) else Beam(**{**b, "drift": tuple(b.get("drift", (0, 0, 0)))})
                      for b in s.pop("beams", [])]
             sp.append(SpeciesConfig(beams=beams, **s))

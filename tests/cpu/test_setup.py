@@ -44,5 +44,11 @@ def test_nested_overrides_are_converted():
     assert isinstance(cfg.implicit, IC) and cfg.implicit.picard_tol == 1e-10
     assert cfg.implicit.picard_maxit == IC().picard_maxit
     assert isinstance(cfg.species[0], SpeciesConfig) and isinstance(cfg.species[0].beams[0], Beam)
+    # typed objects from the Python API are accepted as well
+    cfg, _, _ = plan_two_stream(TwoStreamParams(overrides={
+        "implicit": IC(picard_tol=1e-9), "dims": (1, 1, 1),
+        "species": [SpeciesConfig("e", -1, 1, [Beam(1.0, (0.1, 0, 0), 1e-3)])]}))
+    assert cfg.implicit.picard_tol == 1e-9
+    assert isinstance(cfg.species[0], SpeciesConfig) and cfg.species[0].beams[0].drift == (0.1, 0, 0)
     with pytest.raises(KeyError):
         plan_two_stream(TwoStreamParams(overrides={"implicit": {"no_such_field": 1}}))

@@ -260,3 +260,21 @@ def test_ghost_wider_than_local_grid_is_rejected():
         Simulation(cfg, comm=SelfComm(), verbose=False)
 
 
+
+
+def test_implicit_reflection_with_displacement_beyond_half_box_conserves_charge():
+    """Orbit folded at the lower wall that ends past the box centre (|d| > L/2): the deposit must
+    fold about the wall the unfolded path crossed, or Gauss's law breaks (review, PR #1)."""
+    cfg = SimConfig(n_cells=(8, 8, 8), dx=(1.0,) * 3, dt=5.1, solver="implicit",
+                    boundaries=(("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic")),
+                    species=[SpeciesConfig("e", -1, 1, []), SpeciesConfig("p", 1, 1, [])],
+                    diag_interval=0, gauss_interval=0, mode_diag=0, sort_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    e, p = sim.species
+    inject(e, [0.1, 2.3, 2.3], [-4.9, 0.04, 0.03], w=1e-3)  # d_x ~ -5 cells: reflects, ends at x ~ 4.9
+    inject(p, [0.1, 2.3, 2.3], [0.0, 0.0, 0.0], w=1e-3)  # neutral start: rho = 0, E = 0
+    assert sim.gauss_error()[0] < 1e-15
+    sim.step()
+    x = float(e.P[0, 0])
+    assert 4.0 < x < 8.0 and float(e.P[3, 0]) > 0  # reflected past the box centre
+    assert sim.gauss_error()[0] < 1e-12

@@ -61,13 +61,15 @@ __device__ void path_op(const double* p0, const double* d, int mode, const doubl
         int cell[3];
         for (int a = 0; a < 3; a++) {
             double sm;
-            double mid = fold1(p0[a] + tm * d[a], a, sm);
+            const double umid = p0[a] + tm * d[a];  // unfolded midpoint
+            double mid = fold1(umid, a, sm);
             s[a] = sm;
             double xa = p0[a] + ta * d[a], xb = p0[a] + tb * d[a];
-            // fold endpoints consistently with the midpoint side
+            // fold endpoints about the wall the segment lies beyond. The wall is chosen from the
+            // UNFOLDED midpoint: the folded one can be past the box centre when |d| > L/2.
             if (sm < 0.0) {
                 double Lg[3] = {LX, LY, LZ};
-                double wall = (mid < 0.5 * Lg[a]) ? 0.0 : Lg[a];
+                double wall = (umid < 0.0) ? 0.0 : Lg[a];
                 xa = 2.0 * wall - xa;
                 xb = 2.0 * wall - xb;
             }

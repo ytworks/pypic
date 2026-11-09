@@ -178,9 +178,9 @@ def plan_two_stream(p: TwoStreamParams, n_gpus: int = 1) -> tuple[SimConfig, str
 
 
 def apply_overrides(cfg: SimConfig, overrides: dict) -> SimConfig:
-    """Return a new SimConfig with ``overrides`` applied. Nested values (``implicit`` as a dict,
-    ``species`` as a list of dicts, tuples given as lists) are converted through
-    :meth:`SimConfig.from_dict`; nested dicts are merged into the current values."""
+    """Return a new SimConfig with ``overrides`` applied. Nested values (``implicit`` as a dict or
+    ImplicitConfig, ``species`` as dicts or SpeciesConfig, tuples given as lists) are converted
+    through :meth:`SimConfig.from_dict`; nested dicts are merged into the current values."""
     d = asdict(cfg)
     for k, v in overrides.items():
         if k not in d:

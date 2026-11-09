@@ -62,3 +62,5 @@ Why: the owner asked that time step and plasma parameters be set optimally for t
 - 2026-11-09 (PR #1 review): CG guards against 0/0 after exact convergence; exact MJ sampling;
   no commit of non-converged implicit steps; ghost width validated against cells per rank;
   nested planner overrides converted through `SimConfig.from_dict`; launcher polls all ranks.
+- 2026-11-09 (PR #1 second review): implicit orbit folding chooses the wall from the unfolded
+  midpoint (charge conservation for |d| > L/2); typed `SpeciesConfig` overrides accepted.

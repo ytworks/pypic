@@ -42,6 +42,11 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D7, Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-09 — [amendment] PR #1 second review fixes
+- What: the implicit deposit folds a segment about the wall chosen from the unfolded midpoint (was the folded one, wrong when |d| > L/2 → charge not conserved); `SimConfig.from_dict` accepts `SpeciesConfig` instances so typed planner overrides work again.
+- Why: two P2 findings from the second review, each reproduced by a regression test that fails on the pre-fix code.
+- Refs: PR #1 review on 96ec343; PIC-D3, PIC-D7
+
 ### 2026-11-09 — [progress] CPU CI and development harness
 - What: GitHub Actions CPU job (ruff, PROGRESS budget, bench evidence index, NVRTC compile check of all kernels for sm_80/sm_120, `tests/cpu`); tests split into `tests/cpu` (no CuPy) and `tests/gpu`; CuPy became the `gpu` extra; GPU gates script recording evidence in `bench/results/`; CLAUDE.md/AGENTS.md, rules, design record, roadmap, runbook.
 - Why: keep the conservation guarantees verifiable across sessions and contributors; CI runners have no GPU, so GPU evidence is recorded and validated instead.
