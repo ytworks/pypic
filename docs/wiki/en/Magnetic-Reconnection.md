@@ -72,8 +72,10 @@ the centres of the magnetic islands (plasmoids).
 ![field lines at six times](images/reconnection/fieldlines.png)
 
 `pair_sigma10_large` (second realization). J_z with the field lines (the same contour levels of A_z in
-every panel) at the times when the reconnected flux of the lower sheet reaches 0, 15, 40, 65, 90 and 100 %
-of its final value, and Ψ(t) below with those times marked.
+every panel) at t = 0 and at the times when the reconnected flux of the lower sheet reaches 15, 40, 65 and
+90 % of its final value, and at the end; Ψ(t) below with those times marked. Ψ = A(O) − A(X) is measured
+between the marked points themselves (the main O point and the deepest X point of the lower sheet), so the
+curve starts when the tearing has made X and O points (before that there is nothing to measure).
 
 - **t = 0**: the field lines are straight and antiparallel across each sheet: the Harris equilibrium.
 - **Tearing**: the sheets break into a chain of X points (×) and small islands (○); the field lines
