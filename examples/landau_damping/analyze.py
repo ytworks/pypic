@@ -93,7 +93,14 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
         ax.semilogy(t, np.abs(z), color=P.color(0), label=r"$|E_x(k)|$")
         tt = np.linspace(*res.get("fit_window", (0, 15)), 50)
         a0 = np.abs(z[np.searchsorted(t, tt[0])])
-        ax.semilogy(tt, a0 * np.exp(g_th * (tt - tt[0])), **P.THEORY, label=rf"theory $\gamma$={g_th:.4f}")
+        ax.semilogy(tt, a0 * np.exp(g_th * (tt - tt[0])), **P.THEORY, label=rf"linear theory $\gamma$={g_th:.4f}")
+        if case == "nonlinear":
+            # reference envelope slopes (Cheng & Knorr 1976), anchored on the measured envelope
+            for (ta, tb), gref, ls in (((2.0, 15.0), -0.29, ":"), ((20.0, 40.0), 0.08, "-.")):
+                tr_ = np.linspace(ta, tb, 30)
+                e0 = float(np.interp(ta, t, env)) * 1.6
+                ax.semilogy(tr_, e0 * np.exp(gref * (tr_ - ta)), color=P.INK["primary"], ls=ls, lw=1.2,
+                            label=rf"Cheng & Knorr $\gamma$={gref:+.2f}")
         ax.set_xlabel(r"$\omega_{pe} t$")
         ax.legend()
         figs.append(("mode", fig))
@@ -163,13 +170,130 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     return res
 
 
-def movie(run_dir: str) -> str:
+def summary(results: dict[str, dict], path: str) -> str:
+    """|measured - theory| / theory of every gated quantity against its tolerance (log scale);
+    the nonlinear benchmark rates are reported without a tolerance (hollow markers)."""
+    rows = []  # (label, error, tolerance or None)
+    r = results.get("landau")
+    if r:
+        rows += [("landau: damping rate γ", r["gamma_rel_error"], 0.10),
+                 ("landau: frequency ω", r["omega_rel_error"], 0.02)]
+    r = results.get("nonlinear")
+    if r:
+        rows += [("nonlinear: γ₁ vs −0.29", (r["gamma_1_fit"] + 0.29) / -0.29, None),
+                 ("nonlinear: γ₂ vs +0.08", (r["gamma_2_fit"] - 0.08) / 0.08, None)]
+    r = results.get("dawson")
+    if r:
+        rows += [("dawson: frequency (median)", r["freq_rel_error_median"], 0.01),
+                 ("dawson: amplitude (median)", r["amp_rel_error_median"], 0.02)]
+    r = results.get("wavebreaking")
+    if r:
+        rows.append(("wavebreaking: crossing time", r["rel_error"], 0.05))
+    r = results.get("relativistic")
+    if r:
+        rows.append(("relativistic: period (median)", r["freq_rel_error_median"], 0.005))
+    P.style()
+    fig, ax = P.plt.subplots(figsize=(7.2, 0.42 * len(rows) + 1.2))
+    y = np.arange(len(rows))[::-1]
+    for i, (yi, (_lab, err, tol)) in enumerate(zip(y, rows)):
+        e = max(abs(err), 1e-5)
+        ax.plot(e, yi, "o", ms=8, color=P.color(0), mfc=P.color(0) if tol else "none",
+                label=("measured |error|" if i == 0 else None))
+        if tol:
+            ax.plot(tol, yi, "|", ms=16, mew=2, color=P.INK["primary"], label=("gate tolerance" if i == 0 else None))
+        ax.annotate(f"{err:+.2%}", (1.0, yi), xycoords=("axes fraction", "data"), xytext=(6, 0),
+                    textcoords="offset points", va="center", fontsize=7.5, color=P.INK["secondary"])
+    ax.plot([], [], "o", color=P.color(0), mfc="none", label="reported (not gated)")
+    ax.set_xscale("log")
+    ax.set_xlim(1e-4, 1.0)
+    ax.set_yticks(y, [r_[0] for r_ in rows], fontsize=8)
+    ax.set_xlabel("|PIC − theory| / theory   (right: signed error)")
+    ax.grid(axis="y", visible=False)
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, fontsize=7)
+    fig.tight_layout()
+    return P.save(fig, path, dpi=110)
+
+
+def sheets_movie(run_dir: str, out: str, fps: int = 10, n_frames: int = 90, dpi: int = 70,
+                 n_sheets: int = 1500) -> str:
+    """Cold-plasma sheets from the tracked electrons (cold cases): the phase space (x, u_x) coloured by
+    the initial position x0, the Lagrangian map x0 -> x (monotonic until the sheets cross, i.e. until the
+    wave breaks) and the electron density from the sheet positions (it spikes where they cross)."""
+    from matplotlib import animation
+
+    run = open_run(run_dir)
+    info = run.meta["planner"]
+    tr = run.tracks("tracks", "electron")
+    t, L = tr.t, info["L"]
+    x, ux = tr["x"], tr["ux"]
+    ok = np.nonzero(np.all(np.isfinite(x), axis=0))[0]
+    ok = ok[np.argsort(x[0, ok])]
+    cols = ok[np.linspace(0, len(ok) - 1, min(n_sheets, len(ok))).astype(int)]
+    x = x[:, cols]
+    x = x[0] + np.unwrap((x - x[0]) * 2 * np.pi / L, axis=0) * L / (2 * np.pi)
+    ux = ux[:, cols]
+    x0 = x[0]
+    t_cross = T.crossing_time(info["k_v0"]) if info.get("k_v0", 0) > 1 else None
+    P.style()
+    fig, ax = P.plt.subplots(1, 3, figsize=(13, 3.6))
+    umax = 1.15 * float(np.nanmax(np.abs(ux)))
+    sc = ax[0].scatter(np.mod(x[0], L), ux[0], c=x0, s=3, cmap=P.SEQUENTIAL, vmin=0, vmax=L)
+    ax[0].set_xlim(0, L)
+    ax[0].set_ylim(-umax, umax)
+    ax[0].set_xlabel("x [c/ωpe]")
+    ax[0].set_ylabel("u_x / c")
+    ax[0].set_title("phase space (colour: initial position x₀)")
+    ln, = ax[1].plot(x0, x[0], color=P.color(0), lw=1.4, label="PIC sheets")
+    ax[1].plot(x0, x0, **{**P.THEORY, "lw": 0.8}, label="x = x₀")
+    span = float(np.nanmax(np.abs(x - x0)))
+    ax[1].set_xlim(0, L)
+    ax[1].set_ylim(-span, L + span)
+    ax[1].set_xlabel("x₀ [c/ωpe]")
+    ax[1].set_ylabel("x [c/ωpe]")
+    ax[1].set_title("Lagrangian map: sheets cross where it folds")
+    ax[1].legend(loc="upper left", fontsize=7)
+    edges = np.linspace(0, L, 129)
+    xc = 0.5 * (edges[1:] + edges[:-1])
+
+    def density(i):
+        h, _ = np.histogram(np.mod(x[i], L), bins=edges)
+        return h / (len(x0) / (len(edges) - 1))
+
+    nl, = ax[2].plot(xc, density(0), color=P.color(1), lw=1.4)
+    ax[2].set_xlim(0, L)
+    ax[2].set_ylim(0, max(4.0, 1.1 * max(float(density(i).max()) for i in range(0, len(t), max(1, len(t) // 60)))))
+    ax[2].set_xlabel("x [c/ωpe]")
+    ax[2].set_ylabel("n_e / n₀")
+    ax[2].set_title("electron density")
+    title = fig.suptitle("")
+    fig.tight_layout()
+    idx = np.linspace(0, len(t) - 1, n_frames).astype(int)
+
+    def update(f):
+        i = idx[f]
+        sc.set_offsets(np.column_stack([np.mod(x[i], L), ux[i]]))
+        ln.set_ydata(x[i])
+        nl.set_ydata(density(i))
+        s = f"{info['case']}: ω_pe t = {t[i]:.2f}"
+        if t_cross is not None:
+            s += f"   (theory: sheets first cross at {t_cross:.3f}" + (", crossed)" if t[i] >= t_cross else ")")
+        title.set_text(s)
+        return sc, ln, nl, title
+
+    ani = animation.FuncAnimation(fig, update, frames=n_frames, blit=False)
+    ani.save(out, writer=animation.PillowWriter(fps=fps), dpi=dpi)
+    P.plt.close(fig)
+    return out
+
+
+def movie(run_dir: str, out: str | None = None, fps: int = 20, n_frames: int = 150,
+          dpi: int = 110) -> str:
     from pypic.analysis import Movie
 
     run = open_run(run_dir)
     m = Movie(run, title=f"Langmuir oscillation: {run.meta['planner']['case']}")
     m.phase("phase", "electron").xt("lineout", "Ex").spectrum("spectrum", "electron").history()
-    return m.save(os.path.join(run_dir, "langmuir.mp4"), fps=20, n_frames=150)
+    return m.save(out or os.path.join(run_dir, "langmuir.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 
 if __name__ == "__main__":

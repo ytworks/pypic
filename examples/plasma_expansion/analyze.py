@@ -31,20 +31,27 @@ from pypic.analysis.fields import front_position  # noqa: E402
 from pypic.analysis.particles import fit_temperature, spectrum  # noqa: E402
 
 
+def max_ion_energy(run) -> tuple[np.ndarray, np.ndarray]:
+    """(t, E_max): upper edge of the last non-empty bin of the ion spectrum at every output."""
+    sp = run.series("ion_spectrum")
+    edges = sp.edges[0]
+    h = sp["ion"]
+    tot = h.sum(axis=1)
+    emax = []
+    for i in range(len(sp.t)):
+        nz = np.nonzero(h[i] > 1e-9 * max(tot[i], 1e-300))[0]
+        emax.append(edges[nz[-1] + 1] if nz.size else np.nan)
+    return sp.t, np.asarray(emax)
+
+
 def analyze(run_dir: str, show_plot: bool = True) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
     Te, mi, Z = info["Te"], info["mass_ratio"], info["Z"]
     sp = run.series("ion_spectrum")
     edges = sp.edges[0]
-    t = sp.t
     h = sp["ion"]
-    tot = h.sum(axis=1)
-    emax = []
-    for i in range(len(t)):
-        nz = np.nonzero(h[i] > 1e-9 * max(tot[i], 1e-300))[0]
-        emax.append(edges[nz[-1] + 1] if nz.size else np.nan)
-    emax = np.asarray(emax)
+    t, emax = max_ion_energy(run)
     tau = T.tau(t, Te, mi, Z)
     eth = T.max_energy(t, Te, mi, Z)
     sel = tau >= 2.0
@@ -116,14 +123,47 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     return res
 
 
-def movie(run_dir: str) -> str:
+class MoraPanel:
+    """Movie panel: the maximum ion energy E_max(tau) revealed up to the frame time, over Mora's
+    isothermal law (pypic.analysis.animate.Panel interface)."""
+
+    def __init__(self, run):
+        info = run.meta["planner"]
+        self.Te, mi, Z = info["Te"], info["mass_ratio"], info["Z"]
+        self.t, self.emax = max_ion_energy(run)
+        self.tau = T.tau(self.t, self.Te, mi, Z)
+        self.eth = T.max_energy(self.t, self.Te, mi, Z)
+
+    def times(self):
+        return self.t
+
+    def prepare(self, frame_times):
+        pass
+
+    def init(self, ax):
+        ax.plot(self.tau, self.eth / self.Te, **P.THEORY, label="Mora 2003 (isothermal)")
+        (self.line,) = ax.plot([], [], "o", ms=3, color=P.color(0), label="PIC")
+        ax.set_xlim(0, self.tau[-1] * 1.02)
+        ax.set_ylim(0, 1.1 * float(np.nanmax(self.eth / self.Te)))
+        ax.set_xlabel(r"$\tau = \omega_{pi} t / \sqrt{2e}$")
+        ax.set_ylabel(r"$E_{max} / Z T_e$")
+        ax.set_title("maximum ion energy")
+        ax.legend(loc="lower right")
+
+    def update(self, t):
+        i = max(0, int(np.searchsorted(self.t, t + 1e-9, side="right")) - 1)
+        self.line.set_data(self.tau[: i + 1], self.emax[: i + 1] / self.Te)
+
+
+def movie(run_dir: str, out: str | None = None, fps: int = 15, n_frames: int = 100,
+          dpi: int = 110) -> str:
     from pypic.analysis import Movie
 
     run = open_run(run_dir)
     m = Movie(run, title="plasma expansion into vacuum")
     m.phase("ion_phase", "ion").lineout("lineout", ["n:ion", "n:electron"]).lineout("lineout", ["Ex"])
-    m.spectrum("ion_spectrum", "ion")
-    return m.save(os.path.join(run_dir, "expansion.mp4"), fps=15, n_frames=100)
+    m.add(MoraPanel(run))
+    return m.save(out or os.path.join(run_dir, "expansion.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 
 if __name__ == "__main__":

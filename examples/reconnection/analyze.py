@@ -58,7 +58,7 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
            "reconnection_rate_mean_active": float(np.mean(rate[active])) if active.any() else float("nan"),
            "reconnection_rate_literature": 0.1, "magnetic_energy_converted": float(1 - eb[-1] / eb[0]),
            "power_law_index": pl["p"], "power_law_err": pl["p_err"], "power_law_range": [pl["lo"], pl["hi"]],
-           "werner2016_index": info["werner_index"]}
+           "werner2016_index": info["werner_index"], "sigma": sig}
     tr = run.tracks("tracks", "electron")
     if len(tr.t) > 2:
         w = parallel_perpendicular_work(tr, -1.0, 1.0)
@@ -87,14 +87,41 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     return res
 
 
-def movie(run_dir: str) -> str:
+def summary(results: dict[str, dict], path: str) -> str:
+    """Power-law index p of dN/dgamma vs sigma: the Werner et al. (2016) fit 1.9 + 0.7 / sqrt(sigma) and
+    the Sironi & Spitkovsky (2014) values, with the measured index of every run at its sigma."""
+    from theory import SIRONI_SPITKOVSKY_2014, werner_index
+
+    P.style()
+    fig, ax = P.plt.subplots(figsize=(6.4, 4.2))
+    s = np.geomspace(1, 60, 200)
+    ax.plot(s, [werner_index(v) for v in s], **P.THEORY, label="Werner et al. 2016: 1.9 + 0.7/√σ")
+    ss = np.array(sorted(SIRONI_SPITKOVSKY_2014))
+    ax.plot(ss, [SIRONI_SPITKOVSKY_2014[k] for k in ss], "s", ms=7, mfc="none", color=P.INK["secondary"],
+            label="Sironi & Spitkovsky 2014")
+    names = list(results)
+    for i, n in enumerate(names):
+        r = results[n]
+        sig = r.get("sigma", 10.0) * (1 + 0.04 * (i - (len(names) - 1) / 2))  # small offsets to separate points
+        ax.errorbar(sig, r["power_law_index"], yerr=r["power_law_err"], fmt="o", ms=7, color=P.color(i),
+                    capsize=3, label=f"PIC {n}: p = {r['power_law_index']:.2f}")
+    ax.set_xscale("log")
+    ax.set_xlabel("magnetization σ")
+    ax.set_ylabel(r"power-law index $p$  ($dN/d\gamma \propto \gamma^{-p}$)")
+    ax.legend(fontsize=7)
+    fig.tight_layout()
+    return P.save(fig, path, dpi=110)
+
+
+def movie(run_dir: str, out: str | None = None, fps: int = 15, n_frames: int = 80,
+          dpi: int = 110) -> str:
     from pypic.analysis import Movie
 
     run = open_run(run_dir)
     m = Movie(run, title="relativistic pair reconnection")
     m.slice("slice_xy", "Jz").slice("slice_xy", "n:electron", signed=False).spectrum("spectrum", "electron")
     m.history()
-    return m.save(os.path.join(run_dir, "reconnection.mp4"), fps=15, n_frames=80)
+    return m.save(out or os.path.join(run_dir, "reconnection.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 
 if __name__ == "__main__":

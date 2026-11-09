@@ -115,14 +115,43 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     return res
 
 
-def movie(run_dir: str) -> str:
+def summary(results: dict[str, dict], path: str) -> str:
+    """Shock speed and compression of every run divided by the Synge-gas jump conditions of the run's
+    effective dimensionality, with the 10 % gate band (two panels, one per quantity)."""
+    P.style()
+    names = list(results)
+    y = np.arange(len(names))[::-1]
+    fig, axes = P.plt.subplots(1, 2, figsize=(10, 0.5 * len(names) + 1.6), sharey=True)
+    for ax, (key, th, lab) in zip(axes, (("beta_sh", "beta_sh_theory", r"$\beta_{sh}$"),
+                                         ("compression", "compression_theory", r"$n_2/n_1$"))):
+        ax.axvspan(0.9, 1.1, color=P.INK["grid"], alpha=0.7, lw=0, label="gate ±10 %")
+        ax.axvline(1.0, **P.THEORY, label="jump conditions (Synge gas)")
+        for yi, n in zip(y, names):
+            r = results[n]
+            ratio = r[key] / r[th]
+            ax.plot(ratio, yi, "o", ms=8, color=P.color(0), label=("PIC" if yi == y[0] else None))
+            ax.annotate(f"{r[key]:.3f} vs {r[th]:.3f} ({ratio - 1:+.1%}), {r['dims_eff']}D", (ratio, yi),
+                        xytext=(0, 10), textcoords="offset points", ha="center", fontsize=7,
+                        color=P.INK["secondary"], bbox={"fc": P.INK["surface"], "ec": "none", "pad": 0.5})
+        ax.set_xlim(0.8, 1.2)
+        ax.set_xlabel(f"{lab}: PIC / theory")
+        ax.grid(axis="y", visible=False)
+    axes[0].set_yticks(y, names)
+    axes[0].set_ylim(y.min() - 0.6, y.max() + 0.7)
+    axes[0].legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, fontsize=7)
+    fig.tight_layout()
+    return P.save(fig, path, dpi=110)
+
+
+def movie(run_dir: str, out: str | None = None, fps: int = 15, n_frames: int = 100,
+          dpi: int = 110) -> str:
     from pypic.analysis import Movie
 
     run = open_run(run_dir)
     m = Movie(run, title="relativistic pair shock")
     m.slice("slice_xy", "Bz").slice("slice_xy", "n:electron", signed=False).phase("phase", "electron")
     m.xt("density", "n:electron", signed=False)
-    return m.save(os.path.join(run_dir, "shock.mp4"), fps=15, n_frames=100)
+    return m.save(out or os.path.join(run_dir, "shock.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 
 if __name__ == "__main__":

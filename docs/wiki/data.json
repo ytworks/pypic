@@ -1,0 +1,4009 @@
+{
+ "examples": {
+  "two_stream": {
+   "page": "Two-Stream-Instability",
+   "title": {
+    "en": "Two-stream and Buneman instabilities",
+    "ja": "二流体不安定性とブネマン不安定性"
+   },
+   "cases": {
+    "ei": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "gamma_fit_kmax": 0.3516099942828085,
+      "gamma_theory": 0.34152114213476215,
+      "relative_error": 0.029540929984549345,
+      "energy_error_max": 0.0021930501923701664,
+      "gauss_max": 1.5960427424133172e-12,
+      "divB_max": 4.2594814870090095e-15
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       128,
+       32,
+       32
+      ],
+      "L": [
+       8.289944287062678,
+       2.0724860717656695,
+       2.0724860717656695
+      ],
+      "dx": [
+       0.06476518974267717,
+       0.06476518974267717,
+       0.06476518974267717
+      ],
+      "dt": 0.035522589745449265,
+      "n_steps": 2473,
+      "t_end": 87.84736444049604,
+      "ppc": 16,
+      "particles": 6291456,
+      "species": [
+       "electron (q=-1, m=1): n=0.5, u=(0.2, 0, 0), θ=0.0001; n=0.5, u=(-0.2, 0, 0), θ=0.0001",
+       "ion (q=+1, m=1836.15): n=1, θ=5.45e-09"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 19.125713196932338,
+      "params": {
+       "mixture": "e-i",
+       "mass_ratio": 1836.15267,
+       "Z": 1,
+       "mode": "electron",
+       "u_drift": 0.2,
+       "beam_fraction": 0.5,
+       "T_e_eV": 51.1,
+       "T_i_eV": 5.11,
+       "solver": "explicit",
+       "n_wavelengths": 4,
+       "transverse_ratio": 0.25,
+       "ppc": 16,
+       "growth_times": 30
+      },
+      "planner": {
+       "k_max": 3.031714129604056,
+       "gamma_max": 0.34152114213476215,
+       "omega_r": -6.071532165918825e-18,
+       "wavelength": 2.0724860717656695,
+       "lambda_De": 0.010000010273988436,
+       "dx_over_lambdaDe": 6.4765123203064485,
+       "dt": 0.035522589745449265,
+       "t_end": 87.84736444049604,
+       "particles": 6291456,
+       "memory_per_gpu_GB": 0.12000952320000001,
+       "dims": [
+        4,
+        1,
+        1
+       ],
+       "filamentation_gamma_est": 0.19425650100134506
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "2e46e170",
+      "created": "2026-11-10T02:00:00+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/two_stream/ei"
+     }
+    },
+    "ep": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "gamma_fit_kmax": 0.46022807896778,
+      "gamma_theory": 0.4680931521766451,
+      "relative_error": -0.01680236758921232,
+      "energy_error_max": 0.0023989141431885906,
+      "gauss_max": 6.048772593914009e-13,
+      "divB_max": 1.0033885656035633e-14
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       128,
+       32,
+       32
+      ],
+      "L": [
+       8.886802429312189,
+       2.221700607328047,
+       2.221700607328047
+      ],
+      "dx": [
+       0.06942814397900147,
+       0.06942814397900147,
+       0.06942814397900147
+      ],
+      "dt": 0.038080139734831965,
+      "n_steps": 1684,
+      "t_end": 64.12695531345703,
+      "ppc": 16,
+      "particles": 8388608,
+      "species": [
+       "electron (q=-1, m=1): n=0.5, u=(0.3, 0, 0), θ=0.0001; n=0.5, u=(-0.3, 0, 0), θ=0.0001",
+       "positron (q=+1, m=1): n=0.5, u=(0.3, 0, 0), θ=0.0001; n=0.5, u=(-0.3, 0, 0), θ=0.0001"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 16.519753245054744,
+      "params": {
+       "mixture": "e-p",
+       "mode": "symmetric",
+       "u_drift": 0.3,
+       "T_e_eV": 51.1,
+       "solver": "explicit",
+       "n_wavelengths": 4,
+       "transverse_ratio": 0.25,
+       "ppc": 16,
+       "growth_times": 30
+      },
+      "planner": {
+       "k_max": 2.82809721816484,
+       "gamma_max": 0.4680931521766451,
+       "omega_r": 2.5673907444456745e-16,
+       "wavelength": 2.221700607328047,
+       "lambda_De": 0.010000010273988436,
+       "dx_over_lambdaDe": 6.942807264867992,
+       "dt": 0.038080139734831965,
+       "t_end": 64.12695531345703,
+       "particles": 8388608,
+       "memory_per_gpu_GB": 0.1581776896,
+       "dims": [
+        4,
+        1,
+        1
+       ],
+       "filamentation_gamma_est": 0.39770987920615164
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "8fbd39e5",
+      "created": "2026-11-10T02:00:23+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/two_stream/ep"
+     }
+    },
+    "eip": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "gamma_fit_kmax": 0.3247179816128144,
+      "gamma_theory": 0.3322174078098893,
+      "relative_error": -0.022573850800035194,
+      "energy_error_max": 0.00029366292645385464,
+      "gauss_max": 2.9846056182059044e-12,
+      "divB_max": 8.471216315468792e-15
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       128,
+       32,
+       32
+      ],
+      "L": [
+       4.497739391331762,
+       1.1244348478329405,
+       1.1244348478329405
+      ],
+      "dx": [
+       0.03513858899477939,
+       0.03513858899477939,
+       0.03513858899477939
+      ],
+      "dt": 0.019272910124325526,
+      "n_steps": 4686,
+      "t_end": 90.31285684258941,
+      "ppc": 16,
+      "particles": 8388608,
+      "species": [
+       "electron (q=-1, m=1): n=0.5, u=(0.2, 0, 0), θ=0.0001; n=0.5, u=(-0.2, 0, 0), θ=0.0001",
+       "ion (q=+1, m=100): n=0.7, θ=1e-06",
+       "positron (q=+1, m=1): n=0.3, θ=0.0001"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 44.563006267067976,
+      "params": {
+       "mixture": "e-i-p",
+       "mass_ratio": 100,
+       "Z": 1,
+       "positron_fraction": 0.3,
+       "mode": "electron",
+       "u_drift": 0.2,
+       "T_e_eV": 51.1,
+       "solver": "explicit",
+       "n_wavelengths": 4,
+       "transverse_ratio": 0.25,
+       "ppc": 16,
+       "growth_times": 30
+      },
+      "planner": {
+       "k_max": 5.587860710016959,
+       "gamma_max": 0.3322174078098893,
+       "omega_r": 0.49871327229850754,
+       "wavelength": 1.1244348478329405,
+       "lambda_De": 0.010000010273988436,
+       "dx_over_lambdaDe": 3.513855289347078,
+       "dt": 0.019272910124325526,
+       "t_end": 90.31285684258941,
+       "particles": 8388608,
+       "memory_per_gpu_GB": 0.1581776896,
+       "dims": [
+        4,
+        1,
+        1
+       ],
+       "filamentation_gamma_est": 0.222536140166985
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "b8d4c426",
+      "created": "2026-11-10T02:00:43+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/two_stream/eip"
+     }
+    },
+    "ei_implicit": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "gamma_fit_kmax": 0.35355043999420654,
+      "gamma_theory": 0.34152114213476215,
+      "relative_error": 0.03522270329811005,
+      "energy_error_max": 1.887375088514932e-10,
+      "gauss_max": 5.75553493753489e-13,
+      "divB_max": 1.5214041857640341e-15
+     },
+     "conditions": {
+      "solver": "implicit",
+      "n_cells": [
+       64,
+       16,
+       16
+      ],
+      "L": [
+       8.289944287062678,
+       2.0724860717656695,
+       2.0724860717656695
+      ],
+      "dx": [
+       0.12953037948535434,
+       0.12953037948535434,
+       0.12953037948535434
+      ],
+      "dt": 0.12953037948535434,
+      "n_steps": 679,
+      "t_end": 87.95112767055559,
+      "ppc": 16,
+      "particles": 786432,
+      "species": [
+       "electron (q=-1, m=1): n=0.5, u=(0.2, 0, 0), θ=0.0001; n=0.5, u=(-0.2, 0, 0), θ=0.0001",
+       "ion (q=+1, m=1836.15): n=1, θ=5.45e-09"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 81.02392618299928,
+      "params": {
+       "mixture": "e-i",
+       "mass_ratio": 1836.15267,
+       "mode": "electron",
+       "u_drift": 0.2,
+       "T_e_eV": 51.1,
+       "T_i_eV": 5.11,
+       "solver": "implicit",
+       "n_wavelengths": 4,
+       "cells_per_wavelength": 16,
+       "transverse_ratio": 0.25,
+       "ppc": 16,
+       "growth_times": 30
+      },
+      "planner": {
+       "k_max": 3.031714129604056,
+       "gamma_max": 0.34152114213476215,
+       "omega_r": -6.071532165918825e-18,
+       "wavelength": 2.0724860717656695,
+       "lambda_De": 0.010000010273988436,
+       "dx_over_lambdaDe": 12.953024640612897,
+       "dt": 0.12953037948535434,
+       "t_end": 87.95112767055559,
+       "particles": 786432,
+       "memory_per_gpu_GB": 0.0278593536,
+       "dims": [
+        4,
+        1,
+        1
+       ],
+       "filamentation_gamma_est": 0.19425650100134506
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "05e1ac93",
+      "created": "2026-11-10T02:01:32+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/two_stream/ei_implicit"
+     }
+    },
+    "buneman": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "gamma_fit_kmax": 0.05122590431927053,
+      "gamma_theory": 0.05372784084847818,
+      "relative_error": -0.046566854161579796,
+      "energy_error_max": 0.0043957472453319945,
+      "gauss_max": 1.4393443034665943e-12,
+      "divB_max": 1.7390159358420046e-14
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       128,
+       8,
+       8
+      ],
+      "L": [
+       5.024396840739653,
+       0.31402480254622833,
+       0.31402480254622833
+      ],
+      "dx": [
+       0.03925310031827854,
+       0.03925310031827854,
+       0.03925310031827854
+      ],
+      "dt": 0.021529648633521227,
+      "n_steps": 10374,
+      "t_end": 223.3485749241492,
+      "ppc": 16,
+      "particles": 262144,
+      "species": [
+       "electron (q=-1, m=1): n=1, u=(0.2, 0, 0), θ=0.0001",
+       "ion (q=+1, m=1836.15): n=1, θ=5.45e-09"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 69.25390733999666,
+      "params": {
+       "mixture": "e-i",
+       "mass_ratio": 1836.15267,
+       "mode": "buneman",
+       "u_drift": 0.2,
+       "T_e_eV": 51.1,
+       "T_i_eV": 5.11,
+       "solver": "explicit",
+       "n_wavelengths": 4,
+       "transverse_ratio": 0.0625,
+       "ppc": 16,
+       "growth_times": 12
+      },
+      "planner": {
+       "k_max": 5.002140958479405,
+       "gamma_max": 0.05372784084847818,
+       "omega_r": 0.03526180132415231,
+       "wavelength": 1.2560992101849133,
+       "lambda_De": 0.010000010273988436,
+       "dx_over_lambdaDe": 3.92530599897301,
+       "dt": 0.021529648633521227,
+       "t_end": 223.3485749241492,
+       "particles": 262144,
+       "memory_per_gpu_GB": 0.0051150848,
+       "dims": [
+        4,
+        1,
+        1
+       ],
+       "filamentation_gamma_est": 0.19425650100134506
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "889ac06c",
+      "created": "2026-11-10T02:05:19+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/two_stream/buneman"
+     }
+    }
+   },
+   "images": {
+    "ei-summary.png": 323274,
+    "ep-summary.png": 347849,
+    "eip-summary.png": 364876,
+    "ei_implicit-summary.png": 331461,
+    "buneman-summary.png": 290437,
+    "growth.png": 125737,
+    "growth_ratio.png": 23674,
+    "energy.png": 27168,
+    "ei.gif": 5289182,
+    "buneman.gif": 3211277
+   }
+  },
+  "plasma_waves": {
+   "page": "Plasma-Waves",
+   "title": {
+    "en": "Thermal plasma waves (dispersion relations)",
+    "ja": "熱的プラズマ波（分散関係）"
+   },
+   "cases": {
+    "unmagnetized": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "geometry": "unmagnetized",
+      "d_omega": 0.020978985316372073,
+      "branches": {
+       "Ex: Langmuir (kinetic)": {
+        "component": "Ex",
+        "points": 24,
+        "found": 24,
+        "median_rel_error": 0.013869614779593104,
+        "max_rel_error": 0.02200307421739008,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ey: EM (Yee)": {
+        "component": "Ey",
+        "points": 24,
+        "found": 24,
+        "median_rel_error": 0.0033870829120651305,
+        "max_rel_error": 0.011965179997908994,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ez: EM (Yee)": {
+        "component": "Ez",
+        "points": 24,
+        "found": 24,
+        "median_rel_error": 0.0032422152566830916,
+        "max_rel_error": 0.011802943347381323,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       }
+      },
+      "passed": true,
+      "gauss_max": 1.915509417749206e-12,
+      "divB_max": 3.3931191190106347e-15
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       512,
+       8,
+       8
+      ],
+      "L": [
+       51.2,
+       0.8,
+       0.8
+      ],
+      "dx": [
+       0.1,
+       0.1,
+       0.1
+      ],
+      "dt": 0.05484827557301445,
+      "n_steps": 5470,
+      "t_end": 300.02006738438905,
+      "ppc": 64,
+      "particles": 4194304,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01",
+       "ion (q=+1, m=1836.15): n=1, θ=5.45e-08"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 34.823418554035015,
+      "params": {
+       "geometry": "unmagnetized",
+       "theta_e": 0.01,
+       "mass_ratio": 1836.15267,
+       "nx": 512,
+       "n_transverse": 8,
+       "ppc": 64,
+       "t_end": 300,
+       "k_window": 3.0
+      },
+      "planner": {
+       "geometry": "unmagnetized",
+       "theta_e": 0.01,
+       "Ti": 0.0001,
+       "mass_ratio": 1836.15267,
+       "wce": 0.0,
+       "lambda_De": 0.1,
+       "dx": 0.1,
+       "dt": 0.05484827557301445,
+       "k_window": 3.0,
+       "k_bernstein_max": 40.0,
+       "w_max": 3.478505426185218,
+       "frequency_resolution": 0.020943951023931952
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "22186fc9",
+      "created": "2026-11-10T02:00:01+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/plasma_waves/unmagnetized"
+     }
+    },
+    "perpendicular": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "geometry": "perpendicular",
+      "d_omega": 0.020957887585698498,
+      "branches": {
+       "Ez: O mode": {
+        "component": "Ez",
+        "points": 20,
+        "found": 20,
+        "median_rel_error": 0.0005062283520108368,
+        "max_rel_error": 0.0017788841713771491,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ey: X upper": {
+        "component": "Ey",
+        "points": 20,
+        "found": 20,
+        "median_rel_error": 0.0006525267586473885,
+        "max_rel_error": 0.0017836818265203147,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ey: X lower": {
+        "component": "Ey",
+        "points": 20,
+        "found": 20,
+        "median_rel_error": 0.04647832298130802,
+        "max_rel_error": 0.08880380230083311,
+        "fraction_within_tolerance": 0.45,
+        "checked": false
+       },
+       "Ex: Bernstein 1": {
+        "component": "Ex",
+        "points": 91,
+        "found": 83,
+        "median_rel_error": 0.0045582206297565455,
+        "max_rel_error": 0.019377333556289504,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ex: Bernstein 2": {
+        "component": "Ex",
+        "points": 91,
+        "found": 91,
+        "median_rel_error": 0.00700576496983169,
+        "max_rel_error": 0.019568055790644367,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ex: Bernstein 3": {
+        "component": "Ex",
+        "points": 91,
+        "found": 73,
+        "median_rel_error": 0.0073576529265419145,
+        "max_rel_error": 0.011690481556050304,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ex: Bernstein 4": {
+        "component": "Ex",
+        "points": 91,
+        "found": 37,
+        "median_rel_error": 0.007051749304922404,
+        "max_rel_error": 0.03341553237880047,
+        "fraction_within_tolerance": 0.972972972972973,
+        "checked": false
+       }
+      },
+      "passed": true,
+      "gauss_max": 1.671759952692753e-12,
+      "divB_max": 9.096370715212268e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       512,
+       8,
+       8
+      ],
+      "L": [
+       16.1908616200621,
+       0.25298221281347033,
+       0.25298221281347033
+      ],
+      "dx": [
+       0.03162277660168379,
+       0.03162277660168379,
+       0.03162277660168379
+      ],
+      "dt": 0.01734454765433026,
+      "n_steps": 17297,
+      "t_end": 300.0086407769505,
+      "ppc": 64,
+      "particles": 4194304,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.001",
+       "ion (q=+1, m=1836.15): n=1, θ=5.45e-09"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "B0=(0, 0, 0.5)"
+      ],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 96.19351061491761,
+      "params": {
+       "geometry": "perpendicular",
+       "theta_e": 0.001,
+       "wce": 0.5,
+       "mass_ratio": 1836.15267,
+       "nx": 512,
+       "n_transverse": 8,
+       "ppc": 64,
+       "t_end": 300,
+       "k_window": 8.0,
+       "k_bernstein_max": 40.0
+      },
+      "planner": {
+       "geometry": "perpendicular",
+       "theta_e": 0.001,
+       "Ti": 1e-05,
+       "mass_ratio": 1836.15267,
+       "wce": 0.5,
+       "lambda_De": 0.03162277660168379,
+       "dx": 0.03162277660168379,
+       "dt": 0.01734454765433026,
+       "k_window": 8.0,
+       "k_bernstein_max": 40.0,
+       "w_max": 9.435521931771932,
+       "frequency_resolution": 0.020943951023931952
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "3f66198a",
+      "created": "2026-11-10T02:00:39+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/plasma_waves/perpendicular"
+     }
+    },
+    "parallel": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "geometry": "parallel",
+      "d_omega": 0.020957281358294444,
+      "branches": {
+       "Ey: whistler": {
+        "component": "Ey",
+        "points": 6,
+        "found": 6,
+        "median_rel_error": 0.003627521504444172,
+        "max_rel_error": 0.014226388021012936,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ey: R": {
+        "component": "Ey",
+        "points": 5,
+        "found": 5,
+        "median_rel_error": 0.001014145056978686,
+        "max_rel_error": 0.0017953734008875552,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ey: L": {
+        "component": "Ey",
+        "points": 5,
+        "found": 5,
+        "median_rel_error": 0.00010790050957042497,
+        "max_rel_error": 0.0007397857410297453,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ez: whistler": {
+        "component": "Ez",
+        "points": 6,
+        "found": 6,
+        "median_rel_error": 0.0038127214608650395,
+        "max_rel_error": 0.01422595254891242,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ez: R": {
+        "component": "Ez",
+        "points": 5,
+        "found": 5,
+        "median_rel_error": 0.0010142016620711702,
+        "max_rel_error": 0.0017971056032154865,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ez: L": {
+        "component": "Ez",
+        "points": 5,
+        "found": 5,
+        "median_rel_error": 0.00013206424778988395,
+        "max_rel_error": 0.0007436724893689882,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       },
+       "Ex: Langmuir (kinetic)": {
+        "component": "Ex",
+        "points": 7,
+        "found": 7,
+        "median_rel_error": 0.0016728194237828696,
+        "max_rel_error": 0.0018594024313262456,
+        "fraction_within_tolerance": 1.0,
+        "checked": true,
+        "passed": true
+       }
+      },
+      "passed": true,
+      "gauss_max": 1.701964957856461e-12,
+      "divB_max": 2.8078993461254584e-12
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       512,
+       8,
+       8
+      ],
+      "L": [
+       16.1908616200621,
+       0.25298221281347033,
+       0.25298221281347033
+      ],
+      "dx": [
+       0.03162277660168379,
+       0.03162277660168379,
+       0.03162277660168379
+      ],
+      "dt": 0.01734454765433026,
+      "n_steps": 17297,
+      "t_end": 300.0086407769505,
+      "ppc": 64,
+      "particles": 4194304,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.001",
+       "ion (q=+1, m=1836.15): n=1, θ=5.45e-09"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "B0=(1.5, 0, 0)"
+      ],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 99.067115501035,
+      "params": {
+       "geometry": "parallel",
+       "theta_e": 0.001,
+       "wce": 1.5,
+       "mass_ratio": 1836.15267,
+       "nx": 512,
+       "n_transverse": 8,
+       "ppc": 64,
+       "t_end": 300,
+       "k_window": 3.0
+      },
+      "planner": {
+       "geometry": "parallel",
+       "theta_e": 0.001,
+       "Ti": 1e-05,
+       "mass_ratio": 1836.15267,
+       "wce": 1.5,
+       "lambda_De": 0.03162277660168379,
+       "dx": 0.03162277660168379,
+       "dt": 0.01734454765433026,
+       "k_window": 3.0,
+       "k_bernstein_max": 40.0,
+       "w_max": 8.25,
+       "frequency_resolution": 0.020943951023931952
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "18f46532",
+      "created": "2026-11-10T02:08:10+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/plasma_waves/parallel"
+     }
+    },
+    "ion_acoustic": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "geometry": "ion_acoustic",
+      "d_omega": 0.004196181293774432,
+      "branches": {
+       "Ex: ion acoustic (kinetic)": {
+        "component": "Ex",
+        "points": 68,
+        "found": 59,
+        "median_rel_error": 0.034479191435676744,
+        "max_rel_error": 0.09282728803258782,
+        "fraction_within_tolerance": 0.8983050847457628,
+        "checked": true,
+        "passed": false
+       }
+      },
+      "passed": false,
+      "gauss_max": 8.271848483953903e-12,
+      "divB_max": 1.6009762959789953e-14
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       512,
+       8,
+       8
+      ],
+      "L": [
+       51.2,
+       0.8,
+       0.8
+      ],
+      "dx": [
+       0.1,
+       0.1,
+       0.1
+      ],
+      "dt": 0.05484827557301445,
+      "n_steps": 27349,
+      "t_end": 1500.0454886463722,
+      "ppc": 64,
+      "particles": 4194304,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01",
+       "ion (q=+1, m=25): n=1, θ=8e-06"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 167.22739311796613,
+      "params": {
+       "geometry": "ion_acoustic",
+       "theta_e": 0.01,
+       "Ti_over_Te": 0.02,
+       "mass_ratio": 25,
+       "nx": 512,
+       "n_transverse": 8,
+       "ppc": 64,
+       "t_end": 1500,
+       "k_window": 10.0
+      },
+      "planner": {
+       "geometry": "ion_acoustic",
+       "theta_e": 0.01,
+       "Ti": 0.0002,
+       "mass_ratio": 25,
+       "wce": 0.0,
+       "lambda_De": 0.1,
+       "dx": 0.1,
+       "dt": 0.05484827557301445,
+       "k_window": 10.0,
+       "k_bernstein_max": 40.0,
+       "w_max": 0.4,
+       "frequency_resolution": 0.0041887902047863905
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "ac4405de",
+      "created": "2026-11-10T02:05:19+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/plasma_waves/ion_acoustic"
+     }
+    }
+   },
+   "images": {
+    "unmagnetized-omega_k.png": 162558,
+    "perpendicular-omega_k.png": 255085,
+    "parallel-omega_k.png": 113483,
+    "ion_acoustic-omega_k.png": 91596,
+    "branch_errors.png": 73967,
+    "unmagnetized.gif": 4449350
+   }
+  },
+  "landau_damping": {
+   "page": "Landau-Damping",
+   "title": {
+    "en": "Langmuir oscillations: Landau damping, Dawson, wave breaking",
+    "ja": "ラングミュア振動：ランダウ減衰・Dawson 振動・波の砕波"
+   },
+   "cases": {
+    "landau": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "landau",
+      "omega_fit": 1.4140515105015148,
+      "gamma_fit": -0.16041577806765694,
+      "omega_theory": 1.415661888604536,
+      "gamma_theory": -0.15335946690960525,
+      "omega_rel_error": -0.0011375442935803181,
+      "gamma_rel_error": 0.046011578549701775,
+      "fit_window": [
+       0.0,
+       19.738822639500157
+      ],
+      "passed": true,
+      "gauss_max": 5.131173264061317e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       32,
+       16,
+       16
+      ],
+      "L": [
+       0.397383530631844,
+       0.198691765315922,
+       0.198691765315922
+      ],
+      "dx": [
+       0.012418235332245125,
+       0.012418235332245125,
+       0.012418235332245125
+      ],
+      "dt": 0.006811187936335253,
+      "n_steps": 7659,
+      "t_end": 52.166888404391706,
+      "ppc": 1024,
+      "particles": 16777216,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.001, perturbation: density=0.02 (mode 1 along x)",
+       "ion (q=+1, m=1836.15): n=1, θ=0"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 98.18652114493307,
+      "params": {
+       "case": "landau",
+       "k_lambda_D": 0.5,
+       "alpha": 0.02,
+       "theta_e": 0.001,
+       "cells_per_wavelength": 32,
+       "n_transverse": 16,
+       "ppc": 1024
+      },
+      "planner": {
+       "case": "landau",
+       "k": 15.811388300841898,
+       "vt": 0.03162277660168379,
+       "omega_theory": 1.415661888604536,
+       "gamma_theory": -0.15335946690960525,
+       "alpha": 0.02,
+       "L": 0.397383530631844,
+       "dx": 0.012418235332245125,
+       "dt": 0.006811187936335253,
+       "t_end": 52.16502222660596
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "5dafbd51",
+      "created": "2026-11-10T02:09:54+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/landau_damping/landau"
+     }
+    },
+    "nonlinear": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "nonlinear",
+      "gamma_1_fit": -0.24887249853771629,
+      "gamma_1_reference": -0.29,
+      "gamma_2_fit": 0.08165646772619368,
+      "gamma_2_reference": 0.08,
+      "linear_gamma_theory": -0.15335946690960525,
+      "note": "nonlinear benchmark: reported, not gated",
+      "gauss_max": 8.797845264807425e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       32,
+       16,
+       16
+      ],
+      "L": [
+       0.397383530631844,
+       0.198691765315922,
+       0.198691765315922
+      ],
+      "dx": [
+       0.012418235332245125,
+       0.012418235332245125,
+       0.012418235332245125
+      ],
+      "dt": 0.006811187936335253,
+      "n_steps": 14682,
+      "t_end": 100.00186128127419,
+      "ppc": 512,
+      "particles": 8388608,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.001, perturbation: density=0.5 (mode 1 along x)",
+       "ion (q=+1, m=1836.15): n=1, θ=0"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 124.52474986598827,
+      "params": {
+       "case": "nonlinear",
+       "k_lambda_D": 0.5,
+       "alpha": 0.5,
+       "theta_e": 0.001,
+       "cells_per_wavelength": 32,
+       "n_transverse": 16,
+       "ppc": 512,
+       "t_end": 100
+      },
+      "planner": {
+       "case": "nonlinear",
+       "k": 15.811388300841898,
+       "vt": 0.03162277660168379,
+       "omega_theory": 1.415661888604536,
+       "gamma_theory": -0.15335946690960525,
+       "alpha": 0.5,
+       "L": 0.397383530631844,
+       "dx": 0.012418235332245125,
+       "dt": 0.006811187936335253,
+       "t_end": 100
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "f99bfa06",
+      "created": "2026-11-10T02:11:37+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/landau_damping/nonlinear"
+     }
+    },
+    "dawson": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "dawson",
+      "sheets": 304,
+      "freq_rel_error_median": 0.003054706455748235,
+      "amp_rel_error_median": 0.003916383186031491,
+      "passed": true,
+      "gauss_max": 1.4276774207289122e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       64,
+       8,
+       8
+      ],
+      "L": [
+       1.2504006107249328,
+       0.1563000763406166,
+       0.1563000763406166
+      ],
+      "dx": [
+       0.019537509542577075,
+       0.019537509542577075,
+       0.019537509542577075
+      ],
+      "dt": 0.01071598707401667,
+      "n_steps": 3733,
+      "t_end": 40.002779747304224,
+      "ppc": 64,
+      "particles": 524288,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0, perturbation: velocity=0.1 (mode 1 along x)",
+       "ion (q=+1, m=1836.15): n=1, θ=0"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 22.66429833509028,
+      "params": {
+       "case": "dawson",
+       "k_v0": 0.5,
+       "u0": 0.1,
+       "cells_per_wavelength": 64,
+       "n_transverse": 8,
+       "ppc": 64
+      },
+      "planner": {
+       "case": "dawson",
+       "k": 5.024937810560444,
+       "v0": 0.09950371902099893,
+       "u0": 0.1,
+       "k_v0": 0.5,
+       "L": 1.2504006107249328,
+       "dx": 0.019537509542577075,
+       "dt": 0.01071598707401667,
+       "t_end": 40.0
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "ebb6b7ff",
+      "created": "2026-11-10T02:13:46+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/landau_damping/dawson"
+     }
+    },
+    "wavebreaking": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "wavebreaking",
+      "t_cross": 0.9733688258898454,
+      "t_cross_theory": 0.9851107833377457,
+      "rel_error": -0.011919428399835678,
+      "max_gamma_end": 1.0106178522109985,
+      "passed": true,
+      "gauss_max": 1.0480505352461478e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       64,
+       8,
+       8
+      ],
+      "L": [
+       0.521000254468722,
+       0.06512503180859025,
+       0.06512503180859025
+      ],
+      "dx": [
+       0.008140628976073781,
+       0.008140628976073781,
+       0.008140628976073781
+      ],
+      "dt": 0.004464994614173612,
+      "n_steps": 3360,
+      "t_end": 15.002381903623336,
+      "ppc": 64,
+      "particles": 524288,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0, perturbation: velocity=0.1 (mode 1 along x)",
+       "ion (q=+1, m=1836.15): n=1, θ=0"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 21.22824985801708,
+      "params": {
+       "case": "wavebreaking",
+       "k_v0": 1.2,
+       "u0": 0.1,
+       "cells_per_wavelength": 64,
+       "n_transverse": 8,
+       "ppc": 64
+      },
+      "planner": {
+       "case": "wavebreaking",
+       "k": 12.059850745345067,
+       "v0": 0.09950371902099893,
+       "u0": 0.1,
+       "k_v0": 1.2,
+       "L": 0.521000254468722,
+       "dx": 0.008140628976073781,
+       "dt": 0.004464994614173612,
+       "t_end": 15.0
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "5cc8fca9",
+      "created": "2026-11-10T02:14:14+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/landau_damping/wavebreaking"
+     }
+    },
+    "relativistic": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "relativistic",
+      "sheets": 304,
+      "beta_max": 0.3000126296706434,
+      "omega_theory_max_amplitude": 0.9823436391298078,
+      "freq_rel_error_median": 0.0007469563361271096,
+      "nonrelativistic_shift": 0.015112769702573359,
+      "passed": true,
+      "gauss_max": 3.7089775695164917e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       64,
+       8,
+       8
+      ],
+      "L": [
+       6.283449822382987,
+       0.7854312277978733,
+       0.7854312277978733
+      ],
+      "dx": [
+       0.09817890347473417,
+       0.09817890347473417,
+       0.09817890347473417
+      ],
+      "dt": 0.05,
+      "n_steps": 1200,
+      "t_end": 60.0,
+      "ppc": 64,
+      "particles": 524288,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0, perturbation: velocity=0.3145 (mode 1 along x)",
+       "ion (q=+1, m=1836.15): n=1, θ=0"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 9.521840768051334,
+      "params": {
+       "case": "relativistic",
+       "k_v0": 0.3,
+       "u0": 0.3145,
+       "cells_per_wavelength": 64,
+       "n_transverse": 8,
+       "ppc": 64
+      },
+      "planner": {
+       "case": "relativistic",
+       "k": 0.9999579028700988,
+       "v0": 0.30001262967064324,
+       "u0": 0.3145,
+       "k_v0": 0.3,
+       "L": 6.283449822382987,
+       "dx": 0.09817890347473417,
+       "dt": 0.05,
+       "t_end": 60.0
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "ba89a79a",
+      "created": "2026-11-10T02:14:40+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/landau_damping/relativistic"
+     }
+    }
+   },
+   "images": {
+    "landau-mode.png": 45133,
+    "nonlinear-mode.png": 69837,
+    "dawson-sheets.png": 64970,
+    "wavebreaking-sheets.png": 22985,
+    "relativistic-sheets.png": 66517,
+    "errors.png": 44656,
+    "nonlinear.gif": 2768236,
+    "wavebreaking.gif": 959468
+   }
+  },
+  "filamentation": {
+   "page": "Filamentation-Instability",
+   "title": {
+    "en": "Current filamentation (Weibel) instability",
+    "ja": "電流フィラメンテーション（ワイベル）不安定性"
+   },
+   "cases": {
+    "pair": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "k": [
+       0.3535533905932738,
+       0.7071067811865476,
+       1.0606601717798212,
+       1.4142135623730951,
+       1.7677669529663689,
+       2.1213203435596424,
+       2.4748737341529163,
+       2.8284271247461903,
+       3.181980515339464,
+       3.5355339059327378,
+       3.889087296526011,
+       4.242640687119285,
+       4.59619407771256,
+       4.949747468305833,
+       5.303300858899106,
+       5.656854249492381
+      ],
+      "gamma_fit": [
+       -0.014839559310638711,
+       0.25015341215657033,
+       0.39241548921320624,
+       0.43554433767356715,
+       0.4660837997280142,
+       0.4965385110658228,
+       0.5173186821868531,
+       0.5324627086172907,
+       0.5456958233231709,
+       0.5470219833749078,
+       0.5499894194719805,
+       0.5580006845186467,
+       0.565220224444789,
+       0.5574635317936887,
+       0.5599528049050416,
+       0.5580637864028849
+      ],
+      "gamma_theory": [
+       0.168010823542332,
+       0.29761089070947644,
+       0.3857485605584397,
+       0.4440850886405144,
+       0.48314961856256716,
+       0.5099456092168514,
+       0.5288291964749573,
+       0.5424930111747623,
+       0.5526250973806509,
+       0.5603067546456856,
+       0.566247330208554,
+       0.5709233929296238,
+       0.5746625073716389,
+       0.5776946751337253,
+       0.5801846079619779,
+       0.582252416106359
+      ],
+      "linear_window": [
+       6.777474258761586,
+       10.432741274722943
+      ],
+      "median_rel_error_m2_10": 0.021766034032974037,
+      "max_rel_error_m2_10": 0.15946149833351841,
+      "eps_B_peak": 0.1945777217048975,
+      "t_peak": 31.678980804998496,
+      "B_sat_trapping_estimate": 0.14982614944167713,
+      "passed": true,
+      "gauss_max": 5.482558851355179e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       4,
+       256,
+       256
+      ],
+      "L": [
+       0.2776801836348979,
+       17.771531752633464,
+       17.771531752633464
+      ],
+      "dx": [
+       0.06942004590872447,
+       0.06942004590872447,
+       0.06942004590872447
+      ],
+      "dt": 0.03807569808293034,
+      "n_steps": 1128,
+      "t_end": 42.949387437545425,
+      "ppc": 16,
+      "particles": 16777216,
+      "species": [
+       "electron (q=-1, m=1): n=0.5, u=(0.5, 0, 0), θ=0.0001; n=0.5, u=(-0.5, 0, 0), θ=0.0001",
+       "positron (q=+1, m=1): n=0.5, u=(0.5, 0, 0), θ=0.0001; n=0.5, u=(-0.5, 0, 0), θ=0.0001"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 16.413218091940507,
+      "params": {
+       "mixture": "e-p",
+       "u0": 0.5,
+       "theta": 0.0001,
+       "L_perp_wavelengths": 4,
+       "cells_per_skin_depth": 10,
+       "nx": 4,
+       "ppc": 16,
+       "growth_times": 25
+      },
+      "planner": {
+       "mixture": "e-p",
+       "u0": 0.5,
+       "theta": 0.0001,
+       "wp_tot": 1.4142135623730951,
+       "L_perp": 17.771531752633464,
+       "k_modes": [
+        0.3535533905932738,
+        0.7071067811865476,
+        1.0606601717798212,
+        1.4142135623730951,
+        1.7677669529663689,
+        2.1213203435596424,
+        2.4748737341529163,
+        2.8284271247461903,
+        3.181980515339464,
+        3.5355339059327378,
+        3.889087296526011,
+        4.242640687119285,
+        4.59619407771256,
+        4.949747468305833,
+        5.303300858899106,
+        5.656854249492381
+       ],
+       "gamma_theory": [
+        0.168010823542332,
+        0.29761089070947644,
+        0.3857485605584397,
+        0.4440850886405144,
+        0.48314961856256716,
+        0.5099456092168514,
+        0.5288291964749573,
+        0.5424930111747623,
+        0.5526250973806509,
+        0.5603067546456856,
+        0.566247330208554,
+        0.5709233929296238,
+        0.5746625073716389,
+        0.5776946751337253,
+        0.5801846079619779,
+        0.582252416106359
+       ],
+       "gamma_max": 0.582252416106359,
+       "gamma_limit": 0.5981028764194751,
+       "B_sat_trapping": 0.14982614944167713
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "49024833",
+      "created": "2026-11-10T02:06:31+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/filamentation/pair"
+     }
+    },
+    "electron_ion": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "k": [
+       0.2500680678613456,
+       0.5001361357226912,
+       0.7502042035840368,
+       1.0002722714453824,
+       1.250340339306728,
+       1.5004084071680737,
+       1.7504764750294195,
+       2.000544542890765,
+       2.2506126107521105,
+       2.500680678613456,
+       2.7507487464748017,
+       3.0008168143361473,
+       3.2508848821974934,
+       3.500952950058839,
+       3.751021017920184,
+       4.00108908578153
+      ],
+      "gamma_fit": [
+       0.23399594360858958,
+       0.349061846065349,
+       0.35794750606906534,
+       0.4462383579688872,
+       0.45654150894223183,
+       0.4852725563299849,
+       0.4917655151925528,
+       0.5015891579039774,
+       0.51279314457608,
+       0.5141578510190478,
+       0.5036031291742098,
+       0.5157124008432329,
+       0.5181389747398262,
+       0.5472432697264628,
+       0.5263093129990041,
+       0.5283427488258035
+      ],
+      "gamma_theory": [
+       0.2182265132447215,
+       0.3490079024914307,
+       0.4256810592696047,
+       0.4733625566738784,
+       0.5044664590945394,
+       0.5255628821001198,
+       0.5403585229435632,
+       0.5510439313649574,
+       0.5589628465884023,
+       0.5649667490372307,
+       0.5696112064325741,
+       0.5732684941158093,
+       0.576194197125375,
+       0.5785677107978222,
+       0.5805175131683716,
+       0.5821373179336367
+      ],
+      "linear_window": [
+       9.743684594164511,
+       10.981832360273827
+      ],
+      "median_rel_error_m2_10": 0.08974742419987936,
+      "max_rel_error_m2_10": 0.159118080839111,
+      "eps_B_peak": 0.19485127413699888,
+      "t_peak": 40.42821618904731,
+      "B_sat_trapping_estimate": 0.16939580682431823,
+      "passed": true,
+      "gauss_max": 8.018585795355193e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       4,
+       256,
+       256
+      ],
+      "L": [
+       0.3925921900556918,
+       25.125900163564275,
+       25.125900163564275
+      ],
+      "dx": [
+       0.09814804751392295,
+       0.09814804751392295,
+       0.09814804751392295
+      ],
+      "dt": 0.05383251156996961,
+      "n_steps": 798,
+      "t_end": 42.95834423283575,
+      "ppc": 16,
+      "particles": 12582912,
+      "species": [
+       "electron (q=-1, m=1): n=0.5, u=(1, 0, 0), θ=0.0001; n=0.5, u=(-1, 0, 0), θ=0.0001",
+       "ion (q=+1, m=1836.15): n=1, θ=5.45e-08"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 11.715570322005078,
+      "params": {
+       "mixture": "e-i",
+       "u0": 1.0,
+       "theta": 0.0001,
+       "L_perp_wavelengths": 4,
+       "cells_per_skin_depth": 10,
+       "nx": 4,
+       "ppc": 16,
+       "growth_times": 25
+      },
+      "planner": {
+       "mixture": "e-i",
+       "u0": 1.0,
+       "theta": 0.0001,
+       "wp_tot": 1.0002722714453824,
+       "L_perp": 25.125900163564275,
+       "k_modes": [
+        0.2500680678613456,
+        0.5001361357226912,
+        0.7502042035840368,
+        1.0002722714453824,
+        1.250340339306728,
+        1.5004084071680737,
+        1.7504764750294195,
+        2.000544542890765,
+        2.2506126107521105,
+        2.500680678613456,
+        2.7507487464748017,
+        3.0008168143361473,
+        3.2508848821974934,
+        3.500952950058839,
+        3.751021017920184,
+        4.00108908578153
+       ],
+       "gamma_theory": [
+        0.2182265132447215,
+        0.3490079024914307,
+        0.4256810592696047,
+        0.4733625566738784,
+        0.5044664590945394,
+        0.5255628821001198,
+        0.5403585229435632,
+        0.5510439313649574,
+        0.5589628465884023,
+        0.5649667490372307,
+        0.5696112064325741,
+        0.5732684941158093,
+        0.576194197125375,
+        0.5785677107978222,
+        0.5805175131683716,
+        0.5821373179336367
+       ],
+       "gamma_max": 0.5821373179336367,
+       "gamma_limit": 0.5946231244715009,
+       "B_sat_trapping": 0.16939580682431823
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "4115c55b",
+      "created": "2026-11-10T02:06:51+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/filamentation/electron_ion"
+     }
+    }
+   },
+   "images": {
+    "pair-filamentation.png": 144223,
+    "electron_ion-filamentation.png": 139639,
+    "pair.gif": 6965521
+   }
+  },
+  "particle_orbits": {
+   "page": "Particle-Orbits",
+   "title": {
+    "en": "Test-particle orbits in prescribed fields",
+    "ja": "与えられた場の中のテスト粒子軌道"
+   },
+   "cases": {
+    "gyration": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "gyration",
+      "dt": 0.05,
+      "max_rel_position_error": 0.0032341159460235963,
+      "per_particle": [
+       0.0032341159460235963,
+       0.003149022946430986,
+       0.0026880779294560105,
+       0.0017234249859585376,
+       0.0006669766439111996,
+       0.00015867065548779365,
+       2.331266498924542e-05,
+       3.2782387491640183e-06
+      ],
+      "refined_dt": 0.025,
+      "refined_max_error": 0.000808498662342447,
+      "convergence_ratio": 4.000150027030913,
+      "passed": true,
+      "gauss_max": 0.0
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       8,
+       8,
+       8
+      ],
+      "L": [
+       16.0,
+       16.0,
+       16.0
+      ],
+      "dx": [
+       2.0,
+       2.0,
+       2.0
+      ],
+      "dt": 0.05,
+      "n_steps": 629,
+      "t_end": 31.450000000000003,
+      "ppc": 1,
+      "particles": 8,
+      "species": [
+       "electron (q=-1, m=1): 8 test particles"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "B0=(0, 0, 1)"
+      ],
+      "filter_passes": 0,
+      "gpus": 1,
+      "wall_time_s": 1.9635700980434194,
+      "params": {
+       "case": "gyration",
+       "B": 1.0,
+       "periods": 5
+      },
+      "planner": {
+       "case": "gyration",
+       "dt": 0.05,
+       "t_end": 31.41592653589793,
+       "particles": [
+        [
+         8.0,
+         8.0,
+         8.0,
+         0.1,
+         0.0,
+         0.005000000000000001
+        ],
+        [
+         8.0,
+         8.0,
+         8.0,
+         0.193069772888325,
+         0.0,
+         0.009653488644416251
+        ],
+        [
+         8.0,
+         8.0,
+         8.0,
+         0.372759372031494,
+         0.0,
+         0.0186379686015747
+        ],
+        [
+         8.0,
+         8.0,
+         8.0,
+         0.7196856730011519,
+         0.0,
+         0.0359842836500576
+        ],
+        [
+         8.0,
+         8.0,
+         8.0,
+         1.3894954943731375,
+         0.0,
+         0.06947477471865687
+        ],
+        [
+         8.0,
+         8.0,
+         8.0,
+         2.6826957952797246,
+         0.0,
+         0.13413478976398624
+        ],
+        [
+         8.0,
+         8.0,
+         8.0,
+         5.17947467923121,
+         0.0,
+         0.2589737339615605
+        ],
+        [
+         8.0,
+         8.0,
+         8.0,
+         10.0,
+         0.0,
+         0.5
+        ]
+       ],
+       "B0": [
+        0.0,
+        0.0,
+        1.0
+       ],
+       "E0": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "period": 6.283185307179586
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "bb905789",
+      "created": "2026-11-10T02:05:24+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/gyration"
+     },
+     "provenance_refined": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "7eb1f5b3",
+      "created": "2026-11-10T02:05:27+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/gyration_half"
+     }
+    },
+    "exb": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "exb",
+      "dt": 0.05,
+      "max_rel_position_error": 0.0002030416598340844,
+      "per_particle": [
+       0.00020304165983317974,
+       0.0002030416598334059,
+       0.0002030416598340844,
+       0.0002030416598340844,
+       0.00020304165983363204,
+       0.0002030416598340844,
+       0.0002030416598340844,
+       0.0002030416598336321
+      ],
+      "refined_dt": 0.025,
+      "refined_max_error": 5.0762407118177874e-05,
+      "convergence_ratio": 3.999843020867617,
+      "passed": true,
+      "gauss_max": 0.0
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       8,
+       8,
+       8
+      ],
+      "L": [
+       16.0,
+       16.0,
+       16.0
+      ],
+      "dx": [
+       2.0,
+       2.0,
+       2.0
+      ],
+      "dt": 0.05,
+      "n_steps": 1257,
+      "t_end": 62.85,
+      "ppc": 1,
+      "particles": 8,
+      "species": [
+       "electron (q=-1, m=1): 8 test particles"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "B0=(0, 0, 1)",
+       "E0=(0, 0.5, 0)"
+      ],
+      "filter_passes": 0,
+      "gpus": 1,
+      "wall_time_s": 3.9058374309679493,
+      "params": {
+       "case": "exb",
+       "E": 0.5,
+       "B": 1.0,
+       "periods": 10
+      },
+      "planner": {
+       "case": "exb",
+       "dt": 0.05,
+       "t_end": 62.83185307179586,
+       "particles": [
+        [
+         12.880046779926083,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         12.9270526357839,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         8.245208976674272,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         4.572822081410266,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         0.8628912381065028,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         6.133902092568292,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         6.5355712867199784,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         0.7244031024391226,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ]
+       ],
+       "B0": [
+        0.0,
+        0.0,
+        1.0
+       ],
+       "E0": [
+        0.0,
+        0.5,
+        0.0
+       ],
+       "period": 6.283185307179586
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "332fc359",
+      "created": "2026-11-10T02:05:32+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/exb"
+     },
+     "provenance_refined": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "a746a62a",
+      "created": "2026-11-10T02:05:37+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/exb_half"
+     }
+    },
+    "hyperbolic": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "hyperbolic",
+      "dt": 0.07957747154594767,
+      "max_rel_position_error": 5.545345811679774e-07,
+      "per_particle": [
+       5.545345810186311e-07,
+       5.545345808692849e-07,
+       5.545345810186311e-07,
+       5.545345810186311e-07,
+       5.545345811679774e-07,
+       5.545345810186311e-07,
+       5.545345810186311e-07,
+       5.545345811679774e-07
+      ],
+      "refined_dt": 0.039788735772973836,
+      "refined_max_error": 1.3863135592658216e-07,
+      "convergence_ratio": 4.000066056207757,
+      "passed": true,
+      "gauss_max": 0.0
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       8,
+       8,
+       8
+      ],
+      "L": [
+       16.0,
+       16.0,
+       16.0
+      ],
+      "dx": [
+       2.0,
+       2.0,
+       2.0
+      ],
+      "dt": 0.07957747154594767,
+      "n_steps": 1257,
+      "t_end": 100.02888173325623,
+      "ppc": 1,
+      "particles": 8,
+      "species": [
+       "electron (q=-1, m=1): 8 test particles"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "E0=(0.2, 0, 0)"
+      ],
+      "filter_passes": 0,
+      "gpus": 1,
+      "wall_time_s": 3.991889270953834,
+      "params": {
+       "case": "hyperbolic",
+       "E": 0.2,
+       "periods": 10
+      },
+      "planner": {
+       "case": "hyperbolic",
+       "dt": 0.07957747154594767,
+       "t_end": 100.0,
+       "particles": [
+        [
+         12.880046779926083,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         12.9270526357839,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         8.245208976674272,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         4.572822081410266,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         0.8628912381065028,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         6.133902092568292,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         6.5355712867199784,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         0.7244031024391226,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ]
+       ],
+       "B0": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "E0": [
+        0.2,
+        0.0,
+        0.0
+       ],
+       "period": 10.0
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "823a0810",
+      "created": "2026-11-10T02:05:46+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/hyperbolic"
+     },
+     "provenance_refined": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "23578918",
+      "created": "2026-11-10T02:05:51+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/hyperbolic_half"
+     }
+    },
+    "e_gt_b": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "e_gt_b",
+      "dt": 0.03183098861837907,
+      "max_rel_position_error": 4.0535862864628415e-07,
+      "per_particle": [
+       4.05358628318725e-07,
+       4.053586281003522e-07,
+       4.053586285370978e-07,
+       4.0535862864628415e-07,
+       4.0535862788197943e-07,
+       4.053586284279114e-07,
+       4.0535862864628415e-07,
+       4.0535862799116584e-07
+      ],
+      "refined_dt": 0.015915494309189534,
+      "refined_max_error": 1.0155170841165382e-07,
+      "convergence_ratio": 3.9916475555793425,
+      "passed": true,
+      "gauss_max": 0.0
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       8,
+       8,
+       8
+      ],
+      "L": [
+       16.0,
+       16.0,
+       16.0
+      ],
+      "dx": [
+       2.0,
+       2.0,
+       2.0
+      ],
+      "dt": 0.03183098861837907,
+      "n_steps": 1257,
+      "t_end": 40.01155269330249,
+      "ppc": 1,
+      "particles": 8,
+      "species": [
+       "electron (q=-1, m=1): 8 test particles"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "B0=(0, 0, 0.3)",
+       "E0=(0, 0.5, 0)"
+      ],
+      "filter_passes": 0,
+      "gpus": 1,
+      "wall_time_s": 4.038457198999822,
+      "params": {
+       "case": "e_gt_b",
+       "E": 0.5,
+       "B": 0.3,
+       "periods": 10
+      },
+      "planner": {
+       "case": "e_gt_b",
+       "dt": 0.03183098861837907,
+       "t_end": 40.0,
+       "particles": [
+        [
+         12.880046779926083,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         12.9270526357839,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         8.245208976674272,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         4.572822081410266,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         0.8628912381065028,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         6.133902092568292,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         6.5355712867199784,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         0.7244031024391226,
+         8.0,
+         8.0,
+         0.0,
+         0.0,
+         0.0
+        ]
+       ],
+       "B0": [
+        0.0,
+        0.0,
+        0.3
+       ],
+       "E0": [
+        0.0,
+        0.5,
+        0.0
+       ],
+       "period": 4.0
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "78b16080",
+      "created": "2026-11-10T02:06:01+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/e_gt_b"
+     },
+     "provenance_refined": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "f26527e9",
+      "created": "2026-11-10T02:06:06+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/e_gt_b_half"
+     }
+    },
+    "plane_wave": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "case": "plane_wave",
+      "dt": 0.02454369260617026,
+      "max_rel_position_error": 0.00044515295343500183,
+      "per_particle": [
+       0.0003777720290823369,
+       0.0003280000745536944,
+       0.00018851167823665787,
+       0.00044515295343500183,
+       0.00037777202913829433,
+       0.0003280000745426685,
+       0.00018851167574887863,
+       0.00044515294970933205
+      ],
+      "drift_measured": 0.4998111139854585,
+      "drift_theory_node": 0.5,
+      "refined_dt": 0.01227184630308513,
+      "refined_max_error": 0.00011833132240204461,
+      "convergence_ratio": 3.7619198737806903,
+      "passed": true,
+      "gauss_max": 0.0
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       128,
+       4,
+       4
+      ],
+      "L": [
+       6.283185307179586,
+       6.283185307179586,
+       6.283185307179586
+      ],
+      "dx": [
+       0.04908738521234052,
+       1.5707963267948966,
+       1.5707963267948966
+      ],
+      "dt": 0.02454369260617026,
+      "n_steps": 1536,
+      "t_end": 37.69911184307752,
+      "ppc": 1,
+      "particles": 8,
+      "species": [
+       "electron (q=-1, m=1): 8 test particles"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "plane_wave"
+      ],
+      "filter_passes": 0,
+      "gpus": 1,
+      "wall_time_s": 4.974926113965921,
+      "params": {
+       "case": "plane_wave",
+       "a0": 2.0,
+       "n_particles": 8,
+       "periods": 3,
+       "cells_per_wavelength": 128
+      },
+      "planner": {
+       "case": "plane_wave",
+       "k": 1.0,
+       "E_wave": 2.0,
+       "omega": 1.0,
+       "drift_theory": 0.5,
+       "dt": 0.02454369260617026,
+       "t_end": 37.69911184307752,
+       "particles": [
+        [
+         0.0,
+         0.7853981633974483,
+         0.7853981633974483,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         0.7853981633974483,
+         0.7853981633974483,
+         0.7853981633974483,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         1.5707963267948966,
+         0.7853981633974483,
+         0.7853981633974483,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         2.356194490192345,
+         0.7853981633974483,
+         0.7853981633974483,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         3.141592653589793,
+         0.7853981633974483,
+         0.7853981633974483,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         3.9269908169872414,
+         0.7853981633974483,
+         0.7853981633974483,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         4.71238898038469,
+         0.7853981633974483,
+         0.7853981633974483,
+         0.0,
+         0.0,
+         0.0
+        ],
+        [
+         5.497787143782138,
+         0.7853981633974483,
+         0.7853981633974483,
+         0.0,
+         0.0,
+         0.0
+        ]
+       ],
+       "B0": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "E0": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "period": 12.566370614359172
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "eacd3577",
+      "created": "2026-11-10T02:06:15+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/plane_wave"
+     },
+     "provenance_refined": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "e09fa084",
+      "created": "2026-11-10T02:06:21+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 1,
+      "run_dir": "output/wiki/particle_orbits/plane_wave_half"
+     }
+    }
+   },
+   "images": {
+    "gyration-orbits.png": 98406,
+    "exb-orbits.png": 258075,
+    "hyperbolic-orbits.png": 43252,
+    "e_gt_b-orbits.png": 84076,
+    "plane_wave-orbits.png": 96059,
+    "convergence.png": 54295,
+    "orbits.gif": 1910234
+   }
+  },
+  "plasma_expansion": {
+   "page": "Plasma-Expansion",
+   "title": {
+    "en": "Plasma expansion into vacuum (Mora 2003)",
+    "ja": "真空へのプラズマ膨張（Mora 2003）"
+   },
+   "cases": {
+    "isothermal_hydrogen": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "tau_end": 9.991201846809222,
+      "E_max_final": 0.1525048952560169,
+      "E_max_theory_final": 0.17968179513276566,
+      "E_max_median_rel_error": 0.14862093974118107,
+      "E_max_max_rel_error": 0.21735640160943248,
+      "front_median_rel_error": 0.07614048162837324,
+      "spectrum_rms_log_ratio": 0.4569796976841139,
+      "electron_temperature_final_over_initial": 1.034589055136999,
+      "velocity_profile_median_rel_error": 0.082685619903991,
+      "regime": "isothermal (thick slab)",
+      "passed": true,
+      "gauss_max": 2.6048815882084853e-12
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       384,
+       4,
+       4
+      ],
+      "L": [
+       38.400000000000006,
+       0.4,
+       0.4
+      ],
+      "dx": [
+       0.1,
+       0.1,
+       0.1
+      ],
+      "dt": 0.05484827557301445,
+      "n_steps": 18217,
+      "t_end": 999.1710361136043,
+      "ppc": 256,
+      "particles": 1638400,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01, step along x",
+       "ion (q=+1, m=1836.15): n=1, θ=0, step along x"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 99.25481041707098,
+      "params": {
+       "Te": 0.01,
+       "mass_ratio": 1836.15267,
+       "tau_end": 10,
+       "slab_lambda_D": 200,
+       "ppc": 256
+      },
+      "planner": {
+       "Te": 0.01,
+       "mass_ratio": 1836.15267,
+       "Z": 1.0,
+       "edge": 20.0,
+       "A_perp": 0.16000000000000003,
+       "t_end": 999.1176544469183,
+       "x_front_end": 9.761359389859459,
+       "E_max_end": 0.17978681719386924,
+       "omega_pi": 0.02333703114162118,
+       "cs": 0.002333703114162118,
+       "lambda_D0": 0.1,
+       "E0": 0.1
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "6f434b70",
+      "created": "2026-11-10T02:14:55+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/plasma_expansion/isothermal_hydrogen"
+     }
+    },
+    "isothermal": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "tau_end": 9.978641114041904,
+      "E_max_final": 0.1362940726510332,
+      "E_max_theory_final": 0.17953175427657705,
+      "E_max_median_rel_error": 0.19876817536743832,
+      "E_max_max_rel_error": 0.26663976015843727,
+      "front_median_rel_error": 0.10366672063995112,
+      "spectrum_rms_log_ratio": 0.4464988655829699,
+      "electron_temperature_final_over_initial": 0.9786354353231614,
+      "velocity_profile_median_rel_error": 0.07720730041217541,
+      "regime": "isothermal (thick slab)",
+      "passed": true,
+      "gauss_max": 6.735011853775674e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       384,
+       4,
+       4
+      ],
+      "L": [
+       38.400000000000006,
+       0.4,
+       0.4
+      ],
+      "dx": [
+       0.1,
+       0.1,
+       0.1
+      ],
+      "dt": 0.05484827557301445,
+      "n_steps": 4252,
+      "t_end": 233.21486773645745,
+      "ppc": 256,
+      "particles": 1638400,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01, step along x",
+       "ion (q=+1, m=100): n=1, θ=0, step along x"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 24.68042508896906,
+      "params": {
+       "Te": 0.01,
+       "mass_ratio": 100,
+       "tau_end": 10,
+       "slab_lambda_D": 200,
+       "ppc": 256
+      },
+      "planner": {
+       "Te": 0.01,
+       "mass_ratio": 100,
+       "Z": 1.0,
+       "edge": 20.0,
+       "A_perp": 0.16000000000000003,
+       "t_end": 233.16439815971242,
+       "x_front_end": 9.761359389859459,
+       "E_max_end": 0.17978681719386924,
+       "omega_pi": 0.1,
+       "cs": 0.01,
+       "lambda_D0": 0.1,
+       "E0": 0.1
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "fb481248",
+      "created": "2026-11-10T02:16:39+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/plasma_expansion/isothermal"
+     }
+    },
+    "thin_foil": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "tau_end": 19.994919724036006,
+      "E_max_final": 0.10490428533220006,
+      "E_max_theory_final": 0.2722113319050076,
+      "E_max_median_rel_error": 0.5791866982807042,
+      "E_max_max_rel_error": 0.6146219020418737,
+      "front_median_rel_error": 0.3202469737177478,
+      "spectrum_rms_log_ratio": 2.8240886241886307,
+      "electron_temperature_final_over_initial": 0.44817694793269036,
+      "velocity_profile_median_rel_error": 0.32147727915362984,
+      "regime": "thin foil: isothermal E_max is an upper bound",
+      "passed": true,
+      "gauss_max": 8.117811978181066e-14
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       448,
+       4,
+       4
+      ],
+      "L": [
+       44.800000000000004,
+       0.4,
+       0.4
+      ],
+      "dx": [
+       0.1,
+       0.1,
+       0.1
+      ],
+      "dt": 0.05484827557301445,
+      "n_steps": 8503,
+      "t_end": 466.3748871973419,
+      "ppc": 512,
+      "particles": 163840,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01, step along x",
+       "ion (q=+1, m=100): n=1, θ=0, step along x"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 4,
+      "wall_time_s": 31.147093310952187,
+      "params": {
+       "Te": 0.01,
+       "mass_ratio": 100,
+       "tau_end": 20,
+       "slab_lambda_D": 10,
+       "ppc": 512
+      },
+      "planner": {
+       "Te": 0.01,
+       "mass_ratio": 100,
+       "Z": 1.0,
+       "edge": 1.0,
+       "A_perp": 0.16000000000000003,
+       "t_end": 466.32879631942484,
+       "x_front_end": 25.538539892145756,
+       "E_max_end": 0.27224877598568215,
+       "omega_pi": 0.1,
+       "cs": 0.01,
+       "lambda_D0": 0.1,
+       "E0": 0.1
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "d2f92e4a",
+      "created": "2026-11-10T02:08:25+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/plasma_expansion/thin_foil"
+     }
+    },
+    "isothermal_hydrogen_long": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-09-200af1306-example-plasma_expansion-isothermal_hydrogen_long.json",
+     "results": {
+      "tau_end": 29.973605540428164,
+      "E_max_final": 0.277509715993322,
+      "E_max_theory_final": 0.3351745548898852,
+      "E_max_median_rel_error": 0.11703070515205768,
+      "E_max_max_rel_error": 0.18844427397818622,
+      "front_median_rel_error": 0.06113655678529473,
+      "spectrum_rms_log_ratio": 0.8001774196354936,
+      "electron_temperature_final_over_initial": 0.952799682940899,
+      "velocity_profile_median_rel_error": 0.09534424112441237,
+      "regime": "isothermal (thick slab)",
+      "passed": true,
+      "gauss_max": 6.7415691085148666e-15
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       1152,
+       4,
+       4
+      ],
+      "L": [
+       115.2,
+       0.4,
+       0.4
+      ],
+      "dx": [
+       0.1,
+       0.1,
+       0.1
+      ],
+      "dt": 0.05484827557301445,
+      "n_steps": 54649,
+      "t_end": 2997.4034117896667,
+      "ppc": 256,
+      "particles": 3276800,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01, step along x",
+       "ion (q=+1, m=1836.15): n=1, θ=0, step along x"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 0,
+      "gpus": 8,
+      "wall_time_s": 297.95071834197734,
+      "params": {
+       "Te": 0.01,
+       "mass_ratio": 1836.15267,
+       "tau_end": 30,
+       "slab_lambda_D": 400,
+       "ppc": 256
+      },
+      "planner": {
+       "Te": 0.01,
+       "mass_ratio": 1836.15267,
+       "Z": 1.0,
+       "edge": 40.0,
+       "A_perp": 0.16000000000000003,
+       "t_end": 2997.3529633407547,
+       "x_front_end": 43.75190251550706,
+       "E_max_end": 0.33531862319962996,
+       "omega_pi": 0.02333703114162118,
+       "cs": 0.002333703114162118,
+       "lambda_D0": 0.1,
+       "E0": 0.1
+      }
+     },
+     "provenance": {
+      "git_commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+      "run_id": null,
+      "created": "2026-11-09T22:48:03+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/plasma_expansion/isothermal_hydrogen_long"
+     }
+    }
+   },
+   "images": {
+    "isothermal_hydrogen-expansion.png": 109846,
+    "isothermal-expansion.png": 109546,
+    "thin_foil-expansion.png": 111983,
+    "isothermal_hydrogen_long-expansion.png": 104742,
+    "isothermal_hydrogen_long.gif": 1415648
+   }
+  },
+  "relativistic_shock": {
+   "page": "Relativistic-Shock",
+   "title": {
+    "en": "Relativistic pair shock",
+    "ja": "相対論的電子陽電子衝撃波"
+   },
+   "cases": {
+    "pair_2d": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "dims_eff": 2,
+      "beta_sh": 0.4747499128155696,
+      "beta_sh_theory": 0.49715693370682207,
+      "beta_sh_rel_error": -0.04507031758399669,
+      "compression": 3.0697853565216064,
+      "compression_theory": 3.006962460928112,
+      "compression_rel_error": 0.0208924775117093,
+      "compression_gamma_3_2": 3.1333333333333333,
+      "density_ahead_of_shock": 1.068063735961914,
+      "beta_sh_gamma_3_2": 0.46770717334674267,
+      "t_measured": 294.3467343117677,
+      "theta_downstream_fit": 4.21015626403249,
+      "theta2_theory": 7.440763653560054,
+      "nonthermal_fraction": 0.08911612198155816,
+      "tail_index_p": null,
+      "tail_index_err": null,
+      "tail_range": [
+       null,
+       null
+      ],
+      "tail_index_window_p": null,
+      "tail_index_window_err": null,
+      "tail_window": [
+       48.01635516326961,
+       48.370906627537025
+      ],
+      "tail_index_literature_2d": 2.4,
+      "t_spectrum": 396.98079298625566,
+      "gamma_max_t": [
+       null,
+       16.00545172108987,
+       16.00545172108987,
+       16.00545172108987,
+       19.216319778256796,
+       27.699681801130712,
+       33.256539866670046,
+       39.92816422383116,
+       45.10391056958129,
+       47.93818914044657,
+       54.15224661312787,
+       54.15224661312787,
+       57.555112355844884,
+       50.95057056128253,
+       47.93818914044657,
+       50.95057056128253,
+       47.93818914044657,
+       50.95057056128253,
+       50.95057056128253,
+       50.95057056128253,
+       54.15224661312787,
+       54.15224661312787,
+       54.15224661312787,
+       54.15224661312787,
+       57.555112355844884,
+       57.555112355844884,
+       57.555112355844884,
+       57.555112355844884,
+       57.555112355844884,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       57.555112355844884,
+       57.555112355844884,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       69.10129518219576,
+       69.10129518219576,
+       69.10129518219576
+      ],
+      "gamma_max_growth_exponent": 0.26125217283554464,
+      "gamma_max_growth_literature": 0.5,
+      "eps_B_end": 0.019161853475555064,
+      "passed": true,
+      "gauss_max": 1.5774603845386537e-12
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       1632,
+       80,
+       4
+      ],
+      "L": [
+       632.0708821010504,
+       30.983866769659336,
+       1.5491933384829668
+      ],
+      "dx": [
+       0.3872983346207417,
+       0.3872983346207417,
+       0.3872983346207417
+      ],
+      "dt": 0.19364916731037085,
+      "n_steps": 2066,
+      "t_end": 400.07917966322617,
+      "ppc": 4,
+      "particles": 4177920,
+      "species": [
+       "electron (q=-1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001",
+       "positron (q=+1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 4,
+      "gpus": 4,
+      "wall_time_s": 29.00659766292665,
+      "params": {
+       "gamma0": 15,
+       "t_end": 400,
+       "cells_per_skin": 10,
+       "Ly_skin": 8,
+       "nz": 4,
+       "ppc": 4,
+       "filter_passes": 4
+      },
+      "planner": {
+       "gamma0": 15,
+       "u0": 14.966629547095765,
+       "skin": 3.872983346207417,
+       "dims_eff": 2,
+       "jump": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_2d": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_3d": {
+        "theta2": 4.967648661773964,
+        "beta_sh": 0.33191498768257566,
+        "compression": 4.0061170485435635,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 3
+       },
+       "jump_gamma_3_2": {
+        "beta_sh": 0.46770717334674267,
+        "compression": 3.1333333333333333,
+        "theta2": 7.0
+       },
+       "t_valid": 422.1807800309226,
+       "Lx": 632.0708821010504
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "f65a178a",
+      "created": "2026-11-10T02:07:06+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/relativistic_shock/pair_2d"
+     }
+    },
+    "pair_2d_long": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-09-200af1306-example-relativistic_shock-pair_2d_long.json",
+     "results": {
+      "dims_eff": 2,
+      "beta_sh": 0.468013464724994,
+      "beta_sh_theory": 0.49715693370682207,
+      "beta_sh_rel_error": -0.05862026053731805,
+      "compression": 3.2137746810913086,
+      "compression_theory": 3.006962460928112,
+      "compression_rel_error": 0.06877778583885723,
+      "compression_gamma_3_2": 3.1333333333333333,
+      "density_ahead_of_shock": 1.0156004428863525,
+      "beta_sh_gamma_3_2": 0.46770717334674267,
+      "t_measured": 1456.0480890068388,
+      "theta_downstream_fit": 3.5771549343878637,
+      "theta2_theory": 7.440763653560054,
+      "nonthermal_fraction": 0.15178842438303755,
+      "tail_index_p": 3.9495196104235286,
+      "tail_index_err": 0.022120972948870225,
+      "tail_range": [
+       26.699681801130712,
+       92.71806720228327
+      ],
+      "tail_index_window_p": 3.907799585347811,
+      "tail_index_window_err": 0.031344993294887026,
+      "tail_window": [
+       39.993269432266516,
+       100.50631576527103
+      ],
+      "tail_index_literature_2d": 2.4,
+      "t_spectrum": 1994.5864232972513,
+      "gamma_max_t": [
+       null,
+       27.699681801130712,
+       54.15224661312787,
+       61.171810321362976,
+       50.95057056128253,
+       54.15224661312787,
+       57.555112355844884,
+       61.171810321362976,
+       65.01577748397533,
+       69.10129518219576,
+       69.10129518219576,
+       69.10129518219576,
+       69.10129518219576,
+       73.4435421776485,
+       78.05865104811826,
+       82.96376812427572,
+       82.96376812427572,
+       88.17711719275879,
+       88.17711719275879,
+       93.71806720228327,
+       93.71806720228327,
+       99.6072042243286,
+       99.6072042243286,
+       105.86640793575165,
+       105.86640793575165,
+       105.86640793575165,
+       112.51893290748087,
+       119.58949500130024,
+       119.58949500130024,
+       119.58949500130024,
+       119.58949500130024,
+       127.10436319570861,
+       127.10436319570861,
+       135.09145718201208,
+       135.09145718201208,
+       135.09145718201208,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433
+      ],
+      "gamma_max_growth_exponent": 0.3621045996157921,
+      "gamma_max_growth_literature": 0.5,
+      "eps_B_end": 0.007880597122282366,
+      "passed": true,
+      "gauss_max": 2.1293244945042034e-11
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       8128,
+       160,
+       4
+      ],
+      "L": [
+       3147.9608637973884,
+       61.96773353931867,
+       1.5491933384829668
+      ],
+      "dx": [
+       0.3872983346207417,
+       0.3872983346207417,
+       0.3872983346207417
+      ],
+      "dt": 0.19364916731037085,
+      "n_steps": 10328,
+      "t_end": 2000.00859998151,
+      "ppc": 8,
+      "particles": 83230720,
+      "species": [
+       "electron (q=-1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001",
+       "positron (q=+1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 4,
+      "gpus": 8,
+      "wall_time_s": 461.2121560960077,
+      "params": {
+       "gamma0": 15,
+       "t_end": 2000,
+       "cells_per_skin": 10,
+       "Ly_skin": 16,
+       "nz": 4,
+       "ppc": 8,
+       "filter_passes": 4
+      },
+      "planner": {
+       "gamma0": 15,
+       "u0": 14.966629547095765,
+       "skin": 3.872983346207417,
+       "dims_eff": 2,
+       "jump": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_2d": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_3d": {
+        "theta2": 4.967648661773964,
+        "beta_sh": 0.33191498768257566,
+        "compression": 4.0061170485435635,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 3
+       },
+       "jump_gamma_3_2": {
+        "beta_sh": 0.46770717334674267,
+        "compression": 3.1333333333333333,
+        "theta2": 7.0
+       },
+       "t_valid": 2102.625845644203,
+       "Lx": 3147.9608637973884
+      }
+     },
+     "provenance": {
+      "git_commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+      "run_id": null,
+      "created": "2026-11-09T22:55:51+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/relativistic_shock/pair_2d_long"
+     }
+    },
+    "pair_2d_long_run2": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-10-20b2e74c1-example-relativistic_shock-pair_2d_long-run-40c0ca85.json",
+     "results": {
+      "dims_eff": 2,
+      "beta_sh": 0.45935004237397997,
+      "beta_sh_theory": 0.49715693370682207,
+      "beta_sh_rel_error": -0.07604619139263008,
+      "compression": 3.2514703273773193,
+      "compression_theory": 3.006962460928112,
+      "compression_rel_error": 0.08131390718251238,
+      "compression_gamma_3_2": 3.1333333333333333,
+      "density_ahead_of_shock": 1.0164728164672852,
+      "beta_sh_gamma_3_2": 0.46770717334674267,
+      "t_measured": 1456.0480890068388,
+      "theta_downstream_fit": 3.5354484998680356,
+      "theta2_theory": 7.440763653560054,
+      "nonthermal_fraction": 0.15728530131564655,
+      "tail_index_p": 3.8197614947539296,
+      "tail_index_err": 0.01385009407546163,
+      "tail_range": [
+       26.699681801130712,
+       92.71806720228327
+      ],
+      "tail_index_window_p": 3.8492577051025583,
+      "tail_index_window_err": 0.025832845623872044,
+      "tail_window": [
+       39.993269432266516,
+       100.50631576527103
+      ],
+      "tail_index_literature_2d": 2.4,
+      "t_spectrum": 1994.5864232972513,
+      "gamma_max_t": [
+       null,
+       27.699681801130712,
+       54.15224661312787,
+       61.171810321362976,
+       50.95057056128253,
+       54.15224661312787,
+       57.555112355844884,
+       61.171810321362976,
+       65.01577748397533,
+       69.10129518219576,
+       69.10129518219576,
+       69.10129518219576,
+       69.10129518219576,
+       69.10129518219576,
+       78.05865104811826,
+       82.96376812427572,
+       88.17711719275879,
+       88.17711719275879,
+       93.71806720228327,
+       93.71806720228327,
+       93.71806720228327,
+       93.71806720228327,
+       99.6072042243286,
+       105.86640793575165,
+       105.86640793575165,
+       112.51893290748087,
+       112.51893290748087,
+       112.51893290748087,
+       112.51893290748087,
+       119.58949500130024,
+       119.58949500130024,
+       127.10436319570861,
+       127.10436319570861,
+       127.10436319570861,
+       135.09145718201208,
+       135.09145718201208,
+       135.09145718201208,
+       135.09145718201208,
+       135.09145718201208,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433
+      ],
+      "gamma_max_growth_exponent": 0.41075032112212007,
+      "gamma_max_growth_literature": 0.5,
+      "eps_B_end": 0.006719397703186552,
+      "passed": true,
+      "gauss_max": 2.1586343823543075e-11
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       8128,
+       160,
+       4
+      ],
+      "L": [
+       3147.9608637973884,
+       61.96773353931867,
+       1.5491933384829668
+      ],
+      "dx": [
+       0.3872983346207417,
+       0.3872983346207417,
+       0.3872983346207417
+      ],
+      "dt": 0.19364916731037085,
+      "n_steps": 10328,
+      "t_end": 2000.00859998151,
+      "ppc": 8,
+      "particles": 83230720,
+      "species": [
+       "electron (q=-1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001",
+       "positron (q=+1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 4,
+      "gpus": 8,
+      "wall_time_s": 463.3267069059657,
+      "params": {
+       "gamma0": 15,
+       "t_end": 2000,
+       "cells_per_skin": 10,
+       "Ly_skin": 16,
+       "nz": 4,
+       "ppc": 8,
+       "filter_passes": 4
+      },
+      "planner": {
+       "gamma0": 15,
+       "u0": 14.966629547095765,
+       "skin": 3.872983346207417,
+       "dims_eff": 2,
+       "jump": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_2d": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_3d": {
+        "theta2": 4.967648661773964,
+        "beta_sh": 0.33191498768257566,
+        "compression": 4.0061170485435635,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 3
+       },
+       "jump_gamma_3_2": {
+        "beta_sh": 0.46770717334674267,
+        "compression": 3.1333333333333333,
+        "theta2": 7.0
+       },
+       "t_valid": 2102.625845644203,
+       "Lx": 3147.9608637973884
+      }
+     },
+     "provenance": {
+      "git_commit": "20b2e74c1b77f694518d82f955ce28760280a915",
+      "run_id": "40c0ca85",
+      "created": "2026-11-10T00:44:43+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/relativistic_shock/pair_2d_long_run2"
+     }
+    },
+    "pair_3d": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-09-3bec889ef-example-relativistic_shock-pair_3d.json",
+     "results": {
+      "dims_eff": 3,
+      "beta_sh": 0.31964781456338964,
+      "beta_sh_theory": 0.33191498768257566,
+      "beta_sh_rel_error": -0.036958780333588404,
+      "compression": 4.145386219024658,
+      "compression_theory": 4.0061170485435635,
+      "compression_rel_error": 0.03476412915387143,
+      "compression_gamma_3_2": 3.1333333333333333,
+      "density_ahead_of_shock": 1.0136163234710693,
+      "beta_sh_gamma_3_2": 0.46770717334674267,
+      "t_measured": 453.1390515062773,
+      "theta_downstream_fit": 6.1790928175596616,
+      "theta2_theory": 4.967648661773964,
+      "nonthermal_fraction": 0.20277186718705648,
+      "tail_index_p": null,
+      "tail_index_err": null,
+      "tail_range": [
+       null,
+       null
+      ],
+      "tail_index_window_p": null,
+      "tail_index_window_err": null,
+      "tail_window": [
+       39.993269432266516,
+       51.410479524353946
+      ],
+      "tail_index_literature_2d": 2.4,
+      "t_spectrum": 593.0505748880249,
+      "gamma_max_t": [
+       null,
+       16.00545172108987,
+       16.00545172108987,
+       24.52109872373937,
+       33.256539866670046,
+       42.437204766092165,
+       47.93818914044657,
+       42.437204766092165,
+       42.437204766092165,
+       45.10391056958129,
+       45.10391056958129,
+       45.10391056958129,
+       45.10391056958129,
+       45.10391056958129,
+       47.93818914044657,
+       47.93818914044657,
+       50.95057056128253,
+       50.95057056128253,
+       50.95057056128253,
+       50.95057056128253,
+       50.95057056128253,
+       54.15224661312787,
+       54.15224661312787,
+       54.15224661312787,
+       54.15224661312787,
+       57.555112355844884,
+       57.555112355844884,
+       57.555112355844884,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       61.171810321362976,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       65.01577748397533,
+       69.10129518219576,
+       69.10129518219576,
+       69.10129518219576,
+       69.10129518219576,
+       73.4435421776485
+      ],
+      "gamma_max_growth_exponent": 0.2745335906428677,
+      "gamma_max_growth_literature": 0.5,
+      "eps_B_end": 0.0282676145409273,
+      "passed": true,
+      "gauss_max": 6.63829343057476e-12
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       1792,
+       64,
+       64
+      ],
+      "L": [
+       867.5482695504614,
+       30.983866769659336,
+       30.983866769659336
+      ],
+      "dx": [
+       0.4841229182759271,
+       0.4841229182759271,
+       0.4841229182759271
+      ],
+      "dt": 0.24206145913796356,
+      "n_steps": 2479,
+      "t_end": 600.0703572030117,
+      "ppc": 4,
+      "particles": 58720256,
+      "species": [
+       "electron (q=-1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001",
+       "positron (q=+1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 4,
+      "gpus": 8,
+      "wall_time_s": 107.87229904008564,
+      "params": {
+       "gamma0": 15,
+       "t_end": 600,
+       "cells_per_skin": 8,
+       "Ly_skin": 8,
+       "nz_skin": 8,
+       "ppc": 4,
+       "filter_passes": 4
+      },
+      "planner": {
+       "gamma0": 15,
+       "u0": 14.966629547095765,
+       "skin": 3.872983346207417,
+       "dims_eff": 3,
+       "jump": {
+        "theta2": 4.967648661773964,
+        "beta_sh": 0.33191498768257566,
+        "compression": 4.0061170485435635,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 3
+       },
+       "jump_2d": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_3d": {
+        "theta2": 4.967648661773964,
+        "beta_sh": 0.33191498768257566,
+        "compression": 4.0061170485435635,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 3
+       },
+       "jump_gamma_3_2": {
+        "beta_sh": 0.46770717334674267,
+        "compression": 3.1333333333333333,
+        "theta2": 7.0
+       },
+       "t_valid": 651.354086089177,
+       "Lx": 867.5482695504614
+      }
+     },
+     "provenance": {
+      "git_commit": "3bec889ef67edfec3475252d73a7b964040f9d3a",
+      "run_id": null,
+      "created": "2026-11-09T22:17:18+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/relativistic_shock/pair_3d"
+     }
+    }
+   },
+   "images": {
+    "pair_2d-shock.png": 139347,
+    "pair_2d_long-shock.png": 135479,
+    "pair_2d_long_run2-shock.png": 134757,
+    "pair_3d-shock.png": 107670,
+    "jump_conditions.png": 47694,
+    "pair_2d.gif": 5189909
+   }
+  },
+  "reconnection": {
+   "page": "Magnetic-Reconnection",
+   "title": {
+    "en": "Relativistic magnetic reconnection",
+    "ja": "相対論的磁気リコネクション"
+   },
+   "cases": {
+    "pair_sigma10": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "equilibrium_max_dev_over_B0": 0.011379027591618384,
+      "reconnection_rate_peak": 0.20753633846689948,
+      "reconnection_rate_mean_active": 0.10435565000803862,
+      "reconnection_rate_literature": 0.1,
+      "magnetic_energy_converted": 0.547867556019942,
+      "power_law_index": 2.43204915707109,
+      "power_law_err": 0.0538805799192509,
+      "power_law_range": [
+       5.0,
+       50.0
+      ],
+      "werner2016_index": 2.1213594362117862,
+      "sigma": 10,
+      "E_parallel_share_top1pct": 0.005241691272133147,
+      "passed": true,
+      "gauss_max": 2.580158309228864e-13
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       400,
+       400,
+       4
+      ],
+      "L": [
+       100.0,
+       100.0,
+       1.0
+      ],
+      "dx": [
+       0.25,
+       0.25,
+       0.25
+      ],
+      "dt": 0.125,
+      "n_steps": 3200,
+      "t_end": 400.0,
+      "ppc": 4,
+      "particles": 7619732,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01; n=5, u=(0, 0, 0.5), θ=1.12, sech2 along y; n=5, u=(0, 0, -0.5), θ=1.12, sech2 along y",
+       "positron (q=+1, m=1): n=1, θ=0.01; n=5, u=(0, 0, -0.5), θ=1.12, sech2 along y; n=5, u=(0, 0, 0.5), θ=1.12, sech2 along y"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "Bx profile double_tanh"
+      ],
+      "filter_passes": 2,
+      "gpus": 4,
+      "wall_time_s": 38.286021389998496,
+      "params": {
+       "sigma": 10,
+       "n_cs_over_nb": 5,
+       "delta": 1.0,
+       "Lx": 100,
+       "Ly": 100,
+       "cells_per_skin": 4,
+       "nz": 4,
+       "ppc": 4,
+       "t_end": 400
+      },
+      "planner": {
+       "B0": 4.47213595499958,
+       "n_cs": 5.0,
+       "beta_d": 0.447213595499958,
+       "u_d": 0.5000000000000001,
+       "Gamma_d": 1.118033988749895,
+       "theta_cs": 1.1180339887498951,
+       "v_A": 0.9534625892455924,
+       "sigma": 10,
+       "delta": 1.0,
+       "y_sheets": [
+        25.0,
+        75.0
+       ],
+       "Lx": 100.0,
+       "Ly": 100.0,
+       "werner_index": 2.1213594362117862
+      }
+     },
+     "provenance": {
+      "git_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f",
+      "run_id": "c3f0cc43",
+      "created": "2026-11-10T02:07:39+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 4,
+      "run_dir": "output/wiki/reconnection/pair_sigma10"
+     }
+    },
+    "pair_sigma10_large": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-09-200af1306-example-reconnection-pair_sigma10_large.json",
+     "results": {
+      "equilibrium_max_dev_over_B0": 0.0068398265011263525,
+      "reconnection_rate_peak": 0.19103119035377752,
+      "reconnection_rate_mean_active": 0.06371713285342032,
+      "reconnection_rate_literature": 0.1,
+      "magnetic_energy_converted": 0.7745552785022239,
+      "power_law_index": 2.100931434158568,
+      "power_law_err": 0.026838854785379243,
+      "power_law_range": [
+       5.0,
+       50.0
+      ],
+      "werner2016_index": 2.1213594362117862,
+      "sigma": 10,
+      "E_parallel_share_top1pct": 0.004695270851962698,
+      "passed": true,
+      "gauss_max": 1.5909495942878493e-12
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       1600,
+       800,
+       4
+      ],
+      "L": [
+       400.0,
+       200.0,
+       1.0
+      ],
+      "dx": [
+       0.25,
+       0.25,
+       0.25
+      ],
+      "dt": 0.125,
+      "n_steps": 16000,
+      "t_end": 2000.0,
+      "ppc": 8,
+      "particles": 101918138,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01; n=5, u=(0, 0, 0.5), θ=1.12, sech2 along y; n=5, u=(0, 0, -0.5), θ=1.12, sech2 along y",
+       "positron (q=+1, m=1): n=1, θ=0.01; n=5, u=(0, 0, -0.5), θ=1.12, sech2 along y; n=5, u=(0, 0, 0.5), θ=1.12, sech2 along y"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "Bx profile double_tanh"
+      ],
+      "filter_passes": 2,
+      "gpus": 8,
+      "wall_time_s": 635.9321252569789,
+      "params": {
+       "sigma": 10,
+       "n_cs_over_nb": 5,
+       "delta": 1.0,
+       "Lx": 400,
+       "Ly": 200,
+       "cells_per_skin": 4,
+       "nz": 4,
+       "ppc": 8,
+       "t_end": 2000
+      },
+      "planner": {
+       "B0": 4.47213595499958,
+       "n_cs": 5.0,
+       "beta_d": 0.447213595499958,
+       "u_d": 0.5000000000000001,
+       "Gamma_d": 1.118033988749895,
+       "theta_cs": 1.1180339887498951,
+       "v_A": 0.9534625892455924,
+       "sigma": 10,
+       "delta": 1.0,
+       "y_sheets": [
+        50.0,
+        150.0
+       ],
+       "Lx": 400.0,
+       "Ly": 200.0,
+       "werner_index": 2.1213594362117862
+      }
+     },
+     "provenance": {
+      "git_commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+      "run_id": null,
+      "created": "2026-11-09T23:06:33+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/reconnection/pair_sigma10_large"
+     }
+    },
+    "pair_sigma10_large_run2": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-10-d9637cd9f-example-reconnection-pair_sigma10_large-run-e879cfd6.json",
+     "results": {
+      "equilibrium_max_dev_over_B0": 0.0068398265011263525,
+      "reconnection_rate_peak": 0.19255590305183445,
+      "reconnection_rate_mean_active": 0.07351545730753195,
+      "reconnection_rate_literature": 0.1,
+      "magnetic_energy_converted": 0.7599353946709541,
+      "power_law_index": 2.1044115890455357,
+      "power_law_err": 0.025808363925319298,
+      "power_law_range": [
+       5.0,
+       50.0
+      ],
+      "werner2016_index": 2.1213594362117862,
+      "sigma": 10,
+      "E_parallel_share_top1pct": -0.005136472092390089,
+      "passed": true,
+      "gauss_max": 1.5699108679712026e-12
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       1600,
+       800,
+       4
+      ],
+      "L": [
+       400.0,
+       200.0,
+       1.0
+      ],
+      "dx": [
+       0.25,
+       0.25,
+       0.25
+      ],
+      "dt": 0.125,
+      "n_steps": 16000,
+      "t_end": 2000.0,
+      "ppc": 8,
+      "particles": 101918138,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01; n=5, u=(0, 0, 0.5), θ=1.12, sech2 along y; n=5, u=(0, 0, -0.5), θ=1.12, sech2 along y",
+       "positron (q=+1, m=1): n=1, θ=0.01; n=5, u=(0, 0, -0.5), θ=1.12, sech2 along y; n=5, u=(0, 0, 0.5), θ=1.12, sech2 along y"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "Bx profile double_tanh"
+      ],
+      "filter_passes": 2,
+      "gpus": 8,
+      "wall_time_s": 686.1945901779691,
+      "params": {
+       "sigma": 10,
+       "n_cs_over_nb": 5,
+       "delta": 1.0,
+       "Lx": 400,
+       "Ly": 200,
+       "cells_per_skin": 4,
+       "nz": 4,
+       "ppc": 8,
+       "t_end": 2000
+      },
+      "planner": {
+       "B0": 4.47213595499958,
+       "n_cs": 5.0,
+       "beta_d": 0.447213595499958,
+       "u_d": 0.5000000000000001,
+       "Gamma_d": 1.118033988749895,
+       "theta_cs": 1.1180339887498951,
+       "v_A": 0.9534625892455924,
+       "sigma": 10,
+       "delta": 1.0,
+       "y_sheets": [
+        50.0,
+        150.0
+       ],
+       "Lx": 400.0,
+       "Ly": 200.0,
+       "werner_index": 2.1213594362117862
+      }
+     },
+     "provenance": {
+      "git_commit": "d9637cd9f8dd96da73a85067c568c47958fea811",
+      "run_id": "e879cfd6",
+      "created": "2026-11-10T00:33:10+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/reconnection/pair_sigma10_large_run2"
+     }
+    }
+   },
+   "images": {
+    "pair_sigma10-reconnection.png": 144046,
+    "pair_sigma10_large-reconnection.png": 212163,
+    "pair_sigma10_large_run2-reconnection.png": 210073,
+    "power_law.png": 36565,
+    "pair_sigma10_large_run2.gif": 6085497
+   }
+  }
+ },
+ "generated": "2026-11-10",
+ "analysis_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f-dirty"
+}

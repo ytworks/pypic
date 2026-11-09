@@ -30,5 +30,9 @@ def harris(sigma: float, n_cs_over_nb: float, delta: float, n_b: float = 1.0) ->
             "v_A": math.sqrt(sigma / (1.0 + sigma))}
 
 
+# dN/dgamma power-law index vs sigma reported by Sironi & Spitkovsky (2014), 2-D pair reconnection
+SIRONI_SPITKOVSKY_2014 = {1.0: 4.0, 3.0: 3.0, 10.0: 2.0, 50.0: 1.5}
+
+
 def werner_index(sigma: float) -> float:
     return 1.9 + 0.7 / math.sqrt(sigma)

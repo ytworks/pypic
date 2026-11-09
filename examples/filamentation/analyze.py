@@ -89,13 +89,14 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     return res
 
 
-def movie(run_dir: str) -> str:
+def movie(run_dir: str, out: str | None = None, fps: int = 15, n_frames: int = 120,
+          dpi: int = 110) -> str:
     from pypic.analysis import Movie
 
     run = open_run(run_dir)
     m = Movie(run, title="current filamentation (Weibel)")
     m.slice("slice_yz", "Bz").slice("slice_yz", "Jx").phase("phase", "electron").history()
-    return m.save(os.path.join(run_dir, "filamentation.mp4"), fps=15, n_frames=120)
+    return m.save(out or os.path.join(run_dir, "filamentation.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 
 if __name__ == "__main__":

@@ -123,13 +123,45 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     return res
 
 
-def movie(run_dir: str) -> str:
+def summary(results: dict[str, dict], path: str) -> str:
+    """Median frequency error of every dispersion branch (all configurations) against the 3 % tolerance:
+    filled markers are gated branches, hollow ones reported only."""
+    P.style()
+    rows = []
+    for i, (name, res) in enumerate(results.items()):
+        for label, b in res["branches"].items():
+            rows.append((i, f"{name} · {label}", b["median_rel_error"], b["checked"], b["found"], b["points"]))
+    fig, ax = P.plt.subplots(figsize=(9.5, 0.28 * len(rows) + 1.3))
+    y = np.arange(len(rows))[::-1]
+    ax.axvline(0.03, **P.THEORY, label="tolerance 3 %")
+    seen = set()
+    for yi, (i, _, err, checked, found, pts) in zip(y, rows):
+        name = list(results)[i]
+        lab = name if name not in seen else None
+        seen.add(name)
+        e = max(err, 1e-5) if np.isfinite(err) else np.nan
+        ax.plot(e, yi, "o", ms=7, color=P.color(i), mfc=P.color(i) if checked else "none", label=lab)
+        ax.annotate(f"{found}/{pts}", (e, yi), xytext=(8, 0), textcoords="offset points", va="center",
+                    fontsize=7, color=P.INK["muted"])
+    ax.plot([], [], "o", color=P.INK["secondary"], mfc="none", label="reported (not gated)")
+    ax.set_xscale("log")
+    ax.set_xlim(1e-4, 0.3)
+    ax.set_yticks(y, [r[1] for r in rows], fontsize=7.5)
+    ax.set_xlabel("median |ω_PIC − ω_theory| / ω_theory   (label: k points found / searched)")
+    ax.grid(axis="y", visible=False)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=7)
+    fig.tight_layout()
+    return P.save(fig, path, dpi=110)
+
+
+def movie(run_dir: str, out: str | None = None, fps: int = 20, n_frames: int = 200,
+          dpi: int = 110) -> str:
     from pypic.analysis import Movie
 
     run = open_run(run_dir)
     m = Movie(run, title="thermal plasma waves")
     m.xt("lineout", "Ex").xt("lineout", "Ey").lineout("lineout", ["Ex", "Ey"]).history()
-    return m.save(os.path.join(run_dir, "plasma_waves.mp4"), fps=20, n_frames=200)
+    return m.save(out or os.path.join(run_dir, "plasma_waves.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 
 if __name__ == "__main__":

@@ -70,13 +70,84 @@ def analyze(run_dir: str, show_plot: bool = True):
     return res
 
 
-def movie(run_dir: str, out: str | None = None) -> str:
+def summary(runs: dict[str, str], results: dict[str, dict], out_dir: str) -> list[str]:
+    """Cross-configuration comparison with linear theory (one chart per question):
+    growth.png  |E_x(k_max)|(t) of every configuration with the fitted rate and the theory slope;
+    growth_ratio.png  gamma_fit / gamma_theory with the 10 % gate band;
+    energy.png  relative total-energy error, explicit vs implicit, against the implicit 1e-8 contract."""
+    P.style()
+    paths = []
+    names = list(runs)
+    nc = min(3, len(names))
+    nr = -(-len(names) // nc)
+    fig, axes = P.plt.subplots(nr, nc, figsize=(4.2 * nc, 3.3 * nr), squeeze=False)
+    for ax in axes.flat[len(names):]:
+        ax.set_visible(False)
+    for ax, name in zip(axes.flat, names):
+        run = open_run(runs[name])
+        lin = run.meta.get("planner", {})
+        nwl = run.meta.get("params", {}).get("n_wavelengths", 4)
+        md = run.series("modes")
+        a = np.abs(md["Ex"][:, min(nwl, md["Ex"].shape[1]) - 1])
+        g_fit, line = fit_growth(md.t, md["Ex"][:, min(nwl, md["Ex"].shape[1]) - 1], omega_r=lin.get("omega_r", 0.0))
+        g_th = results[name]["gamma_theory"]
+        ax.semilogy(md.t, a, color=P.color(0), lw=1.2, label=r"PIC $|E_x(k_{max})|$")
+        tl, env = line
+        tm = 0.5 * (tl[0] + tl[-1])
+        em = float(np.exp(np.interp(tm, tl, np.log(env))))
+        tt = np.linspace(tl[0] - 0.25 * (tl[-1] - tl[0]), tl[-1] + 0.25 * (tl[-1] - tl[0]), 50)
+        ax.semilogy(tt, 2 * em * np.exp(g_th * (tt - tm)), **P.THEORY, label=rf"theory $\gamma$={g_th:.3f}")
+        ax.axvspan(tl[0], tl[-1], color=P.INK["grid"], alpha=0.6, lw=0, label="fit window")
+        err = results[name]["relative_error"]
+        ax.set_title(f"{name}: fit {g_fit:.3f} ({err:+.1%})")
+        ax.set_xlabel(r"$\omega_{pe} t$")
+        ax.legend(loc="lower right")
+    fig.tight_layout()
+    paths.append(P.save(fig, os.path.join(out_dir, "growth.png"), dpi=110))
+
+    fig, ax = P.plt.subplots(figsize=(6.0, 0.55 * len(names) + 1.2))
+    y = np.arange(len(names))[::-1]
+    ax.axvspan(0.9, 1.1, color=P.INK["grid"], alpha=0.7, lw=0, label="gate ±10 %")
+    ax.axvline(1.0, **P.THEORY, label="linear theory")
+    ratio = [results[n]["gamma_fit_kmax"] / results[n]["gamma_theory"] for n in names]
+    ax.plot(ratio, y, "o", ms=8, color=P.color(0), label="PIC fit")
+    for yi, r in zip(y, ratio):
+        ax.annotate(f"{r - 1:+.1%}", (r, yi), xytext=(0, 9), textcoords="offset points", ha="center",
+                    fontsize=8, color=P.INK["secondary"], bbox={"fc": P.INK["surface"], "ec": "none", "pad": 0.5})
+    ax.set_yticks(y, names)
+    ax.set_xlim(0.85, 1.15)
+    ax.set_ylim(y.min() - 0.5, y.max() + 0.6)
+    ax.set_xlabel(r"$\gamma_{fit} / \gamma_{theory}$ (k_max mode)")
+    ax.legend(loc="upper left", ncol=3, bbox_to_anchor=(0, 1.18))
+    ax.grid(axis="y", visible=False)
+    fig.tight_layout()
+    paths.append(P.save(fig, os.path.join(out_dir, "growth_ratio.png"), dpi=110))
+
+    pair = [n for n in ("ei", "ei_implicit") if n in runs]
+    if len(pair) == 2:
+        fig, ax = P.plt.subplots(figsize=(6.5, 3.6))
+        for i, n in enumerate(pair):
+            s = open_run(runs[n]).scalars
+            b = s["budget"]
+            ax.semilogy(s.t, np.abs(b - b[0]) / abs(b[0]) + 1e-17, color=P.color(i),
+                        label=("explicit (ei)" if n == "ei" else "implicit (ei_implicit)"))
+        ax.axhline(1e-8, **P.THEORY, label="implicit contract 1e-8")
+        ax.set_xlabel(r"$\omega_{pe} t$")
+        ax.set_ylabel("|ΔE_total| / E_total(0)")
+        ax.set_ylim(1e-16, 1)
+        ax.legend(loc="lower right")
+        fig.tight_layout()
+        paths.append(P.save(fig, os.path.join(out_dir, "energy.png"), dpi=110))
+    return paths
+
+
+def movie(run_dir: str, out: str | None = None, fps: int = 15, n_frames: int = 300, dpi: int = 110) -> str:
     from pypic.analysis import Movie
 
     run = open_run(run_dir)
     m = Movie(run, title="two-stream " + os.path.basename(os.path.normpath(run_dir)))
     m.phase("phase", "electron").xt("lineout", "Ex").slice("slice_xy", "Ex").history()
-    return m.save(out or os.path.join(run_dir, "two_stream.mp4"), fps=15)
+    return m.save(out or os.path.join(run_dir, "two_stream.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 
 if __name__ == "__main__":
