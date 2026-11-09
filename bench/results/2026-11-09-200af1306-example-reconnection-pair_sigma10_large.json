@@ -1,0 +1,47 @@
+{
+  "type": "example",
+  "date": "2026-11-09",
+  "commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+  "dirty": false,
+  "gpus": 8,
+  "analysis_commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "example": "reconnection",
+  "config": "pair_sigma10_large",
+  "params": {
+    "sigma": 10,
+    "n_cs_over_nb": 5,
+    "delta": 1.0,
+    "Lx": 400,
+    "Ly": 200,
+    "cells_per_skin": 4,
+    "nz": 4,
+    "ppc": 8,
+    "t_end": 2000
+  },
+  "run": {
+    "wall_time_s": 635.9321252569789,
+    "ns_per_particle_step": 3.119818207711855,
+    "gpus": 8,
+    "steps": 16000
+  },
+  "passed": true,
+  "metrics": {
+    "equilibrium_max_dev_over_B0": 0.0068398265011263525,
+    "reconnection_rate_peak": 0.19103119035377752,
+    "reconnection_rate_mean_active": 0.06371713285342032,
+    "reconnection_rate_literature": 0.1,
+    "magnetic_energy_converted": 0.7745552785022239,
+    "power_law_index": 2.100931434158568,
+    "power_law_err": 0.026838854785379243,
+    "power_law_range": [
+      5.0,
+      50.0
+    ],
+    "werner2016_index": 2.1213594362117862,
+    "E_parallel_share_top1pct": 0.004695271607488394,
+    "passed": true,
+    "gauss_max": 1.5909495942878493e-12
+  },
+  "note": "production run (reported, not gated)"
+}

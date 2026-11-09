@@ -28,5 +28,7 @@ profiles, current filter; PIC-D9, PIC-D10).
 | R5 | float32 / mixed-precision particle storage | must keep the gate criteria |
 | R6 | More examples | PR #2 set done; later: magnetised shocks, beam–plasma with B0, long production runs (shock tail, large reconnection boxes) |
 | R8 | Laser / beam drivers and a moving window (wakefield acceleration) | needs field injection at a boundary |
+| R10 | Deterministic (order-independent) current deposition option | atomics make long turbulent runs realization-dependent (ANA-D3); needed for bitwise reproducibility |
+| R11 | Converged Fermi tail of the pair shock | t >~ 8000 / omega_pe, ~1e9 particles (quasi-2-D); needs R3/R5 performance work or many nodes |
 | R9 | Asynchronous output writing | rank 0 writes synchronously today (~17 % of wall time for the full two-stream output set) |
 | R7 | Multi-node runs (NCCL over network) | launcher is single-node today |

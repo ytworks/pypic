@@ -20,7 +20,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 ## Current Status
 
 Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Accepted),
-`docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D2, Accepted).
+`docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
 |---|---|
@@ -39,13 +39,24 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 - Known gaps: no particle injection at open faces (R1); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
-- Production runs not yet done: relativistic_shock pair_2d_long / pair_3d (Fermi tail), reconnection
-  pair_sigma10_large (power law), plasma_expansion beyond tau = 10.
+- Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
+  tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
 
 ## Change Log
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-09 — [progress] Production runs of the acceleration examples
+- What:
+  - pair_3d: 3-D jump conditions, β_sh −3.7 %, n₂/n₁ +3.5 %.
+  - pair_2d_long: early Fermi tail p ≈ 3.9 at t = 2000, γ_max ∝ t^0.36–0.42.
+  - isothermal_hydrogen_long: E_max −12 % up to τ = 30.
+  - pair_sigma10_large: p = 2.10–2.15 vs Werner+2016's 2.12; rate 0.06–0.08 v_A (two realizations: the atomic deposit order is not deterministic).
+  - All recorded as typed example evidence (`scripts/record_example.py`, validated in CI).
+- Why: the reported (non-analytic) results planned for PR #2.
+- Fixes: the shock speed is fitted over 0.3–0.7 t_valid (the precursor reaches the plasma edge later); run.json takes the git state once at start-up.
+- Refs: `bench/results/*-example-*.json`; `examples/{relativistic_shock,reconnection,plasma_expansion}/README.md`
 
 ### 2026-11-09 — [design] Analytic-solution examples and their set-up features (PR #2, phases 2-4)
 - What: examples plasma_waves, landau_damping (+ Dawson, wave breaking, relativistic), filamentation, particle_orbits, plasma_expansion, relativistic_shock, reconnection, each gated against theory (ANA-D2); engine PIC-D9 (Gauss-exact perturbations, explicit half kick, test species and particle lists, E0 / exact plane waves / field profiles, density profiles) and PIC-D10 (binomial current filter, Gauss- and implicit-energy-exact); `pypic.theory` waves/streaming.

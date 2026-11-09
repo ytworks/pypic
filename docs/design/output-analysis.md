@@ -1,7 +1,7 @@
 # Output and analysis design
 
 Status: **Accepted** (2026-11-09, PR #2). Plan: `docs/plans/2026-11-09-output-analysis-examples.md`.
-Decisions: OUT-D1..D4, ANA-D1, ANA-D2.
+Decisions: OUT-D1..D4, ANA-D1..D3.
 Applies to: `pypic/output/` (schedule, writers, GPU diagnostics, manager), `pypic/analysis/`,
 `pypic/setup/runner.py`, every `examples/<name>/`.
 
@@ -87,6 +87,12 @@ gate configs and also requires Gauss ≤ 1e-10. Criteria (fixed before the gate 
 Why: agreement with analytic and linear theory is the test policy's observable result.
 - Where the model and collisionless PIC differ physically, the tolerance sits above the measured, explained offset. The case is Mora's isothermal electrons; see examples/plasma_expansion/README.md.
 - Non-analytic results are reported, not gated: power-law indices and reconnection rates.
+
+### ANA-D3 — Production results are recorded, not gated
+- Long or large example runs measure results that are not analytic: Fermi tails, γ_max(t), reconnection power laws and rates. `scripts/record_example.py` records them as `type: example` evidence in `bench/results/`. The record holds the run's code commit, the commit of the analysis code and the GPU count.
+- Each record is one realization. The atomic current deposit has no fixed order, so turbulent runs from the same seed diverge at round-off level. Two runs of `pair_sigma10_large` gave p = 2.15 and 2.10, and the READMEs quote both.
+
+Why: these numbers are research results with statistical spread, not contracts.
 
 ## Measured (2026-11-09, `examples/two_stream` ei, 8 GPUs)
 

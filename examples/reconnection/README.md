@@ -32,9 +32,9 @@ python examples/reconnection/analyze.py output/reconnection/pair_sigma10 --movie
 
 ## Production result (8 GPUs, recorded in `bench/results/`)
 
-`pair_sigma10_large.yaml` runs a 400 × 200 c/ω_pe box to t = 2000 with 10⁸ particles:
-- **power law**: dN/dγ ∝ γ^−p with p = 2.15 ± 0.03 over σ/2 ≤ γ−1 ≤ 5σ, against 1.9 + 0.7/√σ = 2.12 (Werner et al. 2016), a 1.3 % difference;
-- **reconnection rate**: 0.080 v_A on average over the active phase, with a peak of 0.19 from the initial tearing and a second burst from plasmoid mergers at t ≈ 1000;
+`pair_sigma10_large.yaml` runs a 400 × 200 c/ω_pe box to t = 2000 with 10⁸ particles. It was run twice with the same code and seed; the two runs differ only through the non-deterministic order of the atomic current deposit, which turbulence amplifies, so they are independent realizations.
+- **power law**: dN/dγ ∝ γ^−p with p = 2.15 ± 0.03 and 2.10 ± 0.03 over σ/2 ≤ γ−1 ≤ 5σ, against 1.9 + 0.7/√σ = 2.12 (Werner et al. 2016), within 1.5 %;
+- **reconnection rate**: 0.080 and 0.064 v_A on average over the active phase, with a peak of 0.19 from the initial tearing and a second burst from plasmoid mergers;
 - **energy**: 77 % of the magnetic energy is converted;
 - **acceleration channel**: the 1 % most energetic tracked electrons gained essentially nothing from E∥ (share ≈ 0); their energy came from E⊥, the motional field of the outflows and plasmoids. The tracks are sampled every 2.5 ω_pe⁻¹, so this split is indicative.
 

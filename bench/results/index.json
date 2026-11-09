@@ -1,6 +1,50 @@
 {
   "entries": [
     {
+      "file": "2026-11-09-200af1306-example-reconnection-pair_sigma10_large.json",
+      "type": "example",
+      "date": "2026-11-09",
+      "commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "reconnection",
+      "config": "pair_sigma10_large"
+    },
+    {
+      "file": "2026-11-09-200af1306-example-relativistic_shock-pair_2d_long.json",
+      "type": "example",
+      "date": "2026-11-09",
+      "commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "relativistic_shock",
+      "config": "pair_2d_long"
+    },
+    {
+      "file": "2026-11-09-200af1306-example-plasma_expansion-isothermal_hydrogen_long.json",
+      "type": "example",
+      "date": "2026-11-09",
+      "commit": "200af13062b76ec8c9e92af011e2a0b225e6ae02",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "plasma_expansion",
+      "config": "isothermal_hydrogen_long"
+    },
+    {
+      "file": "2026-11-09-3bec889ef-example-relativistic_shock-pair_3d.json",
+      "type": "example",
+      "date": "2026-11-09",
+      "commit": "3bec889ef67edfec3475252d73a7b964040f9d3a",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "relativistic_shock",
+      "config": "pair_3d"
+    },
+    {
       "file": "2026-11-09-6dee42f1d-gpu-gates.json",
       "date": "2026-11-09",
       "commit": "6dee42f1d11ce83f5c4de8f741b3b38136fbb1eb",
