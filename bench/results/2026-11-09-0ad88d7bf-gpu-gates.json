@@ -623,14 +623,14 @@
         "theta_downstream_fit": 4.225032490822017,
         "theta2_theory": 7.440763653560054,
         "nonthermal_fraction": 0.08792252395229538,
-        "tail_index_p": NaN,
-        "tail_index_err": NaN,
+        "tail_index_p": null,
+        "tail_index_err": null,
         "tail_range": [
-          NaN,
-          NaN
+          null,
+          null
         ],
         "gamma_max_t": [
-          NaN,
+          null,
           16.00545172108987,
           16.00545172108987,
           16.00545172108987,

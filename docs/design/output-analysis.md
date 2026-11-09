@@ -31,8 +31,8 @@ acceleration, with animations; one example per classic problem with an analytic 
   (`--overwrite`) removes exactly those entries first. Otherwise dumps a re-run does not rewrite
   would be read as part of it (review amendment, PR #2).
 - `run.json`: configuration, resolved schedule, layout of every diagnostic, time centering, units,
-  ED-PIC attributes, git commit, rank grid, and experiment metadata (`meta`: planner theory,
-  run statistics). The reader (`pypic.analysis.open_run`) relies only on these files.
+  ED-PIC attributes, git commit, run id and start time (both fixed at start-up), rank grid, and
+  experiment metadata (`meta`: planner theory, run statistics). The reader (`pypic.analysis.open_run`) relies only on these files.
 Why: openPMD is the community standard for PIC data, so other tools read it; reduced
 diagnostics have no standard, so their schema is documented here and in `run.json`.
 
@@ -94,6 +94,9 @@ Why: agreement with analytic and linear theory is the test policy's observable r
 
 ### ANA-D3 — Production results are recorded, not gated
 - Long or large example runs measure results that are not analytic: Fermi tails, γ_max(t), reconnection power laws and rates. `scripts/record_example.py` records them as `type: example` evidence in `bench/results/`. The record holds the run's code commit, the commit of the analysis code and the GPU count.
+- One record per run: the run id from `run.json` is part of the record's file name and index entry. Separate runs of a configuration are kept side by side, and recording a run again replaces only its own record.
+- The analysis commit is taken before the analysis code is loaded. If HEAD or the code under `examples/` and `pypic/` changes while the analysis runs, nothing is recorded.
+- Evidence files (gates and examples) are strict JSON: a metric that could not be measured is `null`, never NaN. `verify_bench_results.py` rejects anything else in CI.
 - Each record is one realization. The atomic current deposit has no fixed order, so turbulent runs from the same seed diverge at round-off level. Two runs of `pair_sigma10_large` gave p = 2.15 and 2.10, and the READMEs quote both.
 
 Why: these numbers are research results with statistical spread, not contracts.
@@ -115,3 +118,7 @@ tracks): 32 MB on disk for 62 MB raw; wall time 18.3 s vs 15.6 s without output.
     - An envelope-based weight was tried and rejected: it moved the Buneman growth fit from −6.7 % to −13.4 %.
   - **`parallel_perpendicular_work`**: computed in float64. Where B = 0 at the particle there is no parallel direction, so E counts as perpendicular there and W_par + W_perp equals the total work.
   - **`record_example.py`**: accepts only the name of an example in this repository and loads that example's `analyze.py` by its path.
+- 2026-11-09 (PR #2 second review), all on recorded results (ANA-D3):
+  - **Separate runs**: two runs of one configuration recorded on one day overwrote each other. Records now carry the run id.
+  - **Analysis commit**: it was read after the analysis, so a checkout during the analysis was recorded as the code that produced the metrics. It is now taken before the analysis and checked after.
+  - **Strict JSON**: unmeasured metrics were written as NaN, which is not JSON. They are now null. The five existing evidence files that held NaN were normalized (NaN → null, nothing else changed).

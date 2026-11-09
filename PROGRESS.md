@@ -47,6 +47,13 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-09 — [amendment] PR #2 second review: recorded results
+- What:
+  - `run.json` carries a run id and a start time, both fixed at start-up. Example records are one per run, with the run id in the file name and index entry, so realizations no longer overwrite each other.
+  - The analysis commit is taken before the analysis, and nothing is recorded if the code changes during it.
+  - Evidence is strict JSON (NaN → null; the five existing files were normalized), and the verifier enforces it.
+- Why: the review reproduced 3 issues; each fix has a test that failed on the old scripts.
+- Refs: ANA-D3 and review amendments in `docs/design/output-analysis.md`; `scripts/bench_records.py`
 ### 2026-11-09 — [amendment] PR #2 review fixes
 - What:
   - The density-perturbation inverse is a bisection with a residual check reduced over ranks. Newton stalled at α → 1.

@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import secrets
 import shutil
 import subprocess
 
@@ -79,6 +80,10 @@ class OutputManager:
         # provenance of the code that runs, taken once: run.json is rewritten later (metadata, run
         # statistics), when the working tree may have changed without affecting this run
         self.git_commit = _git_commit() if self.root else None
+        # identity of this run, fixed at start-up: separate runs of one configuration (realizations)
+        # stay apart in the recorded evidence (scripts/record_example.py)
+        self.created = _dt.datetime.now().astimezone().isoformat(timespec="seconds")
+        self.run_id = secrets.token_hex(4)
         self._claim_directory()
         if self.root:
             self.write_run_json()
@@ -159,7 +164,7 @@ class OutputManager:
         sim, cfg = self.sim, self.sim.cfg
         info = {
             "format": "pypic-output-1", "pypic_version": __version__, "git_commit": self.git_commit,
-            "created": _dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+            "run_id": self.run_id, "created": self.created,
             "world_size": sim.comm.size, "gpu_name": _gpu_name(), "dims": list(sim.decomp.dims), "solver": cfg.solver,
             "dt": cfg.dt, "n_steps": cfg.n_steps, "n_cells": list(cfg.n_cells), "dx": list(cfg.dx),
             "L": list(sim.grid.L), "species": [{"name": s.name, "charge": s.q, "mass": s.m,

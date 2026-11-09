@@ -5,23 +5,42 @@ results are reported rather than gated) as evidence in bench/results/.
     python scripts/record_example.py output/relativistic_shock/pair_2d_long
 
 The example's own analyze.py runs on the output directory (in a separate interpreter); its result,
-the run's provenance from run.json (code commit at run time, dirty flag, GPUs, wall time), the
-commit of the analysis code and the configuration are written to
-bench/results/<date>-<commit>-example-<example>-<config>.json and listed in
+the run's provenance from run.json (run id, code commit at run time, dirty flag, GPUs, wall time),
+the commit of the analysis code and the configuration are written to
+bench/results/<date>-<commit>-example-<example>-<config>-run-<run_id>.json and listed in
 bench/results/index.json with type "example" (validated by verify_bench_results.py).
+
+- One record per run: separate runs of a configuration (realizations) are kept side by side;
+  recording the same run again replaces its record.
+- The analysis commit is taken before the analysis code is loaded; if HEAD or the code under
+  examples/ and pypic/ changes while the analysis runs, nothing is recorded.
+- The record is strict JSON: a metric that could not be measured (NaN) is stored as null.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
+import bench_records  # scripts/bench_records.py (this directory is on sys.path)
+
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "bench" / "results"
+
+
+def git(*args: str) -> str:
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+
+
+def code_state() -> tuple[str, str]:
+    """HEAD and a digest of the uncommitted changes to the analysis code (examples/, pypic/)."""
+    diff = git("diff", "HEAD", "--", "examples", "pypic")
+    return git("rev-parse", "HEAD"), hashlib.sha256(diff.encode()).hexdigest() if diff else ""
 
 
 def main() -> int:
@@ -36,6 +55,11 @@ def main() -> int:
     if not example:
         print("run.json has no meta.example: was the run started by an example's run.py?", file=sys.stderr)
         return 2
+    run_id = info.get("run_id")
+    if not isinstance(run_id, str) or not run_id.isalnum():
+        print("run.json has no run_id (a run made before run ids were written): records need it to keep "
+              "separate runs apart", file=sys.stderr)
+        return 2
     # run.json is data: its example name only selects one of this repository's examples, whose
     # analyze.py is loaded by its path (nothing from the run directory is put on sys.path)
     known = {p.name: p / "analyze.py" for p in (ROOT / "examples").iterdir() if (p / "analyze.py").is_file()}
@@ -48,33 +72,33 @@ def main() -> int:
             "mod = importlib.util.module_from_spec(spec)\n"
             "spec.loader.exec_module(mod)\n"
             "print(json.dumps(mod.analyze(sys.argv[2], show_plot=False), default=float))")
+    # the analysis code is identified before it is loaded and must be unchanged when it ends
+    before = code_state()
     r = subprocess.run([sys.executable, "-c", code, str(known[example]), str(run_dir)], cwd=ROOT,
                        capture_output=True, text=True)
     if r.returncode != 0:
         print(r.stderr[-3000:], file=sys.stderr)
+        return 1
+    if code_state() != before:
+        print("the analysis code (HEAD or files under examples/, pypic/) changed while the analysis ran: "
+              "nothing recorded", file=sys.stderr)
         return 1
     result = json.loads(r.stdout.strip().splitlines()[-1])
     commit_full = info.get("git_commit") or "unknown"
     dirty = commit_full.endswith("-dirty")
     commit = commit_full.removesuffix("-dirty")
     date = dt.date.today().isoformat()
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    an_dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no", "examples", "pypic"],
-                                   cwd=ROOT, capture_output=True, text=True).stdout.strip())
-    record = {"type": "example", "date": date, "commit": commit, "dirty": dirty, "gpus": info.get("world_size"),
-              "analysis_commit": head + ("-dirty" if an_dirty else ""),
+    head, changes = before
+    record = {"type": "example", "date": date, "commit": commit, "dirty": dirty, "run_id": run_id,
+              "run_started": info.get("created"), "gpus": info.get("world_size"),
+              "analysis_commit": head + ("-dirty" if changes else ""),
               "gpu_name": info.get("gpu_name"), "example": example, "config": config, "params": meta.get("params"),
               "run": meta.get("run", {}), "passed": result.get("passed"), "metrics": result, "note": a.note}
-    fname = f"{date}-{commit[:9]}{'-dirty' if dirty else ''}-example-{example}-{config}.json"
-    RES.mkdir(parents=True, exist_ok=True)
-    (RES / fname).write_text(json.dumps(record, indent=2, default=float) + "\n")
-    index_path = RES / "index.json"
-    index = json.loads(index_path.read_text()) if index_path.exists() else {"entries": []}
-    index["entries"] = [e for e in index["entries"] if e["file"] != fname]
-    index["entries"].insert(0, {"file": fname, "type": "example", "date": date, "commit": commit, "dirty": dirty,
-                                "gpus": record["gpus"], "gpu_name": record["gpu_name"], "example": example,
-                                "config": config})
-    index_path.write_text(json.dumps(index, indent=2) + "\n")
+    fname = f"{date}-{commit[:9]}{'-dirty' if dirty else ''}-example-{example}-{config}-run-{run_id}.json"
+    entry = {"type": "example", "date": date, "commit": commit, "dirty": dirty, "run_id": run_id,
+             "gpus": record["gpus"], "gpu_name": record["gpu_name"], "example": example, "config": config}
+    # one record per run: re-recording a run replaces its earlier record; other runs are kept
+    bench_records.write(RES, fname, record, entry, replaces=lambda e: e.get("run_id") == run_id)
     print(f"recorded bench/results/{fname}")
     if dirty:
         print("NOTE: the run was made from a dirty working tree.")

@@ -28,6 +28,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import bench_records  # scripts/bench_records.py (this directory is on sys.path)
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "examples" / "two_stream"))
 
@@ -193,16 +195,11 @@ def main() -> int:
     if a.quick or a.skip_tests or a.configs != CONFIGS or a.examples != EXAMPLE_NAMES:
         print("(partial/quick run: not recorded in bench/results)")
         return 0 if all_passed else 1
-    res_dir = ROOT / "bench" / "results"
-    res_dir.mkdir(parents=True, exist_ok=True)
     fname = f"{record['date']}-{commit[:9]}{'-dirty' if dirty else ''}-gpu-gates.json"
-    (res_dir / fname).write_text(json.dumps(record, indent=2, default=float) + "\n")
-    index_path = res_dir / "index.json"
-    index = json.loads(index_path.read_text()) if index_path.exists() else {"entries": []}
-    index["entries"] = [e for e in index["entries"] if e["file"] != fname]
-    index["entries"].insert(0, {"file": fname, "date": record["date"], "commit": commit, "dirty": dirty,
-                                "gpus": a.gpus, "gpu_name": gpu_name, "all_passed": all_passed})
-    index_path.write_text(json.dumps(index, indent=2) + "\n")
+    # strict JSON: a metric that could not be measured is null (bench_records)
+    bench_records.write(ROOT / "bench" / "results", fname, record,
+                        {"date": record["date"], "commit": commit, "dirty": dirty, "gpus": a.gpus,
+                         "gpu_name": gpu_name, "all_passed": all_passed})
     print(f"recorded bench/results/{fname}")
     if dirty:
         print("NOTE: the working tree was dirty; re-run on a clean commit for evidence that counts.")

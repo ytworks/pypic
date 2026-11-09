@@ -101,10 +101,13 @@ def test_a_second_run_does_not_mix_with_the_first(tmp_path):
         sim.close()
 
     run(2)
+    first = open_run(str(tmp_path)).info["run_id"]
     with pytest.raises(FileExistsError):
         run(1)
     run(1, overwrite=True)
-    assert open_run(str(tmp_path)).fields("f").iterations == [0, 1]
+    run_ = open_run(str(tmp_path))
+    assert run_.fields("f").iterations == [0, 1]
+    assert run_.info["run_id"] != first  # each run has its own id (one evidence record per run)
 
 
 def test_output_is_independent_of_the_gpu_count(tmp_path):

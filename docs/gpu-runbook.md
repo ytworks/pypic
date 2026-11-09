@@ -50,4 +50,7 @@ python scripts/record_example.py output/relativistic_shock/pair_2d_long
 
 - An output directory that already holds a run is refused. To repeat a run in the same place, add `--overwrite`, which removes that run's output files first.
 - `record_example.py` runs only the `analyze.py` of an example in this repository, chosen by the run's `meta.example`.
+- Each run has its own record, named with the run id from `run.json`. Separate runs of a configuration are kept; recording a run again replaces its record.
+- Do not switch the checkout or edit `examples/` or `pypic/` while `record_example.py` runs: it refuses to record when the analysis code changed during the analysis.
+- Unmeasured metrics are written as `null`.
 
