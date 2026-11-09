@@ -31,9 +31,9 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D7, Accep
 | M6 Performance | Partial: 1.0 ns/particle/step on 1 GPU; 4.0× on 8 GPUs (R3–R5 open) |
 | Harness: CPU CI + GPU gates | Introduced 2026-11-09 (this PR) |
 
-- GPU gates: ALL PASSED on fcbc4ce, 8 GPUs (`bench/results/2026-11-09-fcbc4ced5-gpu-gates.json`):
+- GPU gates: ALL PASSED on 0aac3a7, 8 GPUs (`bench/results/2026-11-09-0aac3a717-gpu-gates.json`):
   growth error +2.9 / −1.8 / −2.6 / +3.5 % (ei/ep/eip/ei_implicit), Gauss ≤ 3.5e-12, div B ≤ 1.0e-14,
-  implicit energy 1.9e-10; 22 GPU tests pass.
+  implicit energy 1.9e-10; 23 GPU tests pass.
 - Known gaps: no particle injection at open faces (R1); no field/particle output or restart (R2).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 

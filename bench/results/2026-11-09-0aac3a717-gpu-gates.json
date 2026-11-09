@@ -1,0 +1,106 @@
+{
+  "date": "2026-11-09",
+  "commit": "0aac3a717742d21d8ce52cd4cc89375b81d8003c",
+  "dirty": false,
+  "gpus": 8,
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "quick": false,
+  "all_passed": true,
+  "gates": [
+    {
+      "name": "gpu-tests",
+      "passed": true,
+      "metrics": {
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0
+      },
+      "criteria": {
+        "failed": 0,
+        "skipped": 0
+      },
+      "log_tail": null
+    },
+    {
+      "name": "two-stream:ei",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.35152750380387454,
+        "growth_theory": 0.34152114213476215,
+        "growth_rel_error": 0.029299391559085227,
+        "gauss_max": 2.1810886430273513e-12,
+        "divB_max": 4.3892363793871554e-15,
+        "energy_error_max": 0.00219305019237157,
+        "wall_time_s": 15.55677662906237,
+        "ns_per_particle_step_x_gpus": 7.998974695892052
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:ep",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.459586819820411,
+        "growth_theory": 0.4680931521766451,
+        "growth_rel_error": -0.018172306765607316,
+        "gauss_max": 8.499173587139808e-13,
+        "divB_max": 9.937139526224754e-15,
+        "energy_error_max": 0.0023989141431880173,
+        "wall_time_s": 11.609123442089185,
+        "ns_per_particle_step_x_gpus": 6.574419752203192
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:eip",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.3234630857339893,
+        "growth_theory": 0.3322174078098893,
+        "growth_rel_error": -0.02635118410444534,
+        "gauss_max": 3.497882539171826e-12,
+        "divB_max": 7.577411495244167e-15,
+        "energy_error_max": 0.00029366292661620795,
+        "wall_time_s": 36.23928247299045,
+        "ns_per_particle_step_x_gpus": 7.375260977268922
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:ei_implicit",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.3535588783231518,
+        "growth_theory": 0.34152114213476215,
+        "growth_rel_error": 0.0352474113700394,
+        "gauss_max": 5.803968416984162e-13,
+        "divB_max": 1.4227368536273636e-15,
+        "energy_error_max": 1.8865667333568195e-10,
+        "wall_time_s": 79.36830483400263,
+        "ns_per_particle_step_x_gpus": 1189.066491615361
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12,
+        "energy_error_max": 1e-08
+      },
+      "failed_checks": []
+    }
+  ]
+}
