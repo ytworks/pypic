@@ -63,8 +63,9 @@ t < L_x/(1 + β_sh).
   shock, moves to the right at β_sh ≈ 0.5.
 - **Bottom left, electron phase space (x, u_x)**: the incoming beam at u_x = −{{ c.pair_2d.planner.u0 | .1f }}
   is thermalised at the shock; reflected particles run ahead of it at positive u_x.
-- **Bottom right, n_e(x, t)**: the shock is the straight line from the origin; its slope is the shock
-  speed.
+- **Bottom right, n_e(x, t)** (x across, t up): the shock is the straight line from the origin. The
+  distance it moves along x divided by the elapsed time is the shock speed β_sh (≈ 0.5), so the line's
+  slope in this plot, Δt/Δx, is 1/β_sh.
 
 ## Comparison with the jump conditions
 
