@@ -77,13 +77,17 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
                        fit_window=f["t_window"])
             res["passed"] = bool(abs(res["gamma_rel_error"]) <= 0.10 and abs(res["omega_rel_error"]) <= 0.02)
         else:
-            f = fit_damped(t, z, omega0=w_th, gamma0=g_th, t_max=15.0)
+            # strong (alpha = 0.5) Landau damping benchmark (Cheng & Knorr 1976 and later Vlasov codes,
+            # k = 0.5, alpha = 0.5): the envelope of |E_k| first decays at gamma_1 ~ -0.29, then grows
+            # by particle trapping at gamma_2 ~ +0.08 (t ~ 20-40)
             amp = np.abs(z)
-            mins = [i for i in range(1, len(amp) - 1) if amp[i] < amp[i - 1] and amp[i] < amp[i + 1]]
-            env_t = t[mins]
-            res.update(initial_gamma_fit=f["gamma"], linear_gamma_theory=g_th,
-                       bounce_period_estimate=float(np.median(np.diff(env_t[env_t > 15]))) if len(env_t) > 3 else None,
-                       bounce_period_linear_theory=2 * math.pi / math.sqrt(info["alpha"]))
+            nwin = max(1, int(np.pi / w_th / np.median(np.diff(t))))
+            env = np.array([amp[max(0, i - nwin): i + nwin + 1].max() for i in range(len(amp))])
+            g1 = float(np.polyfit(t[(t > 2) & (t < 15)], np.log(env[(t > 2) & (t < 15)]), 1)[0])
+            w2 = (t > 20) & (t < 40)
+            g2 = float(np.polyfit(t[w2], np.log(env[w2]), 1)[0]) if w2.sum() > 4 else float("nan")
+            res.update(gamma_1_fit=g1, gamma_1_reference=-0.29, gamma_2_fit=g2, gamma_2_reference=0.08,
+                       linear_gamma_theory=g_th, note="nonlinear benchmark: reported, not gated")
         fig, ax = P.plt.subplots(figsize=(6.5, 4))
         P.style()
         ax.semilogy(t, np.abs(z), color=P.color(0), label=r"$|E_x(k)|$")

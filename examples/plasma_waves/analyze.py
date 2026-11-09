@@ -56,7 +56,7 @@ def branches(info: dict, k: np.ndarray, dx: float, dt: float) -> dict:
     elif geo == "parallel":
         wce = info["wce"]
         cpar = W.cold_parallel(kpos, 1.0, wce)
-        ksep = kpos <= 1.0  # R and L separated
+        ksep = kpos <= 2.0  # R and L windows disjoint (beyond, the +-15 % L window reaches the R ridge)
         wh = cpar["whistler"]
         brs = [("whistler", kpos, np.where(wh < 0.8 * wce, wh, np.nan), True),
                ("R", kpos[ksep], cpar["R_upper"][ksep], True), ("L", kpos[ksep], cpar["L"][ksep], True)]

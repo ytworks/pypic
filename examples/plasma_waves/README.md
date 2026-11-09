@@ -8,8 +8,8 @@ theory. No initial perturbation is needed.
 | config | B0 | component: branch (theory, `pypic.theory.waves`) |
 |---|---|---|
 | `unmagnetized.yaml` | 0 | E_x: Langmuir, kinetic root of the Maxwellian ε (Bohm–Gross for kλ_D ≪ 1); E_y, E_z: EM waves, ω² = ω_pe² + c²k² with the Yee/leapfrog correction |
-| `perpendicular.yaml` | along z, ω_ce = 0.5 ω_pe | E_z: O mode; E_y: X mode (upper/lower branches, upper-hybrid resonance); E_x: electron Bernstein waves between cyclotron harmonics |
-| `parallel.yaml` | along x, ω_ce = 1.5 ω_pe | E_y, E_z: whistler, R and L branches; E_x: Langmuir |
+| `perpendicular.yaml` | along z, ω_ce = 0.5 ω_pe, θ_e = 10⁻³ | E_z: O mode; E_y: X mode (upper/lower branches, upper-hybrid resonance); E_x: electron Bernstein waves between cyclotron harmonics (bands 1–3 gated) |
+| `parallel.yaml` | along x, ω_ce = 1.5 ω_pe, θ_e = 10⁻³ | E_y, E_z: whistler, R and L branches (R/L for k ≤ 2, where their windows are disjoint); E_x: Langmuir |
 | `ion_acoustic.yaml` | 0 | E_x: ion-acoustic waves, kinetic root with electron and ion Landau damping (T_e/T_i = 50, m_i/m_e = 25) |
 
 ```bash
@@ -27,3 +27,10 @@ python examples/plasma_waves/analyze.py output/plasma_waves/unmagnetized --movie
   - A branch passes when it is found at at least half of the points.
   - At ≥ 90 % of the found points, |ω_meas − ω_th|/ω_th ≤ max(3 %, 2Δω/ω).
 - **Gates**: `unmagnetized` and `perpendicular` are GPU gates (`scripts/gpu_gates.py`).
+
+- **Measured**:
+  - unmagnetized: Langmuir 1.4 %, EM 0.3 % (median).
+  - perpendicular: O / X 0.05–0.07 %, Bernstein bands 1–3 0.5–0.7 %.
+  - parallel: whistler 0.4 %, R 0.08 %, L 0.01 %, Langmuir 0.2 %.
+  - ion acoustic: 4.2 % (reported).
+- **Why θ_e = 10⁻³ for the magnetized cases**: at θ_e = 10⁻² the relativistic mass increase (⟨γ⟩ − 1 ≈ 1.5 θ_e) shifts the cyclotron harmonics, and the Bernstein bands come out 1.5–4 % below the non-relativistic theory.

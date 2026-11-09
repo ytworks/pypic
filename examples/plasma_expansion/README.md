@@ -13,7 +13,7 @@ A slab of hot electrons and cold ions expands into vacuum. The charge-separation
 |---|---|
 | `isothermal_hydrogen.yaml` (gate) | T_e = 5.1 keV, m_i/m_e = 1836, slab of 200 λ_D, to τ = 10 |
 | `isothermal.yaml` | the same with m_i/m_e = 100 (fast; the model needs v_ion ≪ v_te, and here v_front ≈ 0.6 v_te) |
-| `thin_foil.yaml` | slab of 10 λ_D: the electrons cool (adiabatic expansion) and E_max falls below the isothermal law |
+| `thin_foil.yaml` | slab of 10 λ_D: the electrons cool (adiabatic expansion) and E_max falls below the isothermal law, which is then checked as an upper bound (measured 0.10 vs 0.27 m_ec² at τ = 20) |
 
 ```bash
 python -m pypic.launch -n 8 examples/plasma_expansion/run.py --config examples/plasma_expansion/configs/isothermal_hydrogen.yaml
