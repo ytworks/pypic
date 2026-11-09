@@ -190,7 +190,11 @@ def flux_series(A: list, xa, ya, info) -> np.ndarray:
 
 
 def _half_width(info: dict) -> float:
-    return 4 * info["delta"] + 6.0
+    """Half-width of the band searched for a sheet's null line: a quarter of the distance between the two
+    sheets, wide enough for the centres of large islands (they drift off the initial sheet position) and
+    never reaching the other sheet."""
+    y1, y2 = info["y_sheets"]
+    return 0.25 * abs(y2 - y1)
 
 
 def _levels(A0: np.ndarray, n: int = 26) -> np.ndarray:

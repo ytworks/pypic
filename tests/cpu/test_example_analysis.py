@@ -60,7 +60,7 @@ def test_the_flux_panel_draws_frames_without_a_measurable_flux():
     R = _reconnection()
     x, y, (X, Y) = _grid()
     frames = [0.01 * Y ** 2 + np.cos(X), 0.01 * (Y - 12) ** 2 + np.cos(X)]  # the second has no X/O point
-    run = SimpleNamespace(meta={"planner": {"y_sheets": [0.0], "delta": 1.0, "B0": 1.0, "Lx": 2 * np.pi}})
+    run = SimpleNamespace(meta={"planner": {"y_sheets": [0.0, 40.0], "delta": 1.0, "B0": 1.0, "Lx": 2 * np.pi}})
     panel = R.FluxPanel((run, SimpleNamespace(t=np.array([0.0, 1.0])), x, y, frames))
     assert np.isfinite(panel.psi[0]) and np.isnan(panel.psi[1])
     fig, ax = plt.subplots()
