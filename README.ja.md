@@ -32,9 +32,13 @@ GPU で高速化した 3 次元・特殊相対論的・電磁 Particle-in-Cell (
 ## インストール
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e ".[multigpu,test]"
+python3 -m venv .venv
+.venv/bin/pip install -e ".[gpu,multigpu,dev]"   # GPU マシン (CuPy, NCCL, pytest, ruff)
+.venv/bin/pip install -e ".[dev,kernelcheck]"    # CPU のみ: 設定層、tests/cpu、カーネルのコンパイル検査
 ```
-CUDA 13 ドライバと CuPy (`cupy-cuda13x`) が必要です。マルチ GPU には `nvidia-nccl-cu13` が必要です。
+エンジンの実行には CUDA 13 ドライバと CuPy (`cupy-cuda13x`、extra `gpu`) が必要です。
+マルチ GPU には `nvidia-nccl-cu13` (extra `multigpu`) が必要です。
+設定層 (`pypic.config`, `pypic.setup`) は純 Python なので、GPU のない環境でも動きます。
 Blackwell (sm_120) で動作を確認しています。
 
 ## 使い方: 二流体不安定 (two-stream) の例
@@ -101,21 +105,50 @@ sim.run(progress=100)
 sim.save()                 # output/history.npz
 ```
 
-## テスト
+## テストと CI
 
 ```bash
-pytest tests        # 2 GPU 以上ある場合はマルチ GPU の一致テストも実行される
+pytest                       # tests/cpu は常に実行。tests/gpu は CuPy と CUDA デバイスがあるときだけ実行
+python scripts/check_kernels.py   # 全カーネルを NVRTC でコンパイル検査 (GPU 不要)
+python scripts/gpu_gates.py --gpus 8   # GPU 検証ゲート。結果を bench/results/ に記録
 ```
-テストの内容:
-- 相対論的ジャイロ運動での \|u\| の保存と回転角、E×B ドリフト
-- ガウスの法則と ∇·B (陽解法、3 種の境界)
-- 陰解法の全エネルギー (相対誤差 < 1e-11、3 種の境界)
-- 真空中の電磁波の Yee 数値分散、CPML の吸収 (残留エネルギー < 1e-4)
-- 反射境界と開放境界での粒子の扱い
-- 配合の中性
-- 分散関係ソルバーと解析解の比較
-- 3 次元 two-stream の成長率と理論の比較 (15% 以内)
-- 1 GPU と 2 GPU の結果の一致 (相対差 < 1e-10)
+- `tests/cpu` (GPU 不要) の内容:
+  - 配合の電気的中性
+  - 分散関係ソルバーと解析解の比較
+  - planner のネストした上書き
+  - ランチャーによる異常終了ランクの処理
+- `tests/gpu` の内容:
+  - 相対論的ジャイロ運動 (\|u\| の保存と回転角) と E×B ドリフト
+  - ガウスの法則と ∇·B (陽解法、3 種の境界)
+  - 陰解法の全エネルギー (相対誤差 < 1e-11、3 種の境界)
+  - Yee 格子の数値分散、CPML の吸収
+  - 反射境界と開放境界での粒子の扱い
+  - Maxwell–Jüttner 分布の統計量と解析値の比較
+  - CG、Picard の未収束、ゴースト幅の回帰テスト
+  - two-stream の成長率と理論の比較
+  - 1 GPU と 2 GPU の結果の一致
+- **CI** (GitHub Actions、`.github/workflows/ci.yml`、CPU のみ) で行うこと:
+  - ruff
+  - `PROGRESS.md` のサイズ予算の検査
+  - 記録済みの GPU 検証結果 (`bench/results/index.json`) の整合性検査
+  - NVRTC によるカーネルのコンパイル検査 (sm_80, sm_120)
+  - `tests/cpu`
+
+  カーネルを実際に実行する検証は、GPU マシンで `scripts/gpu_gates.py` を使って行います
+  ([GPU runbook](docs/gpu-runbook.md))。
+
+## 開発ハーネス
+
+人とコーディングエージェントがセッションをまたいで開発を続けられるよう、次の仕組みを置いています。
+
+| ファイル | 役割 |
+|---|---|
+| `CLAUDE.md` / `AGENTS.md` | Claude Code / Codex の入口。セッション開始時の手順、テスト方針、各ファイルの置き場所 |
+| `PROGRESS.md` | セッション間の記憶。Product / Current Status / Change Log の 3 節。サイズ予算を SessionStart フックと CI で強制し、古いエントリは `docs/progress/archive/` に退避する |
+| `.claude/rules/` | `progress-log.md` (PROGRESS.md の運用規則)、`numerics-invariants.md` (保存則の契約、ゲート基準、マルチ GPU の規則) |
+| `docs/design/engine.md` | ID 付きの設計判断 (PIC-D1..D7) とレビューによる修正 |
+| `docs/roadmap.md`, `docs/plans/` | 次の作業 (R1..R7) と、変更ごとの実装計画 |
+| `docs/gpu-runbook.md`, `bench/results/` | GPU ゲートの手順と、記録された検証結果 |
 
 ## 検証結果 (8× RTX PRO 6000 Blackwell)
 
@@ -149,6 +182,7 @@ pypic/
   kernels/fields.cu      Yee 更新 (CPML)、curl、div
   kernels/particles.cu   Boris + Esirkepov (反射壁での分割)、ρ、ロード (Maxwell-Jüttner)
   kernels/implicit.cu    陰的粒子推進 (軌道分割付与、Newton / ブラケット解法、エネルギー閉包)
+  kernelsrc.py           カーネルソースの組み立てとコンパイル時定数 (純 Python)
   grid.py                Yee 格子、ghost 交換、境界条件、CPML、場の診断
   particles.py           SoA 粒子、ソート、rank 間移動
   simulation.py          陽解法・陰解法のメインループ、CG、診断、保存
@@ -156,7 +190,10 @@ pypic/
   launch.py              マルチ GPU ランチャ
   setup/                 配合 (species)、分散関係 (dispersion)、パラメータ自動設定 (planner)
 examples/two_stream/     run.py, analyze.py, configs/*.yaml
-tests/
+tests/cpu/, tests/gpu/   CPU のみのテスト (CI) / GPU テスト
+scripts/                 check_kernels, gpu_gates, verify_bench_results, check_progress_size
+docs/                    design/, roadmap.md, plans/, gpu-runbook.md, progress/archive/
+bench/results/           記録された GPU ゲートの検証結果 (index.json)
 ```
 
 ## 注意点と制限

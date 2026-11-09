@@ -1,4 +1,5 @@
-"""Unit/integration tests of the pypic engine (single GPU; the multi-GPU test uses the launcher)."""
+"""GPU tests of the engine (single GPU; the multi-GPU test uses the launcher).
+Skipped as a whole without CuPy or a CUDA device (tests/gpu/conftest.py)."""
 from __future__ import annotations
 
 import json
@@ -11,7 +12,7 @@ import cupy as cp
 import numpy as np
 import pytest
 
-from pypic import Beam, ImplicitConfig, SimConfig, SpeciesConfig
+from pypic import Beam, SimConfig, SpeciesConfig
 from pypic.parallel.comm import SelfComm
 from pypic.simulation import Simulation
 
@@ -21,8 +22,9 @@ HERE = os.path.dirname(__file__)
 def plasma(solver="explicit", bc=None, n=(16, 8, 8), dt=None, drift=0.2, theta=1e-3, steps=0, **kw):
     dt = dt if dt is not None else (0.08 if solver == "explicit" else 0.3)
     bc = bc or (("periodic", "periodic"),) * 3
+    electrons = [Beam(0.5, (drift, 0, 0), theta), Beam(0.5, (-drift, 0, 0), theta)]
     cfg = SimConfig(n_cells=n, dx=(0.2, 0.2, 0.2), dt=dt, n_steps=steps, solver=solver, boundaries=bc,
-                    species=[SpeciesConfig("e", -1, 1, [Beam(0.5, (drift, 0, 0), theta), Beam(0.5, (-drift, 0, 0), theta)]),
+                    species=[SpeciesConfig("e", -1, 1, electrons),
                              SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), theta / 25)])],
                     ppc=4, diag_interval=5, gauss_interval=5, mode_diag=0, npml=6, **kw)
     return Simulation(cfg, comm=SelfComm(), verbose=False)
@@ -171,34 +173,9 @@ def test_cpml_absorbs_pulse():
     assert e1 / e0 < 1e-4, e1 / e0
 
 
-# ------------------------------------------------------------- setup / theory
-def test_compositions_neutral():
-    from pypic.setup.species import MIXTURES, MODES, Composition, TwoStreamBeams, build_species
-
-    for mix in MIXTURES:
-        for mode in MODES:
-            sp = build_species(Composition(mix, 400.0, Z=2, positron_fraction=0.3), TwoStreamBeams(mode=mode))
-            net = sum(s.charge * b.density for s in sp for b in s.beams)
-            assert abs(net) < 1e-12
-            ne = sum(b.density for s in sp if s.name == "electron" for b in s.beams)
-            assert abs(ne - 1.0) < 1e-12
-
-
-def test_symmetric_two_stream_growth_rate():
-    from pypic.setup.dispersion import fastest_mode
-    from pypic.setup.species import Composition, TwoStreamBeams, build_species
-
-    u = 0.05
-    sp = build_species(Composition("e-i", 1e8), TwoStreamBeams("electron", u_drift=u, T_e=0.0))
-    r = fastest_mode(sp, warm=False)
-    g = math.sqrt(1 + u * u)
-    assert abs(r.gamma_max - 1 / (2 * math.sqrt(2)) / g ** 1.5) < 1e-3
-    assert abs(r.k_max * u / g - math.sqrt(3 / 8) / g ** 1.5) < 2e-3
-
-
 def test_two_stream_growth_matches_theory():
     """Small 3-D electron two-stream run: measured growth of the k_max mode vs linear theory."""
-    sys.path.insert(0, os.path.join(HERE, "..", "examples", "two_stream"))
+    sys.path.insert(0, os.path.join(HERE, "..", "..", "examples", "two_stream"))
     from analyze import fit_growth
 
     from pypic.setup.planner import TwoStreamParams, plan_two_stream
@@ -283,30 +260,3 @@ def test_ghost_wider_than_local_grid_is_rejected():
         Simulation(cfg, comm=SelfComm(), verbose=False)
 
 
-def test_nested_overrides_are_converted():
-    from pypic.config import ImplicitConfig as IC
-    from pypic.setup.planner import TwoStreamParams, plan_two_stream
-
-    cfg, _, _ = plan_two_stream(TwoStreamParams(solver="implicit", overrides={
-        "implicit": {"picard_tol": 1e-10}, "dims": [1, 1, 1],
-        "species": [{"name": "e", "charge": -1, "mass": 1,
-                     "beams": [{"density": 1.0, "drift": [0.1, 0, 0], "theta": 1e-3}]}]}))
-    assert isinstance(cfg.implicit, IC) and cfg.implicit.picard_tol == 1e-10
-    assert cfg.implicit.picard_maxit == IC().picard_maxit
-    assert isinstance(cfg.species[0], SpeciesConfig) and isinstance(cfg.species[0].beams[0], Beam)
-    with pytest.raises(KeyError):
-        plan_two_stream(TwoStreamParams(overrides={"implicit": {"no_such_field": 1}}))
-
-
-def test_launcher_stops_all_ranks_when_any_rank_fails(tmp_path):
-    import time
-
-    script = tmp_path / "fail.py"
-    script.write_text("import os, sys, time\n"
-                      "if os.environ['PYPIC_RANK'] == '1':\n    sys.exit(17)\n"
-                      "time.sleep(60)\n")
-    t0 = time.monotonic()
-    r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", "2", str(script)], capture_output=True,
-                       text=True, timeout=120)
-    assert r.returncode == 17
-    assert time.monotonic() - t0 < 30

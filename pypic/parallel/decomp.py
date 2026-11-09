@@ -78,7 +78,7 @@ class Decomposition:
             c = coords[a]
             per = lo_bc == "periodic"
 
-            def nb(cc):
+            def nb(cc, a=a, per=per):
                 if 0 <= cc < dims[a]:
                     pass
                 elif per:

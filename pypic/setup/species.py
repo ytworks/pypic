@@ -8,8 +8,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from ..config import SpeciesConfig
-from ..particles import Beam
+from ..config import Beam, SpeciesConfig
 
 MIXTURES = ("e-i", "e-p", "e-i-p")
 MODES = ("electron", "symmetric", "buneman")

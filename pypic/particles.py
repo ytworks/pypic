@@ -1,23 +1,13 @@
 """Particle species storage (SoA on GPU), loading, sorting and inter-rank migration."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import cupy as cp
 import numpy as np
 
 from .backend import launch
+from .config import Beam  # noqa: F401  (re-exported for backwards compatibility)
 
 NROW = 7  # x y z ux uy uz w
-
-
-@dataclass
-class Beam:
-    """One drifting Maxwell-Juttner component of a species."""
-
-    density: float  # in units of the reference density n0
-    drift: tuple = (0.0, 0.0, 0.0)  # proper velocity u = gamma v / c
-    theta: float = 0.0  # temperature T / (m c^2)
 
 
 class Species:

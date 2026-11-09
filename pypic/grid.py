@@ -7,7 +7,8 @@ import cupy as cp
 import numpy as np
 
 from .backend import compile_module, launch
-from .parallel.decomp import BC_CODES, Decomposition
+from .kernelsrc import FIELD_SOURCES, grid_defines
+from .parallel.decomp import Decomposition
 
 FIELD_NAMES = ("Ex", "Ey", "Ez", "Bx", "By", "Bz")
 # staggering offsets (x,y,z) of each component
@@ -33,8 +34,8 @@ class YeeGrid:
         z = lambda: cp.zeros(self.shape, dtype=cp.float64)  # noqa: E731
         for n in FIELD_NAMES + ("Jx", "Jy", "Jz"):
             setattr(self, n, z())
-        self.defines = self._defines()
-        self.mod = compile_module(["fields.cu"], self.defines)
+        self.defines = grid_defines(decomp, self.dx, self.dt, self.g, self.use_pml)
+        self.mod = compile_module(FIELD_SOURCES, self.defines)
         self.k_update_B = self.mod.get_function("update_B")
         self.k_update_E = self.mod.get_function("update_E")
         self.k_curl_E = self.mod.get_function("curl_E")
@@ -47,24 +48,6 @@ class YeeGrid:
         self.boundary_flux = 0.0  # cumulative Poynting energy leaving the physical domain
 
     # ------------------------------------------------------------------ setup
-    def _defines(self):
-        g, ax, d = self.g, self.d.axes, self.d
-        D = {"NX": self.shape[0], "NY": self.shape[1], "NZ": self.shape[2], "GH": g,
-             "DX": self.dx[0], "DY": self.dx[1], "DZ": self.dx[2], "DT": self.dt,
-             "LX": self.L[0], "LY": self.L[1], "LZ": self.L[2]}
-        for a, c in enumerate("XYZ"):
-            D[f"O{c}"] = (ax[a].cell_lo - g) * self.dx[a]
-            D[f"S{c}0"] = ax[a].phys_lo * self.dx[a]
-            D[f"S{c}1"] = (ax[a].phys_lo + ax[a].n_phys) * self.dx[a]
-            D[f"BC{c}0"] = BC_CODES[d.bc[a][0]]
-            D[f"BC{c}1"] = BC_CODES[d.bc[a][1]]
-            D[f"DEC{c}"] = 1 if ax[a].nproc > 1 else 0
-            D[f"I0{c}"] = g
-            D[f"I1{c}"] = g + ax[a].n_int
-        if self.use_pml:
-            D["USE_PML"] = 1
-        return D
-
     def global_positions(self, a: int, stagger: float) -> np.ndarray:
         """Global coordinate in cells of local array index i (+stagger) along axis a."""
         ax = self.d.axes[a]
@@ -197,7 +180,7 @@ class YeeGrid:
 
     def apply_bc_J(self, arrays=None):
         J = arrays if arrays is not None else (self.Jx, self.Jy, self.Jz)
-        for a, ib, gs in self._wall_planes():
+        for a, _ib, gs in self._wall_planes():
             for c in range(3):
                 sl = [slice(None)] * 3
                 sl[a] = gs

@@ -45,11 +45,12 @@ def main(argv=None):
     env_base["PYPIC_WORLD_SIZE"] = str(a.nproc)
     env_base.setdefault("PYTHONUNBUFFERED", "1")  # interleaved, immediate output from all ranks
     if a.nproc > 1:
-        from cupy.cuda import nccl
-
-        from pypic.parallel.comm import encode_uid
-
-        env_base["PYPIC_NCCL_ID"] = encode_uid(nccl.get_unique_id())
+        try:
+            from cupy.cuda import nccl
+        except ImportError:  # CPU-only environment: ranks that need NCCL will fail at init
+            print("[pypic.launch] NCCL is not available; PYPIC_NCCL_ID is not set", file=sys.stderr)
+        else:
+            env_base["PYPIC_NCCL_ID"] = bytes(nccl.get_unique_id()).hex()
     procs = []
     for r in range(a.nproc):
         env = dict(env_base)

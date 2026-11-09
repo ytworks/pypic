@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
-from .particles import Beam
+
+@dataclass
+class Beam:
+    """One drifting Maxwell-Juttner component of a species."""
+
+    density: float  # in units of the reference density n0
+    drift: tuple = (0.0, 0.0, 0.0)  # proper velocity u = gamma v / c
+    theta: float = 0.0  # temperature T / (m c^2)
 
 
 @dataclass

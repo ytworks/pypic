@@ -1,6 +1,5 @@
 """pypic: GPU-accelerated, multi-GPU 3-D relativistic electromagnetic Particle-in-Cell engine."""
-from .config import ImplicitConfig, SimConfig, SpeciesConfig
-from .particles import Beam
+from .config import Beam, ImplicitConfig, SimConfig, SpeciesConfig
 
 __all__ = ["SimConfig", "SpeciesConfig", "ImplicitConfig", "Beam", "Simulation"]
 __version__ = "0.1.0"

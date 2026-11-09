@@ -13,6 +13,7 @@ import numpy as np
 from .backend import compile_module, launch
 from .config import SimConfig
 from .grid import YeeGrid
+from .kernelsrc import PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
 from .particles import Species
@@ -49,10 +50,7 @@ class Simulation:
                     "fewer ranks along this axis or a smaller dt")
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
-        defs = dict(self.grid.defines)
-        defs.pop("USE_PML", None)
-        defs["MAXSEG"] = 3 * (ghost + 2) + 4
-        self.pmod = compile_module(["particles.cu", "implicit.cu"], defs)
+        self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(self.grid.defines))
         self.k_push = self.pmod.get_function("push_deposit")
         self.k_rho = self.pmod.get_function("deposit_rho")
         self.k_kin = self.pmod.get_function("kinetic")

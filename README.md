@@ -37,10 +37,13 @@ Temperatures are given in `m_e c²` (`T_e`), or in eV via `T_e_eV` etc.
 ## Installation
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e ".[multigpu,test]"
+python3 -m venv .venv
+.venv/bin/pip install -e ".[gpu,multigpu,dev]"   # GPU machine (CuPy, NCCL, pytest, ruff)
+.venv/bin/pip install -e ".[dev,kernelcheck]"    # CPU only: set-up layer, tests/cpu, kernel compile check
 ```
-You need a CUDA 13 driver and CuPy (`cupy-cuda13x`). Multi-GPU runs also need `nvidia-nccl-cu13`.
-Tested on Blackwell (sm_120).
+The engine needs a CUDA 13 driver and CuPy (`cupy-cuda13x`, extra `gpu`); multi-GPU runs need
+`nvidia-nccl-cu13` (extra `multigpu`). The set-up layer (`pypic.config`, `pypic.setup`) is pure
+Python and runs anywhere. Tested on Blackwell (sm_120).
 
 ## Quick start: two-stream instability
 
@@ -106,21 +109,50 @@ sim.run(progress=100)
 sim.save()                 # output/history.npz
 ```
 
-## Tests
+## Tests and CI
 
 ```bash
-pytest tests        # the multi-GPU consistency tests also run when 2 or more GPUs are available
+pytest                       # tests/cpu always; tests/gpu when CuPy and a CUDA device are present
+python scripts/check_kernels.py   # NVRTC compile check of every kernel (no GPU needed)
+python scripts/gpu_gates.py --gpus 8   # GPU verification gates, recorded in bench/results/
 ```
-The tests cover:
-- relativistic gyration (\|u\| conservation, rotation angle) and E×B drift
-- Gauss's law and ∇·B (explicit, all 3 boundary types)
-- implicit total energy (relative error < 1e-11, all 3 boundary types)
-- Yee numerical dispersion of a vacuum wave; CPML absorption (residual energy < 1e-4)
-- particle handling at reflecting and open boundaries
-- charge neutrality of the mixtures
-- dispersion solver vs analytic results
-- 3-D two-stream growth rate vs theory (within 15%)
-- agreement between 1 and 2 GPUs (relative difference < 1e-10)
+- `tests/cpu` (no GPU) covers:
+  - charge neutrality of the mixtures
+  - the dispersion solver vs analytic results
+  - nested planner overrides
+  - the launcher's handling of a failed rank
+- `tests/gpu` covers:
+  - relativistic gyration (\|u\| conservation, rotation angle) and E×B drift
+  - Gauss's law and ∇·B (explicit, all 3 boundary types)
+  - implicit total energy (relative error < 1e-11, all 3 boundary types)
+  - Yee numerical dispersion; CPML absorption
+  - particle handling at reflecting and open boundaries
+  - Maxwell–Jüttner moments vs analytic values
+  - CG, Picard non-convergence and ghost-width regressions
+  - two-stream growth rate vs theory
+  - 1-vs-2-GPU agreement
+- **CI** (GitHub Actions, `.github/workflows/ci.yml`, CPU only) runs:
+  - ruff
+  - the `PROGRESS.md` budget check
+  - validation of the recorded GPU evidence (`bench/results/index.json`)
+  - the NVRTC kernel compile check (sm_80, sm_120)
+  - `tests/cpu`
+
+  Work that executes kernels is verified on a GPU machine by `scripts/gpu_gates.py`
+  ([GPU runbook](docs/gpu-runbook.md)).
+
+## Development harness
+
+The repository is set up for continuous development across sessions, by people and coding agents:
+
+| File | Role |
+|---|---|
+| `CLAUDE.md` / `AGENTS.md` | Entry point for Claude Code / Codex: session start, test policy, where things live |
+| `PROGRESS.md` | Cross-session memory: Product, Current Status, Change Log. A SessionStart hook and CI enforce its size budget; old entries are archived to `docs/progress/archive/` |
+| `.claude/rules/` | `progress-log.md` (how to keep PROGRESS.md); `numerics-invariants.md` (conservation contracts, gate criteria, multi-GPU rules) |
+| `docs/design/engine.md` | Design decisions with IDs (PIC-D1..D7) and review amendments |
+| `docs/roadmap.md`, `docs/plans/` | Next work items (R1..R7) and per-change implementation plans |
+| `docs/gpu-runbook.md`, `bench/results/` | GPU gate procedure and the recorded evidence |
 
 ## Verification (8× RTX PRO 6000 Blackwell)
 
@@ -154,6 +186,7 @@ pypic/
   kernels/fields.cu      Yee updates (CPML), curl, div
   kernels/particles.cu   Boris + Esirkepov (wall splitting), rho, loading (Maxwell-Juttner)
   kernels/implicit.cu    implicit push (orbit-split deposition, Newton / bracketing, energy closure)
+  kernelsrc.py           kernel source assembly + compile-time constants (pure Python)
   grid.py                Yee grid, ghost exchange, boundary conditions, CPML, field diagnostics
   particles.py           SoA particles, sorting, inter-rank migration
   simulation.py          explicit / implicit main loop, CG, diagnostics, output
@@ -161,7 +194,10 @@ pypic/
   launch.py              multi-GPU launcher
   setup/                 mixtures (species), dispersion relation, automatic parameter planner
 examples/two_stream/     run.py, analyze.py, configs/*.yaml
-tests/
+tests/cpu/, tests/gpu/   CPU-only tests (CI) / GPU tests
+scripts/                 check_kernels, gpu_gates, verify_bench_results, check_progress_size
+docs/                    design/, roadmap.md, plans/, gpu-runbook.md, progress/archive/
+bench/results/           recorded GPU gate evidence (index.json)
 ```
 
 ## Notes and limitations
