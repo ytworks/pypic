@@ -1,6 +1,15 @@
 {
   "entries": [
     {
+      "file": "2026-11-10-c027908fb-gpu-gates.json",
+      "date": "2026-11-10",
+      "commit": "c027908fb00f703fbd76d8af8eb1d995cada29dd",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true
+    },
+    {
       "file": "2026-11-10-20b2e74c1-example-relativistic_shock-pair_2d_long-run-40c0ca85.json",
       "type": "example",
       "date": "2026-11-10",
