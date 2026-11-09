@@ -458,7 +458,7 @@
     "ei.gif": 5289182,
     "buneman.gif": 3211277
    },
-   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
    "generated": "2026-11-10"
   },
   "plasma_waves": {
@@ -987,7 +987,7 @@
     "branch_errors.png": 73967,
     "unmagnetized.gif": 4449350
    },
-   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
    "generated": "2026-11-10"
   },
   "landau_damping": {
@@ -1400,7 +1400,7 @@
     "nonlinear.gif": 2768236,
     "wavebreaking.gif": 959468
    },
-   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
    "generated": "2026-11-10"
   },
   "filamentation": {
@@ -1758,7 +1758,7 @@
     "electron_ion-filamentation.png": 139639,
     "pair.gif": 6965521
    },
-   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
    "generated": "2026-11-10"
   },
   "particle_orbits": {
@@ -2610,7 +2610,7 @@
     "convergence.png": 54295,
     "orbits.gif": 1910234
    },
-   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
    "generated": "2026-11-10"
   },
   "plasma_expansion": {
@@ -2960,7 +2960,7 @@
     "isothermal_hydrogen_long-expansion.png": 104742,
     "isothermal_hydrogen_long.gif": 1415648
    },
-   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
    "generated": "2026-11-10"
   },
   "relativistic_shock": {
@@ -3707,7 +3707,7 @@
     "jump_conditions.png": 47694,
     "pair_2d.gif": 5189909
    },
-   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
    "generated": "2026-11-10"
   },
   "reconnection": {
@@ -4017,7 +4017,7 @@
     "fieldlines.png": 1182222,
     "pair_sigma10_large_run2.gif": 7274848
    },
-   "analysis_commit": "8d676fc345172a3952a5f3d597669f2892c8c407",
+   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
    "generated": "2026-11-10"
   }
  }
