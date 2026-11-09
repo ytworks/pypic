@@ -1,0 +1,8 @@
+# Relativistic cold oscillation: u0 = 0.3145 (beta_max = 0.3): the sheet period grows as
+# 2 pi (1 + 3 beta_max^2 / 16 + ...) / omega_pe (exact period from the energy invariant).
+case: relativistic
+k_v0: 0.3
+u0: 0.3145
+cells_per_wavelength: 64
+n_transverse: 8
+ppc: 64

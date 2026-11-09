@@ -1,0 +1,7 @@
+# Thin foil (d = 10 lambda_D): the electrons cool as the ions take their energy (adiabatic
+# expansion, Mora 2005) -> ion energies fall below the isothermal prediction at late times.
+Te: 0.01
+mass_ratio: 100
+tau_end: 20
+slab_lambda_D: 10
+ppc: 512

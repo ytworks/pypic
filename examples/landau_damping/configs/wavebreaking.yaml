@@ -1,0 +1,8 @@
+# Cold wave breaking: k v0 = 1.2 omega_pe > omega_pe -> sheets cross at omega_pe t = arcsin(1/1.2) = 0.985;
+# afterwards multi-stream flow and electron heating / acceleration.
+case: wavebreaking
+k_v0: 1.2
+u0: 0.1
+cells_per_wavelength: 64
+n_transverse: 8
+ppc: 64

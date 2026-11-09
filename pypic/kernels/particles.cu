@@ -84,8 +84,8 @@ extern "C" __global__ void push_deposit(double* P, const int n, const int cap, c
                                         const double* __restrict__ Ey, const double* __restrict__ Ez,
                                         const double* __restrict__ Bx, const double* __restrict__ By,
                                         const double* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
-                                        const double q, const double m, double* diag, int* flag, int* list, const int listcap,
-                                        const int do_diag) {
+                                        const double q, const double m, const double qdep, double* diag, int* flag,
+                                        int* list, const int listcap, const int do_diag) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     double ke = 0.0, mx = 0.0, my = 0.0, mz = 0.0, lke = 0.0, lq = 0.0;
     if (p < n) {
@@ -130,7 +130,8 @@ extern "C" __global__ void push_deposit(double* P, const int n, const int cap, c
         const double Lg[3] = {LX, LY, LZ};
         const int b0[3] = {BCX0, BCY0, BCZ0};
         const int b1[3] = {BCX1, BCY1, BCZ1};
-        const double qw = q * w;
+        // deposit charge: q for plasma species, 0 for test species (they feel the fields only)
+        const double qw = qdep * w;
         for (int it = 0; it < 3; it++) {
             double tmin = 2.0, wall = 0.0;
             int amin = -1;
@@ -150,12 +151,12 @@ extern "C" __global__ void push_deposit(double* P, const int n, const int cap, c
             double pw[3];
             for (int a = 0; a < 3; a++) pw[a] = pos0[a] + tmin * (pos1[a] - pos0[a]);
             pw[amin] = wall;
-            deposit_global(pos0, pw, qw, Jx, Jy, Jz);
+            if (qw != 0.0) deposit_global(pos0, pw, qw, Jx, Jy, Jz);
             pos1[amin] = 2.0 * wall - pos1[amin];
             u[amin] = -u[amin];
             for (int a = 0; a < 3; a++) pos0[a] = pw[a];
         }
-        deposit_global(pos0, pos1, qw, Jx, Jy, Jz);
+        if (qw != 0.0) deposit_global(pos0, pos1, qw, Jx, Jy, Jz);
 
         // --- open boundaries: particle leaves and is removed ---
         bool dead = false;
@@ -167,7 +168,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const int cap, c
                 ke = 0.0; mx = my = mz = 0.0;
             }
             lke = w * m * (g1 - 1.0);
-            lq = qw;
+            lq = qw;  // charge lost: zero for test species
             PW(p) = 0.0;
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
         } else {
@@ -200,6 +201,77 @@ extern "C" __global__ void push_deposit(double* P, const int n, const int cap, c
     }
     warp_atomic_add(&diag[4], lke);
     warp_atomic_add(&diag[5], lq);
+}
+
+// ---- Initial perturbation (PIC-D9): virtual, charge-conserving displacement. The remaining
+//      displacement of each particle is stored in rows 8..10 (present only during set-up). One
+//      call moves every particle by at most h_a (< 1 cell) per axis and deposits the current of
+//      that move with Esirkepov; the caller sets E -= DT * J after all rounds, so div E = rho.
+extern "C" __global__ void displace_deposit(double* P, const int n, const int cap, const double hx,
+                                            const double hy, const double hz, double* Jx, double* Jy, double* Jz,
+                                            const double qdep, int* flag, int* list, const int listcap) {
+    int p = blockIdx.x * blockDim.x + threadIdx.x;
+    if (p >= n) return;
+    const double h[3] = {hx, hy, hz};
+    double rem[3], s[3];
+    bool moved = false;
+    for (int a = 0; a < 3; a++) {
+        rem[a] = P[(8 + a) * cap + p];
+        s[a] = fmax(-h[a], fmin(h[a], rem[a]));
+        moved |= (s[a] != 0.0);
+    }
+    if (!moved) return;
+    double p0[3] = {PX(p), PY(p), PZ(p)};
+    double p1[3] = {p0[0] + s[0], p0[1] + s[1], p0[2] + s[2]};
+    if (qdep != 0.0) deposit_global(p0, p1, qdep * PW(p), Jx, Jy, Jz);
+    for (int a = 0; a < 3; a++) P[(8 + a) * cap + p] = rem[a] - s[a];
+    // periodic wrap on non-decomposed axes; decomposed axes are wrapped after migration
+    const double Lg[3] = {LX, LY, LZ};
+    const int dec[3] = {DECX, DECY, DECZ};
+    const double slo[3] = {SX0, SY0, SZ0};
+    const double shi[3] = {SX1, SY1, SZ1};
+    bool migrate = false;
+    for (int a = 0; a < 3; a++) {
+        if (!dec[a]) {
+            p1[a] -= Lg[a] * floor(p1[a] / Lg[a]);
+        } else if (p1[a] < slo[a] || p1[a] >= shi[a]) {
+            migrate = true;
+        }
+    }
+    if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+    PX(p) = p1[0];
+    PY(p) = p1[1];
+    PZ(p) = p1[2];
+}
+
+// Boris velocity step of length tau without moving the particle: with tau = -DT/2 it turns
+// momenta given at t = 0 into the u^{-1/2} of the explicit leapfrog when E or B is non-zero.
+extern "C" __global__ void boris_kick(double* P, const int n, const int cap, const double* __restrict__ Ex,
+                                      const double* __restrict__ Ey, const double* __restrict__ Ez,
+                                      const double* __restrict__ Bx, const double* __restrict__ By,
+                                      const double* __restrict__ Bz, const double q, const double m,
+                                      const double tau) {
+    int p = blockIdx.x * blockDim.x + threadIdx.x;
+    if (p >= n) return;
+    const double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    const double h = q * tau / (2.0 * m);
+    double ex = h * interp(Ex, X, Y, Z, 0.5, 0.0, 0.0);
+    double ey = h * interp(Ey, X, Y, Z, 0.0, 0.5, 0.0);
+    double ez = h * interp(Ez, X, Y, Z, 0.0, 0.0, 0.5);
+    double bx = h * interp(Bx, X, Y, Z, 0.0, 0.5, 0.5);
+    double by = h * interp(By, X, Y, Z, 0.5, 0.0, 0.5);
+    double bz = h * interp(Bz, X, Y, Z, 0.5, 0.5, 0.0);
+    double umx = PUX(p) + ex, umy = PUY(p) + ey, umz = PUZ(p) + ez;
+    double gm = sqrt(1.0 + umx * umx + umy * umy + umz * umz);
+    double tx = bx / gm, ty = by / gm, tz = bz / gm;
+    double t2 = tx * tx + ty * ty + tz * tz;
+    double sx = 2.0 * tx / (1.0 + t2), sy = 2.0 * ty / (1.0 + t2), sz = 2.0 * tz / (1.0 + t2);
+    double upx = umx + (umy * tz - umz * ty);
+    double upy = umy + (umz * tx - umx * tz);
+    double upz = umz + (umx * ty - umy * tx);
+    PUX(p) = umx + (upy * sz - upz * sy) + ex;
+    PUY(p) = umy + (upz * sx - upx * sz) + ey;
+    PUZ(p) = umz + (upx * sy - upy * sx) + ez;
 }
 
 // CIC charge density at nodes (diagnostic / Gauss check).

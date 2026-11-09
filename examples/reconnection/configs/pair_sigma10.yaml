@@ -1,0 +1,11 @@
+# Quasi-2-D pair reconnection, sigma = 10, L = 100 c/omega_pe (gate: Harris equilibrium before the
+# onset, conservation; the reconnection rate and the power-law index are reported).
+sigma: 10
+n_cs_over_nb: 5
+delta: 1.0
+Lx: 100
+Ly: 100
+cells_per_skin: 4
+nz: 4
+ppc: 4
+t_end: 400

@@ -1,0 +1,11 @@
+# Unmagnetised thermal e-i plasma: Langmuir waves (kinetic / Bohm-Gross, Landau damped beyond
+# k lambda_De ~ 0.45) in E_x and electromagnetic waves (omega^2 = omega_pe^2 + c^2 k^2, with the
+# Yee correction) in E_y, E_z.
+geometry: unmagnetized
+theta_e: 0.01          # T_e = 5.1 keV, lambda_De = 0.1 c/omega_pe
+mass_ratio: 1836.15267
+nx: 512
+n_transverse: 8
+ppc: 64
+t_end: 300
+k_window: 3.0

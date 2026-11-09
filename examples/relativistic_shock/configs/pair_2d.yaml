@@ -1,0 +1,9 @@
+# Quasi-2-D pair shock (gate): gamma0 = 15, thin along z (4 cells). Jump conditions of a 2-D gas:
+# beta_sh ~ 0.50 c, n2/n1 ~ 3.0 (Synge) / 0.47 c, 3.13 (Gamma = 3/2, Spitkovsky 2008).
+gamma0: 15
+t_end: 400
+cells_per_skin: 10
+Ly_skin: 8
+nz: 4
+ppc: 4
+filter_passes: 4

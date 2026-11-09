@@ -19,8 +19,8 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D8, Accepted),
-`docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1, Accepted).
+Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Accepted),
+`docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D2, Accepted).
 
 | Milestone | Status |
 |---|---|
@@ -31,7 +31,7 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D8, Accep
 | M5 Implicit energy-conserving scheme | Complete; energy error 1.9e-10 over 679 steps |
 | M6 Performance | Partial: 1.0 ns/particle/step on 1 GPU; 4.0× on 8 GPUs (R3–R5 open) |
 | Harness: CPU CI + GPU gates | Introduced 2026-11-09 (PR #1) |
-| Research output + analysis (PR #2) | Phase 1 complete (output, ids, analysis, Buneman); phases 2–4 (examples) in progress |
+| Research output + analysis (PR #2) | Complete: output, ids, analysis package, 8 analytic-solution examples with gates |
 
 - GPU gates: ALL PASSED on 62859d2, 8 GPUs (`bench/results/2026-11-09-62859d246-gpu-gates.json`):
   growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss ≤ 7.6e-12,
@@ -44,6 +44,12 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D8, Accep
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-09 — [design] Analytic-solution examples and their set-up features (PR #2, phases 2-4)
+- What: examples plasma_waves, landau_damping (+ Dawson, wave breaking, relativistic), filamentation, particle_orbits, plasma_expansion, relativistic_shock, reconnection, each gated against theory (ANA-D2); engine PIC-D9 (Gauss-exact perturbations, explicit half kick, test species and particle lists, E0 / exact plane waves / field profiles, density profiles) and PIC-D10 (binomial current filter, Gauss- and implicit-energy-exact); `pypic.theory` waves/streaming.
+- Why: owner request (one example per analytic problem); each feature keeps the conservation contracts (GPU tests: Gauss <= 1e-12, implicit energy <= 1e-11, 1 vs 2 GPUs).
+- Findings: Bernstein needs theta_e = 1e-3 (relativistic shift at 1e-2); PIC expansion ~15 % below Mora's isothermal E_max (kinetic electrons; gate set above the measured offset); Buneman needs remove_mean_current.
+- Refs: PIC-D9, PIC-D10, ANA-D2; `examples/*/README.md`; plan `docs/plans/2026-11-09-output-analysis-examples.md`
 
 ### 2026-11-09 — [design] Research output, analysis package, particle ids (PR #2, phase 1)
 - What: HDF5 output — openPMD dumps + reduced series, cadence from physics, collective diagnostics written by rank 0, files independent of the GPU count; particle ids (PIC-D8); `pypic.analysis` (reader, omega-k / growth / power-law fits, plots, movies, XDMF, CLI); shared example runner; Buneman config with `remove_mean_current`; `Simulation.save()` / `mode_diag` / `phase_space_*` removed.

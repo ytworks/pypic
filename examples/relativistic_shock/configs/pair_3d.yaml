@@ -1,0 +1,8 @@
+# Production 3-D shock (Synge 3-D gas: beta_sh ~ 0.33 c, n2/n1 ~ 4.0); expensive.
+gamma0: 15
+t_end: 600
+cells_per_skin: 8
+Ly_skin: 8
+nz_skin: 8
+ppc: 4
+filter_passes: 4

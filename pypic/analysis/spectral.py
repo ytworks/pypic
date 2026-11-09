@@ -54,10 +54,11 @@ def ridge(k, w, P, k_range=None, w_range=None, both_signs=True):
     return np.array(out_k), np.array(out_w), np.array(out_p)
 
 
-def branch_ridge(k, w, P, k_th, w_th, rel_window=0.15, both_signs=True):
+def branch_ridge(k, w, P, k_th, w_th, rel_window=0.15, both_signs=True, bounds=None):
     """Measured frequency of one theoretical branch: at every k_th (with w_th(k) finite) the
-    power maximum within w_th (1 +- rel_window), parabolically interpolated. A maximum on the
-    window edge means the branch is not resolved there (NaN). Returns (k, w_measured, w_theory)."""
+    power maximum within w_th (1 +- rel_window), clipped to ``bounds`` = (w_lo, w_hi) if given
+    (e.g. a Bernstein band between cyclotron harmonics), parabolically interpolated. A maximum on
+    the window edge means the branch is not resolved there (NaN). Returns (k, w_meas, w_theory)."""
     k = np.asarray(k)
     if both_signs:
         kk = np.unique(np.abs(k))
@@ -68,7 +69,10 @@ def branch_ridge(k, w, P, k_th, w_th, rel_window=0.15, both_signs=True):
         if not np.isfinite(wt) or wt <= 0:
             continue
         j = int(np.argmin(np.abs(k - kt)))
-        sel = np.nonzero((w >= wt * (1 - rel_window)) & (w <= wt * (1 + rel_window)))[0]
+        lo, hi = wt * (1 - rel_window), wt * (1 + rel_window)
+        if bounds is not None:
+            lo, hi = max(lo, bounds[0]), min(hi, bounds[1])
+        sel = np.nonzero((w >= lo) & (w <= hi))[0]
         if sel.size < 3:
             continue
         col = P[sel, j]

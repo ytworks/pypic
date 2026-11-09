@@ -1,5 +1,5 @@
 # Research output, analysis/visualisation tools and analytic-solution examples
-Status: In progress (PR #2) — Phase 1 done; Phases 2–4 planned
+Status: Done (PR #2) — all phases implemented; gate evidence in bench/results/
 Refs: roadmap R2 (output part), R6; OUT-D1..D4, ANA-D1, PIC-D8..D10
 
 ## Context
@@ -55,3 +55,12 @@ New engine features (Phases 2–4) each get a Gauss ≤ 1e-12 and implicit-energ
 - GPU: files equal the in-memory state; every output file equal on 1 and 2 GPUs; the two
   regression tests (each fails on the pre-fix code, checked once).
 - Gates: `python scripts/gpu_gates.py --gpus 8` per phase, plus one analytic gate per example.
+
+## Outcome and deviations from the plan
+
+- Buneman needs `remove_mean_current`: the net beam current otherwise drives a k=0 plasma oscillation in an electromagnetic periodic box, which stops the beam.
+- The growth-rate window ends at the first approach to saturation (Buneman), and filamentation uses one common linear window taken from the total magnetic energy.
+- The magnetised plasma-wave case uses θ_e = 1e-3: at 1e-2 the relativistic shift of the cyclotron harmonics (~1.5 θ) exceeds the tolerance of the non-relativistic Bernstein theory.
+- The plasma-expansion gate uses the proton mass, the exact self-similar velocity profile (10 %) and E_max within 20 %, not 15 %. The PIC sits ~15 % below Mora's isothermal formula with resolution, particle number and box length all checked; the offset is consistent with kinetic (non-isothermal) electrons.
+- The relativistic-shock compression is measured against the incoming flow density (1 by construction). Particles reflected ahead of the shock raise the density measured there.
+- The diagnostics live in `pypic/output/`, not in a separate `pypic/diagnostics/`. The initial-field code is `pypic/initial_fields.py` (it needs CuPy, so not in `pypic/setup/`).

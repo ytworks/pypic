@@ -12,12 +12,10 @@ CPU CI, GPU gates with recorded evidence. Research output (HDF5/openPMD + reduce
 cadence from physics), particle ids, CPU analysis/visualisation package with movies, Buneman
 config (PR #2, `docs/design/output-analysis.md`).
 
-## In progress (PR #2, `docs/plans/2026-11-09-output-analysis-examples.md`)
-
-Analytic-solution examples: plasma waves, Landau damping / Dawson, filamentation, test-particle
-orbits, plasma expansion (Mora), relativistic shock, reconnection; with the engine set-up
-features they need (initial perturbation, test species, initial fields, density profiles,
-current filter).
+Analytic-solution examples (PR #2): plasma waves, Landau damping / Dawson / wave breaking,
+filamentation, test-particle orbits, plasma expansion (Mora), relativistic shock, reconnection,
+with the set-up features they need (initial perturbations, test species, initial fields, density
+profiles, current filter; PIC-D9, PIC-D10).
 
 ## Next (in priority order)
 
@@ -28,7 +26,7 @@ current filter).
 | R3 | Performance: shared-memory tiled deposition, fewer host syncs, comm/compute overlap | explicit 8-GPU strong scaling is 4.0× at 50M particles |
 | R4 | Implicit solver cost: CUDA graphs or fused kernels for CG, better plasma preconditioning | ~20× explicit per step; Picard 5–6 × CG ~15 |
 | R5 | float32 / mixed-precision particle storage | must keep the gate criteria |
-| R6 | More examples | Buneman done; the PR #2 set in progress; later: magnetised shocks, beam–plasma with B0 |
+| R6 | More examples | PR #2 set done; later: magnetised shocks, beam–plasma with B0, long production runs (shock tail, large reconnection boxes) |
 | R8 | Laser / beam drivers and a moving window (wakefield acceleration) | needs field injection at a boundary |
 | R9 | Asynchronous output writing | rank 0 writes synchronously today (~17 % of wall time for the full two-stream output set) |
 | R7 | Multi-node runs (NCCL over network) | launcher is single-node today |

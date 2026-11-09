@@ -37,3 +37,45 @@ def test_streaming_limits():
     u = 3.0  # filamentation growth tends to beta wp / sqrt(gamma) for k >> wp/c
     g = math.sqrt(1 + u * u)
     assert abs(S.filamentation_cold(1e4, u) - (u / g) / math.sqrt(g)) < 1e-6
+
+
+def _example_theory(name):
+    import importlib.util
+    import os
+
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "examples", name, "theory.py")
+    spec = importlib.util.spec_from_file_location(f"theory_{name}", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_shock_jump_conditions():
+    T = _example_theory("relativistic_shock")
+    # constant Gamma = 3/2 reproduces Spitkovsky (2008): n2/n1 = 3.13, beta_sh = 0.47 for gamma0 = 15
+    g = T.jump_conditions_gamma(15.0, 1.5)
+    assert abs(g["compression"] - 3.1333) < 1e-3 and abs(g["beta_sh"] - 0.4677) < 1e-3
+    # Synge gas: ultra-relativistic limits n2/n1 -> 4 (3-D, Gamma 4/3) and 3 (2-D, Gamma 3/2)
+    assert abs(T.jump_conditions(1e4, 3)["compression"] - 4.0) < 2e-3
+    assert abs(T.jump_conditions(1e4, 2)["compression"] - 3.0) < 2e-3
+
+
+def test_mora_relations():
+    T = _example_theory("plasma_expansion")
+    Te, mi = 0.01, 1836.0
+    t = np.linspace(50.0, 2000.0, 400)
+    xf = T.front_position(t, Te, mi)
+    vf = T.front_velocity(t, Te, mi)
+    rel = (np.gradient(xf, t) - vf) / vf
+    assert np.max(np.abs(rel[1:-1])) < 2e-3  # x_f is the integral of v_f (interior differences)
+    assert np.allclose(T.max_energy(t, Te, mi), 0.5 * mi * vf ** 2, rtol=1e-12)  # E_max = m_i v_f^2 / 2
+
+
+def test_profiles():
+    from pypic.profiles import evaluate, validate
+
+    y = np.array([0.0, 25.0, 50.0, 75.0, 99.0])
+    f = evaluate(validate({"shape": "double_tanh", "centers": [25.0, 75.0], "width": 1.0}), y)
+    assert np.allclose(f, [-1.0, 0.0, 1.0, 0.0, -1.0], atol=1e-9)
+    assert np.allclose(evaluate({"shape": "step", "x0": 1.0, "x1": 2.0}, np.array([0.5, 1.0, 1.99, 2.0])),
+                       [0, 1, 1, 0])

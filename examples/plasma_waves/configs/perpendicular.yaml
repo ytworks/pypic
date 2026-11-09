@@ -1,0 +1,14 @@
+# Magnetised plasma, k perpendicular to B0 (B0 along z): O mode in E_z, X mode (upper and lower
+# branches, upper-hybrid resonance) in E_y, electron Bernstein waves between the cyclotron
+# harmonics in E_x. theta_e = 1e-3 keeps the relativistic shift of the harmonics (~1.5 theta)
+# below the comparison tolerance of the non-relativistic Bernstein theory.
+geometry: perpendicular
+theta_e: 0.001
+wce: 0.5               # omega_ce / omega_pe
+mass_ratio: 1836.15267
+nx: 512
+n_transverse: 8
+ppc: 64
+t_end: 300
+k_window: 8.0
+k_bernstein_max: 40.0

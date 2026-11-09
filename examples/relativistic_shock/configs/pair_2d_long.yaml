@@ -1,0 +1,8 @@
+# Production: long quasi-2-D run for the Fermi tail (p ~ 2.4, gamma_max ~ t^1/2): t = 2000/omega_pe.
+gamma0: 15
+t_end: 2000
+cells_per_skin: 10
+Ly_skin: 16
+nz: 4
+ppc: 8
+filter_passes: 4

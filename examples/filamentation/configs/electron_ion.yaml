@@ -1,0 +1,10 @@
+# Counter-streaming electron beams over ions at rest (relativistic, u0 = 1): electron Weibel /
+# current filamentation; the ions only neutralise on this time scale.
+mixture: e-i
+u0: 1.0
+theta: 1.0e-4
+L_perp_wavelengths: 4
+cells_per_skin_depth: 10
+nx: 4
+ppc: 16
+growth_times: 25

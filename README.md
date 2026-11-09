@@ -94,6 +94,32 @@ Any `SimConfig` field can be overridden with `--set overrides.ppc=64`, and any o
 4. For the explicit solver with `Δx > π λ_De`, it warns about finite-grid heating and recommends the implicit solver.
 5. It estimates the particle count, memory per GPU and rank layout.
 
+## Examples with analytic or known solutions
+
+Each example has the same structure:
+- `examples/<name>/` holds a planner (physics → grid, time step, run length, output cadence), configs, `theory.py` (the solution) and `analyze.py` (verdict JSON, figures, `--movie`).
+- The gate configs run in `scripts/gpu_gates.py`, with the criteria given in each README.
+
+| example | physics | compared with | measured (gate config) |
+|---|---|---|---|
+| [`two_stream`](examples/two_stream) | electrostatic two-stream (e-i, e-p, e-i-p, implicit), Buneman | warm-fluid multi-beam dispersion | growth −2.3 … +3.5 %, Buneman −4.7 % |
+| [`plasma_waves`](examples/plasma_waves) | ω–k of thermal noise: Langmuir, EM, X/O, Bernstein, whistler, ion acoustic | kinetic / cold magnetised dispersion | Langmuir 1.4 %, EM 0.3 %, X/O 0.07 %, Bernstein 0.5–0.7 % (medians) |
+| [`landau_damping`](examples/landau_damping) | Landau damping, Dawson oscillation, wave breaking, relativistic oscillation | Z-function root, exact sheet solutions | γ +4.6 %, ω −0.1 %; Dawson 0.3 %; crossing time −1.2 %; relativistic period 0.08 % |
+| [`filamentation`](examples/filamentation) | current filamentation (Weibel) | cold relativistic dispersion | growth 2.2 % (median over modes) |
+| [`particle_orbits`](examples/particle_orbits) | gyration, E×B, hyperbolic, E > B, plane wave (figure 8) | exact relativistic orbits | errors ≤ 0.3 %, second-order convergence (ratio 3.76–4.00) |
+| [`plasma_expansion`](examples/plasma_expansion) | TNSA-type ion acceleration into vacuum | Mora 2003 self-similar solution | velocity profile −8 %, E_max −15 % (kinetic electrons, see README) |
+| [`relativistic_shock`](examples/relativistic_shock) | γ₀ = 15 pair shock, Fermi acceleration | relativistic Rankine–Hugoniot (Synge gas) | β_sh −8 %, n₂/n₁ +4.6 % |
+| [`reconnection`](examples/reconnection) | σ = 10 pair reconnection, plasmoids, power law | Harris equilibrium; published rate and index (empirical) | equilibrium 1.1 % of B₀; rate ≈ 0.1–0.2; p = 2.4 (small box) |
+
+New set-up features these examples use (all engine-level; see `docs/design/engine.md` PIC-D9, PIC-D10):
+
+- **Initial perturbations** (`Beam.perturbation`): density, displacement or velocity modes. They are applied by a charge-conserving virtual move, so Gauss's law holds exactly.
+- **Density profiles** (`Beam.profile`).
+- **Test species with explicit particle lists** (`SpeciesConfig.test`, `particles`).
+- **Initial fields**: uniform `E0`, and `initial_fields` for exact plane waves and 1-D profiles.
+- **Binomial current filter** (`current_filter`), against numerical Cherenkov noise in relativistic flows.
+- **`remove_mean_current`** for net-current set-ups such as Buneman.
+
 ## Using it as a library
 
 ```python

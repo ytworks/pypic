@@ -20,6 +20,8 @@ class Species:
         self.P = cp.zeros((NROW, self.cap), dtype=cp.float64)
         self.n = 0
         self.Pn = None  # implicit scheme work array
+        self.test = False  # test species: no charge deposit, not in the energy budget (PIC-D9)
+        self.qdep = self.q
 
     # ---------------------------------------------------------------- storage
     def ensure_capacity(self, need: int):

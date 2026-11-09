@@ -1,6 +1,7 @@
 # Output and analysis design
 
 Status: **Accepted** (2026-11-09, PR #2). Plan: `docs/plans/2026-11-09-output-analysis-examples.md`.
+Decisions: OUT-D1..D4, ANA-D1, ANA-D2.
 Applies to: `pypic/output/` (schedule, writers, GPU diagnostics, manager), `pypic/analysis/`,
 `pypic/setup/runner.py`, every `examples/<name>/`.
 
@@ -66,6 +67,26 @@ examples live in `pypic/theory/`; problem-specific exact solutions stay in `exam
 Figures follow one style: categorical series in a fixed validated order, single-hue sequential
 maps for magnitudes, a blue–gray–red diverging map for signed fields, legends for every
 multi-series plot, theory dashed black. Movies fix colour limits over all frames.
+
+### ANA-D2 — Example gates against theory
+Every example's `analyze.py` returns `passed` against its theory; `scripts/gpu_gates.py` runs the
+gate configs and also requires Gauss ≤ 1e-10. Criteria (fixed before the gate evidence was recorded):
+
+| gate | criterion |
+|---|---|
+| plasma_waves | each gated branch found at ≥ half of the k points, ≥ 90 % of them within max(3 %, 2Δω/ω) |
+| landau_damping:landau | γ within 10 %, ω within 2 % of the kinetic root |
+| landau_damping:dawson / relativistic | sheet frequency within 1 % (amplitude 2 %) / exact relativistic period within 0.5 % |
+| landau_damping:wavebreaking | first crossing time within 5 % of arcsin(ω_pe / k v₀) |
+| filamentation:pair | median growth-rate error ≤ 10 % over m = 2…10 (common linear window) |
+| particle_orbits:* | position error ≤ 2 % of the orbit size and error ratio Δt / (Δt/2) in [3, 5] |
+| plasma_expansion:isothermal_hydrogen | self-similar ion velocity within 10 %, E_max within 20 % (median) |
+| relativistic_shock:pair_2d | shock speed and compression within 10 % of the Synge-gas jump conditions |
+| reconnection:pair_sigma10 | B_x(y) within 5 % of B0 of the Harris sheet before the onset |
+
+Why: agreement with analytic and linear theory is the test policy's observable result.
+- Where the model and collisionless PIC differ physically, the tolerance sits above the measured, explained offset. The case is Mora's isothermal electrons; see examples/plasma_expansion/README.md.
+- Non-analytic results are reported, not gated: power-law indices and reconnection rates.
 
 ## Measured (2026-11-09, `examples/two_stream` ei, 8 GPUs)
 

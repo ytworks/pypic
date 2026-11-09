@@ -104,22 +104,37 @@ def buneman_cold(mass_ratio: float, Z: float = 1.0) -> float:
     return math.sqrt(3.0) / 2.0 * (Z / (2.0 * mass_ratio)) ** (1.0 / 3.0)
 
 
-def filamentation_cold(k, u0: float, wp: float = 1.0) -> np.ndarray:
-    """Growth rate of the purely transverse (k perpendicular to the drift) filamentation /
-    current-filamentation (Weibel) mode of two cold, symmetric, counter-streaming beams of
-    proper velocity +-u0 and total plasma frequency wp (each beam wp^2/2; electrons of a pair or
-    electron-electron system with the same response). From the cold relativistic fluid theory
-    (e.g. Bret, Gremillet & Dieckmann, Phys. Plasmas 17, 120501 (2010)):
+def filamentation_growth(k, comps) -> np.ndarray:
+    """Growth rate of the purely transverse (k perpendicular to the drifts) filamentation /
+    current-filamentation (Weibel) mode of cold beams drifting along x. comps: iterable of
+    (omega_p^2, u) per beam (omega_p^2 = n q^2 / m, u = proper drift velocity along x).
 
-        Gamma^2 = [sqrt((k^2 + a)^2 + 4 k^2 beta^2 a) - (k^2 + a)] / 2,   a = wp^2 / gamma0,
+    Linearising the cold relativistic fluid equations with fields E_x, B_z ~ exp(i(k y - omega t)):
+    the response along the drift has the longitudinal mass gamma^3 m, the density perturbation
+    comes from the transverse (mass gamma m) magnetic force, and
 
-    which tends to beta wp / sqrt(gamma0) for k >> wp/c (c = 1)."""
+        Gamma^4 + Gamma^2 (k^2 + b) - k^2 A = 0,   b = sum wp^2 / gamma^3,  A = sum wp^2 beta^2 / gamma
+
+    (c = 1); Gamma -> sqrt(A) = beta wp / sqrt(gamma) for k >> wp/c (symmetric beams)."""
     k = np.asarray(k, dtype=float)
-    g0 = math.sqrt(1.0 + u0 * u0)
-    beta = u0 / g0
-    a = wp * wp / g0
-    s = k * k + a
-    return np.sqrt(np.maximum(0.5 * (np.sqrt(s * s + 4.0 * k * k * beta * beta * a) - s), 0.0))
+    A = b = 0.0
+    for wp2, u in comps:
+        g = math.sqrt(1.0 + u * u)
+        A += wp2 * (u / g) ** 2 / g
+        b += wp2 / g ** 3
+    s = k * k + b
+    return np.sqrt(np.maximum(0.5 * (np.sqrt(s * s + 4.0 * k * k * A) - s), 0.0))
+
+
+def filamentation_cold(k, u0: float, wp: float = 1.0) -> np.ndarray:
+    """Two symmetric cold beams (+-u0) of total plasma frequency wp (see filamentation_growth)."""
+    return filamentation_growth(k, [(0.5 * wp * wp, u0), (0.5 * wp * wp, -u0)])
+
+
+def filamentation_species(k, species) -> np.ndarray:
+    """filamentation_growth for SpeciesConfig beams (drift along x, temperatures ignored)."""
+    return filamentation_growth(k, [(b.density * s.charge ** 2 / s.mass, b.drift[0]) for s in species
+                                    for b in s.beams])
 
 
 def filamentation_estimate(species) -> float:

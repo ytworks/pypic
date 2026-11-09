@@ -1,0 +1,4 @@
+case: exb
+E: 0.5          # E / B
+B: 1.0
+periods: 10

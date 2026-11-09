@@ -95,6 +95,36 @@ python examples/two_stream/analyze.py output/two_stream/ep --movie
 4. 陽解法で `Δx > π λ_De` のときは、有限格子加熱の警告を出し、陰解法を勧めます。
 5. 粒子数、GPU あたりのメモリ、rank の配置を見積もります。
 
+## 解析解・既知解のある例題
+
+各例題は同じ構成です。
+- `examples/<name>/` に次のものがあります。
+  - planner: 物理から格子・時間刻み・実行長・出力間隔を決めます。
+  - 設定ファイル。
+  - `theory.py`: 解析解・理論値。
+  - `analyze.py`: 判定 JSON と図を出し、`--movie` で動画を作ります。
+- ゲート用の設定を `scripts/gpu_gates.py` で実行します。判定基準は各 README に書いてあります。
+
+| example | 物理 | 比較対象 | 結果 (ゲート用設定) |
+|---|---|---|---|
+| [`two_stream`](examples/two_stream) | 静電二流体 (e-i, e-p, e-i-p, 陰解法)、Buneman | 温かい流体の多ビーム分散関係 | 成長率 −2.3〜+3.5 %、Buneman −4.7 % |
+| [`plasma_waves`](examples/plasma_waves) | 熱雑音の ω–k: Langmuir、電磁波、X/O 波、バーンスタイン波、ホイッスラー、イオン音波 | 運動論・冷たい磁化プラズマの分散関係 | Langmuir 1.4 %、電磁波 0.3 %、X/O 0.07 %、バーンスタイン 0.5〜0.7 % (中央値) |
+| [`landau_damping`](examples/landau_damping) | ランダウ減衰、Dawson 振動、波の破砕、相対論的振動 | Z 関数の根、シートの厳密解 | γ +4.6 %、ω −0.1 %、Dawson 0.3 %、交差時刻 −1.2 %、相対論的周期 0.08 % |
+| [`filamentation`](examples/filamentation) | 電流フィラメンテーション (Weibel) | 冷たい相対論的分散関係 | 成長率 2.2 % (モードの中央値) |
+| [`particle_orbits`](examples/particle_orbits) | ジャイロ運動、E×B、双曲運動、E > B、平面波 (8 の字) | 相対論的な厳密軌道 | 誤差 ≤ 0.3 %、2 次収束 (比 3.76〜4.00) |
+| [`plasma_expansion`](examples/plasma_expansion) | 真空への膨張による TNSA 型イオン加速 | Mora 2003 の自己相似解 | 速度分布 −8 %、E_max −15 % (無衝突電子の効果。README 参照) |
+| [`relativistic_shock`](examples/relativistic_shock) | γ₀ = 15 の対プラズマ衝撃波、Fermi 加速 | 相対論的 Rankine–Hugoniot (Synge 気体) | β_sh −8 %、n₂/n₁ +4.6 % |
+| [`reconnection`](examples/reconnection) | σ = 10 の対プラズマ再結合、プラズモイド、べき分布 | Harris 平衡、公表値 (経験式) | 平衡 B₀ の 1.1 %、再結合速度 ≈ 0.1〜0.2、p = 2.4 (小さな箱) |
+
+これらの例題のために、エンジンに次の機能を追加しました (`docs/design/engine.md` の PIC-D9、PIC-D10)。
+
+- **初期摂動** (`Beam.perturbation`): 密度・変位・速度のモードです。電荷を保存する仮想移動で与えるので、ガウスの法則が厳密に成り立ちます。
+- **密度プロファイル** (`Beam.profile`)。
+- **テスト粒子種と明示的な粒子リスト** (`SpeciesConfig.test`、`particles`)。
+- **初期場**: 一様な `E0` と、厳密な平面波・1 次元プロファイルを与える `initial_fields`。
+- **二項電流フィルタ** (`current_filter`): 相対論的な流れで生じる数値チェレンコフ雑音を抑えます。
+- **`remove_mean_current`**: Buneman のように正味の電流がある設定に使います。
+
 ## ライブラリとして使う
 
 ```python

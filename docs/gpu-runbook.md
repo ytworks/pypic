@@ -16,11 +16,15 @@ tests); everything that executes kernels runs here. Criteria: `.claude/rules/num
 ## Procedure
 
 1. Commit the change (the gates record the commit; a dirty tree is flagged).
-2. `python scripts/gpu_gates.py --gpus 8` (about 10 minutes):
-   - `gpu-tests`: `pytest tests/gpu`, including the 1-vs-2-GPU equivalence test;
-   - `two-stream:{ei,ep,eip,ei_implicit}` on 8 GPUs: growth rate vs theory, Gauss law,
-     div B, implicit energy.
-   While iterating use `--quick` or `--configs ei --skip-tests` (not recorded).
+2. `python scripts/gpu_gates.py --gpus 8` (about 30-40 minutes):
+   - `gpu-tests`: `pytest tests/gpu`, including the 1-vs-2-GPU equivalence tests;
+   - `two-stream:{ei,ep,eip,ei_implicit,buneman}` on 8 GPUs: growth rate vs theory, Gauss law,
+     div B, implicit energy;
+   - the analytic-solution examples (`<example>:<config>`, criteria in `docs/design/output-analysis.md`
+     ANA-D2); `particle_orbits` runs on one GPU at Δt and Δt/2 (convergence).
+   While iterating use `--quick`, `--configs ei --skip-tests` or `--examples landau_damping:landau`
+   (not recorded).
+   A hung run is killed with its whole process group (no ranks are left spinning on the GPUs).
 3. On ALL PASSED the script writes `bench/results/<date>-<commit>-gpu-gates.json` and updates
    `bench/results/index.json`. Commit both (CI validates the index), and update
    `PROGRESS.md` → Current Status if the gate status changed.

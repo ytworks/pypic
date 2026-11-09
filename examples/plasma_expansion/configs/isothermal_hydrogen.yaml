@@ -1,0 +1,6 @@
+# The same with the real proton mass (m_i/m_e = 1836): 4.3x longer in omega_pe t.
+Te: 0.01
+mass_ratio: 1836.15267
+tau_end: 10
+slab_lambda_D: 200
+ppc: 256
