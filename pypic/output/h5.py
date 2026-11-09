@@ -86,21 +86,22 @@ class SeriesWriter:
     def _create(self, data: dict):
         row = max([np.asarray(v).nbytes for v in data.values()] + [8])
         self.rows = int(max(1, min(self.max_rows, self.chunk_bytes // row)))
-        self.ds = {}
+        ds = {}  # set as self.ds only once every dataset exists
         for k, dtype in (("t", np.float64), ("step", np.int64)):
-            self.ds[k] = self.f.create_dataset(k, shape=(0,), maxshape=(None,), dtype=dtype,
-                                               chunks=(max(self.rows, 64),), **self.comp)
+            ds[k] = self.f.create_dataset(k, shape=(0,), maxshape=(None,), dtype=dtype,
+                                          chunks=(max(self.rows, 64),), **self.comp)
         for k, v in data.items():
             v = np.asarray(v)
             comp = self.comp if v.dtype.kind in "fc" else {}
             # an empty dimension (e.g. no tracked particle) needs a positive chunk size, which HDF5
             # accepts only for an unlimited dimension
-            self.ds[k] = self.f.create_dataset(k, shape=(0,) + v.shape,
-                                               maxshape=(None,) + tuple(n if n else None for n in v.shape),
-                                               dtype=v.dtype, chunks=(self.rows,) + tuple(max(n, 1) for n in v.shape),
-                                               **comp)
+            ds[k] = self.f.create_dataset(k, shape=(0,) + v.shape,
+                                          maxshape=(None,) + tuple(n if n else None for n in v.shape),
+                                          dtype=v.dtype, chunks=(self.rows,) + tuple(max(n, 1) for n in v.shape),
+                                          **comp)
         self._before_swmr()
         self.f.swmr_mode = True
+        self.ds = ds
 
     def _before_swmr(self):
         pass
@@ -109,13 +110,25 @@ class SeriesWriter:
         if self.ds is None:
             self._create(data)
         self.buf.append((step, t, data))
+        self.write_due()
+
+    def buffer_rows(self, steps, ts, data: dict):
+        """Take many rows (scalars history) into the buffer. The only file operation is creating
+        the datasets on first use: if this raises, no row was taken. Once it returns, the rows are
+        the writer's: write_due(), flush() or close() writes them, and a failed write keeps them
+        buffered for the next attempt (a write is repeatable: it rewrites rows n.. of the file)."""
+        rows = [(int(steps[i]), float(ts[i]), {k: np.asarray(v)[i] for k, v in data.items()})
+                for i in range(len(steps))]
+        if not rows:
+            return
+        if self.ds is None:
+            self._create(rows[0][2])
+        self.buf.extend(rows)
+
+    def write_due(self):
+        """Write the buffer once it holds at least a whole chunk."""
         if len(self.buf) >= self.rows:
             self._write()
-
-    def append_rows(self, steps, ts, data: dict):
-        """Append many rows at once (scalars history)."""
-        for i in range(len(steps)):
-            self.append(int(steps[i]), float(ts[i]), {k: np.asarray(v)[i] for k, v in data.items()})
 
     def _write(self):
         if not self.buf:

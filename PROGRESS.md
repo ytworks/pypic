@@ -47,6 +47,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [amendment] PR #2 fourth review: scalar rows of a failed write
+- What: scalar history rows count as written once the scalars writer has taken them (rank 0), not before the write. A failed write is retried, and rows already taken stay buffered.
+- Why: the review found a regression from the third-review change: after a failed write, a retry wrote nothing. The new test failed on that code.
+- Refs: review amendments in `docs/design/output-analysis.md`; `tests/gpu/test_output.py`
 ### 2026-11-10 — [progress] Second recorded realizations of the production runs
 - What: `pair_sigma10_large` (run e879cfd6) and `pair_2d_long` (run 40c0ca85) were run again and recorded, one record per run.
   - Reconnection, two recorded runs: p = 2.10 / 2.10 and rate 0.064 / 0.074 v_A.

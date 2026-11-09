@@ -130,3 +130,6 @@ tracks): 32 MB on disk for 62 MB raw; wall time 18.3 s vs 15.6 s without output.
 - 2026-11-10 (PR #2 third review):
   - **Rank-0 file errors**: a failure to create or clean the output directory raised on rank 0 only, and the other ranks went on into the next collective. Every rank-0 file operation of the output now shares its outcome with all ranks (OUT-D2).
   - **Untracked code**: an untracked helper imported by an analysis was outside the provenance check, so the record looked clean and editing the helper during the analysis passed. Untracked code files are now part of the provenance (`pypic.provenance`). This applies to run.json and the gate records too. For tracked changes the check is now limited to the code paths, so an uncommitted evidence index no longer marks the next run dirty.
+- 2026-11-10 (PR #2 fourth review): the third-review change marked the scalar history rows as written before the write, so a failed write lost them on retry (a regression). A row now counts as written only once the scalars writer has taken it into its buffer, and only rank 0 tracks this. Whether to write is still decided on every rank from the history length.
+  - If creating the file or its datasets fails, no row is taken and the next write retries them.
+  - A failed chunk write keeps the rows buffered, and rewriting is repeatable.

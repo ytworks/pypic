@@ -154,6 +154,25 @@ def test_a_failed_output_write_stops_every_rank(tmp_path):
     assert all(isinstance(e, OutputError) for e in errors), errors
 
 
+def test_scalar_rows_of_a_failed_write_are_written_on_retry(tmp_path):
+    """Review of PR #2: the scalar history rows were marked written before the write, so after a
+    failed write (here: a directory where scalars.h5 goes) a retry wrote nothing."""
+    from pypic.output.manager import OutputError
+
+    cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.2,) * 3, dt=0.08, n_steps=4, diag_interval=1,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0, 0, 0), 0.01)]),
+                             SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), 0.001)])],
+                    ppc=2, output=OutputConfig(dir=str(tmp_path)))
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    (tmp_path / "scalars.h5").mkdir()  # the file cannot be created
+    with pytest.raises(OutputError):
+        sim.run()
+    (tmp_path / "scalars.h5").rmdir()
+    sim.close()
+    with h5py.File(tmp_path / "scalars.h5", "r") as f:
+        assert list(f["step"][:]) == list(sim.history["step"]) and len(sim.history["step"]) > 0
+
+
 def test_output_is_independent_of_the_gpu_count(tmp_path):
     """Every output file of a mixed-boundary run (all diagnostic kinds, particles sorted by id)
     is the same on 1 and 2 GPUs to float32 round-off."""

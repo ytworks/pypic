@@ -68,7 +68,8 @@ class OutputManager:
         self.last = {}
         self.acc_step = {}
         self.meta = {}
-        self.scalar_rows = 0
+        self.history_seen = 0  # history rows seen by on_step (every rank: it decides a collective)
+        self.scalar_rows = 0  # history rows taken by the scalars writer (rank 0)
         if not self.enabled:
             if self.cfg.diagnostics:
                 raise ValueError("output.diagnostics are configured but output.dir is not set")
@@ -225,13 +226,17 @@ class OutputManager:
             if r.due(step) and self.last.get(name, -1) < step:  # once per step, even if called twice
                 pending.append((dg, dg.compute(self.src)))
                 self.last[name] = step
-        rows = self._new_scalar_rows()
-        if pending or rows is not None:  # from the schedule and the history: the same on every rank
+        # whether to write is decided from the schedule and the history length, the same on every
+        # rank; which history rows still need writing is rank 0's (rows are marked written only
+        # once the scalars writer has taken them, so rows of a failed attempt are retried)
+        n = len(sim.history["step"]) if self.cfg.scalars else 0
+        new_rows, self.history_seen = n > self.history_seen, max(n, self.history_seen)
+        if pending or new_rows:
 
             def write():
                 for dg, data in pending:
                     self._write(dg, step, data)
-                self._write_scalars(rows)
+                self._write_scalars()
 
             self._root_io(f"writing the output of step {step}", write)
         self.src.clear()
@@ -241,10 +246,9 @@ class OutputManager:
         Collective."""
         if not self.enabled:
             return
-        rows = self._new_scalar_rows()
 
         def write():
-            self._write_scalars(rows)
+            self._write_scalars()
             for w in self.writers.values():
                 w.flush()
 
@@ -319,34 +323,36 @@ class OutputManager:
                                   "edges": json.dumps([e.tolist() for e in dg.edges])})
             w.append(step, t, data)
 
-    def _new_scalar_rows(self) -> slice | None:
-        """History rows not yet handed to the scalars file (the history is the same on every rank,
-        so is this; it is advanced on every rank)."""
-        if not self.cfg.scalars:
-            return None
-        n = len(self.sim.history["step"])
-        if n <= self.scalar_rows:
-            return None
-        rows = slice(self.scalar_rows, n)
-        self.scalar_rows = n
-        return rows
-
-    def _write_scalars(self, sl: slice | None):
-        """Hand history rows to the (chunk-buffered) scalars writer (rank 0)."""
+    def _write_scalars(self):
+        """Hand the history rows not yet taken to the (chunk-buffered) scalars writer (rank 0).
+        A row counts as written once the writer has taken it: if creating the file or its
+        datasets fails, nothing is taken and the next write retries the same rows."""
         from .h5 import SeriesWriter
 
-        if sl is None:
+        if not self.cfg.scalars:
             return
         h = self.sim.history
+        n = len(h["step"])
+        if n <= self.scalar_rows:
+            return
         if "__scalars__" not in self.writers:
             attrs = {"diagnostic": "scalars", "every_steps": self.sim.cfg.diag_interval}
             self.writers["__scalars__"] = SeriesWriter(os.path.join(self.cfg.dir, "scalars.h5"), attrs,
                                                        self.cfg.codec, self.cfg.level)
         w = self.writers["__scalars__"]
+        sl = slice(self.scalar_rows, n)
         data = {k: np.asarray(h[k][sl], dtype=np.float64) for k in SCALAR_KEYS}
         for sp, v in self.sim.kinetic_species.items():
             data[f"kinetic_{sp}"] = np.asarray(v[sl], dtype=np.float64)
-        w.append_rows(h["step"][sl], h["t"][sl], data)
+        try:
+            w.buffer_rows(h["step"][sl], h["t"][sl], data)
+        except Exception:
+            if w.ds is None:  # no dataset yet: drop the writer, the next attempt recreates the file
+                w.f.close()
+                del self.writers["__scalars__"]
+            raise
+        self.scalar_rows = n
+        w.write_due()
 
 
 def _json_default(o):
