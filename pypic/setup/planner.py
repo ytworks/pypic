@@ -126,10 +126,8 @@ def plan_two_stream(p: TwoStreamParams, n_gpus: int = 1) -> tuple[SimConfig, str
         dims=dims, B0=tuple(p.B0), diag_interval=diag_interval, gauss_interval=diag_interval * 10,
         sort_interval=50, mode_diag=min(64, nx // 2), implicit=ImplicitConfig(),
         phase_space_interval=max(1, n_steps // 6))
-    for k, v in p.overrides.items():
-        if not hasattr(cfg, k):
-            raise KeyError(f"unknown SimConfig field {k!r}")
-        setattr(cfg, k, tuple(v) if isinstance(v, list) else v)
+    if p.overrides:
+        cfg = apply_overrides(cfg, p.overrides)
 
     # ---- report ----
     nbeams = sum(len(s.beams) for s in species)
@@ -177,6 +175,24 @@ def plan_two_stream(p: TwoStreamParams, n_gpus: int = 1) -> tuple[SimConfig, str
     if p.mode == "buneman":
         lines.append("NOTE: buneman mode carries a net current; the k=0 mode oscillates at omega_pe.")
     return cfg, "\n".join(lines), info
+
+
+def apply_overrides(cfg: SimConfig, overrides: dict) -> SimConfig:
+    """Return a new SimConfig with ``overrides`` applied. Nested values (``implicit`` as a dict,
+    ``species`` as a list of dicts, tuples given as lists) are converted through
+    :meth:`SimConfig.from_dict`; nested dicts are merged into the current values."""
+    d = asdict(cfg)
+    for k, v in overrides.items():
+        if k not in d:
+            raise KeyError(f"unknown SimConfig field {k!r}")
+        if isinstance(d[k], dict) and isinstance(v, dict):
+            unknown = set(v) - set(d[k])
+            if unknown:
+                raise KeyError(f"unknown {k} field(s) {sorted(unknown)}")
+            d[k] = {**d[k], **v}
+        else:
+            d[k] = v
+    return SimConfig.from_dict(d)
 
 
 def params_from_dict(d: dict) -> TwoStreamParams:

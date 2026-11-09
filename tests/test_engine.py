@@ -228,3 +228,85 @@ def test_multi_gpu_matches_single(solver, tmp_path):
     for k in ("kinetic", "electric", "magnetic"):
         a, b = np.asarray(outs[1][k]), np.asarray(outs[2][k])
         assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10
+
+
+# --------------------------------------------------------- review regressions
+def test_cg_handles_exact_convergence_between_checks():
+    """A curl-free uniform field is solved in one CG step (A = I on that mode); the following
+    iteration must not divide 0/0 before the next convergence check."""
+    cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[],
+                    diag_interval=0, gauss_interval=0, mode_diag=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    b = cp.zeros((3,) + sim.grid.shape)
+    for c, v in enumerate((1.0, -2.0, 0.5)):
+        b[c][sim.own] = v
+    x = cp.zeros_like(b)
+    sim._cg(x, b)
+    assert bool(cp.all(cp.isfinite(x)))
+    assert float(cp.max(cp.abs(x[(slice(None),) + sim.own] - b[(slice(None),) + sim.own]))) < 1e-12
+
+
+@pytest.mark.parametrize("theta", [1e-3, 0.05, 0.3, 3.0])
+def test_maxwell_juttner_sampling(theta):
+    from scipy.special import kve
+
+    cfg = SimConfig(n_cells=(32, 32, 32), dx=(0.5,) * 3, dt=0.1, ppc=8,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0, 0, 0), theta)])],
+                    diag_interval=0, gauss_interval=0, mode_diag=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sp = sim.species[0]
+    u = cp.asnumpy(sp.P[3:6, : sp.n])
+    eps = np.sqrt(1 + (u ** 2).sum(0)) - 1
+    expected = kve(1, 1 / theta) / kve(2, 1 / theta) + 3 * theta - 1
+    assert abs(eps.mean() - expected) < 5 * eps.std() / math.sqrt(eps.size)
+
+
+def test_unconverged_implicit_step_is_not_committed():
+    from pypic.simulation import ImplicitStepError
+
+    sim = plasma("implicit", drift=0.3, theta=0.01)
+    sim.run(2)
+    sim.cfg.implicit.picard_maxit = 1
+    P0 = [sp.P[:, : sp.n].copy() for sp in sim.species]
+    E0 = sim.grid.Ex.copy()
+    with pytest.raises(ImplicitStepError):
+        sim.step()
+    for sp, p in zip(sim.species, P0):
+        assert bool(cp.all(sp.P[:, : sp.n] == p))
+    assert bool(cp.all(sim.grid.Ex == E0))
+
+
+def test_ghost_wider_than_local_grid_is_rejected():
+    cfg = SimConfig(n_cells=(4, 4, 4), dx=(1.0,) * 3, dt=3.5, solver="implicit", species=[],
+                    diag_interval=0, gauss_interval=0, mode_diag=0)
+    with pytest.raises(ValueError, match="ghost width"):
+        Simulation(cfg, comm=SelfComm(), verbose=False)
+
+
+def test_nested_overrides_are_converted():
+    from pypic.config import ImplicitConfig as IC
+    from pypic.setup.planner import TwoStreamParams, plan_two_stream
+
+    cfg, _, _ = plan_two_stream(TwoStreamParams(solver="implicit", overrides={
+        "implicit": {"picard_tol": 1e-10}, "dims": [1, 1, 1],
+        "species": [{"name": "e", "charge": -1, "mass": 1,
+                     "beams": [{"density": 1.0, "drift": [0.1, 0, 0], "theta": 1e-3}]}]}))
+    assert isinstance(cfg.implicit, IC) and cfg.implicit.picard_tol == 1e-10
+    assert cfg.implicit.picard_maxit == IC().picard_maxit
+    assert isinstance(cfg.species[0], SpeciesConfig) and isinstance(cfg.species[0].beams[0], Beam)
+    with pytest.raises(KeyError):
+        plan_two_stream(TwoStreamParams(overrides={"implicit": {"no_such_field": 1}}))
+
+
+def test_launcher_stops_all_ranks_when_any_rank_fails(tmp_path):
+    import time
+
+    script = tmp_path / "fail.py"
+    script.write_text("import os, sys, time\n"
+                      "if os.environ['PYPIC_RANK'] == '1':\n    sys.exit(17)\n"
+                      "time.sleep(60)\n")
+    t0 = time.monotonic()
+    r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", "2", str(script)], capture_output=True,
+                       text=True, timeout=120)
+    assert r.returncode == 17
+    assert time.monotonic() - t0 < 30

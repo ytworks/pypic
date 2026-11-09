@@ -18,6 +18,10 @@ from .parallel.decomp import Decomposition, auto_dims
 from .particles import Species
 
 
+class ImplicitStepError(RuntimeError):
+    """An implicit step could not be completed; the state is left at the previous time level."""
+
+
 class Simulation:
     def __init__(self, cfg: SimConfig, comm=None, verbose: bool = True):
         self.cfg = cfg
@@ -34,6 +38,15 @@ class Simulation:
             cfl = cfg.dt * math.sqrt(sum(1.0 / h ** 2 for h in cfg.dx))
             if cfl >= 1.0:
                 raise ValueError(f"explicit scheme violates the CFL condition (c dt sqrt(sum 1/dx^2) = {cfl:.3f} >= 1)")
+        # Halo exchange and particle migration only reach the adjacent sub-domain: the ghost width
+        # (and hence the largest particle displacement per step) must fit in every rank's cells.
+        for a in range(3):
+            n_loc = cfg.n_cells[a] // dims[a]
+            if n_loc < ghost:
+                raise ValueError(
+                    f"axis {'xyz'[a]}: {n_loc} cells per rank < ghost width {ghost} "
+                    f"(solver={cfg.solver}, c dt/dx={cfg.dt / cfg.dx[a]:.3g}); use more cells per rank, "
+                    "fewer ranks along this axis or a smaller dt")
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
         defs = dict(self.grid.defines)
@@ -232,12 +245,16 @@ class Simulation:
             if it % 4 == 0 and float(self._dot(r, r)) <= tol2:
                 break
             self._matvec(p, Ax, tmp)
-            alpha = rz / self._dot(p, Ax)
+            # The convergence test runs every few iterations only, so the residual can reach exactly
+            # zero in between (e.g. a curl-free mode where A = I is solved in one step). Guard the
+            # divisions on the device: a zero denominator means the step/update is zero.
+            pAp = self._dot(p, Ax)
+            alpha = cp.where(pAp != 0, rz / cp.where(pAp != 0, pAp, 1.0), 0.0)
             x += alpha * p
             r -= alpha * Ax
             cp.multiply(self.Minv, r, out=z)
             rz_new = self._dot(r, z)
-            p *= rz_new / rz
+            p *= cp.where(rz != 0, rz_new / cp.where(rz != 0, rz, 1.0), 0.0)
             p += z
             rz = rz_new
         g = self.grid
@@ -274,6 +291,8 @@ class Simulation:
         self.err.fill(0)
         rhs = cp.empty_like(R0)
         k = 0
+        converged = False
+        num, den = float("nan"), 1.0
         for k in range(icfg.picard_maxit):
             self._half_fields(E0, B0)
             g.zero_J()
@@ -292,10 +311,22 @@ class Simulation:
             nd = cp.stack([cp.max(cp.abs(Enew - self.E1) * self.Wmask), cp.max(cp.abs(Enew) * self.Wmask)])
             num, den = (float(v) for v in self.comm.allreduce(nd, "max"))
             self.E1 = Enew
-            if num <= icfg.picard_tol * max(den, 1e-30):
+            converged = num <= icfg.picard_tol * max(den, 1e-30)
+            if converged:
                 break
-        if int(self.err[0]) == 2:
-            raise RuntimeError("implicit step: particle displacement exceeds the ghost width (reduce dt)")
+        # Nothing has been committed yet (particles live in Pn, fields in E1), so raising here
+        # leaves the simulation at step n.
+        err = int(self.err[0])
+        if err == 2:
+            raise ImplicitStepError("implicit step: particle displacement exceeds the ghost width (reduce dt)")
+        if not converged:
+            raise ImplicitStepError(
+                f"implicit step {self.step_count}: Picard iteration did not converge in {icfg.picard_maxit} "
+                f"iterations (relative change {num / max(den, 1e-300):.3e} > picard_tol={icfg.picard_tol:g}); "
+                "the step was not committed. Reduce dt or raise implicit.picard_maxit.")
+        if err == 3:
+            raise ImplicitStepError("implicit step: energy closure impossible for a particle (gamma < 1); "
+                                    "the step was not committed. Reduce dt.")
         self._picard_its = k + 1
         self.nonconverged = int(self.err[1])
         # final half-step fields (consistent with converged E1)

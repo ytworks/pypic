@@ -13,6 +13,21 @@ import os
 import signal
 import subprocess
 import sys
+import time
+
+
+def _terminate(procs, grace: float = 10.0):
+    """SIGTERM the ranks that are still running, then SIGKILL whatever survives ``grace`` s."""
+    for p in procs:
+        if p.poll() is None:
+            p.send_signal(signal.SIGTERM)
+    t_end = time.monotonic() + grace
+    for p in procs:
+        try:
+            p.wait(timeout=max(0.0, t_end - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
 
 
 def main(argv=None):
@@ -43,16 +58,26 @@ def main(argv=None):
         procs.append(subprocess.Popen([sys.executable, a.script, *a.args], env=env))
     code = 0
     try:
-        for p in procs:
-            rc = p.wait()
-            if rc != 0 and code == 0:
-                code = rc
-                for q in procs:
-                    if q.poll() is None:
-                        q.send_signal(signal.SIGTERM)
+        # Poll every rank: a rank that dies (init error, OOM, ...) while the others block in NCCL
+        # must be detected at once, whatever its rank number.
+        while True:
+            states = [p.poll() for p in procs]
+            failed = [(r, rc) for r, rc in enumerate(states) if rc not in (None, 0)]
+            if failed:
+                r, rc = failed[0]
+                code = rc if rc > 0 else 128 - rc  # killed by a signal -> 128 + signal number
+                print(f"[pypic.launch] rank {r} exited with code {code}; terminating the other ranks",
+                      file=sys.stderr, flush=True)
+                _terminate(procs)
+                break
+            if all(rc == 0 for rc in states):
+                break
+            time.sleep(0.1)
     except KeyboardInterrupt:
         for p in procs:
-            p.send_signal(signal.SIGINT)
+            if p.poll() is None:
+                p.send_signal(signal.SIGINT)
+        _terminate(procs, grace=5.0)
         code = 130
     sys.exit(code)
 

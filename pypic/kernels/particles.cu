@@ -251,28 +251,60 @@ extern "C" __global__ void cell_index(const double* __restrict__ P, const int n,
 //      Maxwell-Juttner momenta (Zenitani 2015). One thread per (cell, slot).
 //      Positions depend only on (seed, global cell, slot) so that all species/beams loaded
 //      with the same seed sit on identical positions -> exact charge neutrality.
+__device__ __forceinline__ double gauss(unsigned long long& s) {
+    double r1 = urand(s), r2 = urand(s);
+    return sqrt(-2.0 * log(r1)) * cos(6.283185307179586 * r2);
+}
+
+// Kinetic energy eps = gamma - 1 of a Maxwell-Juttner distribution, exact for any theta.
+//  * theta < 1: rejection with the envelope obtained from sqrt(1 + eps/2) <= 1 + eps/4,
+//      f(eps) ~ sqrt(eps) sqrt(1+eps/2) (1+eps) e^{-eps/theta}
+//            <= sqrt(eps) (1 + 5 eps/4 + eps^2/4) e^{-eps/theta},
+//    i.e. a mixture of Gamma(3/2), Gamma(5/2), Gamma(7/2) (scale theta) with weights
+//    1/2 : 15 theta/16 : 15 theta^2/32; Gamma(k/2, theta) = theta/2 * chi^2_k (sum of k squared
+//    Gaussians). Acceptance sqrt(1+eps/2)/(1+eps/4) >= ~0.94 for theta <= 1.
+//  * theta >= 1: Sobol's algorithm (efficient for relativistic temperatures).
+// A sample is never returned unaccepted: if the theta < 1 branch ever hit its (practically
+// unreachable) iteration limit it falls through to Sobol's algorithm, which is exact as well.
+__device__ double sample_mj_energy(double theta, unsigned long long& s, double* ur_out) {
+    if (theta < 1.0) {
+        const double w1 = 0.5, w2 = 0.9375 * theta, w3 = 0.46875 * theta * theta;
+        const double wt = w1 + w2 + w3;
+        for (int it = 0; it < 1000000; it++) {
+            double r = urand(s) * wt;
+            int k = r < w1 ? 3 : (r < w1 + w2 ? 5 : 7);
+            double chi2 = 0.0;
+            for (int i = 0; i < k; i++) {
+                double g = gauss(s);
+                chi2 += g * g;
+            }
+            double eps = 0.5 * theta * chi2;
+            double acc = sqrt(1.0 + 0.5 * eps) / (1.0 + 0.25 * eps);
+            if (urand(s) <= acc) {
+                *ur_out = sqrt(eps * (eps + 2.0));
+                return eps;
+            }
+        }
+    }
+    // Sobol: u = -theta ln(x1 x2 x3) accepted when eta^2 - u^2 > 1, eta = -theta ln(x1 x2 x3 x4)
+    for (;;) {
+        double x1 = urand(s), x2 = urand(s), x3 = urand(s), x4 = urand(s);
+        double ur = -theta * log(x1 * x2 * x3);
+        double eta = -theta * log(x1 * x2 * x3 * x4);
+        if (eta * eta - ur * ur > 1.0) {
+            *ur_out = ur;
+            return sqrt(1.0 + ur * ur) - 1.0;
+        }
+    }
+}
+
 __device__ void sample_mj(double theta, unsigned long long& s, double* u) {
-    double ur;
     if (theta <= 0.0) {
         u[0] = u[1] = u[2] = 0.0;
         return;
     }
-    if (theta < 0.05) {
-        // non-relativistic limit: Gaussian per component (Box-Muller)
-        double sd = sqrt(theta);
-        for (int a = 0; a < 3; a++) {
-            double r1 = urand(s), r2 = urand(s);
-            u[a] = sd * sqrt(-2.0 * log(r1)) * cos(6.283185307179586 * r2);
-        }
-        return;
-    }
-    // Sobol algorithm
-    for (int it = 0; it < 100000; it++) {
-        double x1 = urand(s), x2 = urand(s), x3 = urand(s), x4 = urand(s);
-        ur = -theta * log(x1 * x2 * x3);
-        double eta = -theta * log(x1 * x2 * x3 * x4);
-        if (eta * eta - ur * ur > 1.0) break;
-    }
+    double ur;
+    sample_mj_energy(theta, s, &ur);
     double x5 = urand(s), x6 = urand(s);
     double ct = 2.0 * x5 - 1.0, st = sqrt(fmax(0.0, 1.0 - ct * ct)), ph = 6.283185307179586 * x6;
     u[0] = ur * st * cos(ph);
