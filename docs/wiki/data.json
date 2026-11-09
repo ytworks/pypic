@@ -457,7 +457,9 @@
     "energy.png": 27168,
     "ei.gif": 5289182,
     "buneman.gif": 3211277
-   }
+   },
+   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "generated": "2026-11-10"
   },
   "plasma_waves": {
    "page": "Plasma-Waves",
@@ -984,7 +986,9 @@
     "ion_acoustic-omega_k.png": 91596,
     "branch_errors.png": 73967,
     "unmagnetized.gif": 4449350
-   }
+   },
+   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "generated": "2026-11-10"
   },
   "landau_damping": {
    "page": "Landau-Damping",
@@ -1395,7 +1399,9 @@
     "errors.png": 44656,
     "nonlinear.gif": 2768236,
     "wavebreaking.gif": 959468
-   }
+   },
+   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "generated": "2026-11-10"
   },
   "filamentation": {
    "page": "Filamentation-Instability",
@@ -1751,7 +1757,9 @@
     "pair-filamentation.png": 144223,
     "electron_ion-filamentation.png": 139639,
     "pair.gif": 6965521
-   }
+   },
+   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "generated": "2026-11-10"
   },
   "particle_orbits": {
    "page": "Particle-Orbits",
@@ -2601,7 +2609,9 @@
     "plane_wave-orbits.png": 96059,
     "convergence.png": 54295,
     "orbits.gif": 1910234
-   }
+   },
+   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "generated": "2026-11-10"
   },
   "plasma_expansion": {
    "page": "Plasma-Expansion",
@@ -2949,7 +2959,9 @@
     "thin_foil-expansion.png": 111983,
     "isothermal_hydrogen_long-expansion.png": 104742,
     "isothermal_hydrogen_long.gif": 1415648
-   }
+   },
+   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "generated": "2026-11-10"
   },
   "relativistic_shock": {
    "page": "Relativistic-Shock",
@@ -3694,7 +3706,9 @@
     "pair_3d-shock.png": 107670,
     "jump_conditions.png": 47694,
     "pair_2d.gif": 5189909
-   }
+   },
+   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "generated": "2026-11-10"
   },
   "reconnection": {
    "page": "Magnetic-Reconnection",
@@ -4000,11 +4014,11 @@
     "pair_sigma10_large-reconnection.png": 212163,
     "pair_sigma10_large_run2-reconnection.png": 210073,
     "power_law.png": 36565,
-    "fieldlines.png": 1181538,
-    "pair_sigma10_large_run2.gif": 7265511
-   }
+    "fieldlines.png": 1181979,
+    "pair_sigma10_large_run2.gif": 7277697
+   },
+   "analysis_commit": "a8000205611ce768e4c13b190bb984bc95321fcf",
+   "generated": "2026-11-10"
   }
- },
- "generated": "2026-11-10",
- "analysis_commit": "3c58b46db610b7b03b2593e0a4e407c3ceeed0d4"
+ }
 }
