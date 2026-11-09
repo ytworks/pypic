@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pypic"
+version = "0.1.0"
+description = "GPU-accelerated multi-GPU 3D relativistic electromagnetic Particle-in-Cell engine (CuPy)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = ["cupy-cuda13x>=13", "numpy", "scipy", "pyyaml", "matplotlib", "h5py"]
+
+[project.optional-dependencies]
+multigpu = ["nvidia-nccl-cu13>=2.27.7,<3"]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["pypic*"]
+
+[tool.setuptools.package-data]
+pypic = ["kernels/*.cu", "kernels/*.cuh"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

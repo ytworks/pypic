@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.h5
+*.npz
+output/
+*.png
+.pytest_cache/
+*.egg-info/

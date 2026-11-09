@@ -1,0 +1,10 @@
+# Pair (electron-positron) plasma: two neutral counter-streaming pair beams.
+mixture: e-p
+mode: symmetric
+u_drift: 0.3
+T_e_eV: 51.1
+solver: explicit
+n_wavelengths: 4
+transverse_ratio: 0.25
+ppc: 16
+growth_times: 30
