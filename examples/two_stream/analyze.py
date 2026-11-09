@@ -16,7 +16,7 @@ from pypic.analysis import plot as P
 from pypic.analysis.spectral import fit_growth
 
 
-def analyze(run_dir: str, show_plot: bool = True):
+def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None):
     run = open_run(run_dir)
     lin = run.meta.get("planner", {})
     nwl = run.meta.get("params", {}).get("n_wavelengths", 4)
@@ -66,7 +66,7 @@ def analyze(run_dir: str, show_plot: bool = True):
         ax.set_title(r"$E_x(x, t)$ (y-z average)")
         fig.suptitle(os.path.basename(os.path.normpath(run_dir)))
         fig.tight_layout()
-        res["plot"] = P.save(fig, os.path.join(run_dir, "summary.png"), dpi=110)
+        res["plot"] = P.save(fig, os.path.join(fig_dir or run_dir, "summary.png"), dpi=110)
     return res
 
 

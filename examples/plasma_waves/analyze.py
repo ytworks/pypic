@@ -66,7 +66,7 @@ def branches(info: dict, k: np.ndarray, dx: float, dt: float) -> dict:
     return out
 
 
-def analyze(run_dir: str, show_plot: bool = True) -> dict:
+def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
     lo = run.series("lineout")
@@ -119,7 +119,7 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
             P.omega_k_map(ax, k, w, Pw, curves=curves, k_max=kmax, w_max=min(wmax, 3.0) if kmax > kwin else wmax)
             ax.set_title(f"{comp}: {info['geometry']}")
         fig.tight_layout()
-        res["plot"] = P.save(fig, os.path.join(run_dir, "omega_k.png"))
+        res["plot"] = P.save(fig, os.path.join(fig_dir or run_dir, "omega_k.png"))
     return res
 
 

@@ -57,7 +57,7 @@ def orbit_error(run_dir):
     return run, info, t, np.asarray(errs), orbits
 
 
-def analyze(run_dir: str, show_plot: bool = True, refined: str | None = None) -> dict:
+def analyze(run_dir: str, show_plot: bool = True, refined: str | None = None, fig_dir: str | None = None) -> dict:
     run, info, t, errs, orbits = orbit_error(run_dir)
     res = {"case": info["case"], "dt": info["dt"], "max_rel_position_error": float(errs.max()),
            "per_particle": errs.tolist()}
@@ -90,7 +90,7 @@ def analyze(run_dir: str, show_plot: bool = True, refined: str | None = None) ->
         ax[1].set_xlabel(r"$\omega t$")
         ax[1].set_title("|x_PIC − x_exact|")
         fig.tight_layout()
-        res["plot"] = P.save(fig, os.path.join(run_dir, "orbits.png"))
+        res["plot"] = P.save(fig, os.path.join(fig_dir or run_dir, "orbits.png"))
     return res
 
 

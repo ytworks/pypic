@@ -22,7 +22,7 @@ from pypic.analysis.fields import fit_velocity, front_position  # noqa: E402
 from pypic.analysis.particles import energy_cutoff, fit_power_law, fit_temperature, spectrum  # noqa: E402
 
 
-def analyze(run_dir: str, show_plot: bool = True) -> dict:
+def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
     skin = info["skin"]
@@ -111,7 +111,7 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
         P.spectrum_plot(ax[2], G, f, label="downstream", fit=plw if np.isfinite(plw["p"]) else None,
                         xlabel=r"$\gamma$")
         fig.tight_layout()
-        res["plot"] = P.save(fig, os.path.join(run_dir, "shock.png"))
+        res["plot"] = P.save(fig, os.path.join(fig_dir or run_dir, "shock.png"))
     return res
 
 

@@ -183,7 +183,7 @@ def test_concurrent_collects_keep_their_own_images(tmp_path, monkeypatch):
     assert (wiki_b / "images" / "reconnection" / "power_law.png").read_bytes() == b"B"
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+@pytest.mark.skipif(os.name != "posix" or os.geteuid() == 0, reason="POSIX permissions; root ignores them")
 def test_a_failed_replacement_keeps_the_old_images(tmp_path, monkeypatch):
     import argparse
 
@@ -201,3 +201,97 @@ def test_a_failed_replacement_keeps_the_old_images(tmp_path, monkeypatch):
         (wiki / "images").chmod(0o755)
     assert (old / "power_law.png").read_bytes() == b"old"
     assert not (tmp_path / "data.json").exists()
+
+
+def test_analysis_figures_are_written_into_the_collects_own_directory(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    B = _builder()
+    run = tmp_path / "run"
+    run.mkdir()
+    seen = {}
+
+    def analyze(run_dir, show_plot=True, fig_dir=None):  # a stand-in for examples/<ex>/analyze.py
+        seen["fig_dir"] = fig_dir
+        path = Path(fig_dir or run_dir) / "summary.png"
+        path.write_bytes(b"png")
+        return {"plot": str(path)}
+
+    monkeypatch.setitem(sys.modules, "analyze", types.SimpleNamespace(analyze=analyze))
+    monkeypatch.setitem(B.EXAMPLES, "toy", {"page": "Toy", "title": {}, "cases": {"a": {"path": "run"}}})
+    monkeypatch.setattr(B, "ROOT", tmp_path)
+    monkeypatch.setattr(B, "conditions", lambda d: {})
+    monkeypatch.setattr(B, "provenance", lambda d: {})
+    work = tmp_path / "work"
+    out = B.collect_example("toy", work)
+    assert Path(seen["fig_dir"]).is_relative_to(work)
+    assert not (run / "summary.png").exists()  # the shared run directory is left alone
+    assert (work / "images" / "toy" / "a-summary.png").read_bytes() == b"png" and "a-summary.png" in out["images"]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file locks")
+def test_publishing_holds_the_wiki_lock(tmp_path, monkeypatch):
+    import argparse
+    import fcntl
+
+    B = _builder()
+    wiki = tmp_path / "wiki"
+    (wiki / ".git").mkdir(parents=True)
+    label = _fake_collect(B, tmp_path, monkeypatch)
+    label["current"] = b"new"
+    held = []
+    real = B.publish
+
+    def publish(*a):  # another checkout's collect cannot take the same wiki's lock meanwhile
+        with open(wiki / ".git" / "build_wiki.lock", "w") as other:
+            try:
+                fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                held.append(False)
+            except BlockingIOError:
+                held.append(True)
+        return real(*a)
+
+    monkeypatch.setattr(B, "publish", publish)
+    assert B.cmd_collect(argparse.Namespace(wiki=str(wiki), example=["reconnection"], jobs=1)) == 0
+    assert held == [True]
+
+
+def test_an_interrupted_publish_restores_the_replaced_images(tmp_path, monkeypatch):
+    B = _builder()
+    monkeypatch.setattr(B, "DATA", tmp_path / "data.json")
+    src, images = tmp_path / "src", tmp_path / "wiki" / "images"
+    for ex in ("a", "b"):
+        (src / ex).mkdir(parents=True)
+        (src / ex / "x.png").write_bytes(b"new")
+        (images / ex).mkdir(parents=True)
+        (images / ex / "x.png").write_bytes(b"old")
+    real, calls = B.shutil.copytree, []
+
+    def copytree(s_, d_, *a, **k):  # Ctrl+C while copying the second example
+        calls.append(s_)
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        return real(s_, d_, *a, **k)
+
+    monkeypatch.setattr(B.shutil, "copytree", copytree)
+    with pytest.raises(KeyboardInterrupt):
+        B.publish(src, images, ["a", "b"], "{}")
+    assert (images / "a" / "x.png").read_bytes() == b"old" and (images / "b" / "x.png").read_bytes() == b"old"
+    assert sorted(p.name for p in images.iterdir()) == ["a", "b"] and not (tmp_path / "data.json").exists()
+
+
+def test_collect_refuses_before_any_analysis_without_file_locks(tmp_path, monkeypatch):
+    import argparse
+    import sys
+
+    B = _builder()
+    label = _fake_collect(B, tmp_path, monkeypatch)
+    label["current"] = b"new"
+    monkeypatch.setitem(sys.modules, "fcntl", None)  # as on Windows
+
+    def no_worker(*a, **k):
+        raise AssertionError("an analysis was started")
+
+    monkeypatch.setattr(B.subprocess, "run", no_worker)
+    assert B.cmd_collect(argparse.Namespace(wiki=str(tmp_path / "wiki"), example=["reconnection"], jobs=1)) == 1

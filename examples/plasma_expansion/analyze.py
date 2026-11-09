@@ -44,7 +44,7 @@ def max_ion_energy(run) -> tuple[np.ndarray, np.ndarray]:
     return sp.t, np.asarray(emax)
 
 
-def analyze(run_dir: str, show_plot: bool = True) -> dict:
+def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
     Te, mi, Z = info["Te"], info["mass_ratio"], info["Z"]
@@ -119,7 +119,7 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
         ax[2].set_ylabel("dN/dE per area")
         ax[2].legend()
         fig.tight_layout()
-        res["plot"] = P.save(fig, os.path.join(run_dir, "expansion.png"))
+        res["plot"] = P.save(fig, os.path.join(fig_dir or run_dir, "expansion.png"))
     return res
 
 

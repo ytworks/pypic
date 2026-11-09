@@ -282,11 +282,13 @@ def collect_example(ex: str, wiki: Path) -> dict:
     results = {}
     for case, d in runs.items():
         kw = {"refined": str(ROOT / run_dir(ex, case, half=True))} if spec["cases"][case].get("refined") else {}
-        res = A.analyze(str(d), show_plot=True, **kw)
+        figs = wiki / "figures" / ex / case  # in this collect's own directory, never in the shared run directory
+        figs.mkdir(parents=True, exist_ok=True)
+        res = A.analyze(str(d), show_plot=True, fig_dir=str(figs), **kw)
         plots = [res.pop("plot")] if "plot" in res else res.pop("plots", [])
         for p in plots:
             name = f"{case}-{Path(p).name}"
-            shutil.copy(p, img / name)
+            shutil.move(p, img / name)
             out["images"][name] = (img / name).stat().st_size
         results[case] = res
         c = spec["cases"][case]
@@ -370,6 +372,12 @@ def cmd_collect(args) -> int:
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
+    try:  # publishing is serialised with POSIX file locks: refuse before any analysis where they are missing
+        import fcntl  # noqa: F401
+    except ImportError:
+        print("collect needs POSIX file locks (fcntl): run it on Linux or macOS; render works anywhere",
+              file=sys.stderr)
+        return 1
     from pypic.provenance import code_state
 
     state = code_state(ROOT)  # the code the analysis runs with, checked again before anything is written
@@ -403,8 +411,13 @@ def _collect(args, names, wiki, work, base, state, code_state) -> int:
     collected = {ex: json.loads((work / f"{ex}.json").read_text()) for ex in names}
     import fcntl
 
-    with open(base / "publish.lock", "w") as lock:  # one publish at a time: images and data.json together
+    # one publish at a time: the source checkout's lock guards data.json, the wiki's lock guards its images
+    # against a collect from another checkout publishing into the same wiki (always taken in this order)
+    wiki.mkdir(parents=True, exist_ok=True)
+    wiki_lock = (wiki / ".git" if (wiki / ".git").is_dir() else wiki) / "build_wiki.lock"
+    with open(base / "publish.lock", "w") as lock, open(wiki_lock, "w") as wlock:
         fcntl.flock(lock, fcntl.LOCK_EX)
+        fcntl.flock(wlock, fcntl.LOCK_EX)
         data = json.loads(DATA.read_text()) if DATA.exists() else {"examples": {}}
         try:
             data = merge_collected(data, collected, state, code_state(ROOT), dt.date.today().isoformat())
@@ -420,8 +433,8 @@ def _collect(args, names, wiki, work, base, state, code_state) -> int:
 def publish(src: Path, images: Path, names: list[str], data_text: str) -> None:
     """Replace images/<example> of every collected example and data.json, all or nothing: each new set is
     first copied next to its destination (same file system), then swapped in by renames; data.json is
-    written to a temporary file and renamed. On any failure the renames are undone and the old images
-    stay."""
+    written to a temporary file and renamed. On any failure, an interrupt (Ctrl+C) included, the renames
+    are undone and the old images stay."""
     swapped = []  # (destination, old copy or None)
     try:
         for ex in names:
@@ -439,7 +452,7 @@ def publish(src: Path, images: Path, names: list[str], data_text: str) -> None:
         tmp = DATA.with_name(DATA.name + ".tmp")
         tmp.write_text(data_text)
         os.replace(tmp, DATA)
-    except OSError:
+    except BaseException:  # KeyboardInterrupt too: restore, then let it propagate
         for dst, old in reversed(swapped):
             if dst.exists():
                 dst.rename(dst.with_name(f".{dst.name}.failed"))

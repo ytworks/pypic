@@ -25,7 +25,7 @@ from pypic.analysis.particles import fit_power_law, parallel_perpendicular_work,
 from pypic.profiles import evaluate  # noqa: E402
 
 
-def analyze(run_dir: str, show_plot: bool = True) -> dict:
+def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
     B0 = info["B0"]
@@ -83,7 +83,7 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
         ax[1].legend()
         P.spectrum_plot(ax[2], G - 1.0, f, label=f"t={sp.t[-1]:.0f}", fit=pl, xlabel=r"$\gamma - 1$")
         fig.tight_layout()
-        res["plot"] = P.save(fig, os.path.join(run_dir, "reconnection.png"))
+        res["plot"] = P.save(fig, os.path.join(fig_dir or run_dir, "reconnection.png"))
     return res
 
 

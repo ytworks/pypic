@@ -59,7 +59,7 @@ def _sheet_frequencies(tr, info, t_max, n_max=600):
     return np.array(out)
 
 
-def analyze(run_dir: str, show_plot: bool = True) -> dict:
+def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
     case = info["case"]
@@ -163,7 +163,7 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     g = s["gauss"][np.isfinite(s["gauss"])]
     res["gauss_max"] = float(g.max()) if g.size else float("nan")
     if show_plot:
-        res["plots"] = [P.save(f, os.path.join(run_dir, f"{name}.png")) for name, f in figs]
+        res["plots"] = [P.save(f, os.path.join(fig_dir or run_dir, f"{name}.png")) for name, f in figs]
     else:
         for _, f in figs:
             P.plt.close(f)

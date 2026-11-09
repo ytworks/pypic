@@ -20,7 +20,7 @@ from pypic.analysis import open_run
 from pypic.analysis import plot as P
 
 
-def analyze(run_dir: str, show_plot: bool = True) -> dict:
+def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
     md = run.series("modes")
@@ -85,7 +85,7 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
                     xlabel="y [c/ωpe]", ylabel="z [c/ωpe]")
         ax[2].set_title(f"B_z at t={sl.t[i_pk]:.1f} (magnetic peak)")
         fig.tight_layout()
-        res["plot"] = P.save(fig, os.path.join(run_dir, "filamentation.png"))
+        res["plot"] = P.save(fig, os.path.join(fig_dir or run_dir, "filamentation.png"))
     return res
 
 
