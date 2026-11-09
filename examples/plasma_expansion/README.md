@@ -33,3 +33,13 @@ python examples/plasma_expansion/analyze.py output/plasma_expansion/isothermal_h
   - Collisionless electrons are not the model's ideal isothermal (Boltzmann, infinite heat bath) electrons: the expanding region is cooler than the slab.
   - All the deviations are consistent with a ~15 % lower effective T_e there.
   - The offset is unchanged by Δx = λ_D/2, 2× particles or a 2.5× longer vacuum region, so it is not numerical. It grows at m_i/m_e = 100 (E_max −18 %), as expected when v_front approaches v_te.
+
+## Production result (8 GPUs, recorded in `bench/results/`)
+
+`isothermal_hydrogen_long.yaml` runs to τ = 30 with a slab of 400 λ_D:
+- E_max −12 % (median over 2 ≤ τ ≤ 30); −17 % at τ = 30 (0.278 vs 0.335 m_ec²);
+- front position −6 %;
+- self-similar velocity profile 9.6 %;
+- global T_e −3 %.
+
+The offset from the isothermal model stays at the same level from τ = 10 to 30, consistent with a cooler effective electron temperature in the expanding region rather than a growing error.

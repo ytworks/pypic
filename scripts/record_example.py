@@ -5,8 +5,8 @@ results are reported rather than gated) as evidence in bench/results/.
     python scripts/record_example.py output/relativistic_shock/pair_2d_long
 
 The example's own analyze.py runs on the output directory (in a separate interpreter); its result,
-the run's provenance from run.json (code commit at run time, dirty flag, GPUs, wall time) and the
-configuration are written to bench/results/<date>-<commit>-example-<example>-<config>.json and
+the run's provenance from run.json (code commit at run time, dirty flag, GPUs, wall time), the commit
+of the analysis code and the configuration are written to bench/results/<date>-<commit>-example-<example>-<config>.json and
 listed in bench/results/index.json with type "example" (validated by verify_bench_results.py).
 """
 from __future__ import annotations
@@ -48,7 +48,11 @@ def main() -> int:
     dirty = commit_full.endswith("-dirty")
     commit = commit_full.removesuffix("-dirty")
     date = dt.date.today().isoformat()
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    an_dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no", "examples", "pypic"],
+                                   cwd=ROOT, capture_output=True, text=True).stdout.strip())
     record = {"type": "example", "date": date, "commit": commit, "dirty": dirty, "gpus": info.get("world_size"),
+              "analysis_commit": head + ("-dirty" if an_dirty else ""),
               "gpu_name": info.get("gpu_name"), "example": example, "config": config, "params": meta.get("params"),
               "run": meta.get("run", {}), "passed": result.get("passed"), "metrics": result, "note": a.note}
     fname = f"{date}-{commit[:9]}{'-dirty' if dirty else ''}-example-{example}-{config}.json"

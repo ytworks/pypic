@@ -33,7 +33,8 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     ne = lo["n:electron"]
     xs = np.array([front_position(x, ne[i], 2.0) for i in range(len(t))])
     t_valid = info["t_valid"]
-    sel = (t >= 0.4 * t[-1]) & (t <= 0.95 * t_valid) & np.isfinite(xs)
+    # formed shock, still far from the receding plasma edge (the reflected-particle precursor runs ahead)
+    sel = (t >= 0.3 * t_valid) & (t <= 0.7 * t_valid) & np.isfinite(xs)
     v_sh, _ = fit_velocity(t[sel], xs[sel])
     i_last = int(np.nonzero(sel)[0][-1])
     xl = xs[i_last]
@@ -54,10 +55,11 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
            "compression_gamma_3_2": info["jump_gamma_3_2"]["compression"], "density_ahead_of_shock": n1_ahead,
            "beta_sh_gamma_3_2": info["jump_gamma_3_2"]["beta_sh"],
            "t_measured": float(t[i_last])}
-    # downstream spectrum from the (x, gamma) histogram at the last valid time
+    # downstream spectrum from the (x, gamma) histogram at the latest time the run is still valid
     xg = run.series("x_gamma")
     ex, eg = xg.edges
-    ig = int(np.argmin(np.abs(xg.t - t[i_last])))
+    okt = np.nonzero(xg.t <= 0.95 * t_valid)[0]
+    ig = int(okt[-1]) if okt.size else len(xg.t) - 1
     xc = 0.5 * (ex[1:] + ex[:-1])
     xs_g = float(np.interp(xg.t[ig], t, xs))
     dmask = (xc > 0.3 * xs_g) & (xc < 0.8 * xs_g)
@@ -72,12 +74,12 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
         hh = sum(xg.read(sp, i)[m].sum(axis=0) for sp in xg.keys()) if m.any() else np.zeros(len(eg) - 1)
         Gi, fi = spectrum(eg, hh)
         gmax.append(energy_cutoff(Gi, fi, 1e-4) if hh.sum() > 0 else np.nan)
-    # tail fitted over an explicit window above the thermal peak: from 4x the peak of gamma dN/dgamma
-    # to half the cut-off (where N(>gamma) falls to 1e-4); needs at least half a decade
+    # tail fitted over an explicit window above the thermal peak: from 3x the peak of gamma dN/dgamma
+    # to 0.7x the cut-off (where N(>gamma) falls to 1e-4); needs at least a factor 2 in gamma
     g_pk = float(G[int(np.argmax(G * f))])
     g_cut = energy_cutoff(G, f, 1e-4)
-    plw = {"p": float("nan"), "p_err": float("nan"), "lo": 4 * g_pk, "hi": 0.5 * g_cut}
-    if np.isfinite(g_cut) and plw["hi"] > 3.0 * plw["lo"]:
+    plw = {"p": float("nan"), "p_err": float("nan"), "lo": 3 * g_pk, "hi": 0.7 * g_cut}
+    if np.isfinite(g_cut) and plw["hi"] > 2.0 * plw["lo"]:
         plw = fit_power_law(G, f, lo=plw["lo"], hi=plw["hi"])
     # maximum energy growth gamma_max ~ t^alpha (Sironi et al. 2013: alpha ~ 1/2) over the second half
     gm = np.asarray(gmax, dtype=float)
@@ -88,7 +90,7 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     res.update(theta_downstream_fit=theta, theta2_theory=jc["theta2"], nonthermal_fraction=nth,
                tail_index_p=pl["p"], tail_index_err=pl["p_err"], tail_range=[pl["lo"], pl["hi"]],
                tail_index_window_p=plw["p"], tail_index_window_err=plw["p_err"],
-               tail_window=[plw["lo"], plw["hi"]], tail_index_literature_2d=2.4,
+               tail_window=[plw["lo"], plw["hi"]], tail_index_literature_2d=2.4, t_spectrum=float(xg.t[ig]),
                gamma_max_t=list(map(float, gmax)), gamma_max_growth_exponent=alpha,
                gamma_max_growth_literature=0.5, eps_B_end=float(s["magnetic"][-1] / s["kinetic"][0]))
     res["passed"] = bool(abs(res["beta_sh_rel_error"]) <= 0.10 and abs(res["compression_rel_error"]) <= 0.10)

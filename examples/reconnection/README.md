@@ -29,3 +29,13 @@ python examples/reconnection/analyze.py output/reconnection/pair_sigma10 --movie
   - the magnetic energy converted;
   - the power-law index;
   - the share of the work done by E∥ on the 1 % most energetic tracked electrons.
+
+## Production result (8 GPUs, recorded in `bench/results/`)
+
+`pair_sigma10_large.yaml` runs a 400 × 200 c/ω_pe box to t = 2000 with 10⁸ particles:
+- **power law**: dN/dγ ∝ γ^−p with p = 2.15 ± 0.03 over σ/2 ≤ γ−1 ≤ 5σ, against 1.9 + 0.7/√σ = 2.12 (Werner et al. 2016), a 1.3 % difference;
+- **reconnection rate**: 0.080 v_A on average over the active phase, with a peak of 0.19 from the initial tearing and a second burst from plasmoid mergers at t ≈ 1000;
+- **energy**: 77 % of the magnetic energy is converted;
+- **acceleration channel**: the 1 % most energetic tracked electrons gained essentially nothing from E∥ (share ≈ 0); their energy came from E⊥, the motional field of the outflows and plasmoids. The tracks are sampled every 2.5 ω_pe⁻¹, so this split is indicative.
+
+The small gate box (100 × 100, t = 400) gives p = 2.4: the power law needs the larger system and the longer time.
