@@ -53,7 +53,9 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     G, f = spectrum(sp.edges[0], sum(sp.read(k, -1) for k in sp.keys()))
     sig = info["sigma"]
     pl = fit_power_law(G - 1.0, f, lo=0.5 * sig, hi=5.0 * sig)  # the non-thermal range of sigma-scaling studies
+    active = np.isfinite(rate) & (rate > 0.02)  # times when flux is being reconnected
     res = {"equilibrium_max_dev_over_B0": dev, "reconnection_rate_peak": float(np.nanmax(rate)),
+           "reconnection_rate_mean_active": float(np.mean(rate[active])) if active.any() else float("nan"),
            "reconnection_rate_literature": 0.1, "magnetic_energy_converted": float(1 - eb[-1] / eb[0]),
            "power_law_index": pl["p"], "power_law_err": pl["p_err"], "power_law_range": [pl["lo"], pl["hi"]],
            "werner2016_index": info["werner_index"]}

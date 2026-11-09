@@ -72,10 +72,25 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
         hh = sum(xg.read(sp, i)[m].sum(axis=0) for sp in xg.keys()) if m.any() else np.zeros(len(eg) - 1)
         Gi, fi = spectrum(eg, hh)
         gmax.append(energy_cutoff(Gi, fi, 1e-4) if hh.sum() > 0 else np.nan)
+    # tail fitted over an explicit window above the thermal peak: from 4x the peak of gamma dN/dgamma
+    # to half the cut-off (where N(>gamma) falls to 1e-4); needs at least half a decade
+    g_pk = float(G[int(np.argmax(G * f))])
+    g_cut = energy_cutoff(G, f, 1e-4)
+    plw = {"p": float("nan"), "p_err": float("nan"), "lo": 4 * g_pk, "hi": 0.5 * g_cut}
+    if np.isfinite(g_cut) and plw["hi"] > 3.0 * plw["lo"]:
+        plw = fit_power_law(G, f, lo=plw["lo"], hi=plw["hi"])
+    # maximum energy growth gamma_max ~ t^alpha (Sironi et al. 2013: alpha ~ 1/2) over the second half
+    gm = np.asarray(gmax, dtype=float)
+    tg = xg.t
+    okg = np.isfinite(gm) & (tg >= 0.5 * tg[-1]) & (tg <= t_valid)
+    alpha = float(np.polyfit(np.log(tg[okg]), np.log(gm[okg]), 1)[0]) if okg.sum() >= 4 else float("nan")
     s = run.scalars
     res.update(theta_downstream_fit=theta, theta2_theory=jc["theta2"], nonthermal_fraction=nth,
                tail_index_p=pl["p"], tail_index_err=pl["p_err"], tail_range=[pl["lo"], pl["hi"]],
-               gamma_max_t=list(map(float, gmax)), eps_B_end=float(s["magnetic"][-1] / s["kinetic"][0]))
+               tail_index_window_p=plw["p"], tail_index_window_err=plw["p_err"],
+               tail_window=[plw["lo"], plw["hi"]], tail_index_literature_2d=2.4,
+               gamma_max_t=list(map(float, gmax)), gamma_max_growth_exponent=alpha,
+               gamma_max_growth_literature=0.5, eps_B_end=float(s["magnetic"][-1] / s["kinetic"][0]))
     res["passed"] = bool(abs(res["beta_sh_rel_error"]) <= 0.10 and abs(res["compression_rel_error"]) <= 0.10)
     g = s["gauss"][np.isfinite(s["gauss"])]
     res["gauss_max"] = float(g.max()) if g.size else float("nan")
@@ -91,7 +106,8 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
         ax[1].axhline(jc["compression"] * n1, **P.THEORY, label=f"n2/n1={jc['compression']:.2f}")
         ax[1].set_xlabel("x [c/ωpe]")
         ax[1].legend()
-        P.spectrum_plot(ax[2], G - 1.0, f, label="downstream", fit=pl, xlabel=r"$\gamma - 1$")
+        P.spectrum_plot(ax[2], G, f, label="downstream", fit=plw if np.isfinite(plw["p"]) else None,
+                        xlabel=r"$\gamma$")
         fig.tight_layout()
         res["plot"] = P.save(fig, os.path.join(run_dir, "shock.png"))
     return res

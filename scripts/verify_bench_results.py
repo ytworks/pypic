@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Validate bench/results/index.json against the result files (run on CPU CI).
 
-Every index entry must point to an existing result file whose commit, verdict and gate
-records agree with the entry; every result file must be indexed. This keeps the committed
-GPU evidence (scripts/gpu_gates.py) consistent and reviewable.
+Two record types: "gates" (scripts/gpu_gates.py; the default for entries without a type) and
+"example" (scripts/record_example.py: reported results of example runs, e.g. production
+configurations). Every index entry must point to an existing result file whose commit and
+verdicts agree with the entry; every result file must be indexed. This keeps the committed GPU
+evidence consistent and reviewable.
 """
 from __future__ import annotations
 
@@ -13,7 +15,26 @@ from pathlib import Path
 
 RES = Path(__file__).resolve().parent.parent / "bench" / "results"
 ENTRY_KEYS = {"file", "date", "commit", "dirty", "gpus", "gpu_name", "all_passed"}
+EXAMPLE_KEYS = {"file", "type", "date", "commit", "dirty", "gpus", "gpu_name", "example", "config"}
 GATE_KEYS = {"name", "passed", "metrics", "criteria"}
+
+
+def check_example(e: dict, errors: list, seen: set):
+    missing = EXAMPLE_KEYS - set(e)
+    if missing:
+        errors.append(f"index entry {e.get('file')}: missing keys {sorted(missing)}")
+        return
+    seen.add(e["file"])
+    path = RES / e["file"]
+    if not path.exists():
+        errors.append(f"index entry {e['file']}: file not found")
+        return
+    rec = json.loads(path.read_text())
+    for k in ("type", "commit", "dirty", "gpus", "example", "config"):
+        if rec.get(k) != e[k]:
+            errors.append(f"{e['file']}: {k} differs between index ({e[k]}) and file ({rec.get(k)})")
+    if not isinstance(rec.get("metrics"), dict) or not rec["metrics"]:
+        errors.append(f"{e['file']}: no metrics")
 
 
 def main() -> int:
@@ -25,6 +46,9 @@ def main() -> int:
     index = json.loads(index_path.read_text())
     seen = set()
     for e in index.get("entries", []):
+        if e.get("type", "gates") == "example":
+            check_example(e, errors, seen)
+            continue
         missing = ENTRY_KEYS - set(e)
         if missing:
             errors.append(f"index entry {e.get('file')}: missing keys {sorted(missing)}")
@@ -46,9 +70,10 @@ def main() -> int:
                 errors.append(f"{e['file']}: gate {g.get('name')} missing keys {sorted(GATE_KEYS - set(g))}")
         if rec.get("all_passed") != all(g.get("passed") for g in gates):
             errors.append(f"{e['file']}: all_passed does not match the gate verdicts")
-    for f in RES.glob("*-gpu-gates.json"):
-        if f.name not in seen:
-            errors.append(f"{f.name}: not listed in index.json")
+    for pattern in ("*-gpu-gates.json", "*-example-*.json"):
+        for f in RES.glob(pattern):
+            if f.name not in seen:
+                errors.append(f"{f.name}: not listed in index.json")
     for msg in errors:
         print(msg, file=sys.stderr)
     if not errors:

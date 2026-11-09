@@ -36,3 +36,15 @@ tests); everything that executes kernels runs here. Criteria: `.claude/rules/num
 Wall time and ns/particle/step are recorded per gate but never decide a verdict. For scaling
 studies run `examples/two_stream/run.py` with `--set cells_per_wavelength=64 --set t_end=4`
 on 1/2/4/8 GPUs.
+
+## Production runs (reported, not gated)
+
+Long or large example configurations measure results that are not analytic, such as power-law indices, γ_max(t) and reconnection rates. Run them on a clean commit, then record the analysis:
+
+```bash
+python -m pypic.launch -n 8 examples/relativistic_shock/run.py --config examples/relativistic_shock/configs/pair_2d_long.yaml
+python scripts/record_example.py output/relativistic_shock/pair_2d_long
+```
+
+`record_example.py` writes `bench/results/<date>-<commit>-example-<example>-<config>.json`. The commit, dirty flag and GPU count come from the run's `run.json`. It also adds a `type: example` entry to `index.json`, and CI validates both record types. Commit the record together with any summary in the example's README.
+

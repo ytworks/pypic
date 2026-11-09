@@ -34,6 +34,15 @@ def _git_commit() -> str | None:
         return None
 
 
+def _gpu_name() -> str | None:
+    try:
+        import cupy as cp
+
+        return cp.cuda.runtime.getDeviceProperties(cp.cuda.Device().id)["name"].decode()
+    except Exception:  # noqa: BLE001 - provenance is best effort
+        return None
+
+
 def _bc_names(cfg, particle: bool):
     out = []
     for lo, hi in cfg.boundaries:
@@ -124,7 +133,7 @@ class OutputManager:
         info = {
             "format": "pypic-output-1", "pypic_version": __version__, "git_commit": _git_commit(),
             "created": _dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-            "world_size": sim.comm.size, "dims": list(sim.decomp.dims), "solver": cfg.solver,
+            "world_size": sim.comm.size, "gpu_name": _gpu_name(), "dims": list(sim.decomp.dims), "solver": cfg.solver,
             "dt": cfg.dt, "n_steps": cfg.n_steps, "n_cells": list(cfg.n_cells), "dx": list(cfg.dx),
             "L": list(sim.grid.L), "species": [{"name": s.name, "charge": s.q, "mass": s.m,
                                                 "test": bool(getattr(s, "test", False))} for s in sim.species],
