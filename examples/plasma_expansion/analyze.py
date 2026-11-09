@@ -100,8 +100,8 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
     if show_plot:
         P.style()
         fig, ax = P.plt.subplots(1, 3, figsize=(15, 4.2))
-        ax[0].plot(tau, emax / Te, "o", ms=3, color=P.color(0), label="PIC (max ion energy)")
-        ax[0].plot(tau, eth / Te, **P.THEORY, label="Mora 2003")
+        ax[0].plot(tau, emax / (Z * Te), "o", ms=3, color=P.color(0), label="PIC (max ion energy)")
+        ax[0].plot(tau, eth / (Z * Te), **P.THEORY, label="Mora 2003")
         ax[0].set_xlabel(r"$\tau = \omega_{pi} t / \sqrt{2e}$")
         ax[0].set_ylabel(r"$E_{max} / Z T_e$")
         ax[0].legend()
@@ -112,9 +112,9 @@ def analyze(run_dir: str, show_plot: bool = True) -> dict:
         ax[1].set_ylabel(r"$x_f / \lambda_{D0}$")
         ax[1].legend()
         ok = f > 0
-        ax[2].loglog(E[ok] / Te, f[ok], color=P.color(0), label=f"PIC, τ={tau[-1]:.1f}")
+        ax[2].loglog(E[ok] / (Z * Te), f[ok], color=P.color(0), label=f"PIC, τ={tau[-1]:.1f}")
         okt = f_th > 0
-        ax[2].loglog(E[okt] / Te, f_th[okt], **P.THEORY, label="Mora 2003")
+        ax[2].loglog(E[okt] / (Z * Te), f_th[okt], **P.THEORY, label="Mora 2003")
         ax[2].set_xlabel(r"$E / Z T_e$")
         ax[2].set_ylabel("dN/dE per area")
         ax[2].legend()
@@ -130,6 +130,7 @@ class MoraPanel:
     def __init__(self, run):
         info = run.meta["planner"]
         self.Te, mi, Z = info["Te"], info["mass_ratio"], info["Z"]
+        self.ZTe = Z * self.Te  # the axis unit, Z T_e
         self.t, self.emax = max_ion_energy(run)
         self.tau = T.tau(self.t, self.Te, mi, Z)
         self.eth = T.max_energy(self.t, self.Te, mi, Z)
@@ -141,10 +142,10 @@ class MoraPanel:
         pass
 
     def init(self, ax):
-        ax.plot(self.tau, self.eth / self.Te, **P.THEORY, label="Mora 2003 (isothermal)")
+        ax.plot(self.tau, self.eth / self.ZTe, **P.THEORY, label="Mora 2003 (isothermal)")
         (self.line,) = ax.plot([], [], "o", ms=3, color=P.color(0), label="PIC")
         ax.set_xlim(0, self.tau[-1] * 1.02)
-        ax.set_ylim(0, 1.1 * float(np.nanmax(self.eth / self.Te)))
+        ax.set_ylim(0, 1.1 * float(np.nanmax(self.eth / self.ZTe)))
         ax.set_xlabel(r"$\tau = \omega_{pi} t / \sqrt{2e}$")
         ax.set_ylabel(r"$E_{max} / Z T_e$")
         ax.set_title("maximum ion energy")
@@ -152,7 +153,7 @@ class MoraPanel:
 
     def update(self, t):
         i = max(0, int(np.searchsorted(self.t, t + 1e-9, side="right")) - 1)
-        self.line.set_data(self.tau[: i + 1], self.emax[: i + 1] / self.Te)
+        self.line.set_data(self.tau[: i + 1], self.emax[: i + 1] / self.ZTe)
 
 
 def movie(run_dir: str, out: str | None = None, fps: int = 15, n_frames: int = 100,

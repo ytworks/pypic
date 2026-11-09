@@ -38,4 +38,9 @@
   コミット・run id・GPU を載せています。
 - `python scripts/build_wiki.py run` で未実行の設定を実行し、`collect` で全 run を解析し（図、GIF、数値を
   `docs/wiki/data.json` へ）、`render` で `docs/wiki/` のページテンプレートを埋めます。
+- 各手順に必要なもの: `render` はチェックイン済みの `docs/wiki/data.json` とテンプレートだけで動きます。`run` が
+  作るのはゲート規模の新規 run だけです。`collect` は記録済みの本番 run も読みますが、その出力ディレクトリ（各
+  ページの「データの出所」の表に記載）は git に入っていないので、計算したマシンから `output/` にコピーして
+  ください。`collect` は記録済みの各ディレクトリを evidence の記録（run id、またはコミットと計算時間）と照合し、
+  欠けている場合や別の run の場合は停止します。
 - 単位はすべて規格化単位です: c = ε₀ = 1、長さは c/ω_pe、時間は 1/ω_pe、運動量は u = γv/c、温度は θ = T/(mc²)。

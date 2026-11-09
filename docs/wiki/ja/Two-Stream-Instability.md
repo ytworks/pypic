@@ -134,6 +134,9 @@ python examples/two_stream/analyze.py output/wiki/two_stream/ei --movie
 
 この wiki のすべての run・図・ページは `python scripts/build_wiki.py run`、続けて `collect` と `render` で
 作り直せます（[`scripts/build_wiki.py`](https://github.com/ytworks/pypic/blob/main/scripts/build_wiki.py) 参照）。
+`run` が作るのはゲート規模の新規 run だけです。`collect` には他のページの記録済み本番 run の出力も必要で、
+これは git に入っていません（[ホーム](Home-ja#ページの作り方) 参照）。`render` だけならチェックイン済みの
+`docs/wiki/data.json` から実行できます。
 
 ## データの出所
 

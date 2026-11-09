@@ -10,13 +10,21 @@ Every number, chart and animation on a page comes from a run's own output: nothi
                                                                #   numbers -> docs/wiki/data.json
     python scripts/build_wiki.py render --wiki ../pypic.wiki   # pages from docs/wiki/{en,ja} + data.json
 
+What each step needs:
+    render   only the checked-in docs/wiki/data.json and templates (the images already in the wiki stay valid).
+    collect  the output of every run: the fresh runs that `run` makes, and the recorded production runs
+             (EXAMPLES[...]["cases"] with a "path"). Their output directories are not in git: copy them into
+             output/ from the machine that made them. collect checks each one against its evidence record in
+             bench/results/ (run id, or commit and wall time for records older than run ids) and stops if
+             one is missing or is a different run.
+
 Templates (docs/wiki/en/<Page>.md, docs/wiki/ja/<Page>.md; the Japanese page is published as <Page>-ja)
 use {{ ... }} placeholders:
     {{ r.<case>.<key>[.<index>] | <filter> | <format spec> }}   analysis result of a case
     {{ c.<case>.<key> }}, {{ p.<case>.<key> }}                  conditions, provenance of a case
     {{ <example>:r.<case>.<key> }}                              the same, from another example (Home)
     {{ table:conditions }}, {{ table:params }}, {{ table:provenance }}
-filters: abs, neg; the format spec is a Python one (".3f", "+.1%", ".1e"); a missing key is an error.
+filters: abs, neg, half; the format spec is a Python one (".3f", "+.1%", ".1e"); a missing key is an error.
 """
 from __future__ import annotations
 
@@ -45,8 +53,8 @@ def fresh(config: str, gpus: int = 4, refined: bool = False) -> dict:
     return {"config": config, "gpus": gpus, "refined": refined}
 
 
-def recorded(path: str, note: str) -> dict:
-    return {"path": path, "note": note}
+def recorded(path: str, evidence: str) -> dict:
+    return {"path": path, "evidence": evidence}
 
 
 # example -> page, title, cases (fresh runs of a config, or recorded production runs), animations, summary chart
@@ -280,7 +288,7 @@ def collect_example(ex: str, wiki: Path) -> dict:
             out["images"][name] = (img / name).stat().st_size
         results[case] = res
         c = spec["cases"][case]
-        out["cases"][case] = {"source": "recorded" if "path" in c else "fresh", "evidence": c.get("note"),
+        out["cases"][case] = {"source": "recorded" if "path" in c else "fresh", "evidence": c.get("evidence"),
                               "results": _clean(res), "conditions": _clean(conditions(d)),
                               "provenance": provenance(d)}
         if c.get("refined"):
@@ -308,9 +316,40 @@ def collect_example(ex: str, wiki: Path) -> dict:
     return out
 
 
+def check_recorded(ex: str, case: str, c: dict) -> str | None:
+    """None when the output directory of a recorded case is the run of its evidence record, else why not."""
+    d = ROOT / c["path"]
+    try:
+        run = json.loads((d / "run.json").read_text())
+    except (OSError, ValueError):
+        return (f"{ex}:{case}: no run output at {c['path']} (the run of {c['evidence']}); copy that run's "
+                f"output directory there")
+    ev = json.loads((ROOT / c["evidence"]).read_text())
+    config = Path(run["meta"].get("config_file", "")).stem
+    if ev.get("example") != ex or ev.get("config") != config:
+        return f"{ex}:{case}: {c['path']} is config {config!r}, the evidence is {ev.get('example')}:{ev.get('config')}"
+    if ev.get("run_id"):
+        same = run.get("run_id") == ev["run_id"]
+    else:  # records made before run ids: the commit and the wall time identify the run
+        same = (run.get("run_id") is None and (run.get("git_commit") or "").removesuffix("-dirty") == ev["commit"]
+                and run["meta"].get("run", {}).get("wall_time_s") == ev["run"]["wall_time_s"])
+    if not same:
+        return (f"{ex}:{case}: {c['path']} is not the run of {c['evidence']} (run id "
+                f"{run.get('run_id')}, commit {run.get('git_commit')}); restore that run's output")
+    return None
+
+
 def cmd_collect(args) -> int:
     wiki = Path(args.wiki).resolve()
     names = [e for e in EXAMPLES if not args.example or e in args.example]
+    problems = [m for ex in names for case, c in EXAMPLES[ex]["cases"].items() if "path" in c
+                for m in [check_recorded(ex, case, c)] if m]
+    problems += [f"{ex}:{case}: no fresh run at {run_dir(ex, case)}; run `build_wiki.py run` first"
+                 for ex in names for case, c in EXAMPLES[ex]["cases"].items()
+                 if "config" in c and not _complete(ROOT / run_dir(ex, case))]
+    if problems:
+        print("\n".join(problems), file=sys.stderr)
+        return 1
     tmp = ROOT / "output" / "wiki" / "_collect"
     tmp.mkdir(parents=True, exist_ok=True)
 
@@ -329,13 +368,15 @@ def cmd_collect(args) -> int:
                 print(r.stderr[-4000:], file=sys.stderr)
     if failed:
         return 1
-    data = json.loads(DATA.read_text()) if DATA.exists() else {"examples": {}}
-    for ex in names:
-        data["examples"][ex] = json.loads((tmp / f"{ex}.json").read_text())
     from pypic.provenance import commit_label
 
-    data["generated"] = dt.date.today().isoformat()
-    data["analysis_commit"] = commit_label(ROOT)
+    data = json.loads(DATA.read_text()) if DATA.exists() else {"examples": {}}
+    commit, today = commit_label(ROOT), dt.date.today().isoformat()
+    for ex in names:  # each example keeps the commit and date of its own analysis
+        data["examples"][ex] = {**json.loads((tmp / f"{ex}.json").read_text()),
+                                "analysis_commit": commit, "generated": today}
+    data.pop("analysis_commit", None)
+    data.pop("generated", None)
     data["examples"] = {ex: data["examples"][ex] for ex in EXAMPLES if ex in data["examples"]}
     DATA.write_text(json.dumps(data, indent=1, ensure_ascii=False, allow_nan=False) + "\n")
     print(f"wrote {DATA.relative_to(ROOT)}")
@@ -485,6 +526,8 @@ def _format(v, filters: list[str]) -> str:
             v = abs(v)
         elif f == "neg":
             v = -v
+        elif f == "half":
+            v = v / 2
         else:
             return "—" if v is None else format(v, f)
     if v is None:
@@ -519,11 +562,18 @@ def sidebar(data: dict) -> str:
 
 
 def footer(data: dict) -> str:
-    c = data["analysis_commit"]
+    return ("Generated by [`scripts/build_wiki.py`](https://github.com/ytworks/pypic/blob/main/scripts/build_wiki.py) "
+            "from the runs' own output. 自動生成ページ：数値・図・動画はすべて計算結果から生成しています。\n")
+
+
+def page_stamp(ex: dict, lang: str) -> str:
+    """The analysis commit and date of one example's data, appended to its pages."""
+    c = ex["analysis_commit"]
     short = c[:9] + ("-dirty" if c.endswith("-dirty") else "")
-    return (f"Generated by `scripts/build_wiki.py` from the runs' own output (analysis commit "
-            f"`{short}`, {data['generated']}). "
-            f"自動生成ページ：数値・図・動画はすべて計算結果から生成しています。\n")
+    if lang == "ja":
+        return (f"\n---\n*この記事の数値・図・動画はコミット `{short}` の解析コードで "
+                f"{ex['generated']} に生成しました。*\n")
+    return f"\n---\n*Numbers, charts and animations of this article: analysis commit `{short}`, {ex['generated']}.*\n"
 
 
 def render(data: dict, out: Path) -> list[str]:
@@ -538,6 +588,8 @@ def render(data: dict, out: Path) -> list[str]:
             if page != "Home" and ex_name is None:
                 raise ValueError(f"template {tpl} names no example page")
             text = render_text(tpl.read_text(), data, ex_name, lang)
+            if ex_name:
+                text += page_stamp(data["examples"][ex_name], lang)
             name = page_name(page, lang) + ".md"
             (out / name).write_text(text)
             written.append(name)

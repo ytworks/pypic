@@ -143,6 +143,9 @@ python examples/two_stream/analyze.py output/wiki/two_stream/ei --movie
 
 All the runs, charts and pages of this wiki: `python scripts/build_wiki.py run`, then `collect` and
 `render` (see [`scripts/build_wiki.py`](https://github.com/ytworks/pypic/blob/main/scripts/build_wiki.py)).
+`run` makes only the fresh gate-size runs; `collect` also needs the output of the recorded production runs
+of the other pages, which is not in git (see [Home](Home#how-the-pages-are-made)). `render` alone works from
+the checked-in `docs/wiki/data.json`.
 
 ## Data provenance
 

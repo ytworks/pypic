@@ -124,30 +124,49 @@ def flux_maps(run_dir: str):
     return run, sl, xa, ya, A
 
 
-def null_points(A: np.ndarray, xa: np.ndarray, ya: np.ndarray, y_sheet: float, half_width: float,
-                prominence: float) -> tuple[list, list]:
-    """X and O points of one current sheet: along the sheet the field line B_x = dA/dy = 0 is followed
-    (the extremum of A across the band |y - y_sheet| < half_width in every column); the extrema of A along
-    that line are X points where A is a saddle and O points (island centres) where it is an extremum."""
-    from scipy.signal import find_peaks
-
+def null_line(A: np.ndarray, ya: np.ndarray, y_sheet: float, half_width: float):
+    """(a, y, valid, across_max) on the magnetic null line B_x = dA/dy = 0 of one current sheet: the extremum
+    of A across the band |y - y_sheet| < half_width in every column. ``valid`` is False where that extremum
+    lies on the band edge: the null line has left the band and the column has no stationary point."""
     band = np.nonzero(np.abs(ya - y_sheet) < half_width)[0]
     sub = A[:, band]
     mid = sub[:, len(band) // 2]
     # across the sheet A has a maximum or a minimum on the null line, the same kind everywhere
-    across_max = np.median(sub.max(axis=1) - mid) < np.median(mid - sub.min(axis=1))
+    across_max = bool(np.median(sub.max(axis=1) - mid) < np.median(mid - sub.min(axis=1)))
     j = np.argmax(sub, axis=1) if across_max else np.argmin(sub, axis=1)
-    a = sub[np.arange(len(xa)), j]
-    yl = ya[band][j]
+    a = sub[np.arange(sub.shape[0]), j]
+    valid = (j > 0) & (j < len(band) - 1)
+    return a, ya[band][j], valid, across_max
+
+
+def null_points(A: np.ndarray, xa: np.ndarray, ya: np.ndarray, y_sheet: float, half_width: float,
+                prominence: float) -> tuple[list, list]:
+    """X and O points of one current sheet: the extrema of A along its null line (``null_line``) are
+    X points where A is a saddle and O points (island centres) where A is an extremum in both directions.
+    Candidates on the edge of the search band are not stationary points and are dropped."""
+    from scipy.signal import find_peaks
+
+    a, yl, valid, across_max = null_line(A, ya, y_sheet, half_width)
     n = len(a)
     ext = np.concatenate([a, a, a])  # periodic in x
     hi, _ = find_peaks(ext, prominence=prominence)
     lo, _ = find_peaks(-ext, prominence=prominence)
-    hi = [i - n for i in hi if n <= i < 2 * n]
-    lo = [i - n for i in lo if n <= i < 2 * n]
+    hi = [i - n for i in hi if n <= i < 2 * n and valid[i - n]]
+    lo = [i - n for i in lo if n <= i < 2 * n and valid[i - n]]
     # an extremum of the same kind as across the sheet is an O point; the opposite kind is an X point
     o_idx, x_idx = (hi, lo) if across_max else (lo, hi)
     return [(xa[i], yl[i]) for i in x_idx], [(xa[i], yl[i]) for i in o_idx]
+
+
+def xo_flux(A: np.ndarray, ya: np.ndarray, y_sheet: float, half_width: float) -> float:
+    """Reconnected flux of one sheet measured between its X and O points: the range of A along the null
+    line, i.e. A at the main O point minus A at the deepest X point (0 for the unperturbed sheet)."""
+    a, _, valid, _ = null_line(A, ya, y_sheet, half_width)
+    return float(a[valid].max() - a[valid].min()) if valid.any() else float("nan")
+
+
+def _half_width(info: dict) -> float:
+    return 4 * info["delta"] + 6.0
 
 
 def _levels(A0: np.ndarray, n: int = 26) -> np.ndarray:
@@ -163,7 +182,7 @@ def _draw_field(ax, data, A, xa, ya, levels, info, vlim, label, signed=True, ste
     marks = []
     prom = 0.02 * float(levels[-1] - levels[0])
     for ys in info["y_sheets"]:
-        xs, os_ = null_points(A, xa, ya, ys, 4 * info["delta"] + 6.0, prom)
+        xs, os_ = null_points(A, xa, ya, ys, _half_width(info), prom)
         if xs:
             marks += ax.plot(*zip(*xs), "x", ms=7, mew=2, color="#eda100", label=None)
         if os_:
@@ -178,7 +197,7 @@ def fieldlines(run_dir: str, path: str, n_snap: int = 6) -> str:
     run, sl, xa, ya, A = flux_maps(run_dir)
     info = run.meta["planner"]
     t = sl.t
-    psi = np.array([_psi(a, xa, ya, info["y_sheets"][0]) for a in A])
+    psi = np.array([xo_flux(a, ya, info["y_sheets"][0], _half_width(info)) for a in A])
     i_pk = int(np.argmax(np.gradient(psi, t)))
     # snapshots where the reconnected flux reaches given fractions of its final value
     fr = np.linspace(0.15, 0.9, n_snap - 2)
@@ -195,7 +214,7 @@ def fieldlines(run_dir: str, path: str, n_snap: int = 6) -> str:
         ax.set_title(f"t = {t[i]:.0f} / ω_pe,  Ψ = {psi[i] / psi[-1]:.0%} of final"
                      + ("  (peak rate)" if i == i_pk else ""))
     ax = fig.add_subplot(gs[2, :])
-    ax.plot(t, psi / (info["B0"] * info["Lx"]), color=P.color(0), label="reconnected flux Ψ (lower sheet)")
+    ax.plot(t, psi / (info["B0"] * info["Lx"]), color=P.color(0), label="reconnected flux Ψ = A(O) − A(X), lower sheet")
     for i in picks:
         ax.axvline(t[i], color=P.INK["muted"], lw=0.8, ls=":")
     ax.set_xlabel(r"$\omega_{pe} t$")
@@ -206,12 +225,6 @@ def fieldlines(run_dir: str, path: str, n_snap: int = 6) -> str:
     ax.legend(loc="lower right")
     fig.tight_layout()
     return P.save(fig, path, dpi=100)
-
-
-def _psi(A, xa, ya, y_sheet):
-    j = int(np.argmin(np.abs(ya - y_sheet)))
-    line = A[:, j]
-    return float(line.max() - line.min())
 
 
 class FieldLinePanel:
@@ -254,7 +267,7 @@ class FieldLinePanel:
                             colors=P.INK["primary"], linewidths=0.45, alpha=0.75, linestyles="solid")
             prom = 0.02 * float(self.levels[-1] - self.levels[0])
             for ys in self.info["y_sheets"]:
-                xs, os_ = null_points(self.A[i], self.xa, self.ya, ys, 4 * self.info["delta"] + 6.0, prom)
+                xs, os_ = null_points(self.A[i], self.xa, self.ya, ys, _half_width(self.info), prom)
                 if xs:
                     self.ax.plot(*zip(*xs), "x", ms=7, mew=2, color="#eda100")
                 if os_:
@@ -271,7 +284,8 @@ class FluxPanel:
         run, sl, xa, ya, A = flux
         info = run.meta["planner"]
         self.t = sl.t
-        self.psi = np.array([_psi(a, xa, ya, info["y_sheets"][0]) for a in A]) / (info["B0"] * info["Lx"])
+        hw = _half_width(info)
+        self.psi = np.array([xo_flux(a, ya, info["y_sheets"][0], hw) for a in A]) / (info["B0"] * info["Lx"])
 
     def times(self):
         return self.t
@@ -286,7 +300,7 @@ class FluxPanel:
         ax.set_ylim(0, 1.1 * float(self.psi.max()))
         ax.set_xlabel(r"$\omega_{pe} t$")
         ax.set_ylabel(r"$\Psi / (B_0 L_x)$")
-        ax.set_title("reconnected flux (lower sheet)")
+        ax.set_title("reconnected flux A(O) − A(X), lower sheet")
 
     def update(self, t):
         i = max(0, int(np.searchsorted(self.t, t + 1e-9, side="right")) - 1)

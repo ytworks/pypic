@@ -39,5 +39,10 @@ copied by hand.
 - `python scripts/build_wiki.py run` runs the missing configurations, `collect` analyses every run
   (charts, GIFs, numbers into `docs/wiki/data.json`), and `render` fills the page templates of
   `docs/wiki/`.
+- What each step needs: `render` only needs the checked-in `docs/wiki/data.json` and templates. `run`
+  makes only the fresh gate-size runs. `collect` also reads the recorded production runs, whose output
+  directories (listed in each page's provenance table) are not in git: copy them into `output/` from the
+  machine that made them. `collect` checks every recorded directory against its evidence record (run id,
+  or commit and wall time) and stops if one is missing or is another run.
 - Normalised units throughout: c = ε₀ = 1, lengths in c/ω_pe, times in 1/ω_pe, momenta u = γv/c,
   temperatures θ = T/(mc²).

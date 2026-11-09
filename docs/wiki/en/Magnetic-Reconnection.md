@@ -2,8 +2,10 @@
 
 # Relativistic magnetic reconnection
 
-Two thin current sheets separate regions of opposite magnetic field in an electron–positron plasma whose
-magnetic energy is ten times its rest-mass energy (magnetisation σ = {{ c.pair_sigma10.params.sigma }}). The
+Two thin current sheets separate regions of opposite magnetic field in a strongly magnetised
+electron–positron plasma: magnetisation σ = B₀²/(n_b,tot mc²) = {{ c.pair_sigma10.params.sigma }}, so the
+magnetic energy density B₀²/2 is σ/2 = {{ c.pair_sigma10.params.sigma | half }} times the rest-mass energy
+density of the background plasma. The
 sheets tear into chains of magnetic islands (plasmoids), field lines break and reconnect, and the released
 magnetic energy goes into particles, which end up in a power-law spectrum. In the large production box the
 measured power-law index is p = {{ r.pair_sigma10_large.power_law_index | .2f }} and
