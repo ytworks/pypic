@@ -4000,10 +4000,11 @@
     "pair_sigma10_large-reconnection.png": 212163,
     "pair_sigma10_large_run2-reconnection.png": 210073,
     "power_law.png": 36565,
-    "pair_sigma10_large_run2.gif": 6085497
+    "fieldlines.png": 1181538,
+    "pair_sigma10_large_run2.gif": 7265511
    }
   }
  },
  "generated": "2026-11-10",
- "analysis_commit": "a8caa8f69181abbb480ad9bc63d6233ed97b375f-dirty"
+ "analysis_commit": "3c58b46db610b7b03b2593e0a4e407c3ceeed0d4"
 }

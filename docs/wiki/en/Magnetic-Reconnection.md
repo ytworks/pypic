@@ -50,12 +50,36 @@ two sheet beams. A compensated binomial current filter is applied.
 
 `pair_sigma10_large` (second realization, 400 × 200 c/ω_pe, to t = 2000).
 
-- **Top left, J_z**: each current sheet breaks into a chain of plasmoids (islands of current). They move
-  along the sheet, merge into larger ones, and the two sheets end up as a few big magnetic islands.
-- **Top right, electron density**: plasma is swept into the plasmoids, which become dense blobs.
-- **Bottom left, electron spectrum**: from the initial thermal distributions (grey) a hard power-law tail
+The black lines are magnetic field lines: contours of the flux function A_z (B = ∇×(A_z ẑ)), drawn at
+the same levels in every frame. × marks X points, where field lines break and reconnect; ○ marks O points,
+the centres of the magnetic islands (plasmoids).
+
+- **Top left, J_z with field lines**: the straight, antiparallel field lines on both sides of each sheet
+  break at a row of X points and reconnect into closed loops around O points. The islands move along the
+  sheet and merge; field lines keep reconnecting at the X points between them, until each sheet has
+  become one or two big islands.
+- **Top right, electron density with field lines**: the plasma is swept into the islands, which become
+  dense blobs bounded by closed field lines.
+- **Bottom left, reconnected flux Ψ(t)** of the lower sheet: the flux between the O and X points, which
+  grows each time field lines are reconnected.
+- **Bottom right, electron spectrum**: from the initial thermal distributions (grey) a hard power-law tail
   grows to γ ≈ 50 and beyond.
-- **Bottom right, energies**: the magnetic energy falls while the particle kinetic energy rises.
+
+## Field lines and reconnection
+
+![field lines at six times](images/reconnection/fieldlines.png)
+
+`pair_sigma10_large` (second realization). J_z with the field lines (the same contour levels of A_z in
+every panel) at the times when the reconnected flux of the lower sheet reaches 0, 15, 40, 65, 90 and 100 %
+of its final value, and Ψ(t) below with those times marked.
+
+- **t = 0**: the field lines are straight and antiparallel across each sheet: the Harris equilibrium.
+- **Tearing**: the sheets break into a chain of X points (×) and small islands (○); the field lines
+  that crossed at the X points are now closed loops around the islands.
+- **Merging**: neighbouring islands coalesce; the field lines between them reconnect at a new X point, and
+  Ψ rises in steps (bottom).
+- **End**: each sheet is left with a few large islands and few X points; Ψ levels off as the free
+  magnetic energy is used up.
 
 ## Comparison with published results
 
