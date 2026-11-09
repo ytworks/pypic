@@ -241,6 +241,10 @@ class SpectrumPanel(Panel):
         (self.line,) = ax.loglog(self.E, np.where(self.f[0] > 0, self.f[0], np.nan), color=P.color(0), label="t")
         allf = np.concatenate([v[v > 0] for v in self.f])
         ax.set_ylim(max(allf.min(), allf.max() * 1e-12), allf.max() * 3)
+        # x range over every frame (a cold initial spectrum fills one bin and would set it alone)
+        seen = np.any(np.asarray(self.f) > 0, axis=0) | ok
+        if seen.any():
+            ax.set_xlim(self.E[seen].min(), self.E[seen].max())
         ax.set_xlabel(self.xlabel)
         ax.set_ylabel("dN/dE")
         ax.legend(loc="lower left")
@@ -367,7 +371,6 @@ class Movie:
         for p, ax in zip(self.panels, axes.ravel()):
             p.init(ax)
         sup = fig.suptitle(self.title or "", color=P.INK["primary"])
-        fig.tight_layout()
 
         def frame(k):
             t = times[k]
@@ -375,6 +378,9 @@ class Movie:
                 p.update(t)
             sup.set_text(f"{self.title + '   ' if self.title else ''}ω_pe t = {t:.2f}")
             return []
+
+        frame(0)  # the titles of a frame take part in the layout
+        fig.tight_layout()
 
         anim = animation.FuncAnimation(fig, frame, frames=len(times), blit=False)
         writer, path = _writer(path, fps)

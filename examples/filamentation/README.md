@@ -11,7 +11,7 @@ Counter-streaming beams along ±x are unstable to transverse perturbations, k �
 
 | config | set-up | Γ_max (cold) |
 |---|---|---|
-| `pair.yaml` (gate) | electron and positron beams, u₀ = ±0.5 | 0.598 ω_pe |
+| `pair.yaml` (gate) | electron and positron beams, u₀ = ±0.5 | 0.582 ω_pe for the fastest mode in the box (0.598 for k → ∞) |
 | `electron_ion.yaml` | electron beams u₀ = ±1 over ions at rest | — (reported) |
 
 ```bash

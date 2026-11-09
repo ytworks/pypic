@@ -3,7 +3,7 @@ oscillation / wave breaking (Dawson).
 
 cases
     landau        warm electrons, density perturbation n = n0 (1 + alpha cos k x): linear Landau
-                  damping for small alpha (gate: k lambda_De = 0.5, alpha = 0.01)
+                  damping for small alpha (gate: k lambda_De = 0.5, alpha = 0.02)
     nonlinear     the same with large alpha (trapping, O'Neil; e.g. alpha = 0.5)
     dawson        cold electrons started at equilibrium with v = v0 sin(k x0), k v0 < omega_pe:
                   every sheet oscillates at exactly omega_pe with amplitude v0 sin(k x0) / omega_pe

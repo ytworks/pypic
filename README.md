@@ -1,6 +1,6 @@
 # pypic
 
-**English** | [日本語](README.ja.md)
+**English** | [日本語](README.ja.md) | [Wiki: examples with animations and comparison charts](https://github.com/ytworks/pypic/wiki)
 
 pypic is a GPU-accelerated 3-D, special-relativistic, electromagnetic Particle-in-Cell (PIC) engine.
 The hot loops are CUDA C kernels, JIT-compiled through CuPy/NVRTC (no `nvcc` needed); set-up and analysis are in Python.
@@ -112,7 +112,7 @@ Each example has the same structure:
 | [`filamentation`](examples/filamentation) | current filamentation (Weibel) | cold relativistic dispersion | growth 2.2 % (median over modes) |
 | [`particle_orbits`](examples/particle_orbits) | gyration, E×B, hyperbolic, E > B, plane wave (figure 8) | exact relativistic orbits | errors ≤ 0.3 %, second-order convergence (ratio 3.76–4.00) |
 | [`plasma_expansion`](examples/plasma_expansion) | TNSA-type ion acceleration into vacuum | Mora 2003 self-similar solution | velocity profile −8 %, E_max −15 % (kinetic electrons, see README) |
-| [`relativistic_shock`](examples/relativistic_shock) | γ₀ = 15 pair shock, Fermi acceleration | relativistic Rankine–Hugoniot (Synge gas) | β_sh −8 %, n₂/n₁ +4.6 % |
+| [`relativistic_shock`](examples/relativistic_shock) | γ₀ = 15 pair shock, Fermi acceleration | relativistic Rankine–Hugoniot (Synge gas) | β_sh −5.4 %, n₂/n₁ +2.2 % |
 | [`reconnection`](examples/reconnection) | σ = 10 pair reconnection, plasmoids, power law | Harris equilibrium; published rate and index (empirical) | equilibrium 1.1 % of B₀; rate ≈ 0.1–0.2; p = 2.4 (small box) |
 
 New set-up features these examples use (all engine-level; see `docs/design/engine.md` PIC-D9, PIC-D10):
@@ -252,15 +252,16 @@ The repository is set up for continuous development across sessions, by people a
 
 ## Verification (8× RTX PRO 6000 Blackwell)
 
-These are the 3-D two-stream examples run on 8 GPUs with each configuration's default parameters, as recorded by the GPU gates in `bench/results/2026-11-09-fcbc4ced5-gpu-gates.json`.
+These are the 3-D two-stream examples run on 8 GPUs with each configuration's default parameters, as recorded by the GPU gates in `bench/results/2026-11-10-dded54e12-gpu-gates.json`.
 γ is fitted to the linear growth phase of the mode at k_max. Because e-i-p has ω_r ≠ 0, its fit includes both counter-propagating growing waves.
 
 | Run | Grid / particles | γ_fit | γ_theory | Error | max \|ΔE_tot\|/E₀ | max\|∇·E−ρ\| | max\|∇·B\| |
 |---|---|---|---|---|---|---|---|
-| e-i (explicit) | 128×32×32 / 6.3M | 0.352 | 0.342 | +2.9% | 2.2e-3 | 2.2e-12 | 5.0e-15 |
-| e-p (explicit) | 128×32×32 / 8.4M | 0.460 | 0.468 | −1.8% | 2.4e-3 | 8.7e-13 | 1.0e-14 |
-| e-i-p (explicit) | 128×32×32 / 8.4M | 0.323 | 0.332 | −2.6% | 2.9e-4 | 3.5e-12 | 8.1e-15 |
-| e-i (implicit) | 64×16×16 / 0.8M | 0.354 | 0.342 | +3.5% | **1.9e-10** | 6.0e-13 | 1.4e-15 |
+| e-i (explicit) | 128×32×32 / 6.3M | 0.352 | 0.342 | +3.0% | 2.2e-3 | 2.1e-12 | 4.5e-15 |
+| e-p (explicit) | 128×32×32 / 8.4M | 0.460 | 0.468 | −1.7% | 2.4e-3 | 8.5e-13 | 9.9e-15 |
+| e-i-p (explicit) | 128×32×32 / 8.4M | 0.325 | 0.332 | −2.3% | 2.9e-4 | 3.5e-12 | 8.4e-15 |
+| e-i (implicit) | 64×16×16 / 0.8M | 0.354 | 0.342 | +3.5% | **1.9e-10** | 5.8e-13 | 1.5e-15 |
+| Buneman (explicit) | 128×8×8 / 0.26M | 0.0512 | 0.0537 | −4.7% | 4.4e-3 | 7.5e-12 | 1.5e-14 |
 
 - **Multi-GPU agreement**: 1 GPU vs 2 GPUs (2×1×1, 1×2×1, 1×1×2) and 8 GPUs (4×1×2) agree to a relative difference of about 1e-15, for both solvers and all three boundary types.
 - **Implicit total energy**: conserved to about 1e-13 with periodic, reflecting and open boundaries (the open-boundary budget includes dissipation in the absorbing layer).
