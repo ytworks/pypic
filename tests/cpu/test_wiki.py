@@ -6,6 +6,7 @@ conditions, at least one animation and one comparison chart, and reference only 
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -133,3 +134,70 @@ def test_the_wiki_images_are_kept_when_the_collect_is_refused(tmp_path, monkeypa
     states = iter([("a" * 40, ""), ("a" * 40, "")])  # unchanged code: the new charts are published
     assert B.cmd_collect(args) == 0
     assert (wiki / "images" / "reconnection" / "power_law.png").read_bytes() == b"new"
+
+
+def _fake_collect(B, tmp_path, monkeypatch, after_worker=None):
+    """cmd_collect with fake workers that write a chart reading the --wiki argument's run label."""
+    import subprocess as sp
+
+    import pypic.provenance
+
+    monkeypatch.setattr(B, "ROOT", tmp_path)
+    monkeypatch.setattr(B, "DATA", tmp_path / "data.json")
+    monkeypatch.setattr(B, "check_recorded", lambda *a: None)
+    monkeypatch.setattr(B, "_complete", lambda d: True)
+    monkeypatch.setattr(pypic.provenance, "code_state", lambda root: ("a" * 40, ""))
+    label = {}
+
+    def worker(cmd, **kw):
+        out = Path(cmd[cmd.index("--wiki") + 1]) / "images" / cmd[3]
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "power_law.png").write_bytes(label["current"])
+        Path(cmd[cmd.index("--json") + 1]).write_text(json.dumps({"page": "Magnetic-Reconnection", "cases": {}}))
+        if after_worker:
+            after_worker()
+        return sp.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(B.subprocess, "run", worker)
+    return label
+
+
+def test_concurrent_collects_keep_their_own_images(tmp_path, monkeypatch):
+    import argparse
+
+    B = _builder()
+    wiki_a, wiki_b = tmp_path / "wiki_a", tmp_path / "wiki_b"
+    args = {w: argparse.Namespace(wiki=str(w), example=["reconnection"], jobs=1) for w in (wiki_a, wiki_b)}
+    nested = []
+
+    def run_b_meanwhile():  # collect B runs to completion while A has its results but has not published
+        if not nested:
+            nested.append(1)
+            label["current"] = b"B"
+            assert B.cmd_collect(args[wiki_b]) == 0
+
+    label = _fake_collect(B, tmp_path, monkeypatch, run_b_meanwhile)
+    label["current"] = b"A"
+    assert B.cmd_collect(args[wiki_a]) == 0
+    assert (wiki_a / "images" / "reconnection" / "power_law.png").read_bytes() == b"A"
+    assert (wiki_b / "images" / "reconnection" / "power_law.png").read_bytes() == b"B"
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+def test_a_failed_replacement_keeps_the_old_images(tmp_path, monkeypatch):
+    import argparse
+
+    B = _builder()
+    wiki = tmp_path / "wiki"
+    old = wiki / "images" / "reconnection"
+    old.mkdir(parents=True)
+    (old / "power_law.png").write_bytes(b"old")
+    label = _fake_collect(B, tmp_path, monkeypatch)
+    label["current"] = b"new"
+    (wiki / "images").chmod(0o555)  # the example's directory stays writable, its parent does not
+    try:
+        assert B.cmd_collect(argparse.Namespace(wiki=str(wiki), example=["reconnection"], jobs=1)) == 1
+    finally:
+        (wiki / "images").chmod(0o755)
+    assert (old / "power_law.png").read_bytes() == b"old"
+    assert not (tmp_path / "data.json").exists()

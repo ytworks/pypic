@@ -32,10 +32,12 @@ import argparse
 import datetime as dt
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -371,14 +373,21 @@ def cmd_collect(args) -> int:
     from pypic.provenance import code_state
 
     state = code_state(ROOT)  # the code the analysis runs with, checked again before anything is written
-    tmp = ROOT / "output" / "wiki" / "_collect"
-    stage = tmp / "stage"  # charts and GIFs go here first; the wiki gets them only once everything checks out
-    shutil.rmtree(stage, ignore_errors=True)
-    stage.mkdir(parents=True)
+    base = ROOT / "output" / "wiki" / "_collect"
+    base.mkdir(parents=True, exist_ok=True)
+    # a private working directory per collect: charts, GIFs and result JSONs wait here until everything
+    # checked out, so concurrent collects never see each other's files
+    work = Path(tempfile.mkdtemp(prefix="collect-", dir=base))
+    try:
+        return _collect(args, names, wiki, work, base, state, code_state)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
+
+def _collect(args, names, wiki, work, base, state, code_state) -> int:
     def one(ex):
-        cmd = [sys.executable, str(Path(__file__).resolve()), "_collect_one", ex, "--wiki", str(stage),
-               "--json", str(tmp / f"{ex}.json")]
+        cmd = [sys.executable, str(Path(__file__).resolve()), "_collect_one", ex, "--wiki", str(work),
+               "--json", str(work / f"{ex}.json")]
         r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
         return ex, r
 
@@ -391,20 +400,58 @@ def cmd_collect(args) -> int:
                 print(r.stderr[-4000:], file=sys.stderr)
     if failed:
         return 1
-    data = json.loads(DATA.read_text()) if DATA.exists() else {"examples": {}}
-    collected = {ex: json.loads((tmp / f"{ex}.json").read_text()) for ex in names}
-    try:
-        data = merge_collected(data, collected, state, code_state(ROOT), dt.date.today().isoformat())
-    except RuntimeError as e:
-        print(e, file=sys.stderr)
-        return 1
-    for ex in names:  # replace each collected example's images as a whole (no stale files are left)
-        dst = wiki / "images" / ex
-        shutil.rmtree(dst, ignore_errors=True)
-        shutil.copytree(stage / "images" / ex, dst)
-    DATA.write_text(json.dumps(data, indent=1, ensure_ascii=False, allow_nan=False) + "\n")
+    collected = {ex: json.loads((work / f"{ex}.json").read_text()) for ex in names}
+    import fcntl
+
+    with open(base / "publish.lock", "w") as lock:  # one publish at a time: images and data.json together
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        data = json.loads(DATA.read_text()) if DATA.exists() else {"examples": {}}
+        try:
+            data = merge_collected(data, collected, state, code_state(ROOT), dt.date.today().isoformat())
+            publish(work / "images", wiki / "images", names,
+                    json.dumps(data, indent=1, ensure_ascii=False, allow_nan=False) + "\n")
+        except (RuntimeError, OSError) as e:
+            print(f"{e}; the wiki images and {DATA.name} are unchanged", file=sys.stderr)
+            return 1
     print(f"wrote {DATA.relative_to(ROOT)}")
     return 0
+
+
+def publish(src: Path, images: Path, names: list[str], data_text: str) -> None:
+    """Replace images/<example> of every collected example and data.json, all or nothing: each new set is
+    first copied next to its destination (same file system), then swapped in by renames; data.json is
+    written to a temporary file and renamed. On any failure the renames are undone and the old images
+    stay."""
+    swapped = []  # (destination, old copy or None)
+    try:
+        for ex in names:
+            dst = images / ex
+            new, old = images / f".{ex}.new", images / f".{ex}.old"
+            for leftover in (new, old):
+                shutil.rmtree(leftover, ignore_errors=True)
+            shutil.copytree(src / ex, new)
+            if dst.exists():
+                dst.rename(old)
+                swapped.append((dst, old))
+            else:
+                swapped.append((dst, None))
+            new.rename(dst)
+        tmp = DATA.with_name(DATA.name + ".tmp")
+        tmp.write_text(data_text)
+        os.replace(tmp, DATA)
+    except OSError:
+        for dst, old in reversed(swapped):
+            if dst.exists():
+                dst.rename(dst.with_name(f".{dst.name}.failed"))
+            if old is not None:
+                old.rename(dst)
+        for ex in names:
+            for junk in (images / f".{ex}.new", images / f".{ex}.failed"):
+                shutil.rmtree(junk, ignore_errors=True)
+        raise
+    for _, old in swapped:
+        if old is not None:
+            shutil.rmtree(old, ignore_errors=True)
 
 
 # -------------------------------------------------------------------------------------------- render
