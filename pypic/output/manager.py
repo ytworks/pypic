@@ -75,6 +75,9 @@ class OutputManager:
         from .h5 import Units
 
         self.units = Units(self.cfg.n0_m3)
+        # provenance of the code that runs, taken once: run.json is rewritten later (metadata, run
+        # statistics), when the working tree may have changed without affecting this run
+        self.git_commit = _git_commit() if self.root else None
         if self.root:
             os.makedirs(self.cfg.dir, exist_ok=True)
             self.write_run_json()
@@ -131,7 +134,7 @@ class OutputManager:
     def write_run_json(self):
         sim, cfg = self.sim, self.sim.cfg
         info = {
-            "format": "pypic-output-1", "pypic_version": __version__, "git_commit": _git_commit(),
+            "format": "pypic-output-1", "pypic_version": __version__, "git_commit": self.git_commit,
             "created": _dt.datetime.now().astimezone().isoformat(timespec="seconds"),
             "world_size": sim.comm.size, "gpu_name": _gpu_name(), "dims": list(sim.decomp.dims), "solver": cfg.solver,
             "dt": cfg.dt, "n_steps": cfg.n_steps, "n_cells": list(cfg.n_cells), "dx": list(cfg.dx),

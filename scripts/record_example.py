@@ -5,9 +5,10 @@ results are reported rather than gated) as evidence in bench/results/.
     python scripts/record_example.py output/relativistic_shock/pair_2d_long
 
 The example's own analyze.py runs on the output directory (in a separate interpreter); its result,
-the run's provenance from run.json (code commit at run time, dirty flag, GPUs, wall time), the commit
-of the analysis code and the configuration are written to bench/results/<date>-<commit>-example-<example>-<config>.json and
-listed in bench/results/index.json with type "example" (validated by verify_bench_results.py).
+the run's provenance from run.json (code commit at run time, dirty flag, GPUs, wall time), the
+commit of the analysis code and the configuration are written to
+bench/results/<date>-<commit>-example-<example>-<config>.json and listed in
+bench/results/index.json with type "example" (validated by verify_bench_results.py).
 """
 from __future__ import annotations
 
