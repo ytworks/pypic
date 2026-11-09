@@ -26,7 +26,7 @@ def plasma(solver="explicit", bc=None, n=(16, 8, 8), dt=None, drift=0.2, theta=1
     cfg = SimConfig(n_cells=n, dx=(0.2, 0.2, 0.2), dt=dt, n_steps=steps, solver=solver, boundaries=bc,
                     species=[SpeciesConfig("e", -1, 1, electrons),
                              SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), theta / 25)])],
-                    ppc=4, diag_interval=5, gauss_interval=5, mode_diag=0, npml=6, **kw)
+                    ppc=4, diag_interval=5, gauss_interval=5, npml=6, **kw)
     return Simulation(cfg, comm=SelfComm(), verbose=False)
 
 
@@ -44,7 +44,7 @@ def inject(sp, pos, u, w=1e-20):
 def test_boris_gyration_conserves_gamma_and_period():
     B = 0.5
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, species=[SpeciesConfig("e", -1, 1, [])],
-                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, mode_diag=0, sort_interval=0)
+                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sp = sim.species[0]
     u0 = 2.0  # relativistic: gamma = sqrt(5)
@@ -68,7 +68,7 @@ def test_boris_gyration_conserves_gamma_and_period():
 def test_exb_drift():
     E, B = 0.1, 0.5
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, species=[SpeciesConfig("e", -1, 1, [])],
-                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, mode_diag=0, sort_interval=0)
+                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sim.grid.Ey[...] = E  # uniform Ey
     sp = sim.species[0]
@@ -107,6 +107,24 @@ def test_implicit_exact_energy_and_gauss(bc):
     assert np.nanmax(h["divB"]) < 1e-12
 
 
+@pytest.mark.parametrize("solver", ["explicit", "implicit"])
+def test_mean_current_removal_keeps_conservation(solver):
+    """Net electron current (Buneman set-up) with remove_mean_current: the box-averaged E stays
+    zero (no k = 0 plasma oscillation), Gauss's law is exact and the implicit energy stays exact."""
+    cfg = SimConfig(n_cells=(16, 8, 8), dx=(0.2,) * 3, dt=0.08 if solver == "explicit" else 0.3, solver=solver,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.3, 0, 0), 0.01)]),
+                             SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), 0.001)])],
+                    ppc=4, diag_interval=5, gauss_interval=5, remove_mean_current=True)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(30)
+    o = sim.grid.owned_slice()
+    assert abs(float(cp.mean(sim.grid.Ex[o]))) < 1e-13  # without the removal <E_x> ~ -<J_x> t ~ 0.3
+    assert np.nanmax(sim.history["gauss"]) < 1e-12
+    if solver == "implicit":
+        e = np.asarray(sim.history["budget"])
+        assert np.max(np.abs(e - e[0])) / e[0] < 1e-11
+
+
 def test_reflecting_keeps_particles():
     bc = (("reflecting", "reflecting"),) * 3
     sim = plasma("explicit", bc=bc, drift=0.5, theta=0.01)
@@ -133,8 +151,7 @@ def test_open_boundary_removes_particles():
 def test_vacuum_wave_dispersion():
     """A y-polarised plane wave along x follows the Yee dispersion relation."""
     N, dx, dt = 64, 0.1, 0.05
-    cfg = SimConfig(n_cells=(N, 4, 4), dx=(dx,) * 3, dt=dt, species=[], diag_interval=0, gauss_interval=0,
-                    mode_diag=0)
+    cfg = SimConfig(n_cells=(N, 4, 4), dx=(dx,) * 3, dt=dt, species=[], diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     g = sim.grid
     k = 2 * math.pi * 4 / (N * dx)
@@ -158,7 +175,7 @@ def test_cpml_absorbs_pulse():
     N, dx = 96, 0.1
     cfg = SimConfig(n_cells=(N, 4, 4), dx=(dx,) * 3, dt=0.05, species=[], npml=12,
                     boundaries=(("open", "open"), ("periodic", "periodic"), ("periodic", "periodic")),
-                    diag_interval=0, gauss_interval=0, mode_diag=0)
+                    diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     g = sim.grid
     xi = g.global_positions(0, 0.0) * dx
@@ -173,21 +190,24 @@ def test_cpml_absorbs_pulse():
     assert e1 / e0 < 1e-4, e1 / e0
 
 
-def test_two_stream_growth_matches_theory():
-    """Small 3-D electron two-stream run: measured growth of the k_max mode vs linear theory."""
-    sys.path.insert(0, os.path.join(HERE, "..", "..", "examples", "two_stream"))
-    from analyze import fit_growth
-
+def test_two_stream_growth_matches_theory(tmp_path):
+    """Small 3-D electron two-stream run: measured growth of the k_max mode (read back from the
+    modes output at the cadence the planner derived) vs linear theory."""
+    from pypic.analysis import open_run
+    from pypic.analysis.spectral import fit_growth
     from pypic.setup.planner import TwoStreamParams, plan_two_stream
 
     p = TwoStreamParams(mixture="e-i", mass_ratio=1836.0, u_drift=0.2, T_e=1e-4, n_wavelengths=2,
                         cells_per_wavelength=32, transverse_ratio=0.125, ppc=32, growth_times=14,
                         n_records=300)
     cfg, _, info = plan_two_stream(p)
-    cfg.phase_space_interval = 0
+    cfg.output.diagnostics = [d for d in cfg.output.diagnostics if d.name == "modes"]
+    cfg.output.dir = str(tmp_path)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sim.run()
-    gfit, _ = fit_growth(np.asarray(sim.mode_t), np.asarray(sim.modes)[:, 1])
+    sim.close()
+    md = open_run(str(tmp_path)).series("modes")
+    gfit, _ = fit_growth(md.t, md["Ex"][:, 1])
     assert abs(gfit - info["gamma_max"]) / info["gamma_max"] < 0.15, (gfit, info["gamma_max"])
 
 
@@ -212,7 +232,7 @@ def test_cg_handles_exact_convergence_between_checks():
     """A curl-free uniform field is solved in one CG step (A = I on that mode); the following
     iteration must not divide 0/0 before the next convergence check."""
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[],
-                    diag_interval=0, gauss_interval=0, mode_diag=0)
+                    diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     b = cp.zeros((3,) + sim.grid.shape)
     for c, v in enumerate((1.0, -2.0, 0.5)):
@@ -229,7 +249,7 @@ def test_maxwell_juttner_sampling(theta):
 
     cfg = SimConfig(n_cells=(32, 32, 32), dx=(0.5,) * 3, dt=0.1, ppc=8,
                     species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0, 0, 0), theta)])],
-                    diag_interval=0, gauss_interval=0, mode_diag=0)
+                    diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sp = sim.species[0]
     u = cp.asnumpy(sp.P[3:6, : sp.n])
@@ -255,7 +275,7 @@ def test_unconverged_implicit_step_is_not_committed():
 
 def test_ghost_wider_than_local_grid_is_rejected():
     cfg = SimConfig(n_cells=(4, 4, 4), dx=(1.0,) * 3, dt=3.5, solver="implicit", species=[],
-                    diag_interval=0, gauss_interval=0, mode_diag=0)
+                    diag_interval=0, gauss_interval=0)
     with pytest.raises(ValueError, match="ghost width"):
         Simulation(cfg, comm=SelfComm(), verbose=False)
 
@@ -268,7 +288,7 @@ def test_implicit_reflection_with_displacement_beyond_half_box_conserves_charge(
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(1.0,) * 3, dt=5.1, solver="implicit",
                     boundaries=(("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic")),
                     species=[SpeciesConfig("e", -1, 1, []), SpeciesConfig("p", 1, 1, [])],
-                    diag_interval=0, gauss_interval=0, mode_diag=0, sort_interval=0)
+                    diag_interval=0, gauss_interval=0, sort_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     e, p = sim.species
     inject(e, [0.1, 2.3, 2.3], [-4.9, 0.04, 0.03], w=1e-3)  # d_x ~ -5 cells: reflects, ends at x ~ 4.9

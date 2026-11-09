@@ -2,9 +2,7 @@
 (Crank-Nicolson + implicit midpoint, energy and charge conserving) schemes."""
 from __future__ import annotations
 
-import json
 import math
-import os
 import time
 
 import cupy as cp
@@ -16,7 +14,7 @@ from .grid import YeeGrid
 from .kernelsrc import PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
-from .particles import Species
+from .particles import ID_LIMIT, Species
 
 
 class ImplicitStepError(RuntimeError):
@@ -48,6 +46,8 @@ class Simulation:
                     f"axis {'xyz'[a]}: {n_loc} cells per rank < ghost width {ghost} "
                     f"(solver={cfg.solver}, c dt/dx={cfg.dt / cfg.dx[a]:.3g}); use more cells per rank, "
                     "fewer ranks along this axis or a smaller dt")
+        if cfg.remove_mean_current and any(b != "periodic" for ax in cfg.boundaries for b in ax):
+            raise ValueError("remove_mean_current needs periodic boundaries on every axis")
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(self.grid.defines))
@@ -58,6 +58,8 @@ class Simulation:
         self.k_load = self.pmod.get_function("load_particles")
         self.k_ipush = self.pmod.get_function("implicit_push")
         self.k_ifin = self.pmod.get_function("implicit_finalize")
+        self.k_moment = self.pmod.get_function("deposit_moment")
+        self.k_gather = self.pmod.get_function("gather_at_particles")
         self.flag = cp.zeros(max(1, len(cfg.species)), dtype=cp.int32)  # per-species flag counters
         self.err = cp.zeros(2, dtype=cp.int32)
         self.itmax = cp.zeros(1, dtype=cp.int32)
@@ -77,18 +79,6 @@ class Simulation:
             "step", "t", "kinetic", "electric", "magnetic", "total", "lost_kinetic", "boundary_flux",
             "dissipated", "budget", "px", "py", "pz", "gauss", "divB", "picard", "n_particles")}
         self.kinetic_species = {s.name: [] for s in self.species}
-        self.modes = []
-        self.mode_t = []
-        self.phase = {sp.name: [] for sp in self.species}
-        self.phase_t = []
-        umax = cfg.phase_space_umax
-        if umax <= 0:
-            umax = 0.0
-            for sc in cfg.species:
-                for b in sc.beams:
-                    umax = max(umax, abs(b.drift[0]) + 4.0 * math.sqrt(max(b.theta, 0.0)) + 1e-3)
-            umax *= 2.0
-        self.phase_umax = umax
         self.flux_out = 0.0
         self.dissipated = 0.0
         self._last = None
@@ -96,10 +86,16 @@ class Simulation:
         if self.verbose:
             print(f"[pypic] {self.comm.size} GPU(s), rank grid {dims}, global cells {tuple(cfg.n_cells)}, "
                   f"solver={cfg.solver}, particles={n_tot:,}", flush=True)
+        from .output.manager import OutputManager
+
+        self.output = OutputManager(self)
 
     # ----------------------------------------------------------------- set-up
     def _load_species(self):
         cfg = self.cfg
+        n_beams = sum(len(sc.beams) for sc in cfg.species)
+        if n_beams * math.prod(cfg.n_cells) * cfg.ppc >= ID_LIMIT:
+            raise ValueError("too many particles for exact float64 particle ids (n_beams * cells * ppc >= 2^53)")
         stream = 1
         cells_local = int(np.prod([a.n_phys for a in self.decomp.axes]))
         for sc in cfg.species:
@@ -114,6 +110,12 @@ class Simulation:
         net = sum(sc.charge * b.density for sc in cfg.species for b in sc.beams)
         if abs(net) > 1e-12 and self.verbose:
             print(f"[pypic] WARNING: net charge density {net:+.3e} n0 e (plasma is not neutral)")
+
+    def species_by_name(self, name: str) -> Species:
+        for sp in self.species:
+            if sp.name == name:
+                return sp
+        raise KeyError(f"no species {name!r} (have {[s.name for s in self.species]})")
 
     def total_particles(self) -> int:
         return int(self.comm.allreduce_scalar(float(sum(s.n for s in self.species))))
@@ -135,6 +137,8 @@ class Simulation:
                 lst, np.int32(lst.size), np.int32(do_diag)))
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
         g.apply_bc_J()
+        if self.cfg.remove_mean_current:
+            self._remove_mean_current()
         self._migrate()
         dt = self.cfg.dt
         g.push_B(0.5 * dt)
@@ -142,6 +146,16 @@ class Simulation:
         g.push_B(0.5 * dt)
         if self._has_open:
             self.flux_out += dt * g.poynting_out()
+
+    def _remove_mean_current(self):
+        """J -= <J> (box average, all ranks): div J is unchanged, so Gauss's law still holds; the
+        mean E then stays exactly zero, so the removed current does no work (energy budget exact)."""
+        g = self.grid
+        o = g.owned_slice()
+        Js = (g.Jx, g.Jy, g.Jz)
+        mean = self.comm.allreduce(cp.stack([cp.sum(J[o]) for J in Js])) / math.prod(self.cfg.n_cells)
+        for J, m in zip(Js, mean):
+            J[o] -= m
 
     def _migrate(self):
         counts = cp.asnumpy(self.flag)  # one host sync per step
@@ -302,6 +316,8 @@ class Simulation:
                     np.float64(icfg.particle_tol), np.int32(icfg.particle_maxit), self.err, self.itmax))
             g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
             g.apply_bc_J()
+            if cfg.remove_mean_current:
+                self._remove_mean_current()
             for c, J in enumerate((g.Jx, g.Jy, g.Jz)):
                 cp.subtract(R0[c], dt * J, out=rhs[c])
             Enew = self.E1.copy()
@@ -313,8 +329,10 @@ class Simulation:
             if converged:
                 break
         # Nothing has been committed yet (particles live in Pn, fields in E1), so raising here
-        # leaves the simulation at step n.
-        err = int(self.err[0])
+        # leaves the simulation at step n. The error flags are per rank: reduce them so that every
+        # rank takes the same branch (a rank-local raise would leave the others in a collective).
+        errs = self.comm.allreduce(self.err, "max") if self.comm.size > 1 else self.err
+        err = int(errs[0])
         if err == 2:
             raise ImplicitStepError("implicit step: particle displacement exceeds the ghost width (reduce dt)")
         if not converged:
@@ -326,7 +344,7 @@ class Simulation:
             raise ImplicitStepError("implicit step: energy closure impossible for a particle (gamma < 1); "
                                     "the step was not committed. Reduce dt.")
         self._picard_its = k + 1
-        self.nonconverged = int(self.err[1])
+        self.nonconverged = int(errs[1])
         # final half-step fields (consistent with converged E1)
         self._half_fields(E0, B0)
         if self.absorb:
@@ -386,19 +404,6 @@ class Simulation:
         errb = float(cp.max(cp.abs(db[sb]))) if db[sb].size else 0.0
         return self.comm.allreduce_scalar(err, "max"), self.comm.allreduce_scalar(errb, "max")
 
-    def mode_amplitudes(self, K: int):
-        """Complex Fourier coefficients E_x(k_m), m = 1..K, of the y-z averaged E_x."""
-        g = self.grid
-        N = self.decomp.n_cells[0]
-        s = g.physical_slice()
-        prof = cp.zeros(N)
-        ax = self.decomp.axes[0]
-        loc = cp.sum(g.Ex[s], axis=(1, 2))
-        prof[ax.phys_lo: ax.phys_lo + ax.n_phys] = loc
-        prof = self.comm.allreduce(prof) / (self.decomp.n_cells[1] * self.decomp.n_cells[2])
-        f = np.fft.rfft(cp.asnumpy(prof)) / N
-        return f[1: K + 1]
-
     def _record(self, kin_list, fe):
         h = self.history
         cfg = self.cfg
@@ -431,33 +436,13 @@ class Simulation:
             ge, gb = float("nan"), float("nan")
         h["gauss"].append(ge)
         h["divB"].append(gb)
-        if cfg.mode_diag:
-            self.modes.append(self.mode_amplitudes(cfg.mode_diag))
-            self.mode_t.append(self.time)
-
-    def phase_space(self):
-        """(x, u_x) histograms of every species (weighted by macro-particle weight)."""
-        nb = self.cfg.phase_space_bins
-        Lx = self.grid.L[0]
-        out = {}
-        for sp in self.species:
-            if sp.n:
-                h, _, _ = cp.histogram2d(sp.P[0, : sp.n], sp.P[3, : sp.n], bins=nb,
-                                         range=[[0.0, Lx], [-self.phase_umax, self.phase_umax]],
-                                         weights=sp.P[6, : sp.n])
-            else:
-                h = cp.zeros(nb)
-            out[sp.name] = cp.asnumpy(self.comm.allreduce(cp.ascontiguousarray(h)))
-        return out
 
     # ------------------------------------------------------------------ run
     def step(self):
         cfg = self.cfg
+        # file output of the state at time level n (collective; rank 0 writes)
+        self.output.on_step()
         do_diag = cfg.diag_interval > 0 and self.step_count % cfg.diag_interval == 0
-        if cfg.phase_space_interval and self.step_count % cfg.phase_space_interval == 0:
-            for k, v in self.phase_space().items():
-                self.phase[k].append(v.astype(np.float32))
-            self.phase_t.append(self.time)
         if cfg.sort_interval and self.step_count % cfg.sort_interval == 0:
             for sp in self.species:
                 sp.sort(self.k_cell)
@@ -491,6 +476,8 @@ class Simulation:
                 if h["budget"]:
                     msg += f" dE/E0={(h['budget'][-1] - e0) / e0:+.3e}"
                 print(msg, flush=True)
+        self.output.on_step()  # outputs due at the final time level
+        self.output.flush()
         cp.cuda.Device().synchronize()
         self.wall_time = time.perf_counter() - t0
         self._run_steps = n
@@ -505,15 +492,6 @@ class Simulation:
         steps = getattr(self, "_run_steps", self.cfg.n_steps)
         return self.wall_time / max(steps, 1) / max(n, 1) * 1e9 * self.comm.size
 
-    def save(self, path: str | None = None):
-        if self.rank != 0:
-            return
-        out = path or os.path.join(self.cfg.output_dir, "history.npz")
-        os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-        np.savez(out, **{k: np.asarray(v) for k, v in self.history.items()},
-                 modes=np.asarray(self.modes), mode_t=np.asarray(self.mode_t),
-                 **{f"kinetic_{k}": np.asarray(v) for k, v in self.kinetic_species.items()},
-                 **{f"phase_{k}": np.asarray(v) for k, v in self.phase.items()},
-                 phase_t=np.asarray(self.phase_t), phase_umax=self.phase_umax, Lx=self.grid.L[0],
-                 config=json.dumps(self.cfg.to_dict(), default=str))
-        return out
+    def close(self):
+        """Flush and close the output files (rank 0); the simulation can no longer write output."""
+        self.output.close()

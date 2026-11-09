@@ -1,0 +1,160 @@
+"""CPU tests of the output layer: cadence from physics, HDF5/openPMD writers + reader, lossy
+mantissa rounding, and the analysis tools on synthetic data (no CuPy, no GPU)."""
+from __future__ import annotations
+
+import json
+import math
+import os
+import shutil
+import subprocess
+import sys
+
+import numpy as np
+import pytest
+
+from pypic import Beam, SimConfig, SpeciesConfig
+from pypic.config import OutputConfig
+from pypic.output import h5
+from pypic.output.schedule import report, resolve
+
+
+def _cfg(diags, ts=None, budget=None, n_steps=1000, dt=0.05):
+    return SimConfig(n_cells=(64, 16, 16), dx=(0.1,) * 3, dt=dt, n_steps=n_steps, ppc=8,
+                     species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0, 0, 0), 1e-3)])],
+                     output=OutputConfig(dir="x", diagnostics=diags, timescales=ts or {}, budget_GB=budget))
+
+
+# ------------------------------------------------------------------ schedule
+def test_cadence_forms_and_auto_takes_the_strictest_requirement():
+    ts = {"shortest_period": 2 * math.pi, "growth_time": 2.0}
+    cfg = _cfg([{"name": "a", "kind": "lineout", "fields": ["Ex"], "every": 7},
+                {"name": "b", "kind": "lineout", "fields": ["Ex"], "every": {"t": 0.5}},
+                {"name": "c", "kind": "lineout", "fields": ["Ex"], "every": {"count": 10}},
+                {"name": "d", "kind": "modes", "fields": ["Ex"], "modes": [[1, 0, 0]]},
+                {"name": "e", "kind": "lineout", "fields": ["Ex"], "every": {"t": 5.0}}], ts)
+    r = {x.name: x for x in resolve(cfg)}
+    assert (r["a"].every, r["b"].every, r["c"].every) == (7, 10, 100)
+    # auto: min(Nyquist of 2 pi oversampled 2x -> pi/2 = 31 steps, growth_time/10 = 0.2 -> 4 steps)
+    assert r["d"].every == 4 and r["d"].average
+    assert r["c"].n_outputs == 11 and r["c"].due(500) and not r["c"].due(550)
+    assert any("aliasing" in n for n in r["e"].notes)  # 5.0 > pi without time averaging
+    assert "lineout" in report(cfg, list(r.values()))
+
+
+def test_budget_widens_only_auto_cadences():
+    big = {"name": "f", "kind": "fields", "fields": ["E", "B"]}  # auto: 21 dumps of 393 kB (8.3 MB)
+    r = resolve(_cfg([big], budget=0.002))[0]
+    assert r.total_bytes <= 0.002e9 and "widened" in r.notes[0]
+    assert r.n_outputs < resolve(_cfg([big]))[0].n_outputs
+    with pytest.raises(ValueError, match="budget"):
+        resolve(_cfg([{**big, "every": 1}], budget=0.002))
+
+
+# ---------------------------------------------------------- writers / reader
+def test_round_mantissa_bound():
+    rng = np.random.default_rng(1)
+    x = (rng.standard_normal(100000) * 10.0 ** rng.integers(-20, 20, 100000)).astype(np.float32)
+    for bits in (3, 10, 18):
+        r = h5.round_mantissa(x, bits)
+        assert np.max(np.abs(r - x) / np.abs(x)) <= 2.0 ** -(bits + 1)
+
+
+def _write_run(path, steps=(0, 10), n=(8, 4, 4), dx=0.5, dt=0.1):
+    """A synthetic run directory as the engine lays it out (run.json + one dump of each kind)."""
+    u = h5.Units(None)
+    ed = dict(fieldSolver="Yee", fieldBoundary=["periodic"] * 6, particleBoundary=["periodic"] * 6,
+              currentSmoothing="none", chargeCorrection="none", particleShape=1.0, currentDeposition="Esirkepov",
+              particlePush="Boris", particleInterpolation="trilinear", particleSmoothing="none")
+    x = (np.arange(n[0]) + 0.5) * dx
+    for it in steps:
+        os.makedirs(f"{path}/fields/f", exist_ok=True)
+        ex = np.broadcast_to(np.sin(x + it * dt)[:, None, None], n).astype(np.float32)
+        h5.write_meshes(f"{path}/fields/f/f_{it:08d}.h5", "f", it, it * dt, dt,
+                        {"E": {"components": {"x": ex}, "position": {"x": (0.5, 0, 0)}, "time_offset": 0.0}},
+                        {"spacing": (dx,) * 3, "offset": (0, 0, 0)}, u, {"version": "t"}, "zstd", 3, ed)
+        os.makedirs(f"{path}/particles/p", exist_ok=True)
+        m = 1500
+        d = {k: np.linspace(0, 1, m, dtype=np.float32) for k in ("x", "y", "z", "ux", "uy", "uz", "w")}
+        d.update(id=np.arange(m, dtype=np.uint64), charge=-1.0, mass=2.0, momentum_offset=-0.05)
+        h5.write_particles(f"{path}/particles/p/p_{it:08d}.h5", "p", it, it * dt, dt, {"e": d}, u, {"version": "t"},
+                           "zstd", 3, ed)
+    w = h5.SeriesWriter(f"{path}/reduced/lo.h5", {"diagnostic": "lo"}, "zstd", 3)
+    for k in range(300):
+        w.append(k, k * dt, {"Ex": np.full(n[0], k, np.float32)})
+    w.close()
+    info = {"format": "pypic-output-1", "dt": dt, "n_steps": steps[-1], "n_cells": list(n), "dx": [dx] * 3,
+            "L": [k * dx for k in n], "solver": "explicit", "world_size": 1, "species": [{"name": "e"}],
+            "units": u.as_dict(), "config": {"diag_interval": 1, "output": {"diagnostics": []}},
+            "diagnostics": [
+                {"name": "f", "kind": "fields", "path": "fields/f/f_%08d.h5", "components": ["Ex"], "every_steps": 10,
+                 "bytes_per_output": 512, "n_outputs": 2},
+                {"name": "p", "kind": "particles", "path": "particles/p/p_%08d.h5", "species": ["e"],
+                 "every_steps": 10, "bytes_per_output": 1, "n_outputs": 2},
+                {"name": "lo", "kind": "lineout", "path": "reduced/lo.h5", "axis": "x", "components": ["Ex"],
+                 "every_steps": 1, "bytes_per_output": 32, "n_outputs": 300}]}
+    with open(f"{path}/run.json", "w") as f:
+        json.dump(info, f)
+
+
+def test_writers_reader_roundtrip_and_openpmd(tmp_path):
+    from pypic.analysis import open_run
+
+    _write_run(str(tmp_path))
+    run = open_run(str(tmp_path))
+    fs = run.fields("f")
+    assert fs.iterations == [0, 10]
+    fd = fs.get(10, "Ex")
+    assert np.allclose(fd.coords[0], (np.arange(8) + 0.5) * 0.5) and abs(fd.time - 1.0) < 1e-12
+    assert np.allclose(fd.data[:, 0, 0], np.sin(fd.coords[0] + 1.0), atol=1e-6)
+    p = run.particles("p").get(0, "e")
+    assert np.allclose(p["ux"], np.linspace(0, 1, 1500)) and p["id"][-1] == 1499  # momentum m*u -> u
+    lo = run.series("lo")
+    assert lo["Ex"].shape == (300, 8) and lo["Ex"][299, 0] == 299  # rows buffered into whole chunks
+    assert "lo" in run.summary()
+    checker = shutil.which("openPMD_check_h5", path=os.path.dirname(sys.executable) + os.pathsep + os.environ["PATH"])
+    if checker is None:
+        pytest.skip("openPMD-validator not installed")
+    for f in (fs.files[10], run.particles("p").files[10]):
+        out = subprocess.run([checker, "-i", f], capture_output=True, text=True).stdout
+        assert "Result: 0 Errors" in out, out
+
+
+# ------------------------------------------------------------------ analysis
+def test_omega_k_ridge_and_damped_fit():
+    from pypic.analysis.spectral import fit_damped, omega_k, ridge
+
+    dt, dx, nt, nx = 0.1, 0.2, 2048, 64
+    t = np.arange(nt) * dt
+    x = np.arange(nx) * dx
+    k = 2 * np.pi * np.fft.rfftfreq(nx, dx)[1:12]
+    w = np.sqrt(1 + 3 * 0.1 * k ** 2)  # Bohm-Gross-like branch
+    f = sum(np.cos(kk * x[None, :] - ww * t[:, None] + 0.3 * j) for j, (kk, ww) in enumerate(zip(k, w)))
+    kk, ww, P = omega_k(f, dt, dx)
+    rk, rw, _ = ridge(kk, ww, P, k_range=(k[0] * 0.99, k[-1] * 1.01))
+    assert np.max(np.abs(rw - np.interp(rk, k, w))) < 2 * np.pi / (nt * dt) / 2
+    z = 0.01 * np.exp(-0.07 * t[:600]) * np.cos(1.3 * t[:600]) + 1e-9
+    r = fit_damped(t[:600], z.astype(complex), omega0=1.2, gamma0=-0.05)
+    assert abs(r["gamma"] + 0.07) < 1e-3 and abs(r["omega"] - 1.3) < 1e-3
+
+
+def test_power_law_fit_recovers_index():
+    from pypic.analysis.particles import fit_power_law, spectrum
+
+    rng = np.random.default_rng(7)
+    p_true = 2.4
+    E = (1.0 - rng.random(400000)) ** (-1.0 / (p_true - 1.0))  # Pareto: dN/dE ~ E^-2.4, E >= 1
+    edges = np.geomspace(1, 1e3, 61)
+    Ec, f = spectrum(edges, np.histogram(E, edges)[0])
+    r = fit_power_law(Ec, f, lo=2.0, hi=200.0)
+    assert abs(r["p"] - p_true) < 5 * r["p_err"] + 0.02
+
+
+def test_movie_writes_an_animation(tmp_path):
+    from pypic.analysis import Movie, open_run
+
+    _write_run(str(tmp_path))
+    run = open_run(str(tmp_path))
+    out = Movie(run).lineout("lo", "Ex").xt("lo", "Ex").save(str(tmp_path / "m.gif"), fps=10, n_frames=6)
+    from PIL import Image
+
+    assert Image.open(out).n_frames == 6

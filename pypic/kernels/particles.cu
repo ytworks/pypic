@@ -1,6 +1,6 @@
 // Explicit particle kernels: relativistic Buneman-Boris push fused with
 // Esirkepov charge-conserving current deposition (CIC = cubic super-particles).
-// Particle storage: P[row * cap + p], rows = x, y, z, ux, uy, uz, w  (u = gamma v, c = 1).
+// Particle storage: P[row * cap + p], rows = x, y, z, ux, uy, uz, w, id  (u = gamma v, c = 1).
 
 #define PX(p) P[(p)]
 #define PY(p) P[cap + (p)]
@@ -9,6 +9,7 @@
 #define PUY(p) P[4 * cap + (p)]
 #define PUZ(p) P[5 * cap + (p)]
 #define PW(p) P[6 * cap + (p)]
+#define PID(p) P[7 * cap + (p)]
 
 // Esirkepov deposition of a straight segment (X0,Y0,Z0)->(X1,Y1,Z1) in local index
 // coordinates. |X1-X0| < 1 is required. qw = charge * weight.
@@ -218,6 +219,50 @@ extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n
             }
 }
 
+// CIC moment of a species at nodes (output diagnostics): sum of w * f(u) / cell volume with
+// kind 0: f = 1 (number density), 1..3: f = v_x, v_y, v_z (particle flux), 4: f = m (gamma - 1).
+extern "C" __global__ void deposit_moment(const double* __restrict__ P, const int n, const int cap, const int kind,
+                                          const double m, double* out) {
+    int p = blockIdx.x * blockDim.x + threadIdx.x;
+    if (p >= n) return;
+    double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    int i = (int)floor(X), j = (int)floor(Y), k = (int)floor(Z);
+    double wx = X - i, wy = Y - j, wz = Z - k;
+    double f = 1.0;
+    if (kind > 0) {
+        double ux = PUX(p), uy = PUY(p), uz = PUZ(p);
+        double g = sqrt(1.0 + ux * ux + uy * uy + uz * uz);
+        f = kind == 1 ? ux / g : kind == 2 ? uy / g : kind == 3 ? uz / g : m * (g - 1.0);
+    }
+    double c = f * PW(p) * (1.0 / (DX * DY * DZ));
+    for (int a = 0; a < 2; a++)
+        for (int b = 0; b < 2; b++)
+            for (int d = 0; d < 2; d++) {
+                double s = (a ? wx : 1 - wx) * (b ? wy : 1 - wy) * (d ? wz : 1 - wz);
+                if (s != 0.0) atomicAdd(&out[IDX(i + a, j + b, k + d)], c * s);
+            }
+}
+
+// Fields at the positions of selected particles (track output): out[c * m + t] for
+// c = Ex Ey Ez Bx By Bz, interpolated exactly as in the explicit push.
+extern "C" __global__ void gather_at_particles(const double* __restrict__ P, const int cap,
+                                               const long long* __restrict__ sel, const int m,
+                                               const double* __restrict__ Ex, const double* __restrict__ Ey,
+                                               const double* __restrict__ Ez, const double* __restrict__ Bx,
+                                               const double* __restrict__ By, const double* __restrict__ Bz,
+                                               double* out) {
+    int t = blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= m) return;
+    long long p = sel[t];
+    const double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    out[t] = interp(Ex, X, Y, Z, 0.5, 0.0, 0.0);
+    out[m + t] = interp(Ey, X, Y, Z, 0.0, 0.5, 0.0);
+    out[2 * m + t] = interp(Ez, X, Y, Z, 0.0, 0.0, 0.5);
+    out[3 * m + t] = interp(Bx, X, Y, Z, 0.0, 0.5, 0.5);
+    out[4 * m + t] = interp(By, X, Y, Z, 0.5, 0.0, 0.5);
+    out[5 * m + t] = interp(Bz, X, Y, Z, 0.5, 0.5, 0.0);
+}
+
 // Kinetic energy and momentum of particles at the current time level (used by the implicit
 // scheme where u is stored at integer time levels).
 extern "C" __global__ void kinetic(const double* __restrict__ P, const int n, const int cap, const double m,
@@ -315,9 +360,10 @@ __device__ void sample_mj(double theta, unsigned long long& s, double* u) {
 extern "C" __global__ void load_particles(double* P, const int cap, const long long offset, const int ppc,
                                           const int nlx, const int nly, const int nlz, const int gx0,
                                           const int gy0, const int gz0, const int gnx, const int gny,
-                                          const unsigned long long seed, const unsigned long long stream,
-                                          const double w, const double theta, const double udx,
-                                          const double udy, const double udz) {
+                                          const int gnz, const unsigned long long seed,
+                                          const unsigned long long stream, const double w, const double theta,
+                                          const double udx, const double udy, const double udz,
+                                          const double id_base) {
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
     long long ntot = (long long)nlx * nly * nlz * ppc;
     if (t >= ntot) return;
@@ -363,4 +409,7 @@ extern "C" __global__ void load_particles(double* P, const int cap, const long l
     PUY(p) = u[1];
     PUZ(p) = u[2];
     PW(p) = w;
+    // persistent id (PIC-D8): id_base + linear global cell * ppc + slot (exact below 2^53)
+    const long long lin = ((long long)(gx0 + i) * gny + (gy0 + j)) * (long long)gnz + (gz0 + k);
+    PID(p) = id_base + (double)(lin * ppc + slot);
 }

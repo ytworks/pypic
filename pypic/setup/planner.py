@@ -10,9 +10,9 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass, field
 
-from ..config import ImplicitConfig, SimConfig
+from ..config import ImplicitConfig, OutputConfig, SimConfig
 from ..parallel.decomp import auto_dims
-from .dispersion import fastest_mode, filamentation_estimate
+from ..theory.streaming import fastest_mode, filamentation_estimate
 from .species import Composition, TwoStreamBeams, build_species
 
 C_SI = 299792458.0
@@ -52,7 +52,9 @@ class TwoStreamParams:
     t_end: float | None = None
     max_cells: int = 512 ** 3
     boundaries: tuple = (("periodic", "periodic"),) * 3
-    n_records: int = 400  # number of diagnostic records over the run
+    n_records: int = 400  # number of energy-history (scalars) records over the run
+    n_tracks: int = 2000  # tracked electrons (orbits for trapping / acceleration studies)
+    output_budget_GB: float | None = None
     seed: int = 12345
     warm: bool = True
     overrides: dict = field(default_factory=dict)  # any SimConfig field
@@ -120,12 +122,13 @@ def plan_two_stream(p: TwoStreamParams, n_gpus: int = 1) -> tuple[SimConfig, str
     except ValueError:
         pass
 
+    output = two_stream_output(p, species, n_cells, dx, lin, t_end)
     cfg = SimConfig(
         n_cells=n_cells, dx=(dx, dx, dx), dt=dt, n_steps=n_steps, solver=p.solver,
         boundaries=tuple(tuple(b) for b in p.boundaries), species=species, ppc=p.ppc, seed=p.seed,
         dims=dims, B0=tuple(p.B0), diag_interval=diag_interval, gauss_interval=diag_interval * 10,
-        sort_interval=50, mode_diag=min(64, nx // 2), implicit=ImplicitConfig(),
-        phase_space_interval=max(1, n_steps // 6))
+        sort_interval=50, implicit=ImplicitConfig(), output=output,
+        remove_mean_current=(p.mode == "buneman" and all(b == "periodic" for ax in p.boundaries for b in ax)))
     if p.overrides:
         cfg = apply_overrides(cfg, p.overrides)
 
@@ -173,8 +176,45 @@ def plan_two_stream(p: TwoStreamParams, n_gpus: int = 1) -> tuple[SimConfig, str
                      "momentum-conserving scheme may show finite-grid heating; consider solver='implicit' "
                      "(energy conserving) or more cells per wavelength.")
     if p.mode == "buneman":
-        lines.append("NOTE: buneman mode carries a net current; the k=0 mode oscillates at omega_pe.")
+        lines.append("NOTE: buneman mode carries a net current; it is neutralised by a uniform external current "
+                     "(remove_mean_current) so that the k=0 mode does not oscillate at omega_pe and stop the beam. "
+                     f"Cold limit: gamma = (sqrt(3)/2)(m_e/2m_i)^(1/3) = "
+                     f"{math.sqrt(3) / 2 * (0.5 / p.mass_ratio) ** (1 / 3):.4f} omega_pe.")
     return cfg, "\n".join(lines), info
+
+
+def two_stream_output(p: TwoStreamParams, species, n_cells, dx, lin, t_end) -> OutputConfig:
+    """What the two-stream analysis needs, at the cadence the physics requires:
+    - modes of E_x along x (growth rate of every k_m, incl. k_max): auto = at least 10 samples per
+      growth time and the Nyquist rate of the fastest oscillation (omega_pe or omega_r), time-averaged;
+    - lineout of E_x (x-t diagram, omega-k), same cadence;
+    - (x, u_x) phase space of every species and electron energy spectra (100 / 50 snapshots);
+    - full E, B dumps (6) and one (x, y) slice of E_x for movies;
+    - tracked electrons (orbits of trapped particles), 16 samples per plasma period."""
+    nx = n_cells[0]
+    umax = 0.0
+    for s in species:
+        for b in s.beams:
+            umax = max(umax, abs(b.drift[0]) + 4.0 * math.sqrt(max(b.theta, 0.0)) + 1e-3)
+    umax *= 2.0
+    Lx = nx * dx
+    n_e = n_cells[0] * n_cells[1] * n_cells[2] * p.ppc * len(species[0].beams)
+    stride = max(1, n_e // max(p.n_tracks, 1))
+    diags = [
+        {"name": "modes", "kind": "modes", "fields": ["Ex"],
+         "modes": [[m, 0, 0] for m in range(1, min(64, nx // 2) + 1)]},
+        {"name": "lineout", "kind": "lineout", "fields": ["Ex"], "axis": "x"},
+        {"name": "phase", "kind": "histogram", "quantities": ["x", "ux"], "bins": [256, 128],
+         "ranges": [[0.0, Lx], [-umax, umax]], "every": {"count": 100}},
+        {"name": "spectrum", "kind": "histogram", "species": ["electron"], "quantities": ["ekin"], "bins": [120],
+         "ranges": [[1e-7, 10.0]], "log": [True], "every": {"count": 50}},
+        {"name": "fields", "kind": "fields", "fields": ["E", "B"], "every": {"count": 6}},
+        {"name": "slice_xy", "kind": "slice", "fields": ["Ex"], "axis": "z", "every": {"count": 100}},
+        {"name": "tracks", "kind": "tracks", "species": ["electron"], "stride": stride},
+    ]
+    timescales = {"plasma_period": 2 * math.pi, "shortest_period": 2 * math.pi / max(1.0, abs(lin.omega_r)),
+                  "growth_time": 1.0 / lin.gamma_max, "t_end": t_end}
+    return OutputConfig(diagnostics=diags, timescales=timescales, budget_GB=p.output_budget_GB, n0_m3=p.n0_m3)
 
 
 def apply_overrides(cfg: SimConfig, overrides: dict) -> SimConfig:

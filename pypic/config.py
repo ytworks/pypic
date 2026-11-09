@@ -2,7 +2,7 @@
 time in 1/omega_pe, charge in e, mass in m_e, density in n0 = reference electron density)."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import MISSING, asdict, dataclass, field, fields
 
 
 @dataclass
@@ -32,6 +32,127 @@ class ImplicitConfig:
     cg_maxit: int = 1000
 
 
+# ----------------------------------------------------------------------------- output
+DIAG_KINDS = ("fields", "slice", "lineout", "modes", "kspectrum", "histogram", "particles", "tracks")
+_COMMON = {"name", "kind", "every", "t_start", "t_end", "dtype", "keep_bits"}
+# keys that are meaningful for each kind (validated in Diagnostic.from_dict / __post_init__)
+DIAG_KEYS = {
+    "fields": _COMMON | {"fields", "coarsen", "region"},
+    "slice": _COMMON | {"fields", "axis", "position", "coarsen"},
+    "lineout": _COMMON | {"fields", "axis", "average"},
+    "modes": _COMMON | {"fields", "modes", "average"},
+    "kspectrum": _COMMON | {"fields", "coarsen"},
+    "histogram": _COMMON | {"species", "quantities", "bins", "ranges", "log", "region"},
+    "particles": _COMMON | {"species", "stride", "select", "region"},
+    "tracks": _COMMON | {"species", "stride", "with_fields"},
+}
+
+
+@dataclass
+class Diagnostic:
+    """One output diagnostic. Cadence ``every``: an int (steps), ``{"t": dt}``, ``{"count": n}``,
+    ``{"per": <timescale>, "samples": n}``, ``{"nyquist": <timescale>, "oversample": s}`` or
+    ``"auto"`` (resolved from ``OutputConfig.timescales`` by :mod:`pypic.output.schedule`).
+    Field names: ``E``, ``B``, ``J`` (vectors) or components ``Ex``..``Jz``, ``rho``, and species
+    moments ``n:<species>``, ``flux:<species>`` (vector n<v>), ``ekin:<species>``.
+    See docs/design/output-analysis.md for the meaning of every key."""
+
+    name: str
+    kind: str
+    every: object = "auto"
+    t_start: float = 0.0
+    t_end: float | None = None
+    dtype: str = "float32"  # float32 | float64
+    keep_bits: int | None = None  # lossy: keep this many mantissa bits (relative error <= 2^-(n+1))
+    fields: tuple = ()
+    species: tuple = ()  # empty: all species
+    axis: str = "x"  # lineout: profile axis; slice: plane normal
+    position: float | None = None  # slice plane coordinate in c/omega_pe (None: box centre)
+    average: bool | None = None  # lineout/modes: mean over the output interval (None: auto)
+    coarsen: tuple = (1, 1, 1)  # block-average factors
+    region: tuple | None = None  # ((x0, x1), (y0, y1), (z0, z1)) in c/omega_pe; None = whole box
+    modes: tuple = ()  # ((mx, my, mz), ...) with k = 2 pi m / L
+    quantities: tuple = ()  # histogram axes: x y z ux uy uz u gamma ekin
+    bins: tuple = ()
+    ranges: tuple = ()  # per axis (lo, hi) or None (automatic)
+    log: tuple = ()  # per axis: logarithmic bins
+    stride: int = 1  # particles / tracks: keep particles with id % stride == 0
+    select: dict = field(default_factory=dict)  # particles: {"gamma_min": g}
+    with_fields: bool = False  # tracks: also record E and B at the particle
+
+    def __post_init__(self):
+        if self.kind not in DIAG_KINDS:
+            raise ValueError(f"diagnostic {self.name!r}: kind must be one of {DIAG_KINDS}")
+        for f in fields(Diagnostic):
+            if f.name in DIAG_KEYS[self.kind]:
+                continue
+            dv = f.default if f.default_factory is MISSING else f.default_factory()
+            if getattr(self, f.name) != dv:
+                raise ValueError(f"diagnostic {self.name!r}: key {f.name!r} does not apply to kind {self.kind!r}")
+        for k in ("fields", "species", "coarsen", "modes", "quantities", "bins", "ranges", "log"):
+            v = getattr(self, k)
+            if isinstance(v, str):
+                v = (v,)
+            setattr(self, k, tuple(tuple(x) if isinstance(x, list) else x for x in v))
+        if self.region is not None:
+            self.region = tuple(tuple(r) if r is not None else None for r in self.region)
+        if self.dtype not in ("float32", "float64"):
+            raise ValueError(f"diagnostic {self.name!r}: dtype must be float32 or float64")
+        if self.keep_bits is not None and not 1 <= int(self.keep_bits) <= (23 if self.dtype == "float32" else 52):
+            raise ValueError(f"diagnostic {self.name!r}: keep_bits out of range")
+        if self.axis not in ("x", "y", "z"):
+            raise ValueError(f"diagnostic {self.name!r}: axis must be x, y or z")
+        if len(self.coarsen) != 3 or any(int(c) < 1 for c in self.coarsen):
+            raise ValueError(f"diagnostic {self.name!r}: coarsen needs three factors >= 1")
+        if self.stride < 1:
+            raise ValueError(f"diagnostic {self.name!r}: stride must be >= 1")
+
+    @classmethod
+    def from_dict(cls, d) -> "Diagnostic":
+        if isinstance(d, Diagnostic):
+            return d
+        d = dict(d)
+        known = {f.name for f in fields(cls)}
+        unknown = set(d) - known
+        if unknown:
+            raise KeyError(f"diagnostic {d.get('name')!r}: unknown key(s) {sorted(unknown)}")
+        return cls(**d)
+
+
+@dataclass
+class OutputConfig:
+    """File output (docs/design/output-analysis.md). ``dir=None`` writes nothing: the run keeps
+    its in-memory history only (tests, quick experiments)."""
+
+    dir: str | None = None
+    codec: str = "zstd"  # zstd (default, needs hdf5plugin) | deflate (built into every HDF5) | none
+    level: int = 3
+    budget_GB: float | None = None  # storage budget: "auto" cadences are widened to fit, fixed ones raise
+    n0_m3: float | None = None  # reference electron density for SI units in the files (None: normalised)
+    timescales: dict = field(default_factory=dict)  # name -> time in 1/omega_pe (set by the planners)
+    scalars: bool = True  # write the energy / conservation history (every diag_interval steps)
+    diagnostics: list = field(default_factory=list)  # list[Diagnostic]
+
+    def __post_init__(self):
+        if self.codec not in ("zstd", "deflate", "none"):
+            raise ValueError("output.codec must be zstd, deflate or none")
+        self.diagnostics = [Diagnostic.from_dict(x) for x in self.diagnostics]
+        names = [x.name for x in self.diagnostics]
+        if len(set(names)) != len(names):
+            raise ValueError(f"duplicate diagnostic names in {names}")
+
+    @classmethod
+    def from_dict(cls, d) -> "OutputConfig":
+        if isinstance(d, OutputConfig):
+            return d
+        d = dict(d or {})
+        known = {f.name for f in fields(cls)}
+        unknown = set(d) - known
+        if unknown:
+            raise KeyError(f"unknown output field(s) {sorted(unknown)}")
+        return cls(**d)
+
+
 @dataclass
 class SimConfig:
     n_cells: tuple = (64, 16, 16)
@@ -46,15 +167,14 @@ class SimConfig:
     seed: int = 12345
     dims: tuple | None = None  # rank grid (px,py,pz); None = automatic
     B0: tuple = (0.0, 0.0, 0.0)  # uniform external/initial magnetic field
-    diag_interval: int = 10
+    # subtract the box-averaged current every step (= a uniform external neutralising current):
+    # removes the k = 0 plasma oscillation driven by a net beam current (Buneman); periodic boxes only
+    remove_mean_current: bool = False
+    diag_interval: int = 10  # energy / momentum history (and the scalars output) every N steps
     gauss_interval: int = 100  # 0 disables the Gauss/divB check
     sort_interval: int = 50
-    mode_diag: int = 32  # number of k_x Fourier modes of Ex recorded (0 disables)
-    phase_space_interval: int = 0  # (x, u_x) histogram of each species every N steps (0 disables)
-    phase_space_bins: tuple = (256, 128)
-    phase_space_umax: float = 0.0  # |u_x| range of the histogram (0: automatic from the beams)
-    output_dir: str = "output"
     implicit: ImplicitConfig = field(default_factory=ImplicitConfig)
+    output: OutputConfig = field(default_factory=OutputConfig)
 
     def to_dict(self):
         return asdict(self)
@@ -71,9 +191,10 @@ class SimConfig:
             sp.append(SpeciesConfig(beams=beams, **s))
         imp = d.pop("implicit", {})
         imp = imp if isinstance(imp, ImplicitConfig) else ImplicitConfig(**imp)
-        for k in ("n_cells", "dx", "B0", "dims", "phase_space_bins"):
+        out = OutputConfig.from_dict(d.pop("output", {}))
+        for k in ("n_cells", "dx", "B0", "dims"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:
             d["boundaries"] = tuple(tuple(b) for b in d["boundaries"])
-        return cls(species=sp, implicit=imp, **d)
+        return cls(species=sp, implicit=imp, output=out, **d)

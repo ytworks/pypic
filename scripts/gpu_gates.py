@@ -3,7 +3,7 @@
 
 Gates (criteria are the numerical contracts in .claude/rules/numerics-invariants.md):
   gpu-tests              pytest tests/gpu (includes the 1-vs-2-GPU equivalence test)
-  two-stream:<config>    the 3-D two-stream examples on N GPUs: growth rate of the k_max mode vs
+  two-stream:<config>    the 3-D two-stream / Buneman examples on N GPUs: growth rate of the k_max mode vs
                          linear theory, Gauss law, div B and (implicit) total energy
 
 Wall time and throughput are recorded as diagnostics only; they never decide a verdict.
@@ -20,6 +20,7 @@ import datetime as dt
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -28,15 +29,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "examples" / "two_stream"))
 
-CONFIGS = ["ei", "ep", "eip", "ei_implicit"]
+CONFIGS = ["ei", "ep", "eip", "ei_implicit", "buneman"]
 CRITERIA = {
     "explicit": {"growth_rel_error_max": 0.10, "gauss_max": 1e-10, "divB_max": 1e-12},
     "implicit": {"growth_rel_error_max": 0.10, "gauss_max": 1e-10, "divB_max": 1e-12, "energy_error_max": 1e-8},
 }
 
 
-def sh(cmd, **kw) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, **kw)
+def sh(cmd, timeout=None) -> subprocess.CompletedProcess:
+    """Run cmd in its own process group; a timeout kills the whole group (a hung launcher's ranks
+    would otherwise keep spinning on the GPUs)."""
+    p = subprocess.Popen(cmd, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         start_new_session=True)
+    try:
+        out, err = p.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        out, err = p.communicate()
+        return subprocess.CompletedProcess(cmd, -9, out, err + f"\nTIMEOUT after {timeout} s")
+    return subprocess.CompletedProcess(cmd, p.returncode, out, err)
 
 
 def git_state() -> tuple[str, bool]:
@@ -72,7 +83,7 @@ def gate_two_stream(cfg: str, gpus: int, quick: bool, workdir: Path) -> dict:
         return {"name": name, "passed": False, "metrics": {}, "criteria": {},
                 "log_tail": "\n".join((r.stdout + r.stderr).strip().splitlines()[-20:])}
     res = analyze(str(out), show_plot=False)
-    meta = json.loads((out / "meta.json").read_text())
+    meta = json.loads((out / "run.json").read_text())["meta"].get("run", {})
     solver = "implicit" if "implicit" in cfg else "explicit"
     crit = CRITERIA[solver]
     metrics = {

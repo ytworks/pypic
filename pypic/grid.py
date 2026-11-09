@@ -8,14 +8,10 @@ import numpy as np
 
 from .backend import compile_module, launch
 from .kernelsrc import FIELD_SOURCES, grid_defines
+from .output.names import STAGGER  # noqa: F401  (staggering offsets of each component, re-exported)
 from .parallel.decomp import Decomposition
 
 FIELD_NAMES = ("Ex", "Ey", "Ez", "Bx", "By", "Bz")
-# staggering offsets (x,y,z) of each component
-STAGGER = {
-    "Ex": (0.5, 0, 0), "Ey": (0, 0.5, 0), "Ez": (0, 0, 0.5),
-    "Bx": (0, 0.5, 0.5), "By": (0.5, 0, 0.5), "Bz": (0.5, 0.5, 0),
-}
 
 
 class YeeGrid:

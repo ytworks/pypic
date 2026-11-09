@@ -19,7 +19,8 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D7, Accepted).
+Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D8, Accepted),
+`docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1, Accepted).
 
 | Milestone | Status |
 |---|---|
@@ -29,18 +30,26 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D7, Accep
 | M4 Mixtures + planner + two-stream example | Complete; growth within 3.5 % of theory |
 | M5 Implicit energy-conserving scheme | Complete; energy error 1.9e-10 over 679 steps |
 | M6 Performance | Partial: 1.0 ns/particle/step on 1 GPU; 4.0× on 8 GPUs (R3–R5 open) |
-| Harness: CPU CI + GPU gates | Introduced 2026-11-09 (this PR) |
+| Harness: CPU CI + GPU gates | Introduced 2026-11-09 (PR #1) |
+| Research output + analysis (PR #2) | Phase 1 complete (output, ids, analysis, Buneman); phases 2–4 (examples) in progress |
 
 - GPU gates: ALL PASSED on 0aac3a7, 8 GPUs (`bench/results/2026-11-09-0aac3a717-gpu-gates.json`):
   growth error +2.9 / −1.8 / −2.6 / +3.5 % (ei/ep/eip/ei_implicit), Gauss ≤ 3.5e-12, div B ≤ 1.0e-14,
   implicit energy 1.9e-10; 23 GPU tests pass.
-- Known gaps: no particle injection at open faces (R1); no field/particle output or restart (R2).
+- Known gaps: no particle injection at open faces (R1); no restart checkpoints (R2); output written
+  synchronously by rank 0 (R9).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 
 ## Change Log
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-09 — [design] Research output, analysis package, particle ids (PR #2, phase 1)
+- What: HDF5 output — openPMD dumps + reduced series, cadence from physics, collective diagnostics written by rank 0, files independent of the GPU count; particle ids (PIC-D8); `pypic.analysis` (reader, omega-k / growth / power-law fits, plots, movies, XDMF, CLI); shared example runner; Buneman config with `remove_mean_current`; `Simulation.save()` / `mode_diag` / `phase_space_*` removed.
+- Why: owner request — keep research data in light files at the cadence the physics needs, with general analysis tools and one example per analytic problem (plan `docs/plans/2026-11-09-output-analysis-examples.md`).
+- Fixes: implicit error flags reduced over ranks (rank-local raise hung callers); particle on the upper reflecting wall of a decomposed axis no longer dropped.
+- Refs: OUT-D1..D4, ANA-D1, PIC-D8; `docs/design/output-analysis.md`; `tests/gpu/test_output.py`
 
 ### 2026-11-09 — [amendment] PR #1 second review fixes
 - What: the implicit deposit folds a segment about the wall chosen from the unfolded midpoint (was the folded one, wrong when |d| > L/2 → charge not conserved); `SimConfig.from_dict` accepts `SpeciesConfig` instances so typed planner overrides work again.

@@ -22,8 +22,8 @@ def test_compositions_neutral():
 
 
 def test_symmetric_two_stream_growth_rate():
-    from pypic.setup.dispersion import fastest_mode
     from pypic.setup.species import Composition, TwoStreamBeams, build_species
+    from pypic.theory.streaming import fastest_mode
 
     u = 0.05
     sp = build_species(Composition("e-i", 1e8), TwoStreamBeams("electron", u_drift=u, T_e=0.0))

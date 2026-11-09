@@ -1,6 +1,6 @@
 # Engine design
 
-Status: **Accepted** (2026-11-09, PR #1).
+Status: **Accepted** (2026-11-09, PR #1; PIC-D8 PR #2).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -57,6 +57,14 @@ k_max / gamma_max / omega_r and derives box, grid, dt (CFL, omega_pe dt, omega_c
 oscillation resolution) and run length, reporting each margin; every value is overridable.
 Why: the owner asked that time step and plasma parameters be set optimally for the experiment.
 
+### PIC-D8 — Persistent particle ids (2026-11-09, PR #2)
+Particle storage gains an 8th row: an integer-valued float64 id, assigned by the loader as
+`((beam - 1) · N_cells + global cell) · ppc + slot` (linear global cell index), so ids are unique and
+independent of the rank layout; they move with the particle through sort, migration and removal.
+Initialisation refuses runs with `n_beams · N_cells · ppc ≥ 2^53` (exact float64 integers).
+Why: tracked orbits and particle samples for acceleration studies (OUT-D1/D2) must follow the
+same physical macro-particles on any number of GPUs.
+
 ## Review amendments
 
 - 2026-11-09 (PR #1 review): CG guards against 0/0 after exact convergence; exact MJ sampling;
@@ -64,3 +72,8 @@ Why: the owner asked that time step and plasma parameters be set optimally for t
   nested planner overrides converted through `SimConfig.from_dict`; launcher polls all ranks.
 - 2026-11-09 (PR #1 second review): implicit orbit folding chooses the wall from the unfolded
   midpoint (charge conservation for |d| > L/2); typed `SpeciesConfig` overrides accepted.
+- 2026-11-09 (PR #2): implicit-step error flags are reduced over ranks before raising (a
+  rank-local raise left the other ranks in a collective); a particle exactly on the upper
+  reflecting wall of a decomposed axis stays with the edge rank (migration used to drop it).
+  The in-memory mode / phase-space diagnostics and `Simulation.save()` were replaced by the
+  output system (`docs/design/output-analysis.md`).

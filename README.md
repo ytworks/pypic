@@ -24,12 +24,8 @@ On several GPUs it uses a 3-D domain decomposition with NCCL, one process per GP
 - **Mixtures**: `e-i`, `e-p` or `e-i-p`, always generated charge-neutral (`n_e = Z n_i + n_p`). All beams share the same positions, so the initial ρ is exactly 0 and the initial E is 0.
 - **Automatic parameter planner**: finds the fastest-growing mode from the linear dispersion relation. From it, it chooses box size, grid, time step, run length, particles per cell, memory and rank layout, and reports the margin against every constraint. Every value can be overridden.
 - **Initial distribution**: drifting Maxwell–Jüttner (Zenitani 2015). The random numbers are counter-based, so the initial particles are identical whatever the number of GPUs.
-- **Diagnostics**:
-  - kinetic energy per species, electric and magnetic field energy, momentum
-  - total energy budget, including boundary outflow and dissipation in absorbing layers
-  - max\|∇·E−ρ\| and max\|∇·B\|
-  - complex Fourier modes of E_x
-  - (x, u_x) phase space
+- **Diagnostics**: kinetic energy per species, field energies, momentum, the total energy budget (including boundary outflow and absorbing-layer dissipation), max\|∇·E−ρ\| and max\|∇·B\|.
+- **Research output** (HDF5, see [Output and analysis](#output-and-analysis)): openPMD field and particle dumps, plus light reduced diagnostics — lineouts, slices, Fourier modes, k spectra, phase-space and energy histograms, tracked particle orbits. The output cadence is derived from the physics of the run, and the files are identical whatever the number of GPUs.
 
 Units are normalised: `c = ε0 = 1`, length `c/ω_pe`, time `1/ω_pe`, charge `e`, mass `m_e`, density `n0` (the total electron density).
 Temperatures are given in `m_e c²` (`T_e`), or in eV via `T_e_eV` etc.
@@ -38,8 +34,8 @@ Temperatures are given in `m_e c²` (`T_e`), or in eV via `T_e_eV` etc.
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e ".[gpu,multigpu,dev]"   # GPU machine (CuPy, NCCL, pytest, ruff)
-.venv/bin/pip install -e ".[dev,kernelcheck]"    # CPU only: set-up layer, tests/cpu, kernel compile check
+.venv/bin/pip install -e ".[gpu,multigpu,dev,viz]"   # GPU machine (CuPy, NCCL, pytest, ruff, MP4 movies)
+.venv/bin/pip install -e ".[dev,kernelcheck,viz]"    # CPU only: set-up, analysis, tests/cpu, kernel check
 ```
 The engine needs a CUDA 13 driver and CuPy (`cupy-cuda13x`, extra `gpu`); multi-GPU runs need
 `nvidia-nccl-cu13` (extra `multigpu`). The set-up layer (`pypic.config`, `pypic.setup`) is pure
@@ -54,8 +50,8 @@ python examples/two_stream/run.py --config examples/two_stream/configs/ei.yaml -
 python examples/two_stream/run.py --config examples/two_stream/configs/ei.yaml
 # run on 8 GPUs
 python -m pypic.launch -n 8 examples/two_stream/run.py --config examples/two_stream/configs/ep.yaml
-# analyse: growth rate vs linear theory, conservation, phase space -> output/<name>/summary.png
-python examples/two_stream/analyze.py output/ep
+# analyse: growth rate vs linear theory, conservation, phase space -> output/two_stream/ep/summary.png
+python examples/two_stream/analyze.py output/two_stream/ep --movie   # + two_stream.mp4
 ```
 
 Provided configurations:
@@ -66,9 +62,11 @@ Provided configurations:
 | `configs/ep.yaml` | electron–positron | neutral counter-streaming pair beams (`mode: symmetric`) |
 | `configs/eip.yaml` | electron–ion–positron | positrons carry 30% of the positive charge (`positron_fraction`) |
 | `configs/ei_implicit.yaml` | electron–ion | same physics as e-i with the exactly energy-conserving implicit solver |
+| `configs/buneman.yaml` | electron–ion | Buneman instability: all electrons drift through ions at rest, γ ≈ (√3/2)(m_e/2m_i)^{1/3} ω_pe |
 
 Override YAML values with `--set key=value`, e.g. `--set u_drift=0.3 --set solver=implicit`.
-Any `SimConfig` field can be overridden with `--set overrides.ppc=64`.
+Any `SimConfig` field can be overridden with `--set overrides.ppc=64`, and any output setting with
+`--set output.budget_GB=5` or `--set output.codec=deflate`.
 
 ### Main parameters (`TwoStreamParams`)
 
@@ -104,10 +102,77 @@ cfg = SimConfig(n_cells=(64, 32, 32), dx=(0.1,) * 3, dt=0.05, n_steps=1000, solv
                 boundaries=(("open", "open"), ("periodic", "periodic"), ("reflecting", "reflecting")),
                 species=[SpeciesConfig("electron", -1, 1, [Beam(1.0, (0.1, 0, 0), 1e-3)]),
                          SpeciesConfig("ion", 1, 1836, [Beam(1.0, (0, 0, 0), 1e-6)])], ppc=16)
+cfg.output = OutputConfig(dir="output/my_run", timescales={"plasma_period": 6.283}, diagnostics=[
+    {"name": "lineout", "kind": "lineout", "fields": ["Ex"], "axis": "x"},          # auto cadence
+    {"name": "phase", "kind": "histogram", "quantities": ["x", "ux"], "bins": [256, 128], "every": {"count": 100}},
+    {"name": "fields", "kind": "fields", "fields": ["E", "B", "n:electron"], "coarsen": [2, 2, 2], "every": {"t": 10.0}},
+])
 sim = Simulation(cfg)      # for several GPUs, start with: python -m pypic.launch -n N
 sim.run(progress=100)
-sim.save()                 # output/history.npz
+sim.close()                # flush and close the output files
 ```
+(`from pypic.config import OutputConfig`.) Without `output.dir` nothing is written; the energy
+history stays in `sim.history`.
+
+## Output and analysis
+
+Design: [`docs/design/output-analysis.md`](docs/design/output-analysis.md).
+
+```
+output/<run>/run.json                      configuration, schedule, units, time centring, theory (meta)
+            scalars.h5                     energy / momentum / conservation history
+            reduced/<diag>.h5              lineout, slice, modes, kspectrum, histogram (time series)
+            fields/<diag>/<diag>_%08d.h5   openPMD meshes (E, B, J, rho, species moments)
+            particles/<diag>/<diag>_%08d.h5   openPMD particles (sorted by id)
+            tracks/<diag>_<species>.h5     tracked orbits (x, u, and E, B at the particle)
+```
+
+| kind | content |
+|---|---|
+| `fields` | 3-D fields (`E`, `B`, `J`, `rho`, `n:<sp>`, `flux:<sp>`, `ekin:<sp>`), block-averaged with `coarsen`, cropped with `region` |
+| `slice` | a 2-D plane of fields over time |
+| `lineout` | 1-D profiles averaged over the other two axes (x–t and ω–k diagrams) |
+| `modes` | complex Fourier amplitudes of chosen `(mx, my, mz)` (growth / damping rates in 3-D) |
+| `kspectrum` | shell-averaged \|F(k)\|² |
+| `histogram` | 1–3-D weighted histograms of x y z ux uy uz u gamma ekin (energy spectra, phase space) |
+| `particles` | particle samples (`stride` on the id, `select: {gamma_min: ...}`, `region`) |
+| `tracks` | a fixed set of particles (`stride`), optionally with E and B at the particle |
+
+- **Cadence from physics** — `every` takes one of these forms:
+  - `25` (steps), `{t: 0.5}`, `{count: 100}`
+  - `{per: growth_time, samples: 10}`, `{nyquist: shortest_period, oversample: 2}`
+  - `auto`: applies every requirement of the diagnostic kind whose time scale the planner set, and takes the strictest. For spectral diagnostics this means the Nyquist rate of the fastest oscillation (time-averaged over the interval, as an anti-aliasing filter) and at least 10 samples per growth time.
+
+  The planner report prints the resulting interval, number of outputs and size of every diagnostic, and warns about aliasing. `budget_GB` caps the total size by widening only the `auto` cadences.
+- **Lightweight files**:
+  - The default is float32, with byte-shuffle and zstd lossless compression (`hdf5plugin`).
+  - `codec: deflate` is readable by any HDF5 tool.
+  - `keep_bits: n` is lossy: it rounds the mantissa, with a relative error of at most 2^-(n+1).
+  - Most of the saving comes from writing reduced data instead of full dumps.
+- **Analysis** (`pypic.analysis`, CPU only):
+
+  ```python
+  from pypic.analysis import open_run, Movie
+  run = open_run("output/two_stream/ei"); print(run.summary())       # cadence, sizes, compression
+  lo = run.series("lineout"); lo["Ex"], lo.t, lo.x("Ex")             # (n_t, n_x) + coordinates
+  f = run.fields("fields"); fd = f.get(f.iterations[-1], "Ez")       # data + coords + time
+  Movie(run).phase("phase", "electron").xt("lineout", "Ex").history().save("movie.mp4")
+  ```
+
+  Modules:
+  - `spectral`: ω–k diagrams, ridge extraction, growth and damping fits.
+  - `particles`: spectra, power-law fits, Maxwell–Jüttner temperature, cut-off energy, work by each E component, parallel and perpendicular work along tracks.
+  - `fields`: flux function, fronts.
+  - `plot`, `animate`, `xdmf`: figures, movies, and ParaView/VisIt 3-D viewing.
+
+  The same is available on the command line:
+
+  ```bash
+  python -m pypic.analysis info  output/two_stream/ei
+  python -m pypic.analysis plot  output/two_stream/ei
+  python -m pypic.analysis movie output/two_stream/ei --panel phase:phase:electron --panel xt:lineout:Ex -o ei.mp4
+  python -m pypic.analysis xdmf  output/two_stream/ei --diag fields
+  ```
 
 ## Tests and CI
 
@@ -150,7 +215,8 @@ The repository is set up for continuous development across sessions, by people a
 | `CLAUDE.md` / `AGENTS.md` | Entry point for Claude Code / Codex: session start, test policy, where things live |
 | `PROGRESS.md` | Cross-session memory: Product, Current Status, Change Log. A SessionStart hook and CI enforce its size budget; old entries are archived to `docs/progress/archive/` |
 | `.claude/rules/` | `progress-log.md` (how to keep PROGRESS.md); `numerics-invariants.md` (conservation contracts, gate criteria, multi-GPU rules) |
-| `docs/design/engine.md` | Design decisions with IDs (PIC-D1..D7) and review amendments |
+| `docs/design/engine.md` | Design decisions with IDs (PIC-D1..D8) and review amendments |
+| `docs/design/output-analysis.md` | Output and analysis decisions (OUT-D1..D4, ANA-D1) |
 | `docs/roadmap.md`, `docs/plans/` | Next work items (R1..R7) and per-change implementation plans |
 | `docs/gpu-runbook.md`, `bench/results/` | GPU gate procedure and the recorded evidence |
 
@@ -189,10 +255,12 @@ pypic/
   kernelsrc.py           kernel source assembly + compile-time constants (pure Python)
   grid.py                Yee grid, ghost exchange, boundary conditions, CPML, field diagnostics
   particles.py           SoA particles, sorting, inter-rank migration
-  simulation.py          explicit / implicit main loop, CG, diagnostics, output
-  parallel/              NCCL communication, 3-D domain decomposition
+  simulation.py          explicit / implicit main loop, CG, energy / conservation diagnostics
+  output/                cadence planning (schedule), HDF5/openPMD writers, GPU diagnostics, manager
+  analysis/              reader, spectral / particle / field analysis, plots, movies, XDMF, CLI (CPU only)
+  parallel/              NCCL communication, 3-D domain decomposition, gathers to rank 0
   launch.py              multi-GPU launcher
-  setup/                 mixtures (species), dispersion relation, automatic parameter planner
+  setup/                 mixtures (species), dispersion relation, planners, example runner
 examples/two_stream/     run.py, analyze.py, configs/*.yaml
 tests/cpu/, tests/gpu/   CPU-only tests (CI) / GPU tests
 scripts/                 check_kernels, gpu_gates, verify_bench_results, check_progress_size
@@ -207,4 +275,5 @@ bench/results/           recorded GPU gate evidence (index.json)
 - **Explicit open boundaries**: the Poynting-flux term of the energy budget is approximate.
 - **Implicit open boundaries**: the matched conductive layer accounts for dissipated energy exactly, but absorbs less well than CPML.
 - **`mode: buneman`**: carries a net current, so the k=0 mode oscillates at ω_pe.
+- **Particle ids**: every particle carries an id (8th storage row, +14 % particle memory).
 - **Precision**: double precision only for now. Planned next: a float32 mode, shared-memory current deposition, and overlapping communication with computation.
