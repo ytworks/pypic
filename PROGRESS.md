@@ -33,7 +33,7 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 | Harness: CPU CI + GPU gates | Introduced 2026-11-09 (PR #1) |
 | Research output + analysis (PR #2) | Complete: output, ids, analysis package, 8 analytic-solution examples with gates |
 
-- GPU gates: ALL PASSED on 6dee42f, 8 GPUs (`bench/results/2026-11-09-6dee42f1d-gpu-gates.json`):
+- GPU gates: ALL PASSED on b3a8abc, 8 GPUs (`bench/results/2026-11-09-b3a8abc42-gpu-gates.json`):
   growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss ≤ 7.5e-12,
   implicit energy 1.9e-10; 16 analytic-example gates (ANA-D2) pass; 45 GPU tests pass.
 - Known gaps: no particle injection at open faces (R1); no restart checkpoints (R2); output written
