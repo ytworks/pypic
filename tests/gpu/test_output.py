@@ -110,6 +110,50 @@ def test_a_second_run_does_not_mix_with_the_first(tmp_path):
     assert run_.info["run_id"] != first  # each run has its own id (one evidence record per run)
 
 
+def test_a_failed_output_write_stops_every_rank(tmp_path):
+    """Review of PR #2: when rank 0 could not prepare the output directory (e.g. old files it may
+    not delete under output.overwrite) it raised alone, and the other ranks went on into the next
+    collective. Two ranks run in threads, with a stand-in for the NCCL reduction."""
+    import threading
+    import types
+
+    from pypic.output.manager import OutputError, OutputManager
+
+    blocker = tmp_path / "a_file"
+    blocker.write_text("")
+    cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.2,) * 3, dt=0.08, n_steps=1,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0, 0, 0), 0.01)]),
+                             SpeciesConfig("i", 1, 25, [Beam(1.0, (0, 0, 0), 0.001)])],
+                    output=OutputConfig(dir=str(blocker / "run")))  # cannot be created
+    barrier, vals, errors = threading.Barrier(2, timeout=30), [0.0, 0.0], [None, None]
+
+    class Comm:
+        size = 2
+
+        def __init__(self, rank):
+            self.rank = rank
+
+        def allreduce_scalar(self, v, op="sum"):
+            vals[self.rank] = v
+            barrier.wait()
+            out = max(vals) if op == "max" else sum(vals)
+            barrier.wait()
+            return float(out)
+
+    def rank(r):
+        try:
+            OutputManager(types.SimpleNamespace(cfg=cfg, rank=r, comm=Comm(r)))
+        except Exception as exc:  # noqa: BLE001 - checked below
+            errors[r] = exc
+
+    threads = [threading.Thread(target=rank, args=(r,)) for r in (0, 1)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(60)
+    assert all(isinstance(e, OutputError) for e in errors), errors
+
+
 def test_output_is_independent_of_the_gpu_count(tmp_path):
     """Every output file of a mixed-boundary run (all diagnostic kinds, particles sorted by id)
     is the same on 1 and 2 GPUs to float32 round-off."""

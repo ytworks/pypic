@@ -4,6 +4,7 @@ bench/results."""
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -24,6 +25,7 @@ def _repo(tmp_path: Path, analyze: str) -> Path:
         shutil.copy(SCRIPTS / name, root / "scripts" / name)
     (root / "examples" / "demo").mkdir(parents=True)
     (root / "examples" / "demo" / "analyze.py").write_text(analyze)
+    (root / ".gitignore").write_text("__pycache__/\n")  # as in this repository
     _git(root, "init", "-q")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "A")
@@ -40,9 +42,9 @@ def _run_dir(tmp_path: Path, name: str, run_id: str, value: float) -> Path:
     return d
 
 
-def _record(root: Path, run_dir: Path) -> subprocess.CompletedProcess:
+def _record(root: Path, run_dir: Path, **env: str) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, str(root / "scripts" / "record_example.py"), str(run_dir)], cwd=root,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env={**os.environ, **env})
 
 
 def _verify(root: Path) -> subprocess.CompletedProcess:
@@ -88,6 +90,23 @@ def test_the_analysis_code_must_not_change_while_it_runs(tmp_path):
     r = _record(root, _run_dir(tmp_path, "r1", "00aa11bb", 1.0))
     assert r.returncode == 1 and "changed while the analysis ran" in r.stderr
     assert not list((root / "bench" / "results").glob("*.json"))
+
+
+def test_untracked_analysis_sources_are_part_of_the_provenance(tmp_path):
+    """Review of PR #2: an untracked helper module imported by analyze.py was not part of the
+    analysis commit: the record looked clean, and editing the helper during the analysis passed."""
+    root = _repo(tmp_path, "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n"
+                           "import local_fit  # noqa: E402\n\n\ndef analyze(run_dir, show_plot=False):\n"
+                           "    if os.environ.get('EDIT_HELPER'):\n"
+                           "        open(local_fit.__file__, 'a').write('# edited\\n')\n"
+                           "    return {'passed': True, 'value': local_fit.VALUE}\n")
+    (root / "examples" / "demo" / "local_fit.py").write_text("VALUE = 3.0\n")  # not committed
+    r = _record(root, _run_dir(tmp_path, "r1", "00aa11bb", 1.0))
+    assert r.returncode == 0, r.stderr
+    rec = json.loads(next((root / "bench" / "results").glob("*-example-*.json")).read_text())
+    assert rec["metrics"]["value"] == 3.0 and rec["analysis_commit"] == _git(root, "rev-parse", "HEAD") + "-dirty"
+    r = _record(root, _run_dir(tmp_path, "r2", "22cc33dd", 1.0), EDIT_HELPER="1")
+    assert r.returncode == 1 and "changed while the analysis ran" in r.stderr
 
 
 def _no_constant(token):

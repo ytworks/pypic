@@ -30,6 +30,8 @@ from pathlib import Path
 
 import bench_records  # scripts/bench_records.py (this directory is on sys.path)
 
+from pypic.provenance import code_state
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "examples" / "two_stream"))
 
@@ -70,9 +72,9 @@ def sh(cmd, timeout=None) -> subprocess.CompletedProcess:
 
 
 def git_state() -> tuple[str, bool]:
-    commit = sh(["git", "rev-parse", "HEAD"]).stdout.strip()
-    dirty = bool(sh(["git", "status", "--porcelain", "--untracked-files=no"]).stdout.strip())
-    return commit, dirty
+    """Commit and whether the code differs from it, untracked code files included (pypic.provenance)."""
+    commit, changes = code_state(ROOT)
+    return commit, bool(changes)
 
 
 def gate_gpu_tests() -> dict:

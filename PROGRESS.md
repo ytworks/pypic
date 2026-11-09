@@ -47,6 +47,12 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [amendment] PR #2 third review: rank-0 file errors, untracked code
+- What:
+  - Every rank-0 file operation of the output shares its outcome with all ranks (`OutputError` on every rank).
+  - Provenance has one definition (`pypic.provenance`), used by run.json, gate records and example records. Untracked code files make a commit dirty; changes outside the code paths do not.
+- Why: the review reproduced a rank-0-only `PermissionError` that left the other ranks in a collective, and an untracked analysis helper that was missing from `analysis_commit`. Each fix has a test that failed on the old code.
+- Refs: OUT-D2, ANA-D3 and review amendments in `docs/design/output-analysis.md`
 ### 2026-11-09 — [amendment] PR #2 second review: recorded results
 - What:
   - `run.json` carries a run id and a start time, both fixed at start-up. Example records are one per run, with the run id in the file name and index entry, so realizations no longer overwrite each other.

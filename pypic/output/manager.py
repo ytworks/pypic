@@ -1,7 +1,10 @@
 """Output manager: runs the resolved schedule inside the simulation loop (OUT-D2).
 
 All ranks call :meth:`on_step` at the start of every step (state at time level n) and once
-after the run; due diagnostics are computed collectively and written by rank 0 only.
+after the run; due diagnostics are computed collectively and written by rank 0 only. Every file
+operation of rank 0 shares its outcome with all ranks (:meth:`OutputManager._root_io`): if it
+fails, every rank raises :class:`OutputError` together, instead of the other ranks waiting in
+the next collective.
 """
 from __future__ import annotations
 
@@ -10,11 +13,11 @@ import json
 import os
 import secrets
 import shutil
-import subprocess
 
 import numpy as np
 
 from .. import __version__
+from ..provenance import commit_label, repo_root
 from .diagnostics import KINDS, FieldSource
 from .names import expand_fields
 from .schedule import resolve
@@ -23,15 +26,15 @@ SCALAR_KEYS = ("kinetic", "electric", "magnetic", "total", "lost_kinetic", "boun
                "px", "py", "pz", "gauss", "divB", "picard", "n_particles")
 
 
+class OutputError(RuntimeError):
+    """A file operation of the output failed (raised on every rank)."""
+
+
 def _git_commit() -> str | None:
+    """Commit of the running code, "-dirty" if the tree differs from it (pypic.provenance)."""
     try:
-        here = os.path.dirname(os.path.abspath(__file__))
-        r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=here, capture_output=True, text=True, timeout=5)
-        if r.returncode:
-            return None
-        d = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=here, capture_output=True,
-                           text=True, timeout=5)
-        return r.stdout.strip() + ("-dirty" if d.stdout.strip() else "")
+        root = repo_root(os.path.dirname(os.path.abspath(__file__)))
+        return commit_label(root) if root is not None else None
     except Exception:  # noqa: BLE001 - provenance is best effort
         return None
 
@@ -85,8 +88,6 @@ class OutputManager:
         self.created = _dt.datetime.now().astimezone().isoformat(timespec="seconds")
         self.run_id = secrets.token_hex(4)
         self._claim_directory()
-        if self.root:
-            self.write_run_json()
 
     # entries a run writes into its directory (removed by output.overwrite; nothing else is touched)
     RUN_ENTRIES = ("run.json", "scalars.h5", "reduced", "fields", "particles", "tracks")
@@ -102,7 +103,8 @@ class OutputManager:
             found = f" ({', '.join(present)})" if present else ""
             raise FileExistsError(f"{d} already holds run output{found}: choose another output.dir, or set "
                                   "output.overwrite (--overwrite) to replace it")
-        if self.root:
+
+        def prepare():
             os.makedirs(d, exist_ok=True)
             for e in present:
                 p = os.path.join(d, e)
@@ -110,6 +112,24 @@ class OutputManager:
                     shutil.rmtree(p)
                 else:
                     os.remove(p)
+            self.write_run_json()
+
+        self._root_io(f"preparing the output directory {d}", prepare)
+
+    def _root_io(self, what: str, fn, *args):
+        """Run a file operation on rank 0 and share its outcome (collective: every rank calls it at
+        the same point). A failure raises OutputError on every rank before any further collective;
+        rank 0 chains the original exception."""
+        err = None
+        if self.root:
+            try:
+                fn(*args)
+            except Exception as exc:  # noqa: BLE001 - re-raised below, on every rank
+                err = exc
+        if self.sim.comm.allreduce_scalar(float(err is not None), "max") > 0:
+            if err is not None:
+                raise OutputError(f"{what} failed: {err!r}") from err
+            raise OutputError(f"{what} failed on rank 0")
 
     # ------------------------------------------------------------------ metadata
     def edpic(self) -> dict:
@@ -183,10 +203,10 @@ class OutputManager:
 
     def update_meta(self, meta: dict):
         """Add experiment metadata (planner report, theory predictions, run statistics) to run.json.
-        Local: only rank 0 writes."""
+        Collective: call it on every rank (rank 0 writes)."""
         self.meta.update(meta)
-        if self.enabled and self.root:
-            self.write_run_json()
+        if self.enabled:
+            self._root_io("writing run.json", self.write_run_json)
 
     # ------------------------------------------------------------------ loop
     def on_step(self):
@@ -195,6 +215,7 @@ class OutputManager:
         sim = self.sim
         step = sim.step_count
         self.src.clear()
+        pending = []
         for dg in self.diags:
             r, name = dg.r, dg.d.name
             # time-averaged diagnostics sample every step of (S - every, S] for an output at S
@@ -202,27 +223,47 @@ class OutputManager:
                 dg.accumulate(self.src)
                 self.acc_step[name] = step
             if r.due(step) and self.last.get(name, -1) < step:  # once per step, even if called twice
-                data = dg.compute(self.src)
+                pending.append((dg, dg.compute(self.src)))
                 self.last[name] = step
-                if self.root:
+        rows = self._new_scalar_rows()
+        if pending or rows is not None:  # from the schedule and the history: the same on every rank
+
+            def write():
+                for dg, data in pending:
                     self._write(dg, step, data)
-        if self.root and self.cfg.scalars:
-            self._write_scalars()
+                self._write_scalars(rows)
+
+            self._root_io(f"writing the output of step {step}", write)
         self.src.clear()
 
     def flush(self):
-        """Write everything recorded so far (end of a run): pending scalar rows and partial chunks."""
-        if self.enabled and self.root:
-            if self.cfg.scalars:
-                self._write_scalars()
+        """Write everything recorded so far (end of a run): pending scalar rows and partial chunks.
+        Collective."""
+        if not self.enabled:
+            return
+        rows = self._new_scalar_rows()
+
+        def write():
+            self._write_scalars(rows)
             for w in self.writers.values():
                 w.flush()
 
+        self._root_io("flushing the output", write)
+
     def close(self):
+        """Collective."""
         self.flush()
-        for w in self.writers.values():
-            w.close()
-        self.writers = {}
+        if not self.enabled:
+            return
+
+        def close():
+            for w in self.writers.values():
+                w.close()
+
+        try:
+            self._root_io("closing the output files", close)
+        finally:
+            self.writers = {}
 
     # --------------------------------------------------------------- writing
     def _series(self, dg, attrs=None):
@@ -278,25 +319,34 @@ class OutputManager:
                                   "edges": json.dumps([e.tolist() for e in dg.edges])})
             w.append(step, t, data)
 
-    def _write_scalars(self):
-        """Hand new history rows to the (chunk-buffered) scalars writer."""
+    def _new_scalar_rows(self) -> slice | None:
+        """History rows not yet handed to the scalars file (the history is the same on every rank,
+        so is this; it is advanced on every rank)."""
+        if not self.cfg.scalars:
+            return None
+        n = len(self.sim.history["step"])
+        if n <= self.scalar_rows:
+            return None
+        rows = slice(self.scalar_rows, n)
+        self.scalar_rows = n
+        return rows
+
+    def _write_scalars(self, sl: slice | None):
+        """Hand history rows to the (chunk-buffered) scalars writer (rank 0)."""
         from .h5 import SeriesWriter
 
-        h = self.sim.history
-        n = len(h["step"])
-        if n <= self.scalar_rows:
+        if sl is None:
             return
+        h = self.sim.history
         if "__scalars__" not in self.writers:
             attrs = {"diagnostic": "scalars", "every_steps": self.sim.cfg.diag_interval}
             self.writers["__scalars__"] = SeriesWriter(os.path.join(self.cfg.dir, "scalars.h5"), attrs,
                                                        self.cfg.codec, self.cfg.level)
         w = self.writers["__scalars__"]
-        sl = slice(self.scalar_rows, n)
         data = {k: np.asarray(h[k][sl], dtype=np.float64) for k in SCALAR_KEYS}
         for sp, v in self.sim.kinetic_species.items():
             data[f"kinetic_{sp}"] = np.asarray(v[sl], dtype=np.float64)
         w.append_rows(h["step"][sl], h["t"][sl], data)
-        self.scalar_rows = n
 
 
 def _json_default(o):

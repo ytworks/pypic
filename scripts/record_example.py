@@ -12,15 +12,15 @@ bench/results/index.json with type "example" (validated by verify_bench_results.
 
 - One record per run: separate runs of a configuration (realizations) are kept side by side;
   recording the same run again replaces its record.
-- The analysis commit is taken before the analysis code is loaded; if HEAD or the code under
-  examples/ and pypic/ changes while the analysis runs, nothing is recorded.
+- The analysis commit is taken before the analysis code is loaded, "-dirty" when the code differs
+  from it, untracked code files included (pypic.provenance); if the code changes while the
+  analysis runs, nothing is recorded.
 - The record is strict JSON: a metric that could not be measured (NaN) is stored as null.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
-import hashlib
 import json
 import os
 import subprocess
@@ -29,18 +29,10 @@ from pathlib import Path
 
 import bench_records  # scripts/bench_records.py (this directory is on sys.path)
 
+from pypic.provenance import code_state
+
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "bench" / "results"
-
-
-def git(*args: str) -> str:
-    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-
-
-def code_state() -> tuple[str, str]:
-    """HEAD and a digest of the uncommitted changes to the analysis code (examples/, pypic/)."""
-    diff = git("diff", "HEAD", "--", "examples", "pypic")
-    return git("rev-parse", "HEAD"), hashlib.sha256(diff.encode()).hexdigest() if diff else ""
 
 
 def main() -> int:
@@ -73,15 +65,15 @@ def main() -> int:
             "spec.loader.exec_module(mod)\n"
             "print(json.dumps(mod.analyze(sys.argv[2], show_plot=False), default=float))")
     # the analysis code is identified before it is loaded and must be unchanged when it ends
-    before = code_state()
+    before = code_state(ROOT)
     r = subprocess.run([sys.executable, "-c", code, str(known[example]), str(run_dir)], cwd=ROOT,
                        capture_output=True, text=True)
     if r.returncode != 0:
         print(r.stderr[-3000:], file=sys.stderr)
         return 1
-    if code_state() != before:
-        print("the analysis code (HEAD or files under examples/, pypic/) changed while the analysis ran: "
-              "nothing recorded", file=sys.stderr)
+    if code_state(ROOT) != before:
+        print("the analysis code (HEAD, or tracked or untracked files under the code paths) changed while "
+              "the analysis ran: nothing recorded", file=sys.stderr)
         return 1
     result = json.loads(r.stdout.strip().splitlines()[-1])
     commit_full = info.get("git_commit") or "unknown"
