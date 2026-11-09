@@ -1,0 +1,13 @@
+# Same e-i physics with the exactly energy-conserving implicit solver (coarser grid, larger dt).
+mixture: e-i
+mass_ratio: 1836.15267
+mode: electron
+u_drift: 0.2
+T_e_eV: 51.1
+T_i_eV: 5.11
+solver: implicit
+n_wavelengths: 4
+cells_per_wavelength: 16
+transverse_ratio: 0.25
+ppc: 16
+growth_times: 30

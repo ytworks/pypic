@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cpu:
+    # GitHub-hosted runners have no GPU: this job checks everything that does not execute a
+    # kernel. GPU verification is scripts/gpu_gates.py on a GPU machine (docs/gpu-runbook.md);
+    # its recorded evidence in bench/results/ is validated here.
+    name: CPU checks (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install (no CuPy; NVRTC wheel only for the kernel compile check)
+        run: python -m pip install -e ".[dev,kernelcheck]"
+      - name: Lint
+        run: ruff check .
+      - name: PROGRESS.md size budget and layout
+        run: python scripts/check_progress_size.py
+      - name: GPU evidence index (bench/results)
+        run: python scripts/verify_bench_results.py
+      - name: Compile-check CUDA kernels with NVRTC (sm_80, sm_120)
+        run: python scripts/check_kernels.py
+      - name: CPU tests
+        run: python -m pytest -q -ra tests/cpu

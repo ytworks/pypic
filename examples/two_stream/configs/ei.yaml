@@ -1,0 +1,14 @@
+# Electron-ion plasma: two counter-streaming electron beams over a neutralising ion background.
+mixture: e-i
+mass_ratio: 1836.15267   # m_i / m_e (free parameter)
+Z: 1
+mode: electron           # electron | symmetric | buneman
+u_drift: 0.2             # beam proper velocity gamma v / c
+beam_fraction: 0.5
+T_e_eV: 51.1             # theta_e = 1e-4
+T_i_eV: 5.11
+solver: explicit         # explicit (Yee + Buneman-Boris + Esirkepov) | implicit (exact energy)
+n_wavelengths: 4
+transverse_ratio: 0.25
+ppc: 16
+growth_times: 30

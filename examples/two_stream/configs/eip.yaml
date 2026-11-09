@@ -1,0 +1,13 @@
+# Electron-ion-positron plasma: positrons carry 30% of the positive charge.
+mixture: e-i-p
+mass_ratio: 100          # reduced mass ratio
+Z: 1
+positron_fraction: 0.3
+mode: electron
+u_drift: 0.2
+T_e_eV: 51.1
+solver: explicit
+n_wavelengths: 4
+transverse_ratio: 0.25
+ppc: 16
+growth_times: 30

@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pypic"
+version = "0.1.0"
+description = "GPU-accelerated multi-GPU 3D relativistic electromagnetic Particle-in-Cell engine (CuPy)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+# The set-up layer (config, species, dispersion, planner) is pure Python and runs on CPU;
+# the engine itself needs the `gpu` extra.
+dependencies = ["numpy", "scipy", "pyyaml", "matplotlib"]
+
+[project.optional-dependencies]
+gpu = ["cupy-cuda13x>=13"]
+multigpu = ["nvidia-nccl-cu13>=2.27.7,<3"]
+dev = ["pytest", "ruff"]
+# NVRTC only (no GPU or driver needed): compile-check the CUDA kernels on CPU CI.
+kernelcheck = ["nvidia-cuda-nvrtc>=13,<14"]
+
+[tool.setuptools.packages.find]
+include = ["pypic*"]
+
+[tool.setuptools.package-data]
+pypic = ["kernels/*.cu", "kernels/*.cuh"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+    "E741",  # physics notation (l, I, O) is intentional
+    "B905",  # zip() over arrays of equal length by construction
+]
