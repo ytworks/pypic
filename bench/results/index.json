@@ -1,6 +1,15 @@
 {
   "entries": [
     {
+      "file": "2026-11-10-d03ab601a-gpu-gates.json",
+      "date": "2026-11-10",
+      "commit": "d03ab601a0352a34124190a8eb00626c8d8eda37",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true
+    },
+    {
       "file": "2026-11-10-dded54e12-gpu-gates.json",
       "date": "2026-11-10",
       "commit": "dded54e128ac62f8e058524fb5aefc3f05c38bfb",
