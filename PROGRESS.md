@@ -48,6 +48,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Particle row offsets are 64-bit (issue #11)
+- What: the particle kernels take `cap` as 64-bit, so `row * cap` no longer overflows above ~2.7e8 particles of one species per GPU (it was an illegal address). `Species` rejects a capacity above 2**31 - 1 (the kernels' int particle index).
+- Why: a 96 GB GPU holds ~1e9 particles; the int32 offsets capped a species at ~1/4 of that (R11 needs large runs). The regression test failed on the old code.
+- Refs: #11, #4; `tests/gpu/test_engine.py::test_particle_rows_beyond_int32_offsets`
 ### 2026-11-10 — [progress] GitHub wiki articles of the examples (EN + JA)
 - What: one page per example and language: conditions table, GIF animations and comparison charts with theory or the published results, all generated from the runs (`scripts/build_wiki.py run|collect|render`, templates and numbers in `docs/wiki/`). New charts in the examples (growth ratio, branch errors, convergence, jump conditions, p vs σ, reconnection field lines with X/O points); `pypic.analysis.animate` lays out with the first frame's titles and spans the spectrum axis over all frames. README numbers corrected.
 - Why: owner request; the numbers come from runs (fresh gate configs at a8caa8f, recorded production runs), so the pages cannot drift from the data.

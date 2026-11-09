@@ -1,6 +1,7 @@
 // Explicit particle kernels: relativistic Buneman-Boris push fused with
 // Esirkepov charge-conserving current deposition (CIC = cubic super-particles).
 // Particle storage: P[row * cap + p], rows = x, y, z, ux, uy, uz, w, id  (u = gamma v, c = 1).
+// cap is 64-bit (row * cap exceeds 2^31 for large species); n and p stay int.
 
 #define PX(p) P[(p)]
 #define PY(p) P[cap + (p)]
@@ -80,7 +81,7 @@ __device__ __forceinline__ void deposit_global(const double* p0, const double* p
 // diag: [0] kinetic energy (time centred), [1..3] momentum, [4] kinetic energy lost
 // through open boundaries, [5] charge lost through open boundaries.
 // flag[0]: number of particles that must be removed or migrated.
-extern "C" __global__ void push_deposit(double* P, const int n, const int cap, const double* __restrict__ Ex,
+extern "C" __global__ void push_deposit(double* P, const int n, const long long cap, const double* __restrict__ Ex,
                                         const double* __restrict__ Ey, const double* __restrict__ Ez,
                                         const double* __restrict__ Bx, const double* __restrict__ By,
                                         const double* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
@@ -207,7 +208,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const int cap, c
 //      displacement of each particle is stored in rows 8..10 (present only during set-up). One
 //      call moves every particle by at most h_a (< 1 cell) per axis and deposits the current of
 //      that move with Esirkepov; the caller sets E -= DT * J after all rounds, so div E = rho.
-extern "C" __global__ void displace_deposit(double* P, const int n, const int cap, const double hx,
+extern "C" __global__ void displace_deposit(double* P, const int n, const long long cap, const double hx,
                                             const double hy, const double hz, double* Jx, double* Jy, double* Jz,
                                             const double qdep, int* flag, int* list, const int listcap) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
@@ -246,7 +247,7 @@ extern "C" __global__ void displace_deposit(double* P, const int n, const int ca
 
 // Boris velocity step of length tau without moving the particle: with tau = -DT/2 it turns
 // momenta given at t = 0 into the u^{-1/2} of the explicit leapfrog when E or B is non-zero.
-extern "C" __global__ void boris_kick(double* P, const int n, const int cap, const double* __restrict__ Ex,
+extern "C" __global__ void boris_kick(double* P, const int n, const long long cap, const double* __restrict__ Ex,
                                       const double* __restrict__ Ey, const double* __restrict__ Ez,
                                       const double* __restrict__ Bx, const double* __restrict__ By,
                                       const double* __restrict__ Bz, const double q, const double m,
@@ -275,7 +276,7 @@ extern "C" __global__ void boris_kick(double* P, const int n, const int cap, con
 }
 
 // CIC charge density at nodes (diagnostic / Gauss check).
-extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n, const int cap, const double q,
+extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n, const long long cap, const double q,
                                        double* rho) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
@@ -293,7 +294,7 @@ extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n
 
 // CIC moment of a species at nodes (output diagnostics): sum of w * f(u) / cell volume with
 // kind 0: f = 1 (number density), 1..3: f = v_x, v_y, v_z (particle flux), 4: f = m (gamma - 1).
-extern "C" __global__ void deposit_moment(const double* __restrict__ P, const int n, const int cap, const int kind,
+extern "C" __global__ void deposit_moment(const double* __restrict__ P, const int n, const long long cap, const int kind,
                                           const double m, double* out) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
@@ -317,7 +318,7 @@ extern "C" __global__ void deposit_moment(const double* __restrict__ P, const in
 
 // Fields at the positions of selected particles (track output): out[c * m + t] for
 // c = Ex Ey Ez Bx By Bz, interpolated exactly as in the explicit push.
-extern "C" __global__ void gather_at_particles(const double* __restrict__ P, const int cap,
+extern "C" __global__ void gather_at_particles(const double* __restrict__ P, const long long cap,
                                                const long long* __restrict__ sel, const int m,
                                                const double* __restrict__ Ex, const double* __restrict__ Ey,
                                                const double* __restrict__ Ez, const double* __restrict__ Bx,
@@ -337,7 +338,7 @@ extern "C" __global__ void gather_at_particles(const double* __restrict__ P, con
 
 // Kinetic energy and momentum of particles at the current time level (used by the implicit
 // scheme where u is stored at integer time levels).
-extern "C" __global__ void kinetic(const double* __restrict__ P, const int n, const int cap, const double m,
+extern "C" __global__ void kinetic(const double* __restrict__ P, const int n, const long long cap, const double m,
                                    double* diag) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     double ke = 0, mx = 0, my = 0, mz = 0;
@@ -355,7 +356,7 @@ extern "C" __global__ void kinetic(const double* __restrict__ P, const int n, co
 }
 
 // Cell index (for sorting) of each particle.
-extern "C" __global__ void cell_index(const double* __restrict__ P, const int n, const int cap,
+extern "C" __global__ void cell_index(const double* __restrict__ P, const int n, const long long cap,
                                       long long* key) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
@@ -429,7 +430,7 @@ __device__ void sample_mj(double theta, unsigned long long& s, double* u) {
     u[2] = ur * ct;
 }
 
-extern "C" __global__ void load_particles(double* P, const int cap, const long long offset, const int ppc,
+extern "C" __global__ void load_particles(double* P, const long long cap, const long long offset, const int ppc,
                                           const int nlx, const int nly, const int nlz, const int gx0,
                                           const int gy0, const int gz0, const int gnx, const int gny,
                                           const int gnz, const unsigned long long seed,

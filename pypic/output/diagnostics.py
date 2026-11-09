@@ -38,13 +38,13 @@ class FieldSource:
             arr = cp.zeros(g.shape)
             for sp in sim.species:
                 if not getattr(sp, "test", False):
-                    launch(sim.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int32(sp.cap), np.float64(sp.q), arr))
+                    launch(sim.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q), arr))
             g.reduce_ghosts((arr,))
         else:
             base, name = comp.split(":", 1)
             sp = sim.species_by_name(name)
             arr = cp.zeros(g.shape)
-            launch(sim.k_moment, sp.n, (sp.P, np.int32(sp.n), np.int32(sp.cap), np.int32(MOMENT_KIND[base]),
+            launch(sim.k_moment, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.int32(MOMENT_KIND[base]),
                                         np.float64(sp.m), arr))
             g.reduce_ghosts((arr,))
         self.cache[comp] = arr
@@ -554,7 +554,7 @@ class TracksDiag(Diag):
                 if self.d.with_fields:
                     g = sim.grid
                     f = cp.empty((6, m))
-                    launch(sim.k_gather, m, (sp.P, np.int32(sp.cap), sel.astype(cp.int64), np.int32(m),
+                    launch(sim.k_gather, m, (sp.P, np.int64(sp.cap), sel.astype(cp.int64), np.int32(m),
                                              g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz, f))
                     Q[6:12] = f
             Q = gather_columns(sim.comm, Q)

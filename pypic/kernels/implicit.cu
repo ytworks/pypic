@@ -178,7 +178,7 @@ __device__ void particle_map(const double* p0, const double* u0, double g0, cons
     for (int a = 0; a < 3; a++) dn[a] = DT * (u0[a] + u1[a]) / gs;
 }
 
-extern "C" __global__ void implicit_push(const double* __restrict__ P, double* Pn, const int n, const int cap,
+extern "C" __global__ void implicit_push(const double* __restrict__ P, double* Pn, const int n, const long long cap,
                                          const double* __restrict__ Ex, const double* __restrict__ Ey,
                                          const double* __restrict__ Ez, const double* __restrict__ Bx,
                                          const double* __restrict__ By, const double* __restrict__ Bz,
@@ -333,7 +333,7 @@ extern "C" __global__ void implicit_push(const double* __restrict__ P, double* P
 
 // Commit the converged step: x1 = x0 + d with reflections folded (u flipped), open-boundary
 // removal, periodic wrap on non-decomposed axes and migration flagging.
-extern "C" __global__ void implicit_finalize(double* P, const double* __restrict__ Pn, const int n, const int cap,
+extern "C" __global__ void implicit_finalize(double* P, const double* __restrict__ Pn, const int n, const long long cap,
                                              const double q, const double m, const double qdep, double* diag, int* flag,
                                              int* list, const int listcap) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;

@@ -270,7 +270,7 @@ class Simulation:
             for i, sp in enumerate(self.species):
                 if sp.P.shape[0] > 8:
                     lst = sp.flag_list()
-                    launch(self.k_displace, sp.n, (sp.P, np.int32(sp.n), np.int32(sp.cap), np.float64(h[0]),
+                    launch(self.k_displace, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(h[0]),
                                                    np.float64(h[1]), np.float64(h[2]), g.Jx, g.Jy, g.Jz,
                                                    np.float64(sp.qdep), self.flag[i:i + 1], lst, np.int32(lst.size)))
             self._migrate()
@@ -294,7 +294,7 @@ class Simulation:
         back to t = -dt/2 by a Boris step of -dt/2 (positions unchanged)."""
         g = self.grid
         for sp in self.species:
-            launch(self.k_kick, sp.n, (sp.P, np.int32(sp.n), np.int32(sp.cap), g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz,
+            launch(self.k_kick, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz,
                                        np.float64(sp.q), np.float64(sp.m), np.float64(-0.5 * self.cfg.dt)))
 
     def total_particles(self) -> int:
@@ -312,7 +312,7 @@ class Simulation:
         for i, (sp, d) in enumerate(zip(self.species, self.sdiag)):
             lst = sp.flag_list()
             launch(self.k_push, sp.n, (
-                sp.P, np.int32(sp.n), np.int32(sp.cap), g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz,
+                sp.P, np.int32(sp.n), np.int64(sp.cap), g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz,
                 g.Jx, g.Jy, g.Jz, np.float64(sp.q), np.float64(sp.m), np.float64(sp.qdep), d, self.flag[i:i + 1],
                 lst, np.int32(lst.size), np.int32(do_diag)))
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
@@ -512,7 +512,7 @@ class Simulation:
             self.itmax.fill(0)
             for sp in self.species:
                 launch(self.k_ipush, sp.n, (
-                    sp.P, sp.Pn, np.int32(sp.n), np.int32(sp.cap), *G, *self.Bh, g.Jx, g.Jy, g.Jz,
+                    sp.P, sp.Pn, np.int32(sp.n), np.int64(sp.cap), *G, *self.Bh, g.Jx, g.Jy, g.Jz,
                     np.float64(sp.q), np.float64(sp.m), np.float64(sp.qdep), np.int32(1 if k == 0 else 0),
                     np.float64(icfg.particle_tol), np.int32(icfg.particle_maxit), self.err, self.itmax))
             g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
@@ -565,7 +565,7 @@ class Simulation:
         self.flag.fill(0)
         for i, (sp, d) in enumerate(zip(self.species, self.sdiag)):
             lst = sp.flag_list()
-            launch(self.k_ifin, sp.n, (sp.P, sp.Pn, np.int32(sp.n), np.int32(sp.cap), np.float64(sp.q),
+            launch(self.k_ifin, sp.n, (sp.P, sp.Pn, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q),
                                         np.float64(sp.m), np.float64(sp.qdep), d, self.flag[i:i + 1], lst,
                                         np.int32(lst.size)))
         self._migrate()
@@ -589,7 +589,7 @@ class Simulation:
         out = []
         for sp, d in zip(self.species, self.sdiag):
             d[:4] = 0
-            launch(self.k_kin, sp.n, (sp.P, np.int32(sp.n), np.int32(sp.cap), np.float64(sp.m), d))
+            launch(self.k_kin, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.m), d))
             out.append(d[:4].copy())
         return out
 
@@ -598,7 +598,7 @@ class Simulation:
         rho = cp.zeros(g.shape)
         for sp in self.species:
             if not sp.test:
-                launch(self.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int32(sp.cap), np.float64(sp.q), rho))
+                launch(self.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q), rho))
         g.reduce_ghosts((rho,))
         if self.n_filter:  # div E equals the identically filtered charge density
             g.filter((rho,), ((0, 0, 0),), self.n_filter, self.cfg.current_filter.compensate)
