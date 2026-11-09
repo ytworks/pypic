@@ -131,6 +131,9 @@ class SeriesWriter:
             self._write()
 
     def _write(self):
+        """Write the buffered rows at rows n.. of the file and flush. The rows leave the buffer
+        only after the flush succeeded: a failure anywhere keeps them, and the next write repeats
+        the same resize, assignment and flush (rewriting rows n.., so repeating is harmless)."""
         if not self.buf:
             return
         m = len(self.buf)
@@ -141,10 +144,10 @@ class SeriesWriter:
         self.ds["step"][n:] = np.array([b[0] for b in self.buf], dtype=np.int64)
         for k in self.buf[0][2]:
             self.ds[k][n:] = np.stack([np.asarray(b[2][k]) for b in self.buf])
+        self.f.flush()  # SWMR readers see the rows only after this
         self.n = n + m
         # a partial chunk was written: the next write continues in a new chunk-aligned block
         self.buf = []
-        self.f.flush()
 
     def flush(self):
         """Write pending rows (a partial chunk) so that readers see everything recorded so far."""

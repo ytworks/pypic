@@ -234,3 +234,29 @@ def test_record_example_loads_only_repository_examples(tmp_path):
     r = subprocess.run([sys.executable, os.path.join(root, "scripts", "record_example.py"), str(run)],
                        capture_output=True, text=True)
     assert r.returncode == 2 and not marker.exists(), r.stderr
+
+
+def test_series_rows_stay_buffered_until_the_file_is_flushed(tmp_path):
+    """Review of PR #2: the rows left the buffer before the HDF5 flush, so after a failed flush the
+    next flush() returned without flushing and a SWMR reader saw no row."""
+    path = str(tmp_path / "s.h5")
+    w = h5.SeriesWriter(path, {}, "zstd", 3)
+    real, calls = w.f.flush, []
+
+    def flush_failing_once():
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("injected flush failure")
+        real()
+
+    w.f.flush = flush_failing_once
+    w.append(0, 0.0, {"x": np.zeros(2)})
+    with pytest.raises(OSError):
+        w.flush()
+    w.flush()  # the retry
+    reader = ("import sys, h5py, hdf5plugin\n"
+              "with h5py.File(sys.argv[1], 'r', swmr=True) as f:\n"
+              "    print(f['step'][:].tolist())")
+    r = subprocess.run([sys.executable, "-c", reader, path], capture_output=True, text=True)
+    w.close()
+    assert r.stdout.strip() == "[0]", r.stderr

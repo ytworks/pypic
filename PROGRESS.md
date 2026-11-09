@@ -47,6 +47,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [amendment] PR #2 fifth review: rows of a failed HDF5 flush
+- What: `SeriesWriter._write` keeps the rows buffered until the HDF5 flush succeeds, so a retry repeats the write and the flush.
+- Why: the review found that after a failed flush the next flush() returned without flushing, and SWMR readers saw no row. The new CPU test failed on that code.
+- Refs: review amendments in `docs/design/output-analysis.md`; `tests/cpu/test_output.py`
 ### 2026-11-10 — [amendment] PR #2 fourth review: scalar rows of a failed write
 - What: scalar history rows count as written once the scalars writer has taken them (rank 0), not before the write. A failed write is retried, and rows already taken stay buffered.
 - Why: the review found a regression from the third-review change: after a failed write, a retry wrote nothing. The new test failed on that code.

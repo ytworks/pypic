@@ -133,3 +133,4 @@ tracks): 32 MB on disk for 62 MB raw; wall time 18.3 s vs 15.6 s without output.
 - 2026-11-10 (PR #2 fourth review): the third-review change marked the scalar history rows as written before the write, so a failed write lost them on retry (a regression). A row now counts as written only once the scalars writer has taken it into its buffer, and only rank 0 tracks this. Whether to write is still decided on every rank from the history length.
   - If creating the file or its datasets fails, no row is taken and the next write retries them.
   - A failed chunk write keeps the rows buffered, and rewriting is repeatable.
+- 2026-11-10 (PR #2 fifth review): `SeriesWriter` emptied its buffer before the HDF5 flush. After a failed flush, the next flush() returned without flushing, and SWMR readers did not see the rows. The rows now leave the buffer only after the flush succeeds, and a retry repeats the write and the flush.
