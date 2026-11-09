@@ -1,6 +1,6 @@
 # pypic
 
-[English](README.md) | **日本語**
+[English](README.md) | **日本語** | [Wiki: アニメーションと比較チャート付きの example 解説](https://github.com/ytworks/pypic/wiki/Home-ja)
 
 GPU で高速化した 3 次元・特殊相対論的・電磁 Particle-in-Cell (PIC) エンジンです。
 ホットループは CUDA C カーネルで、CuPy の NVRTC で JIT コンパイルします (nvcc は不要)。
@@ -117,7 +117,7 @@ python examples/two_stream/analyze.py output/two_stream/ep --movie
 | [`filamentation`](examples/filamentation) | 電流フィラメンテーション (Weibel) | 冷たい相対論的分散関係 | 成長率 2.2 % (モードの中央値) |
 | [`particle_orbits`](examples/particle_orbits) | ジャイロ運動、E×B、双曲運動、E > B、平面波 (8 の字) | 相対論的な厳密軌道 | 誤差 ≤ 0.3 %、2 次収束 (比 3.76〜4.00) |
 | [`plasma_expansion`](examples/plasma_expansion) | 真空への膨張による TNSA 型イオン加速 | Mora 2003 の自己相似解 | 速度分布 −8 %、E_max −15 % (無衝突電子の効果。README 参照) |
-| [`relativistic_shock`](examples/relativistic_shock) | γ₀ = 15 の対プラズマ衝撃波、Fermi 加速 | 相対論的 Rankine–Hugoniot (Synge 気体) | β_sh −8 %、n₂/n₁ +4.6 % |
+| [`relativistic_shock`](examples/relativistic_shock) | γ₀ = 15 の対プラズマ衝撃波、Fermi 加速 | 相対論的 Rankine–Hugoniot (Synge 気体) | β_sh −5.4 %、n₂/n₁ +2.2 % |
 | [`reconnection`](examples/reconnection) | σ = 10 の対プラズマ再結合、プラズモイド、べき分布 | Harris 平衡、公表値 (経験式) | 平衡 B₀ の 1.1 %、再結合速度 ≈ 0.1〜0.2、p = 2.4 (小さな箱) |
 
 これらの例題のために、エンジンに次の機能を追加しました (`docs/design/engine.md` の PIC-D9、PIC-D10)。
@@ -257,15 +257,16 @@ python scripts/gpu_gates.py --gpus 8   # GPU 検証ゲート。結果を bench/r
 
 ## 検証結果 (8× RTX PRO 6000 Blackwell)
 
-3 次元 two-stream の例を 8 GPU で、各設定の既定パラメータのまま実行した結果です。GPU ゲートが `bench/results/2026-11-09-fcbc4ced5-gpu-gates.json` に記録した値です。
+3 次元 two-stream の例を 8 GPU で、各設定の既定パラメータのまま実行した結果です。GPU ゲートが `bench/results/2026-11-10-dded54e12-gpu-gates.json` に記録した値です。
 γ は、k_max に対応するモードの線形成長期をフィットした値です。e-i-p は ω_r ≠ 0 なので、対向する 2 つの成長波をまとめてフィットしています。
 
 | 設定 | 格子 / 粒子数 | γ_fit | γ_theory | 誤差 | 最大 \|ΔE_tot\|/E₀ | max\|∇·E−ρ\| | max\|∇·B\| |
 |---|---|---|---|---|---|---|---|
-| e-i (陽解法) | 128×32×32 / 6.3M | 0.352 | 0.342 | +2.9% | 2.2e-3 | 2.2e-12 | 5.0e-15 |
-| e-p (陽解法) | 128×32×32 / 8.4M | 0.460 | 0.468 | −1.8% | 2.4e-3 | 8.7e-13 | 1.0e-14 |
-| e-i-p (陽解法) | 128×32×32 / 8.4M | 0.323 | 0.332 | −2.6% | 2.9e-4 | 3.5e-12 | 8.1e-15 |
-| e-i (陰解法) | 64×16×16 / 0.8M | 0.354 | 0.342 | +3.5% | **1.9e-10** | 6.0e-13 | 1.4e-15 |
+| e-i (陽解法) | 128×32×32 / 6.3M | 0.352 | 0.342 | +3.0% | 2.2e-3 | 2.1e-12 | 4.5e-15 |
+| e-p (陽解法) | 128×32×32 / 8.4M | 0.460 | 0.468 | −1.7% | 2.4e-3 | 8.5e-13 | 9.9e-15 |
+| e-i-p (陽解法) | 128×32×32 / 8.4M | 0.325 | 0.332 | −2.3% | 2.9e-4 | 3.5e-12 | 8.4e-15 |
+| e-i (陰解法) | 64×16×16 / 0.8M | 0.354 | 0.342 | +3.5% | **1.9e-10** | 5.8e-13 | 1.5e-15 |
+| Buneman (陽解法) | 128×8×8 / 0.26M | 0.0512 | 0.0537 | −4.7% | 4.4e-3 | 7.5e-12 | 1.5e-14 |
 
 - **マルチ GPU の一致**: 1 GPU と 2 GPU (2×1×1, 1×2×1, 1×1×2)、8 GPU (4×1×2) の結果は、ソルバー 2 種 × 境界 3 種の 6 通りすべてで相対差 約 1e-15 です。
 - **陰解法の全エネルギー**: 周期境界、反射境界、開放境界 (吸収層での散逸を含む収支) のいずれでも 1e-13 程度です。

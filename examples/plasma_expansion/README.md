@@ -26,7 +26,7 @@ python examples/plasma_expansion/analyze.py output/plasma_expansion/isothermal_h
   - E_max(t) within 20 % (median over 2 ≤ τ ≤ τ_end).
 - **Measured** (2 GPUs, proton mass):
   - velocity profile −8 %, density profile 7 %;
-  - E_max −15 % at τ = 10 (13.5 ZT_e, against 18.0 for the isothermal model);
+  - E_max −15 % at τ = 10 (15.3 ZT_e, against 18.0 for the isothermal model);
   - front position −8 %;
   - the ion spectrum follows the self-similar dN/dE from 0.01 to a few ZT_e.
 - **Why the PIC result is lower**:
