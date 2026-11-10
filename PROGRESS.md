@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Explicit push: Esirkepov and gather with 46 % fewer executed instructions (issue #33)
+- What: `esirkepov` takes the per-axis CIC weights from integer cell conditions (no `cic()` compares), builds each current from the prefix sum over two faces (the second only when the move crosses a cell face) and factorises the transverse weight (`W = S0' A + dS' B`); the gather reads the 8 corners at constant offsets from one index. Scheme and FP64 unchanged, rounding order only. 3 alternating pairs vs a2eca7a on 8 GPUs: two-stream fp64 5.73 → 3.63 ms/step (−35 to −37 %), mixed 5.21 → 3.33, shock 10.79 → 6.95; 1 GPU fp64 37.9 → 22.0, mixed 33.5 → 18.2. Gauss error unchanged (7.3e-14 → 7.4e-14 periodic, 4.7e-15 → 5.3e-15 walls).
+- Why: `ncu` — a warp executes the union of all 27 node paths per component, each with FP64 compares and a 7-operation weight, and a 64-bit 3-D index per access (5726M → 3116M executed thread-instructions per launch of 4.19M particles).
+- Refs: #33, #4; `pypic/kernels/particles.cu`, `pypic/kernels/common.cuh`
 ### 2026-11-10 — [progress] Implicit CG: matrix product in one launch on periodic grids (issue #32)
 - What: new kernel `cg_matvec` — where no rank has a wall or an absorbing layer, `w = a u + (dt²/4) curl curl u` and the three inner products are one launch instead of `curl_E`, `curl_B`, `cg_matvec_end` and a temporary field; with walls the kernel sequence is unchanged. Agrees with the sequence to rounding. Implicit two-stream, 4 alternating pairs vs a2eca7a on 8 GPUs: −1.8 / −4.2 / −5.3 / −3.3 % (`cg` 18.60 → 17.05 ms/step); 1 GPU −0.1 %.
 - Why: on the per-rank grid of 8 GPUs the three launches cost 42 µs per product (74 products per step), 12 µs of it the last kernel alone.
