@@ -516,8 +516,9 @@ class Simulation:
             for sp in self.species:
                 launch(self.k_ipush, sp.n, (
                     sp.P, sp.Pn, np.int32(sp.n), np.int64(sp.cap), *G, *self.Bh, g.Jx, g.Jy, g.Jz,
-                    np.float64(sp.q), np.float64(sp.m), np.float64(sp.qdep), np.int32(1 if k == 0 else 0),
-                    np.float64(icfg.particle_tol), np.int32(icfg.particle_maxit), self.err))
+                    np.float64(sp.q * dt / (2.0 * sp.m)), np.float64(sp.q / sp.m), np.float64(sp.qdep),
+                    np.int32(1 if k == 0 else 0), np.float64(icfg.particle_tol), np.int32(icfg.particle_maxit),
+                    self.err))
             g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
             self._filter_J()
             g.apply_bc_J()

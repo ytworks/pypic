@@ -49,6 +49,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] implicit_push with reciprocals instead of FP64 divisions (issue #22)
+- What: the particle map of the implicit kernel computes `eps / gbar`, `1/(1+t^2)` and `DT/(g0+g1)` once each, the Picard residual norms multiply by `1/h`, and `eps = q dt / 2m`, `q/m` come from the host. Implicit two-stream 1 GPU 586 → 513.5 ms/step (−12.4 %), 8 GPUs 109.5–110.6 → 99.7–101.0. Picard iterations (145 in 30 steps) and the energy budget error (3.03e-11) are unchanged.
+- Why: same reason as #21 — the kernel is FP64-pipe bound and the map runs once per sub-iteration of every particle. Rounding-level change, scheme unchanged.
+- Refs: #22, #4; `pypic/kernels/implicit.cu`, `pypic/simulation.py`
 ### 2026-11-10 — [progress] push_deposit with reciprocals instead of FP64 divisions (issue #21)
 - What: `1/gm`, `2/(1+t^2)` and `DT/g1` are one reciprocal each (9 divisions → 3), `h = q dt / 2m` comes from the host, the periodic wrap is a comparison (same value for moves below one period), `g0` only on diagnostics steps. Two-stream 1 GPU 43.0–43.9 → 38.0–38.1 ms/step, 8 GPUs 6.6–6.8 → 6.1–6.3 (mixed 6.1–6.2 → 5.5), shock 8 GPUs 12.0–12.1 → 10.9–11.0. Not adopted (no gain): compiling out the open-boundary loss reductions.
 - Why: the kernel is FP64-pipe bound and 75–96 % of the explicit step; divisions are its most expensive operations. Rounding-level change, scheme unchanged.
