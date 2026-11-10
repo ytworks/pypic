@@ -48,6 +48,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Ghost exchange with fused slab kernels (issue #8)
+- What: ghost copy / add / zero / pack / unpack of up to 3 arrays per launch, one message per face; a self-wrapping axis is copied in place. 8 GPUs: two-stream 11.7 → 10.5–10.9 ms/step (diag every step 13.7 → 11.6–12.4), shock 17.8 → 16.0 ms/step.
+- Why: the 8-GPU step was bound by host-side sequencing of ~30 small operations per ghost call, not by bandwidth; no compute/communication overlap (the field kernels take < 0.1 ms per step, nothing to hide behind).
+- Refs: #8, #4
 ### 2026-11-10 — [progress] Batched particle migration (issue #7)
 - What: `particles.migrate` moves every species at once: one message group per decomposed axis, sort-based partition, 3 host syncs per step (was ~20 for two species), one allreduce for the diagnostics record. 8-GPU two-stream: NCCL calls 16.2 → 14.2 per step; step time unchanged within noise (11.3–12.2 → 11.7 ms).
 - Why: the issue's premise; the profile after it shows the 8-GPU step is bound by host-side sequencing (GPU idle ~5 of 14 ms under nsys), not by the syncs' count.
