@@ -17,11 +17,14 @@ filamentation, test-particle orbits, plasma expansion (Mora), relativistic shock
 with the set-up features they need (initial perturbations, test species, initial fields, density
 profiles, current filter; PIC-D9, PIC-D10).
 
+Open-boundary particle injection (R1, 2026-11-11): `flux` and `paired` injecting faces (PIC-D13),
+gated on 84f5808. The null test of a magnetised open flow (M2 of the bow-shock plan) waits for the
+filter with open faces and the Marder zone (its Phase 3).
+
 ## Next (in priority order)
 
 | ID | Item | Notes |
 |---|---|---|
-| R1 | Open-boundary particle injection | implemented (PIC-D13: `flux` and `paired` faces), GPU gates pending. The null test of a magnetised open flow (M2 of the bow-shock plan) waits for the filter with open faces and the Marder zone (Phase 3) |
 | R2 | Restart checkpoints (float64 full state) | research output done in PR #2; restart still needed for long runs |
 | R3 | Performance of the explicit step | rounds 1–3 (#5–#37): 8-GPU strong scaling 6.4× at 50M particles (3.4 ms/step; 22.0 ms on 1 GPU, 0.44 ns/particle/step), shock 6.3 ms/step on 8 GPUs. The push kernel is 71 % of the 8-GPU step (94 % on 1 GPU) and FP64-bound; what remains changes the arithmetic: a fixed-point deposit (R10), float32 storage (R5), `precision: mixed` by default (PIC-D11). Measured and dropped: tiled deposition (deposit atomics are 0.2 % of the PC samples), CUDA graphs (< 1 % on the local kernels, a captured NCCL exchange does not replay), the migration count inside the data message (1.4 %), paired filter passes on a decomposed axis (< 2 %) |
 | R4 | Implicit solver: robustness for ωp·dt > 2 | cost after rounds 2–3 (#20, #22, #28–#32): 488 ms/step on 1 GPU at 50M particles (~22× explicit), 76–78 ms on 8 GPUs; `implicit_push` is 92 % of the 1-GPU step and 73 % of the 8-GPU step, the CG 19 % on 8 GPUs. At the tested ωp·dt the Picard iteration contracts by ≈ 1.8e-4 per sweep, so Anderson acceleration or a plasma preconditioner saves no sweep there; they are open only for larger time steps. Measured and dropped: CUDA graphs, a hot/cold split of `implicit_push` (0.5 % of the kernel), a quadratic Picard start (worse start error) |
