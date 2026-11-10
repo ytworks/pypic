@@ -1,6 +1,7 @@
 # Engine design
 
-Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2); PIC-D11 **Proposed** (2026-11-10, #10).
+Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12 2026-11-11, bow-shock plan);
+PIC-D11 **Proposed** (2026-11-10, #10).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -112,6 +113,25 @@ Measured (2026-11-10, 8× RTX PRO 6000; diagnostic only):
 
 Status stays Proposed: the default remains `fp64` until the owner accepts `mixed` as a default.
 
+### PIC-D12 — External static fields: the Yee arrays hold the difference field (2026-11-11) — Status: Accepted
+Plan: `docs/plans/2026-11-10-bow-shock.md` (D-A, approved by the owner). Explicit solver only.
+- `external_fields: {E: [..], B: [..], dipoles: [{moment, center, core}]}` (`ExternalFields`, `Dipole`). The particles feel the Yee fields plus the external fields; the Yee arrays hold the difference to them.
+- **Unchanged:** the Maxwell update, the CPML, the wall conditions, the deposit. The external fields are static, so the difference fields obey the same equations. An external field may therefore be normal or tangential to any face, which `B0` / `E0` cannot (a conducting wall zeroes the normal B and the tangential E of the Yee fields). At an open face the CPML absorbs only the difference, which relaxes the fields there to the external values.
+- **External E is uniform only** (div = curl = 0), e.g. the motional field −v×B of a flowing plasma. Gauss's law and div B hold for the Yee fields as before, with the same contracts.
+- **Dipole:** B is the discrete curl, on the Yee faces, of `A = m × r / (r² + a²)^(3/2)` on the Yee edges (`pypic/external.py`). Its discrete divergence vanishes to round-off. For r ≫ a it is `(3 (m·n) n − m) / r³`; at the centre `2m / a³`. The current that sustains it (the discrete curl of this B, concentrated in the core) is a fixed external current: it is not deposited, so Ampère's law for the difference field is unchanged.
+- **Rank independence:** the dipole is computed from global node indices, so a rank holds the same bits as the same faces of the undecomposed grid.
+- **No periodic images:** along a periodic axis the dipole is not continuous across the box edge. It is meant for open axes; this is not rejected.
+- **Gather:** the kernel `ext_sum` writes Yee + external array + uniform value once per step. FP64: only for the components that have an external part. `mixed`: it replaces the float32 copy of PIC-D11. Runs without external fields keep their bits.
+- **Total field elsewhere:** the initial half kick, the field outputs (`Ex..Bz`) and the fields of the tracks use the total field (`Simulation.total_field`); `run.json` records it in `field_convention`.
+- **Energies:** the history keys `electric`, `magnetic` and the Poynting outflow are those of the Yee (difference) fields. The work of the external E and of the dipole's current on the plasma is not recorded, so the monitored energy budget is not closed with external fields.
+- **Rejected at construction:** the implicit solver; `B0` or `E0` together with `external_fields` (they are initial values of the Yee fields; the uniform external fields go into `external_fields`). A dipole needs a body that covers its core (particles inside the core see a field of 2m/a³); that rule comes with the body (PIC-D14).
+
+Why: a planet's dipole and the solar wind's field and motional E cross every face of an open box. As Yee fields they would be changed by the wall behind the absorbing layer and absorbed by the layer itself. OSIRIS, WarpX and Smilei also give the dipole as a field felt by the particles only.
+
+Measured (2026-11-11, 1× RTX PRO 6000; diagnostic only):
+- **Equivalence:** 50 test particles over 200 steps in external uniform E and B hold the same bits as in the same fields given by `B0` / `E0`, in FP64 and `mixed`.
+- **Dipole:** discrete div B ≤ 8.9e-16 for max |B| = 1.7; within 0.7 % of the regularised formula beyond 6 core radii at `dx = 0.3..0.5` core radii; 1 GPU and a 2×2 rank grid agree to 1e-10 (`mixed`, with uniform fields).
+- **Cost:** 120×160×160 cells, 4.9e7 particles (the per-rank size of the bow-shock gate), uniform E and B and one dipole against no external field, 3 alternating pairs of 20 steps: FP64 22.97–23.00 → 23.12–23.18 ms/step (+0.5 to +0.9 %), `mixed` 19.09–20.17 → 19.16–20.24 (+0.3 to +0.4 %).
 
 ## Review amendments
 

@@ -19,7 +19,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accepted, PIC-D11 Proposed),
+Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12 Accepted, PIC-D11 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
@@ -42,8 +42,9 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
   synchronously by rank 0 (R9: +4 % of a production run on 1 GPU, +13–14 % on 8; a writer thread
   was measured below the 2 % criterion and not adopted).
 - In progress: 3-D bow shock example and the open-boundary features it needs (R1, R6; plan
-  `docs/plans/2026-11-10-bow-shock.md`). Phase 0 (probe measurements) done; no engine change yet,
-  PIC-D12..D16 are written with their phases.
+  `docs/plans/2026-11-10-bow-shock.md`). Phase 0 (probe measurements) and Phase 1 (external static
+  fields, PIC-D12, branch `bow-shock/1-external-fields`: 75 GPU tests pass, gates not yet run on it)
+  done; PIC-D13..D16 are written with their phases.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -53,6 +54,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [design] External static fields (PIC-D12): the Yee arrays hold the difference field
+- What: `external_fields` (uniform E, uniform B, regularised dipoles) are felt by the particles on top of the Yee fields; field solver, CPML, walls and deposition are unchanged. The dipole is the discrete curl of `m × r / (r² + a²)^(3/2)` from global indices (div B 8.9e-16, decomposition independent). Kernel `ext_sum` builds the gather arrays; outputs and tracks hold the total field (`run.json: field_convention`), the history energies stay those of the Yee fields. Explicit only; not together with `B0` / `E0`. Orbits equal bit for bit those in the same fields given as grid fields; 1 GPU vs 2×2 ranks 1e-10; step cost +0.5 to +0.9 % (FP64), +0.3 to +0.4 % (`mixed`) at 4.9e7 particles.
+- Why: a dipole and the solar wind's B and −v×B cross every face of an open box; as Yee fields the wall behind the absorbing layer changes them and the layer absorbs them.
+- Refs: PIC-D12 (`docs/design/engine.md`), `docs/design/output-analysis.md`; `pypic/external.py`, `pypic/simulation.py`, `pypic/kernels/particles.cu`; `tests/cpu/test_external.py`, `tests/gpu/test_engine.py`, `tests/gpu/test_output.py`; plan Phase 1
 ### 2026-11-11 — [design] Bow-shock plan: open-boundary design fixed by the Phase 0 measurements
 - What: plan for `examples/bow_shock/` and its engine features (external static fields + dipole, injection at open faces, absorbing sphere, filter with open faces). A scratch probe on the unchanged engine (128×32×32, up to 6e4 steps) fixed three points: an open face needs the deposit cut at the face, the filter's wall at the box face and a Marder zone (layer + face + passes + 2 nodes) together; the wind inflow face injects charge-neutral pairs and the side faces a fixed flux; ions leaving through the paired face are paid for by the next entering ions.
 - Why: a relaxation of E in the layer had no effect at any rate, and each of the three measures alone failed with a filter; flux injection at u / v_te = 2.5 settled in a source sheath (n 1.51 at the face, potential range 17 T0) while the paired face stayed stationary for 6e4 steps, and the reverse held for faces with a thermal normal velocity (paired: density +9 % in 2e4 steps).

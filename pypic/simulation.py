@@ -10,7 +10,8 @@ import numpy as np
 
 from .backend import compile_module, launch
 from .config import SimConfig
-from .grid import YeeGrid
+from .external import check_config, dipoles_B
+from .grid import FIELD_NAMES, YeeGrid
 from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
@@ -71,6 +72,7 @@ class Simulation:
         self.k_gather = self.pmod.get_function("gather_at_particles")
         self.k_displace = self.pmod.get_function("displace_deposit")
         self.k_kick = self.pmod.get_function("boris_kick")
+        self.k_extsum = self.pmod.get_function("ext_sum")
         self.k_migrate = tuple(self.pmod.get_function(name) for name in MIGRATE_KERNELS)
         self.flag = cp.zeros(max(1, len(cfg.species)), dtype=cp.int32)  # per-species flag counters
         self.err = cp.zeros(2, dtype=cp.int32)
@@ -82,12 +84,13 @@ class Simulation:
             c[...] = b
         self.grid.apply_bc_B()
         self.B0 = tuple(float(b) for b in cfg.B0)
+        self._init_external()
         fields_set = self._set_initial_fields()
         moved = self._apply_perturbations()
         if any(b.profile is not None for sc in cfg.species for b in sc.beams):
             for sp in self.species:  # drop the particles a profile gave zero weight (collective)
                 sp.compact_and_migrate(self.grid, self.comm)
-        if not self.implicit and (moved or fields_set or any(self.B0)):
+        if not self.implicit and (moved or fields_set or any(self.B0) or self.external):
             self._initial_half_kick()
         if self.implicit:
             self._init_implicit()
@@ -194,6 +197,57 @@ class Simulation:
         sp.P[:, sp.n: sp.n + m] = cp.asarray(blk)
         sp.n += m
 
+    def _init_external(self):
+        """External static fields (PIC-D12): per component Ex..Bz the uniform value and, for B with
+        dipoles, an array on the local grid (ghosts included) computed from global indices."""
+        cfg, g = self.cfg, self.grid
+        self.external = check_config(cfg)
+        self._gather = None
+        if not self.external:
+            return
+        ef = cfg.external_fields
+        self.ext_uniform = (*ef.E, *ef.B)
+        index = [cp.asarray(g.global_positions(a, 0.0), dtype=cp.float64) for a in range(3)]
+        B = dipoles_B(cp, index, g.dx, ef.dipoles)
+        self.ext_array = (None, None, None) + (tuple(cp.ascontiguousarray(b) for b in B) if B else (None,) * 3)
+
+    def total_field(self, name: str):
+        """Component Ex..Bz as the particles feel it, in FP64: the Yee array itself, or a new array
+        if the component has an external part (PIC-D12)."""
+        f = getattr(self.grid, name)
+        if self.external:
+            c = FIELD_NAMES.index(name)
+            u, ext = self.ext_uniform[c], self.ext_array[c]
+            if u != 0.0 or ext is not None:
+                f = f + u  # the order of the sums is that of the kernel ext_sum
+                if ext is not None:
+                    f += ext
+        return f
+
+    def _gather_fields(self):
+        """Arrays the explicit push gathers from: the Yee arrays, float32 copies of them (PIC-D11)
+        and / or their sums with the external fields (PIC-D12), refreshed every step."""
+        g = self.grid
+        fields = [g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz]
+        if self.external:
+            has = [u != 0.0 or ext is not None for u, ext in zip(self.ext_uniform, self.ext_array)]
+            if self._gather is None:
+                dtype = cp.float32 if self.mixed else cp.float64
+                self._gather = [cp.empty(g.shape, dtype=dtype) if (h or self.mixed) else None for h in has]
+            for c, dst in enumerate(self._gather):
+                if dst is not None:
+                    src, ext = fields[c], self.ext_array[c]
+                    launch(self.k_extsum, src.size, (src, ext if ext is not None else src, np.int32(ext is not None),
+                                                     np.float64(self.ext_uniform[c]), dst, np.int64(src.size)))
+                    fields[c] = dst
+        elif self.mixed:
+            if self._gather is None:
+                self._gather = [cp.empty(g.shape, dtype=cp.float32) for _ in fields]
+            for dst, src in zip(self._gather, fields):
+                cp.copyto(dst, src, casting="same_kind")
+            fields = self._gather
+        return fields
+
     def _set_initial_fields(self) -> bool:
         """Uniform E0 and the initial_fields list (PIC-D9). Returns True if any field was set."""
         cfg, g = self.cfg, self.grid
@@ -297,9 +351,9 @@ class Simulation:
     def _initial_half_kick(self):
         """Explicit leapfrog: loaded momenta are at t = 0; with non-zero initial E or B push them
         back to t = -dt/2 by a Boris step of -dt/2 (positions unchanged)."""
-        g = self.grid
+        fields = [self.total_field(n) for n in FIELD_NAMES]
         for sp in self.species:
-            launch(self.k_kick, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz,
+            launch(self.k_kick, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), *fields,
                                        np.float64(sp.q), np.float64(sp.m), np.float64(-0.5 * self.cfg.dt)))
 
     def total_particles(self) -> int:
@@ -314,13 +368,7 @@ class Simulation:
             for d in self.sdiag:
                 d[:4] = 0
             self._fe = g.field_energy_local()  # fields at t^n; reduced over the ranks in _record
-        fields = (g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz)
-        if self.mixed:  # float32 copies for the gather (PIC-D11)
-            if getattr(self, "_f32", None) is None:
-                self._f32 = [cp.empty(g.shape, dtype=cp.float32) for _ in fields]
-            for dst, src in zip(self._f32, fields):
-                cp.copyto(dst, src, casting="same_kind")
-            fields = self._f32
+        fields = self._gather_fields()
         for i, (sp, d) in enumerate(zip(self.species, self.sdiag)):
             lst = sp.flag_list()
             launch(self.k_push, sp.n, (

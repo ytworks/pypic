@@ -372,6 +372,17 @@ extern "C" __global__ void deposit_moment(const double* __restrict__ P, const in
             }
 }
 
+// Field the particles gather with external fields (PIC-D12): Yee (difference) field + external
+// array (if has_ext) + uniform value, in the type of the gather (float32 with MIXED_GATHER).
+extern "C" __global__ void ext_sum(const double* d, const double* ext, const int has_ext, const double uni,
+                                   gather_t* __restrict__ out, const long long n) {
+    const long long i = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    double v = d[i] + uni;
+    if (has_ext) v += ext[i];
+    out[i] = (gather_t)v;
+}
+
 // Fields at the positions of selected particles (track output): out[c * m + t] for
 // c = Ex Ey Ez Bx By Bz, interpolated exactly as in the explicit push.
 extern "C" __global__ void gather_at_particles(const double* __restrict__ P, const long long cap,

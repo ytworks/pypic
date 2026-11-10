@@ -86,6 +86,47 @@ class CurrentFilter:
 
 
 @dataclass
+class Dipole:
+    """Magnetic dipole of the external field (PIC-D12): B = (3 (m.n) n - m) / r^3 for r >> core,
+    regular inside ``core`` (B = 2 m / core^3 at the centre). ``center`` in c/omega_pe."""
+
+    moment: tuple
+    center: tuple
+    core: float
+
+    def __post_init__(self):
+        self.moment = tuple(float(v) for v in self.moment)
+        self.center = tuple(float(v) for v in self.center)
+        self.core = float(self.core)
+        if len(self.moment) != 3 or len(self.center) != 3:
+            raise ValueError("dipole moment and center need three components")
+        if not self.core > 0.0:
+            raise ValueError("dipole core must be > 0")
+
+
+@dataclass
+class ExternalFields:
+    """Static fields the particles feel in addition to the Yee fields (PIC-D12): a uniform E, a
+    uniform B and dipoles. The Yee fields are then the difference to them, so an external field
+    may be normal or tangential to any face, unlike B0 / E0. Explicit solver only."""
+
+    E: tuple = (0.0, 0.0, 0.0)
+    B: tuple = (0.0, 0.0, 0.0)
+    dipoles: list = field(default_factory=list)  # list[Dipole]
+
+    def __post_init__(self):
+        self.E = tuple(float(v) for v in self.E)
+        self.B = tuple(float(v) for v in self.B)
+        if len(self.E) != 3 or len(self.B) != 3:
+            raise ValueError("external_fields.E and .B need three components")
+        self.dipoles = [d if isinstance(d, Dipole) else Dipole(**d) for d in self.dipoles]
+
+    @property
+    def active(self) -> bool:
+        return any(self.E) or any(self.B) or bool(self.dipoles)
+
+
+@dataclass
 class ImplicitConfig:
     picard_tol: float = 1e-12  # relative change of E^{n+1} between Picard iterations
     picard_maxit: int = 100
@@ -251,6 +292,8 @@ class SimConfig:
     precision: str = "fp64"
     implicit: ImplicitConfig = field(default_factory=ImplicitConfig)
     current_filter: CurrentFilter = field(default_factory=CurrentFilter)
+    # static fields felt by the particles on top of the Yee fields (PIC-D12); not together with B0 / E0
+    external_fields: ExternalFields = field(default_factory=ExternalFields)
     output: OutputConfig = field(default_factory=OutputConfig)
 
     def to_dict(self):
@@ -270,9 +313,11 @@ class SimConfig:
         out = OutputConfig.from_dict(d.pop("output", {}))
         flt = d.pop("current_filter", {})
         flt = flt if isinstance(flt, CurrentFilter) else CurrentFilter(**flt)
+        ext = d.pop("external_fields", {})
+        ext = ext if isinstance(ext, ExternalFields) else ExternalFields(**ext)
         for k in ("n_cells", "dx", "B0", "E0", "dims"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:
             d["boundaries"] = tuple(tuple(b) for b in d["boundaries"])
-        return cls(species=sp, implicit=imp, output=out, current_filter=flt, **d)
+        return cls(species=sp, implicit=imp, output=out, current_filter=flt, external_fields=ext, **d)

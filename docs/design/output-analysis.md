@@ -33,6 +33,10 @@ acceleration, with animations; one example per classic problem with an analytic 
 - `run.json`: configuration, resolved schedule, layout of every diagnostic, time centering, units,
   ED-PIC attributes, git commit, run id and start time (both fixed at start-up), rank grid, and
   experiment metadata (`meta`: planner theory, run statistics). The reader (`pypic.analysis.open_run`) relies only on these files.
+- Field convention (`run.json: field_convention`): `E` and `B` of every diagnostic (dumps, slices, lineouts,
+  modes, spectra, fields of the tracks) are the fields the particles feel. With external fields
+  (PIC-D12) that is Yee field + external field, while the energies `electric` / `magnetic` of the
+  scalar history are those of the Yee fields alone.
 Why: openPMD is the community standard for PIC data, so other tools read it; reduced
 diagnostics have no standard, so their schema is documented here and in `run.json`.
 

@@ -191,6 +191,10 @@ class OutputManager:
             "L": list(sim.grid.L), "species": [{"name": s.name, "charge": s.q, "mass": s.m,
                                                 "test": bool(getattr(s, "test", False))} for s in sim.species],
             "units": self.units.as_dict(), "time_centering": self.time_centering(), "edpic": self.edpic(),
+            # E and B of every diagnostic are the fields the particles feel; the energies of the scalar
+            # history are those of the Yee fields, which exclude the external fields (PIC-D12)
+            "field_convention": {"E_B": "total", "field_energy": "yee",
+                                 "external_fields": bool(sim.external)},
             "timescales": dict(self.cfg.timescales), "codec": self.cfg.codec,
             "scalars": {"path": "scalars.h5", "every_steps": cfg.diag_interval} if self.cfg.scalars else None,
             "diagnostics": [self.diag_layout(dg) for dg in self.diags],

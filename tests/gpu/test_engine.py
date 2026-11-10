@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
+from pypic.config import ExternalFields
 from pypic.parallel.comm import SelfComm
 from pypic.simulation import Simulation
 
@@ -82,6 +83,26 @@ def test_exb_drift():
     xs = np.unwrap(np.array(xs) / sim.grid.L[0] * 2 * np.pi) * sim.grid.L[0] / (2 * np.pi)
     vd = (xs[-1] - x0) / (nst * cfg.dt)
     assert abs(vd - E / B) < 0.01 * E / B
+
+
+@pytest.mark.parametrize("precision", ["fp64", "mixed"])
+def test_external_uniform_fields_give_the_orbits_of_grid_fields(precision):
+    """Test particles in external uniform E and B (PIC-D12) move bit for bit as in the same
+    fields held by the grid (B0, E0): the initial half kick and the gather use the total field."""
+    E, B = (0.0, 0.03, 0.01), (0.02, 0.0, 0.5)
+    rng = np.random.default_rng(3)
+    pts = [[*rng.uniform(0.5, 3.5, 3), *rng.uniform(-2.0, 2.0, 3)] for _ in range(50)]
+    orbits = []
+    for fields in (dict(B0=B, E0=E), dict(external_fields=ExternalFields(E=E, B=B))):
+        cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, precision=precision, diag_interval=0,
+                        gauss_interval=0, species=[SpeciesConfig("t", -1, 1, [], test=True, particles=pts)], **fields)
+        sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+        for _ in range(200):
+            sim.step()
+        orbits.append(cp.asnumpy(sim.species[0].P[:6, :50]))
+        sim.close()
+    assert np.array_equal(*orbits)
+    assert np.max(np.abs(orbits[0][3:] - np.asarray(pts).T[3:])) > 0.1  # the fields did act
 
 
 # ------------------------------------------------------------ conservation laws
@@ -578,6 +599,22 @@ def test_mixed_gather_is_decomposition_independent():
     assert np.nanmax(np.asarray(outs[(4, "mixed")]["gauss"], dtype=float)) < 1e-12
     f = np.asarray(outs[(1, "plain")]["kinetic"])
     assert np.max(np.abs(a - f) / np.abs(f)) < 1e-5
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_external_dipole_is_decomposition_independent():
+    """A dipole and uniform external fields (PIC-D12) with the float32 gather: 1 GPU and a 2x2 rank
+    grid give the same run (the dipole is computed from global indices), and Gauss's law holds."""
+    script = os.path.join(HERE, "mgpu_migrate.py")
+    outs = {}
+    for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, "dipole"],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    a, b = (np.asarray(outs[n]["kinetic"]) for n in (1, 4))
+    assert np.max(np.abs(a - b) / np.abs(a)) < 1e-10
+    assert np.nanmax(np.asarray(outs[4]["gauss"], dtype=float)) < 1e-12
 
 
 def test_mixed_precision_is_explicit_only():
