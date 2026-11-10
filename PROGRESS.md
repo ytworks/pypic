@@ -48,6 +48,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Batched particle migration (issue #7)
+- What: `particles.migrate` moves every species at once: one message group per decomposed axis, sort-based partition, 3 host syncs per step (was ~20 for two species), one allreduce for the diagnostics record. 8-GPU two-stream: NCCL calls 16.2 → 14.2 per step; step time unchanged within noise (11.3–12.2 → 11.7 ms).
+- Why: the issue's premise; the profile after it shows the 8-GPU step is bound by host-side sequencing (GPU idle ~5 of 14 ms under nsys), not by the syncs' count.
+- Refs: #7, #4; `tests/gpu/test_engine.py::test_migration_across_faces_and_corners_keeps_every_particle`
 ### 2026-11-10 — [progress] Current filter as fused ping-pong pass kernels (issue #9)
 - What: one kernel per pass filters up to 3 arrays, passes alternate with work buffers; bitwise the former result. Shock `pair_2d_long` on 8 GPUs: filter cost 2.1 → ~1.6 ms of a 17.8 → ~17.6 ms step; ~250 → ~35 launches per step.
 - Why: the filter was ~250 small launches and two sweeps per pass; it is memory-bound (~1 TB/s per pass), and the halo exchange per pass (15 per step) is now most of what remains (follow-up: two passes per sweep).

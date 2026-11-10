@@ -442,6 +442,28 @@ def test_multi_gpu_matches_single(solver, tmp_path):
         assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10
 
 
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_migration_across_faces_and_corners_keeps_every_particle():
+    """Two species cross faces and corners of a 2x2 rank grid every step (issue #7): the run equals
+    the 1-GPU run, every particle id survives, and an overflowing flag list (full-compaction path
+    on some ranks) gives the same run."""
+    script = os.path.join(HERE, "mgpu_migrate.py")
+    outs = {}
+    for n, dims, variant in ((1, "1,1,1", "plain"), (4, "2,2,1", "plain"), (4, "2,2,1", "overflow")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, variant],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[(n, variant)] = json.loads(r.stdout.strip().splitlines()[-1])
+    ref = outs[(1, "plain")]
+    for key in ((4, "plain"), (4, "overflow")):
+        o = outs[key]
+        assert o["ids"] == ref["ids"], key
+        for k in ("kinetic", "electric"):
+            a, b = np.asarray(ref[k]), np.asarray(o[k])
+            assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, (key, k)
+        assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-12
+
+
 # --------------------------------------------------------- review regressions
 def test_cg_handles_exact_convergence_between_checks():
     """A curl-free uniform field is solved in one CG step (A = I on that mode); the following

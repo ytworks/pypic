@@ -14,7 +14,7 @@ from .grid import YeeGrid
 from .kernelsrc import PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
-from .particles import ID_LIMIT, Species
+from .particles import ID_LIMIT, Species, migrate
 from .profiles import invert_cos_density
 
 
@@ -358,14 +358,7 @@ class Simulation:
             J[o] -= m
 
     def _migrate(self):
-        counts = cp.asnumpy(self.flag)  # one host sync per step
-        if self.comm.size > 1:
-            nflag = int(self.comm.allreduce_scalar(float(counts.sum())))
-        else:
-            nflag = int(counts.sum())
-        if nflag > 0:
-            for sp, k in zip(self.species, counts):
-                sp.remove_and_migrate(self.grid, self.comm, int(k))
+        migrate(self.species, self.grid, self.comm, self.flag)
 
     @property
     def _has_open(self):
@@ -615,13 +608,19 @@ class Simulation:
     def _record(self, kin_list, fe):
         h = self.history
         cfg = self.cfg
-        kin = [self.comm.allreduce(k) for k in kin_list]
+        # one allreduce and one host sync for all species: kinetic + momentum, lost energy, count
+        S = len(self.species)
+        vec = cp.concatenate([cp.stack(kin_list).ravel(), cp.stack([d[4] for d in self.sdiag]),
+                              cp.asarray([float(sp.n) for sp in self.species])]) if S else cp.zeros(0)
+        if self.comm.size > 1 and S:
+            vec = self.comm.allreduce(vec)
+        hv = cp.asnumpy(vec)
+        kin, lost_s, n_s = hv[: 4 * S].reshape(S, 4), hv[4 * S: 5 * S], hv[5 * S:]
         # test species are recorded per species but are not part of the budget
         plasma = [k for k, sp in zip(kin, self.species) if not sp.test]
         ke = sum(float(k[0]) for k in plasma)
         mom = [sum(float(k[i]) for k in plasma) for i in (1, 2, 3)]
-        lost = sum(float(d[4]) for d, sp in zip(self.sdiag, self.species) if not sp.test)
-        lost = self.comm.allreduce_scalar(lost)
+        lost = sum(float(v) for v, sp in zip(lost_s, self.species) if not sp.test)
         for sp, k in zip(self.species, kin):
             self.kinetic_species[sp.name].append(float(k[0]))
         tot = ke + fe[0] + fe[1]
@@ -639,7 +638,7 @@ class Simulation:
         h["py"].append(mom[1])
         h["pz"].append(mom[2])
         h["picard"].append(getattr(self, "_picard_its", 0))
-        h["n_particles"].append(self.total_particles())
+        h["n_particles"].append(int(round(float(np.sum(n_s)))))
         if cfg.gauss_interval and self.step_count % cfg.gauss_interval == 0:
             ge, gb = self.gauss_error()
         else:
