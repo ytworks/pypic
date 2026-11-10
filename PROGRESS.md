@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Time-averaged lineout and modes share one profile per step (issue #27)
+- What: `FieldSource.profile(comp, axis)` sums a component over the two other axes once per step and shares it; `LineoutDiag` and `ModesDiag` accumulate that real profile in place, and the mode transform is applied once per output (linear, so the same result). Two-stream production run with output (4936 steps, 8 GPUs, two alternating pairs): 6.62 → 6.17 and 6.42 → 6.19 ms/step (−6.9 / −3.6 %); the per-step accumulation 0.364 → 0.118 ms/step. The 13 output files agree with 3e013df within 1e-12.
+- Why: the averaged diagnostics accumulate every step; each did its own reduction of the whole grid with temporaries and a complex transform per step — the largest part of the output cost of a production run (8–10 % of the run on 8 GPUs).
+- Refs: #27, #4; `pypic/output/diagnostics.py`
 ### 2026-11-10 — [progress] Correction: `div B` of `plasma_waves:perpendicular` is within its earlier range
 - What: the entry below ("Performance round 2 gated") says the value was 0.85–0.95e-12 "in the three records before". That is wrong: the 18 earlier fp64 gate records span 0.85–1.17e-12, eight of them ≥ 1.0e-12 (77f26df, two records before, has 1.17e-12). The 1.02e-12 on 5d7015a is inside that range; `push_B` and the `div B` diagnostic are unchanged, and no regression is observed. The case has no `div B` criterion.
 - Why: found in the review of PR #26; the wrong comparison read as a drift towards the 1e-12 contract.
