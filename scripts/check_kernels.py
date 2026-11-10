@@ -41,6 +41,8 @@ CASES = [
      "explicit", 0.1, 0.05),
     ("implicit reflecting+open, c dt/dx = 2", (32, 16, 16), (2, 1, 1), 0, ((R, R), (P, P), (O, O)),
      "implicit", 0.1, 0.2),
+    ("explicit mixed-precision gather (PIC-D11), decomposed rank", (32, 8, 8), (2, 2, 1), 3,
+     ((P, P), (P, P), (R, R)), "mixed", 0.1, 0.05),
 ]
 
 
@@ -95,7 +97,8 @@ def main() -> int:
         ghost = 2 if not implicit else int(math.ceil(dt / h)) + 2
         decomp = Decomposition.build(n_cells, dims, rank, bc, npml=6)
         gdef = grid_defines(decomp, (h, h, h), dt, ghost, use_pml=not implicit and any(O in b for b in bc))
-        units = [("fields", FIELD_SOURCES, gdef), ("particles", PARTICLE_SOURCES, particle_defines(gdef))]
+        pdef = particle_defines(gdef, mixed=solver == "mixed")
+        units = [("fields", FIELD_SOURCES, gdef), ("particles", PARTICLE_SOURCES, pdef)]
         for unit, sources, defs in units:
             src = assemble_source(sources, defs)
             for arch in ARCHS:

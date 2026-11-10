@@ -14,12 +14,17 @@
 
 // Esirkepov deposition of a straight segment (X0,Y0,Z0)->(X1,Y1,Z1) in local index
 // coordinates. |X1-X0| < 1 is required. qw = charge * weight.
+// With CIC and a move below one cell, each axis has at most 3 nodes with S0 or S1 != 0, starting
+// at min(floor X0, floor X1), and the current along an axis has 2 non-zero prefix sums (the third
+// equals sum dS = 0). This specialised form does the same arithmetic per term as the generic
+// 4-node loop with fewer FP64 operations (issue #6).
 __device__ void esirkepov(double X0, double Y0, double Z0, double X1, double Y1, double Z1, double qw,
                           double* Jx, double* Jy, double* Jz) {
-    int i0 = (int)floor(X0) - 1, j0 = (int)floor(Y0) - 1, k0 = (int)floor(Z0) - 1;
-    double S0x[4], S0y[4], S0z[4], dSx[4], dSy[4], dSz[4];
+    const int i0 = (int)fmin(floor(X0), floor(X1)), j0 = (int)fmin(floor(Y0), floor(Y1)),
+              k0 = (int)fmin(floor(Z0), floor(Z1));
+    double S0x[3], S0y[3], S0z[3], dSx[3], dSy[3], dSz[3];
 #pragma unroll
-    for (int a = 0; a < 4; a++) {
+    for (int a = 0; a < 3; a++) {
         S0x[a] = cic(X0 - (i0 + a));
         dSx[a] = cic(X1 - (i0 + a)) - S0x[a];
         S0y[a] = cic(Y0 - (j0 + a));
@@ -32,39 +37,48 @@ __device__ void esirkepov(double X0, double Y0, double Z0, double X1, double Y1,
     const double cz = qw * (1.0 / (DX * DY * DT));
     const double third = 1.0 / 3.0;
     // Jx
-    for (int b = 0; b < 4; b++) {
+#pragma unroll
+    for (int b = 0; b < 3; b++) {
         if (S0y[b] == 0.0 && dSy[b] == 0.0) continue;
-        for (int c = 0; c < 4; c++) {
+#pragma unroll
+        for (int c = 0; c < 3; c++) {
             if (S0z[c] == 0.0 && dSz[c] == 0.0) continue;
             double wyz = S0y[b] * S0z[c] + 0.5 * dSy[b] * S0z[c] + 0.5 * S0y[b] * dSz[c] + third * dSy[b] * dSz[c];
             double acc = 0.0;
-            for (int a = 0; a < 3; a++) {
+#pragma unroll
+            for (int a = 0; a < 2; a++) {
                 acc -= cx * dSx[a] * wyz;
                 if (acc != 0.0) atomicAdd(&Jx[IDX(i0 + a, j0 + b, k0 + c)], acc);
             }
         }
     }
     // Jy
-    for (int a = 0; a < 4; a++) {
+#pragma unroll
+    for (int a = 0; a < 3; a++) {
         if (S0x[a] == 0.0 && dSx[a] == 0.0) continue;
-        for (int c = 0; c < 4; c++) {
+#pragma unroll
+        for (int c = 0; c < 3; c++) {
             if (S0z[c] == 0.0 && dSz[c] == 0.0) continue;
             double wxz = S0x[a] * S0z[c] + 0.5 * dSx[a] * S0z[c] + 0.5 * S0x[a] * dSz[c] + third * dSx[a] * dSz[c];
             double acc = 0.0;
-            for (int b = 0; b < 3; b++) {
+#pragma unroll
+            for (int b = 0; b < 2; b++) {
                 acc -= cy * dSy[b] * wxz;
                 if (acc != 0.0) atomicAdd(&Jy[IDX(i0 + a, j0 + b, k0 + c)], acc);
             }
         }
     }
     // Jz
-    for (int a = 0; a < 4; a++) {
+#pragma unroll
+    for (int a = 0; a < 3; a++) {
         if (S0x[a] == 0.0 && dSx[a] == 0.0) continue;
-        for (int b = 0; b < 4; b++) {
+#pragma unroll
+        for (int b = 0; b < 3; b++) {
             if (S0y[b] == 0.0 && dSy[b] == 0.0) continue;
             double wxy = S0x[a] * S0y[b] + 0.5 * dSx[a] * S0y[b] + 0.5 * S0x[a] * dSy[b] + third * dSx[a] * dSy[b];
             double acc = 0.0;
-            for (int c = 0; c < 3; c++) {
+#pragma unroll
+            for (int c = 0; c < 2; c++) {
                 acc -= cz * dSz[c] * wxy;
                 if (acc != 0.0) atomicAdd(&Jz[IDX(i0 + a, j0 + b, k0 + c)], acc);
             }
@@ -81,10 +95,10 @@ __device__ __forceinline__ void deposit_global(const double* p0, const double* p
 // diag: [0] kinetic energy (time centred), [1..3] momentum, [4] kinetic energy lost
 // through open boundaries, [5] charge lost through open boundaries.
 // flag[0]: number of particles that must be removed or migrated.
-extern "C" __global__ void push_deposit(double* P, const int n, const long long cap, const double* __restrict__ Ex,
-                                        const double* __restrict__ Ey, const double* __restrict__ Ez,
-                                        const double* __restrict__ Bx, const double* __restrict__ By,
-                                        const double* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
+extern "C" __global__ void push_deposit(double* P, const int n, const long long cap, const gather_t* __restrict__ Ex,
+                                        const gather_t* __restrict__ Ey, const gather_t* __restrict__ Ez,
+                                        const gather_t* __restrict__ Bx, const gather_t* __restrict__ By,
+                                        const gather_t* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
                                         const double q, const double m, const double qdep, double* diag, int* flag,
                                         int* list, const int listcap, const int do_diag) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
@@ -93,15 +107,28 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         const double w = PW(p);
         double pos0[3] = {PX(p), PY(p), PZ(p)};
         double u[3] = {PUX(p), PUY(p), PUZ(p)};
+        const double h = q * DT / (2.0 * m);
+#ifdef MIXED_GATHER
+        YeeWeightsF yw;
+        yee_weights_global(pos0, yw);
+        double ex = h * (double)interp_f(Ex, yw, 1, 0, 0);
+        double ey = h * (double)interp_f(Ey, yw, 0, 1, 0);
+        double ez = h * (double)interp_f(Ez, yw, 0, 0, 1);
+        double bx = h * (double)interp_f(Bx, yw, 0, 1, 1);
+        double by = h * (double)interp_f(By, yw, 1, 0, 1);
+        double bz = h * (double)interp_f(Bz, yw, 1, 1, 0);
+#else
         const double X = (pos0[0] - OX) * (1.0 / DX), Y = (pos0[1] - OY) * (1.0 / DY),
                      Z = (pos0[2] - OZ) * (1.0 / DZ);
-        const double h = q * DT / (2.0 * m);
-        double ex = h * interp(Ex, X, Y, Z, 0.5, 0.0, 0.0);
-        double ey = h * interp(Ey, X, Y, Z, 0.0, 0.5, 0.0);
-        double ez = h * interp(Ez, X, Y, Z, 0.0, 0.0, 0.5);
-        double bx = h * interp(Bx, X, Y, Z, 0.0, 0.5, 0.5);
-        double by = h * interp(By, X, Y, Z, 0.5, 0.0, 0.5);
-        double bz = h * interp(Bz, X, Y, Z, 0.5, 0.5, 0.0);
+        YeeWeights yw;
+        yee_weights(X, Y, Z, yw);
+        double ex = h * interp_w(Ex, yw, 1, 0, 0);
+        double ey = h * interp_w(Ey, yw, 0, 1, 0);
+        double ez = h * interp_w(Ez, yw, 0, 0, 1);
+        double bx = h * interp_w(Bx, yw, 0, 1, 1);
+        double by = h * interp_w(By, yw, 1, 0, 1);
+        double bz = h * interp_w(Bz, yw, 1, 1, 0);
+#endif
         double g0 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
         // --- relativistic Buneman-Boris ---
         double umx = u[0] + ex, umy = u[1] + ey, umz = u[2] + ez;  // half electric kick

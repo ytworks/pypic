@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Validate bench/results/index.json against the result files (run on CPU CI).
 
-Two record types: "gates" (scripts/gpu_gates.py; the default for entries without a type) and
+Two record types: "gates" (scripts/gpu_gates.py; the default for entries without a type; a
+`precision: mixed` gate record, PIC-D11, says so in file, index entry and file name) and
 "example" (scripts/record_example.py: reported results of example runs, e.g. production
 configurations). Every index entry must point to an existing result file whose commit and
 verdicts agree with the entry; every result file must be indexed; every file is strict JSON
@@ -84,6 +85,13 @@ def main() -> int:
         for k in ("commit", "dirty", "gpus", "all_passed"):
             if rec.get(k) != e[k]:
                 errors.append(f"{e['file']}: {k} differs between index ({e[k]}) and file ({rec.get(k)})")
+        # a gate record runs in fp64 unless it says precision: mixed (PIC-D11), in file, index and name
+        prec = rec.get("precision", "fp64")
+        if prec != e.get("precision", "fp64"):
+            errors.append(f"{e['file']}: precision differs between index "
+                          f"({e.get('precision', 'fp64')}) and file ({prec})")
+        if e["file"].endswith("-gpu-gates-mixed.json") != (prec == "mixed"):
+            errors.append(f"{e['file']}: file name does not match precision {prec}")
         gates = rec.get("gates", [])
         if not gates:
             errors.append(f"{e['file']}: no gates")
@@ -92,7 +100,7 @@ def main() -> int:
                 errors.append(f"{e['file']}: gate {g.get('name')} missing keys {sorted(GATE_KEYS - set(g))}")
         if rec.get("all_passed") != all(g.get("passed") for g in gates):
             errors.append(f"{e['file']}: all_passed does not match the gate verdicts")
-    for pattern in ("*-gpu-gates.json", "*-example-*.json"):
+    for pattern in ("*-gpu-gates.json", "*-gpu-gates-mixed.json", "*-example-*.json"):
         for f in RES.glob(pattern):
             if f.name not in seen:
                 errors.append(f"{f.name}: not listed in index.json")

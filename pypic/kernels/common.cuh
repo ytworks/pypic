@@ -38,6 +38,79 @@ __device__ __forceinline__ double interp(const double* __restrict__ F, double X,
     return c0 * (1 - wz) + c1 * wz;
 }
 
+// The six Yee components at one particle share two sets of trilinear weights per axis: node
+// (offset 0) and half-cell (offset 0.5). Computing them once gives the same values as interp()
+// with fewer FP64 operations (issue #6).
+struct YeeWeights {
+    int in[3], ih[3];     // floor of X - 0 and X - 0.5 per axis
+    double wn[3], wh[3];  // the matching fractions
+};
+
+__device__ __forceinline__ void yee_weights(double X, double Y, double Z, YeeWeights& w) {
+    const double P[3] = {X, Y, Z};
+#pragma unroll
+    for (int a = 0; a < 3; a++) {
+        double fn = P[a], fh = P[a] - 0.5;
+        w.in[a] = (int)floor(fn);
+        w.ih[a] = (int)floor(fh);
+        w.wn[a] = fn - w.in[a];
+        w.wh[a] = fh - w.ih[a];
+    }
+}
+
+// interp(F, X, Y, Z, sx, sy, sz) with hx/hy/hz = 1 where the offset is 0.5.
+__device__ __forceinline__ double interp_w(const double* __restrict__ F, const YeeWeights& w, int hx, int hy,
+                                           int hz) {
+    int i = hx ? w.ih[0] : w.in[0], j = hy ? w.ih[1] : w.in[1], k = hz ? w.ih[2] : w.in[2];
+    double wx = hx ? w.wh[0] : w.wn[0], wy = hy ? w.wh[1] : w.wn[1], wz = hz ? w.wh[2] : w.wn[2];
+    double c00 = F[IDX(i, j, k)] * (1 - wx) + F[IDX(i + 1, j, k)] * wx;
+    double c10 = F[IDX(i, j + 1, k)] * (1 - wx) + F[IDX(i + 1, j + 1, k)] * wx;
+    double c01 = F[IDX(i, j, k + 1)] * (1 - wx) + F[IDX(i + 1, j, k + 1)] * wx;
+    double c11 = F[IDX(i, j + 1, k + 1)] * (1 - wx) + F[IDX(i + 1, j + 1, k + 1)] * wx;
+    double c0 = c00 * (1 - wy) + c10 * wy;
+    double c1 = c01 * (1 - wy) + c11 * wy;
+    return c0 * (1 - wz) + c1 * wz;
+}
+
+#ifdef MIXED_GATHER
+// PIC-D11: E and B gathered from float32 copies. The weights come from global index coordinates
+// (x / dx), computed in FP64 and rounded once to float, so they do not depend on the rank layout.
+struct YeeWeightsF {
+    int in[3], ih[3];
+    float wn[3], wh[3];
+};
+
+__device__ __forceinline__ void yee_weights_global(const double* x, YeeWeightsF& w) {
+    const double inv[3] = {1.0 / DX, 1.0 / DY, 1.0 / DZ};
+    const int off[3] = {OXI, OYI, OZI};
+#pragma unroll
+    for (int a = 0; a < 3; a++) {
+        double fn = x[a] * inv[a], fh = fn - 0.5;
+        double gn = floor(fn), gh = floor(fh);
+        w.in[a] = (int)gn - off[a];
+        w.ih[a] = (int)gh - off[a];
+        w.wn[a] = (float)(fn - gn);
+        w.wh[a] = (float)(fh - gh);
+    }
+}
+
+__device__ __forceinline__ float interp_f(const float* __restrict__ F, const YeeWeightsF& w, int hx, int hy,
+                                          int hz) {
+    int i = hx ? w.ih[0] : w.in[0], j = hy ? w.ih[1] : w.in[1], k = hz ? w.ih[2] : w.in[2];
+    float wx = hx ? w.wh[0] : w.wn[0], wy = hy ? w.wh[1] : w.wn[1], wz = hz ? w.wh[2] : w.wn[2];
+    float c00 = F[IDX(i, j, k)] * (1.0f - wx) + F[IDX(i + 1, j, k)] * wx;
+    float c10 = F[IDX(i, j + 1, k)] * (1.0f - wx) + F[IDX(i + 1, j + 1, k)] * wx;
+    float c01 = F[IDX(i, j, k + 1)] * (1.0f - wx) + F[IDX(i + 1, j, k + 1)] * wx;
+    float c11 = F[IDX(i, j + 1, k + 1)] * (1.0f - wx) + F[IDX(i + 1, j + 1, k + 1)] * wx;
+    float c0 = c00 * (1.0f - wy) + c10 * wy;
+    float c1 = c01 * (1.0f - wy) + c11 * wy;
+    return c0 * (1.0f - wz) + c1 * wz;
+}
+typedef float gather_t;
+#else
+typedef double gather_t;
+#endif
+
 // Warp-level reduction then one atomic per warp.
 __device__ __forceinline__ void warp_atomic_add(double* dst, double v) {
     unsigned mask = 0xffffffffu;

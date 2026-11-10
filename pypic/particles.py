@@ -93,33 +93,6 @@ class Species:
             self._list = cp.empty(need, dtype=cp.int32)
         return self._list
 
-    def remove_and_migrate(self, grid, comm, k: int):
-        """O(k) version of :meth:`compact_and_migrate`: the k flagged particles (indices in the
-        flag list) are taken out, the holes are filled from the tail, and the departing particles
-        are exchanged axis by axis. Falls back to the full compaction if the list overflowed."""
-        lst = self.flag_list()
-        if k > lst.size:
-            return self.compact_and_migrate(grid, comm)
-        n = self.n
-        idx = cp.sort(lst[:k]).astype(cp.int64)
-        Q = self.P[:, idx]  # departing / dead particles
-        Q = Q[:, Q[6] != 0]  # drop removed (open boundary) particles
-        nk = n - k
-        # fill holes below nk with the surviving particles of the tail [nk, n)
-        holes = idx[idx < nk]
-        if holes.size:
-            tail = cp.ones(k, dtype=cp.bool_)
-            tail[(idx[idx >= nk] - nk)] = False
-            movers = nk + cp.nonzero(tail)[0]
-            self.P[:, holes] = self.P[:, movers]
-        self.n = nk
-        Q = self._exchange(Q, grid, comm)
-        m = Q.shape[1]
-        if m:
-            self.ensure_capacity(self.n + m)
-            self.P[:, self.n: self.n + m] = Q
-            self.n += m
-
     @staticmethod
     def _leaving(Q, grid, a):
         """Masks of particles leaving the sub-domain through the low / high side of axis a. At a
@@ -136,49 +109,6 @@ class Species:
         else:
             to_hi = cp.zeros(x.shape, dtype=cp.bool_)
         return to_lo, to_hi
-
-    def _exchange(self, Q, grid, comm):
-        """Send particles in Q that lie outside the local sub-domain to neighbours, axis by axis;
-        returns the particles that now belong to this rank (periodically wrapped)."""
-        for a in range(3):
-            ax = grid.d.axes[a]
-            if ax.nproc == 1:
-                continue
-            to_lo, to_hi = self._leaving(Q, grid, a)
-            s_lo = cp.ascontiguousarray(Q[:, to_lo])
-            s_hi = cp.ascontiguousarray(Q[:, to_hi])
-            Q = Q[:, ~(to_lo | to_hi)]
-            cnt_send, cnt_recv = [], []
-            c_lo = cp.asarray([s_lo.shape[1]], dtype=cp.int64)
-            c_hi = cp.asarray([s_hi.shape[1]], dtype=cp.int64)
-            r_hi = cp.zeros(1, dtype=cp.int64)
-            r_lo = cp.zeros(1, dtype=cp.int64)
-            if ax.lo is not None:
-                cnt_send.append((c_lo, ax.lo))
-            if ax.hi is not None:
-                cnt_send.append((c_hi, ax.hi))
-            if ax.hi is not None:
-                cnt_recv.append((r_hi, ax.hi))
-            if ax.lo is not None:
-                cnt_recv.append((r_lo, ax.lo))
-            comm.exchange(cnt_send, cnt_recv)
-            b_hi = cp.empty((Q.shape[0], int(r_hi[0])))
-            b_lo = cp.empty((Q.shape[0], int(r_lo[0])))
-            sends, recvs = [], []
-            if ax.lo is not None:
-                sends.append((s_lo, ax.lo))
-            if ax.hi is not None:
-                sends.append((s_hi, ax.hi))
-            if ax.hi is not None:
-                recvs.append((b_hi, ax.hi))
-            if ax.lo is not None:
-                recvs.append((b_lo, ax.lo))
-            comm.exchange(sends, recvs)
-            Q = cp.concatenate([Q, b_hi, b_lo], axis=1)
-            if grid.d.bc[a][0] == "periodic":
-                L = grid.L[a]
-                Q[a] -= L * cp.floor(Q[a] / L)
-        return Q
 
     def compact_and_migrate(self, grid, comm):
         """Remove dead particles (w == 0) and send particles that left the local sub-domain to
@@ -236,3 +166,102 @@ class Species:
     # ------------------------------------------------------------ diagnostics
     def count(self, comm) -> int:
         return int(comm.allreduce_scalar(float(self.n)))
+
+
+def _order_by(dest, nkeys: int):
+    """Permutation that groups columns by dest (0..nkeys-1), stable, with no host sync."""
+    m = dest.size
+    return cp.argsort(dest.astype(cp.int64) * m + cp.arange(m, dtype=cp.int64))
+
+
+def migrate(species, grid, comm, flag):
+    """Take the particles flagged by the push kernels (flag[s] of them for species s, indices in
+    its flag list) out of every species, drop the dead ones (w == 0) and send the rest to the
+    neighbour ranks, axis by axis, all species in one message group per axis (issue #7).
+
+    Host syncs: one for the flag counts (with the global total), one for the hole counts, and one
+    per decomposed axis for the message sizes. Every rank makes the same collective calls: if any
+    rank's flag list overflowed, every rank takes all its particles out (the former compaction)."""
+    S = len(species)
+    caps = cp.asarray([sp.flag_list().size for sp in species], dtype=cp.int32)
+    loc = flag[:S].astype(cp.float64)
+    glob = cp.stack([loc.sum(), (flag[:S] > caps).sum().astype(cp.float64)])
+    if comm.size > 1:
+        glob = comm.allreduce(glob)
+    h = cp.asnumpy(cp.concatenate([loc, glob]))
+    if h[S] == 0:
+        return
+    full = h[S + 1] > 0
+    # 1. take the flagged particles out; fill the holes below n - k from the tail
+    Qs, idxs, meta = [], [], []
+    for sp, k in zip(species, h[:S].astype(np.int64)):
+        k = sp.n if full else int(k)
+        idx = (cp.arange(sp.n, dtype=cp.int64) if full
+               else cp.sort(sp.flag_list()[:k]).astype(cp.int64))
+        Q = sp.P[:, idx]
+        idxs.append((idx, k))
+        Qs.append(Q)
+        meta.append(cp.stack([cp.count_nonzero(idx < sp.n - k), cp.count_nonzero(Q[6] == 0)]))
+    hm = cp.asnumpy(cp.stack(meta)) if meta else np.zeros((0, 2), np.int64)
+    for i, (sp, (idx, k)) in enumerate(zip(species, idxs)):
+        nh, ndead = int(hm[i, 0]), int(hm[i, 1])
+        nk = sp.n - k
+        if nh:
+            tail = cp.zeros(k, dtype=cp.int8)
+            tail[idx[nh:] - nk] = 1  # flagged positions of the tail [nk, n)
+            movers = nk + _order_by(tail, 2)[:nh]
+            sp.P[:, idx[:nh]] = sp.P[:, movers]
+        sp.n = nk
+        Q = Qs[i]
+        Qs[i] = Q[:, _order_by((Q[6] == 0).astype(cp.int8), 2)[: Q.shape[1] - ndead]]
+    # 2. axis-by-axis exchange (diagonal moves take successive axes)
+    for a in range(3):
+        ax = grid.d.axes[a]
+        if ax.nproc == 1:
+            continue
+        lo_x = ax.phys_lo * grid.dx[a]
+        hi_x = (ax.phys_lo + ax.n_phys) * grid.dx[a]
+        cnts = []
+        for i, Q in enumerate(Qs):
+            x = Q[a]
+            # 0: to lo, 1: to hi, 2: stays (at a global non-periodic face there is no neighbour:
+            # a particle exactly on the face, x = L on a reflecting wall, stays with the edge rank)
+            to_lo = (x < lo_x) if ax.lo is not None else cp.zeros(x.shape, cp.bool_)
+            to_hi = (x >= hi_x) if ax.hi is not None else cp.zeros(x.shape, cp.bool_)
+            dest = cp.where(to_lo, 0, cp.where(to_hi, 1, 2)).astype(cp.int8)
+            Qs[i] = Q[:, _order_by(dest, 3)]
+            # the three known classes counted on the device: no host sync, and an empty dest gives
+            # zeros (CuPy 14.0's bincount takes max() first, which raises on an empty array)
+            cnts.append(cp.stack([cp.count_nonzero(dest == v) for v in range(3)]).astype(cp.int64))
+        c = cp.stack(cnts) if cnts else cp.zeros((0, 3), cp.int64)
+        c_lo, c_hi = cp.ascontiguousarray(c[:, 0]), cp.ascontiguousarray(c[:, 1])
+        r_hi, r_lo = cp.zeros(S, cp.int64), cp.zeros(S, cp.int64)
+        sends = ([(c_lo, ax.lo)] if ax.lo is not None else []) + ([(c_hi, ax.hi)] if ax.hi is not None else [])
+        recvs = ([(r_hi, ax.hi)] if ax.hi is not None else []) + ([(r_lo, ax.lo)] if ax.lo is not None else [])
+        comm.exchange(sends, recvs)
+        hc = cp.asnumpy(cp.concatenate([c.ravel(), r_hi, r_lo])).astype(np.int64)
+        cs, rh, rl = hc[: 3 * S].reshape(S, 3), hc[3 * S: 4 * S], hc[4 * S:]
+        s_lo, s_hi, b_hi, b_lo = [], [], [], []
+        for i, Q in enumerate(Qs):
+            n0, n1 = cs[i, 0], cs[i, 1]
+            s_lo.append((Q[:, :n0], ax.lo))
+            s_hi.append((Q[:, n0:n0 + n1], ax.hi))
+            b_hi.append((cp.empty((Q.shape[0], int(rh[i]))), ax.hi))
+            b_lo.append((cp.empty((Q.shape[0], int(rl[i]))), ax.lo))
+        sends = (s_lo if ax.lo is not None else []) + (s_hi if ax.hi is not None else [])
+        recvs = (b_hi if ax.hi is not None else []) + (b_lo if ax.lo is not None else [])
+        comm.exchange(sends, recvs)
+        for i, Q in enumerate(Qs):
+            n01 = cs[i, 0] + cs[i, 1]
+            Q = cp.concatenate([Q[:, n01:], b_hi[i][0], b_lo[i][0]], axis=1)
+            if grid.d.bc[a][0] == "periodic":
+                L = grid.L[a]
+                Q[a] -= L * cp.floor(Q[a] / L)
+            Qs[i] = Q
+    # 3. append the particles that now belong to this rank
+    for sp, Q in zip(species, Qs):
+        m = Q.shape[1]
+        if m:
+            sp.ensure_capacity(sp.n + m)
+            sp.P[:, sp.n: sp.n + m] = Q
+            sp.n += m

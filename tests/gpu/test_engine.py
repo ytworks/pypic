@@ -85,6 +85,26 @@ def test_exb_drift():
 
 
 # ------------------------------------------------------------ conservation laws
+def test_esirkepov_current_moment_equals_the_displacement():
+    """Without fields, sum J dV dt = sum q w (x1 - x0) per component: the deposit of moves along
+    every axis and across cell faces carries the exact current moment (issue #6)."""
+    sim = plasma("explicit", B0=(0.0, 0.0, 0.0))
+    sp = sim.species[0]
+    rng = np.random.default_rng(5)
+    n = 2000
+    pos = rng.uniform(0.5, 1.1, (n, 3)) * np.asarray(sim.grid.L) / 1.6
+    u = rng.uniform(-3.0, 3.0, (n, 3))
+    inject(sp, pos, u, w=1.0)
+    sim.species[1].n = 0
+    sim.step()
+    g = sim.grid
+    o = g.owned_slice()
+    J = [float(cp.sum(F[o])) * g.cell_volume * sim.cfg.dt for F in (g.Jx, g.Jy, g.Jz)]
+    gam = np.sqrt(1 + np.sum(u * u, axis=1))
+    ref = sp.q * np.sum(u / gam[:, None], axis=0) * sim.cfg.dt
+    np.testing.assert_allclose(J, ref, rtol=1e-12, atol=1e-12 * np.abs(ref).max())
+
+
 @pytest.mark.parametrize("bc", ["periodic", "reflecting", "open"])
 def test_explicit_gauss_and_divB(bc):
     sim = plasma("explicit", bc=((bc, bc), ("periodic", "periodic"), (bc if bc != "open" else "periodic",) * 2))
@@ -247,6 +267,49 @@ def test_current_filter_transfer_function():
             assert abs(float(cp.max(F[g.physical_slice()])) - T) < 1e-12
 
 
+def _filter_reference(g, arrays, staggers, passes, compensate):
+    """The array-expression filter that the fused kernels replaced (issue #9)."""
+    w = [(0.25, 0.5, 0.25)] * passes + ([(-passes / 4.0, 1.0 + passes / 2.0, -passes / 4.0)] if compensate else [])
+    for a in range(3):
+        ax = g.d.axes[a]
+        lo_wall = g.d.bc[a][0] != "periodic" and ax.lo is None
+        hi_wall = g.d.bc[a][1] != "periodic" and ax.hi is None
+        f = g.g + ax.n_int
+        for wl, wc, wr in w:
+            g.fill_ghosts(arrays, axes=(a,))
+            for F, st in zip(arrays, staggers):
+                node = st[a] == 0
+                if lo_wall:
+                    g._slab(F, a, g.g - 1, g.g)[...] = g._slab(F, a, g.g, g.g + 1) if node else 0.0
+                if hi_wall:
+                    if node:
+                        g._slab(F, a, f + 1, f + 2)[...] = g._slab(F, a, f, f + 1)
+                    else:
+                        g._slab(F, a, f, f + 1)[...] = 0.0
+                hi = f + 1 if (hi_wall and node) else f
+                new = (wl * g._slab(F, a, g.g - 1, hi - 1) + wc * g._slab(F, a, g.g, hi)
+                       + wr * g._slab(F, a, g.g + 1, hi + 1))
+                g._slab(F, a, g.g, hi)[...] = new
+
+
+@pytest.mark.parametrize("bc", ["periodic", "reflecting"])
+def test_current_filter_kernels_match_the_array_expressions(bc):
+    """The fused filter kernels give bitwise the result of the former array expressions, for J
+    (three staggers) and node data, at periodic and conducting faces."""
+    cfg = SimConfig(n_cells=(12, 10, 8), dx=(0.1,) * 3, dt=0.05, species=[], boundaries=((bc, bc),) * 3,
+                    diag_interval=0, gauss_interval=0, npml=2)
+    g = Simulation(cfg, comm=SelfComm(), verbose=False).grid
+    rng = np.random.default_rng(7)
+    for staggers in (Simulation.J_STAGGER, ((0, 0, 0),)):
+        for comp in (True, False):  # an even and an odd number of passes per axis
+            A = [cp.asarray(rng.standard_normal(g.shape)) for _ in staggers]
+            B = [a.copy() for a in A]
+            g.filter(A, staggers, 3, comp)
+            _filter_reference(g, B, staggers, 3, comp)
+            for a, b in zip(A, B):
+                assert bool(cp.all(a == b))
+
+
 @pytest.mark.parametrize("solver", ["explicit", "implicit"])
 @pytest.mark.parametrize("bc", ["periodic", "reflecting"])
 def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
@@ -399,6 +462,53 @@ def test_multi_gpu_matches_single(solver, tmp_path):
         assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10
 
 
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_migration_across_faces_and_corners_keeps_every_particle():
+    """Two species cross faces and corners of a 2x2 rank grid every step (issue #7): the run equals
+    the 1-GPU run, every particle id survives, and an overflowing flag list (full-compaction path
+    on some ranks) gives the same run. With one species at rest, steps that move particles of the
+    other species only work too (PR #15 review: CuPy 14.0's bincount raised on an empty input)."""
+    script = os.path.join(HERE, "mgpu_migrate.py")
+    outs = {}
+    for n, dims, variant in ((1, "1,1,1", "plain"), (4, "2,2,1", "plain"), (4, "2,2,1", "overflow"),
+                             (1, "1,1,1", "idle"), (4, "2,2,1", "idle")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, variant],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[(n, variant)] = json.loads(r.stdout.strip().splitlines()[-1])
+    for key in ((4, "plain"), (4, "overflow"), (4, "idle")):
+        ref = outs[(1, "idle" if key[1] == "idle" else "plain")]
+        o = outs[key]
+        assert o["ids"] == ref["ids"], key
+        for k in ("kinetic", "electric"):
+            a, b = np.asarray(ref[k]), np.asarray(o[k])
+            assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, (key, k)
+        assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_mixed_gather_is_decomposition_independent():
+    """The float32 gather (PIC-D11) takes its weights from global coordinates: 1 GPU and a 2x2
+    rank grid give the same run, Gauss's law holds, and it stays close to the FP64 run."""
+    script = os.path.join(HERE, "mgpu_migrate.py")
+    outs = {}
+    for n, dims, variant in ((1, "1,1,1", "mixed"), (4, "2,2,1", "mixed"), (1, "1,1,1", "plain")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, variant],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[(n, variant)] = json.loads(r.stdout.strip().splitlines()[-1])
+    a, b = (np.asarray(outs[(n, "mixed")]["kinetic"]) for n in (1, 4))
+    assert np.max(np.abs(a - b) / np.abs(a)) < 1e-10
+    assert np.nanmax(np.asarray(outs[(4, "mixed")]["gauss"], dtype=float)) < 1e-12
+    f = np.asarray(outs[(1, "plain")]["kinetic"])
+    assert np.max(np.abs(a - f) / np.abs(f)) < 1e-5
+
+
+def test_mixed_precision_is_explicit_only():
+    with pytest.raises(ValueError, match="explicit"):
+        plasma("implicit", precision="mixed")
+
+
 # --------------------------------------------------------- review regressions
 def test_cg_handles_exact_convergence_between_checks():
     """A curl-free uniform field is solved in one CG step (A = I on that mode); the following
@@ -413,6 +523,25 @@ def test_cg_handles_exact_convergence_between_checks():
     sim._cg(x, b)
     assert bool(cp.all(cp.isfinite(x)))
     assert float(cp.max(cp.abs(x[(slice(None),) + sim.own] - b[(slice(None),) + sim.own]))) < 1e-12
+
+
+def test_cg_inner_product_matches_the_owned_unknowns():
+    """The two-stage CG inner product (issue #5) sums exactly the owned, unconstrained E unknowns
+    and agrees with the former one-stage reduction to 1e-14 of its value (fixed seed, same inputs)."""
+    bc = (("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
+    cfg = SimConfig(n_cells=(48, 32, 24), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[], boundaries=bc,
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    rng = np.random.default_rng(3)
+    a, b = (rng.standard_normal((3,) + sim.grid.shape) for _ in range(2))
+    W = cp.asnumpy(sim.Wmask)
+    for x, y in ((a, b), (a, a)):  # mixed signs, and the r.r norm of the CG convergence test
+        X, Y = cp.asarray(x), cp.asarray(y)
+        new = float(sim._dot(X, Y))
+        old = float(sim._wdot(sim.Wmask, X, Y))  # the former single reduction to one scalar
+        scale = float(np.sum(np.abs(W * x * y)))
+        assert abs(new - float(np.sum(W * x * y))) <= 1e-13 * scale
+        assert abs(new - old) <= 1e-14 * abs(old)  # relative to the inner product itself (issue #5)
 
 
 @pytest.mark.parametrize("theta", [1e-3, 0.05, 0.3, 3.0])

@@ -5,6 +5,31 @@ Older `PROGRESS.md` Change Log entries, newest first. Frozen: insert only at the
 
 <!-- ARCHIVE-INSERT-POINT -->
 
+### 2026-11-10 — [progress] GitHub wiki articles of the examples (EN + JA)
+- What: one page per example and language: conditions table, GIF animations and comparison charts with theory or the published results, all generated from the runs (`scripts/build_wiki.py run|collect|render`, templates and numbers in `docs/wiki/`). New charts in the examples (growth ratio, branch errors, convergence, jump conditions, p vs σ, reconnection field lines with X/O points); `pypic.analysis.animate` lays out with the first frame's titles and spans the spectrum axis over all frames. README numbers corrected.
+- Why: owner request; the numbers come from runs (fresh gate configs at a8caa8f, recorded production runs), so the pages cannot drift from the data.
+- Refs: `docs/wiki/`, `tests/cpu/test_wiki.py`, `bench/results/2026-11-10-d03ab601a-gpu-gates.json`
+### 2026-11-10 — [amendment] PR #2 fifth review: rows of a failed HDF5 flush
+- What: `SeriesWriter._write` keeps the rows buffered until the HDF5 flush succeeds, so a retry repeats the write and the flush.
+- Why: the review found that after a failed flush the next flush() returned without flushing, and SWMR readers saw no row. The new CPU test failed on that code.
+- Refs: review amendments in `docs/design/output-analysis.md`; `tests/cpu/test_output.py`
+### 2026-11-10 — [amendment] PR #2 fourth review: scalar rows of a failed write
+- What: scalar history rows count as written once the scalars writer has taken them (rank 0), not before the write. A failed write is retried, and rows already taken stay buffered.
+- Why: the review found a regression from the third-review change: after a failed write, a retry wrote nothing. The new test failed on that code.
+- Refs: review amendments in `docs/design/output-analysis.md`; `tests/gpu/test_output.py`
+### 2026-11-10 — [progress] Second recorded realizations of the production runs
+- What: `pair_sigma10_large` (run e879cfd6) and `pair_2d_long` (run 40c0ca85) were run again and recorded, one record per run.
+  - Reconnection, two recorded runs: p = 2.10 / 2.10 and rate 0.064 / 0.074 v_A.
+  - Shock, two recorded runs: β_sh −5.9 / −7.6 %, n₂/n₁ +6.9 / +8.1 %, tail p 3.91 / 3.85, γ_max ∝ t^0.36 / t^0.41.
+- Why: the 2026-11-09 entry "Production runs of the acceleration examples" quoted a first realization of each that was never recorded (second review). Those values are withdrawn: p = 2.15 and rate 0.080; −4.2 %, +7.8 %, p 3.93 and t^0.42.
+- Refs: `bench/results/*-run-e879cfd6.json`, `*-run-40c0ca85.json`; `examples/{reconnection,relativistic_shock}/README.md`; ANA-D3
+### 2026-11-10 — [amendment] PR #2 third review: rank-0 file errors, untracked code
+- What:
+  - Every rank-0 file operation of the output shares its outcome with all ranks (`OutputError` on every rank).
+  - Provenance has one definition (`pypic.provenance`), used by run.json, gate records and example records. Untracked code files make a commit dirty; changes outside the code paths do not.
+- Why: the review reproduced a rank-0-only `PermissionError` that left the other ranks in a collective, and an untracked analysis helper that was missing from `analysis_commit`. Each fix has a test that failed on the old code.
+- Refs: OUT-D2, ANA-D3 and review amendments in `docs/design/output-analysis.md`
+
 ### 2026-11-09 — [amendment] PR #2 second review: recorded results
 - What:
   - `run.json` carries a run id and a start time, both fixed at start-up. Example records are one per run, with the run id in the file name and index entry, so realizations no longer overwrite each other.
