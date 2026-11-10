@@ -5,6 +5,26 @@ Older `PROGRESS.md` Change Log entries, newest first. Frozen: insert only at the
 
 <!-- ARCHIVE-INSERT-POINT -->
 
+### 2026-11-10 — [design] PIC-D11 mixed-precision field gather, Proposed (issue #10)
+- What: `precision: mixed` gathers E, B for the explicit push from float32 copies with rank-independent weights; positions, pusher and deposit stay FP64; default `fp64`. Push 18.4 → 14.2 ms; two-stream 1 GPU 42.7 → 38.6 ms/step; shock 8 GPUs 14.4 → 13.4. All 19 explicit gates pass in mixed mode.
+- Why: `push_deposit` is FP64-pipe bound; the gather is the part that can leave FP64 without touching Gauss (deposit) or 1 vs N GPU (global weights).
+- Refs: #10, #4; PIC-D11 in `docs/design/engine.md`; `test_mixed_gather_is_decomposition_independent`
+### 2026-11-10 — [amendment] Esirkepov deposit on the 3-node CIC support (issue #6)
+- What: the explicit deposit loops over the 3 nodes per axis that a sub-cell CIC move touches (2 prefix sums per component), and the gather shares its weights. Electron `push_deposit` 37.9 → 30.8 ms; two-stream 1 GPU 51.6 → 42.7 ms/step, 8 GPUs 10.7 → 9.2–10.2; shock 8 GPUs 16.0 → 14.6–14.9.
+- Why: `push_deposit` is FP64-pipe bound (85 %) on SM120; same scheme, fewer FP64 operations.
+- Refs: #6, #4; PIC-D2 review amendment in `docs/design/engine.md`; `test_esirkepov_current_moment_equals_the_displacement`
+### 2026-11-10 — [progress] Ghost exchange with fused slab kernels (issue #8)
+- What: ghost copy / add / zero / pack / unpack of up to 3 arrays per launch, one message per face; a self-wrapping axis is copied in place. 8 GPUs: two-stream 11.7 → 10.5–10.9 ms/step (diag every step 13.7 → 11.6–12.4), shock 17.8 → 16.0 ms/step.
+- Why: the 8-GPU step was bound by host-side sequencing of ~30 small operations per ghost call, not by bandwidth; no compute/communication overlap (the field kernels take < 0.1 ms per step, nothing to hide behind).
+- Refs: #8, #4
+### 2026-11-10 — [progress] Batched particle migration (issue #7)
+- What: `particles.migrate` moves every species at once: one message group per decomposed axis, sort-based partition, 3 host syncs per step (was ~20 for two species), one allreduce for the diagnostics record. 8-GPU two-stream: NCCL calls 16.2 → 14.2 per step; step time unchanged within noise (11.3–12.2 → 11.7 ms).
+- Why: the issue's premise; the profile after it shows the 8-GPU step is bound by host-side sequencing (GPU idle ~5 of 14 ms under nsys), not by the syncs' count.
+- Refs: #7, #4; `tests/gpu/test_engine.py::test_migration_across_faces_and_corners_keeps_every_particle`
+### 2026-11-10 — [progress] Current filter as fused ping-pong pass kernels (issue #9)
+- What: one kernel per pass filters up to 3 arrays, passes alternate with work buffers; bitwise the former result. Shock `pair_2d_long` on 8 GPUs: filter cost 2.1 → ~1.6 ms of a 17.8 → ~17.6 ms step; ~250 → ~35 launches per step.
+- Why: the filter was ~250 small launches and two sweeps per pass; it is memory-bound (~1 TB/s per pass), and the halo exchange per pass (15 per step) is now most of what remains (follow-up: two passes per sweep).
+- Refs: #9, #4; PIC-D10; `tests/gpu/test_engine.py::test_current_filter_kernels_match_the_array_expressions`
 ### 2026-11-10 — [progress] CG inner product in two stages (issue #5)
 - What: `Simulation._dot` reduces over the inner axes, then sums; implicit two-stream (50.3M particles) 1017 → ~570 ms/step on 1 GPU, 151 → 144 ms/step on 8 GPUs.
 - Why: a CuPy ReductionKernel to one scalar runs as one thread block (3.1 ms per call, 49 % of the implicit GPU time).
