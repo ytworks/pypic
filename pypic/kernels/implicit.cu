@@ -159,19 +159,32 @@ __device__ void particle_map(const double* p0, const double* u0, double g0, cons
     wall_avg_B(p0, d, Bx, By, Bz, B);
     double av[3] = {u0[0] + eps * E[0], u0[1] + eps * E[1], u0[2] + eps * E[2]};
     double g1 = sqrt(1.0 + u1[0] * u1[0] + u1[1] * u1[1] + u1[2] * u1[2]);
-    double ub[3];
+    // Sweeps over g1, each u1 = 2 ub - u0 with ub = av + ub x t, t = b / m, b = 2 eps B, m = g0 + g1:
+    //   ub = (m^2 av + m av x b + (av . b) b) / (m^2 + b^2),
+    // one division per sweep (FP64 divisions are the most expensive operations here). They stop when a
+    // sweep leaves g1 unchanged, or when the sweeps still to come provably change nothing above that
+    // level: ub = M(t) av with |M| <= 1 gives |d u1 / d g1| <= 2 |b| |av| / m^2 = L, a bound that also
+    // holds for the new g1 (|u1| < g1) and decreases with g1. If L <= 1/2 at the lowest g1 within the
+    // last change dg of both ends of this sweep, all later sweeps stay in that range and u1 and g1 are
+    // within 2 L dg of their limits. kb = (L m^2)^2: the test needs no division.
+    const double b[3] = {2.0 * eps * B[0], 2.0 * eps * B[1], 2.0 * eps * B[2]};
+    const double b2 = b[0] * b[0] + b[1] * b[1] + b[2] * b[2];
+    const double ab = av[0] * b[0] + av[1] * b[1] + av[2] * b[2];
+    const double axb[3] = {av[1] * b[2] - av[2] * b[1], av[2] * b[0] - av[0] * b[2], av[0] * b[1] - av[1] * b[0]};
+    const double kb = 4.0 * b2 * (av[0] * av[0] + av[1] * av[1] + av[2] * av[2]);
     for (int r = 0; r < 60; r++) {
-        // one division per reciprocal: FP64 divisions are the most expensive operations here
-        const double egb = eps / (0.5 * (g0 + g1));
-        double t[3] = {egb * B[0], egb * B[1], egb * B[2]};
-        double t2 = t[0] * t[0] + t[1] * t[1] + t[2] * t[2];
-        double at = av[0] * t[0] + av[1] * t[1] + av[2] * t[2];
-        double axt[3] = {av[1] * t[2] - av[2] * t[1], av[2] * t[0] - av[0] * t[2], av[0] * t[1] - av[1] * t[0]};
-        const double it2 = 1.0 / (1.0 + t2);
-        for (int a = 0; a < 3; a++) ub[a] = (av[a] + axt[a] + at * t[a]) * it2;
-        for (int a = 0; a < 3; a++) u1[a] = 2.0 * ub[a] - u0[a];
-        double g1n = sqrt(1.0 + u1[0] * u1[0] + u1[1] * u1[1] + u1[2] * u1[2]);
-        bool done = fabs(g1n - g1) <= 2e-16 * g1n;
+        const double m = g0 + g1;
+        const double inv = 2.0 / (m * m + b2);
+        for (int a = 0; a < 3; a++) u1[a] = (m * (m * av[a] + axb[a]) + ab * b[a]) * inv - u0[a];
+        const double usq = u1[0] * u1[0] + u1[1] * u1[1] + u1[2] * u1[2];
+        const double g1n = sqrt(1.0 + usq);
+        const double dg = fabs(g1n - g1);
+        bool done = dg <= 2e-16 * g1n;
+        if (!done) {
+            const double ml = g0 + fmax(1.0, fmin(g1, g1n) - dg);
+            const double m4 = (ml * ml) * (ml * ml);
+            done = 4.0 * kb <= m4 && kb * dg * dg <= 1e-32 * usq * m4;  // L <= 1/2 and L dg <= 1e-16 |u1|
+        }
         g1 = g1n;
         if (done) break;
     }

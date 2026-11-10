@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Implicit particle map: gamma sweeps stop by a contraction bound (issue #30)
+- What: in `particle_map` the sweeps over `g1` also stop when `L = 2|b||av|/(g0+g1)^2 <= 1/2` (`b = 2 eps B`, `av = u0 + eps E`) and `L dg <= 1e-16 |u1|`: the remaining sweeps then change `u1` and `g1` by at most `2 L dg`. The sweep is `ub = (m^2 av + m av x b + (av.b) b)/(m^2 + b^2)`, one division instead of two. Sweeps per map evaluation: one 29 → 75 %, two 67 → 25 %, three 4 → 0 %. Implicit two-stream, alternating pairs vs 50f41cf: 8 GPUs −3.2 / −4.8 / −6.2 % (87.7 → 84.8, 87.9 → 83.7, 86.9 → 81.5 ms/step), 1 GPU −4.5 / −4.4 % (513 → 490). Scheme, tolerances, energy closure and Picard counts unchanged.
+- Why: `implicit_push` is 90 % of the 1-GPU implicit step; two of three map evaluations spent a second sweep (two FP64 divisions) only to confirm that `g1` no longer changes.
+- Refs: #30, #4; `pypic/kernels/implicit.cu`; `tests/gpu/test_engine.py` (`test_implicit_momentum_is_the_fixed_point_of_the_midpoint_rotation`)
 ### 2026-11-10 — [progress] Ghost fill in three launches (issue #29)
 - What: `slab_pack3` packs / unpacks both faces of an axis in one launch (one buffer, two NCCL messages, same order); new `slab_wrap3` fills the ghosts of all axes that wrap onto the rank in one launch from the periodic images, after the exchanges — the values of the axis-by-axis sequence, bitwise. `fill_ghosts` 8 → 3 launches per rank with one decomposed axis; `reduce_ghosts` shares the two-face pack.
 - Why: one `fill_ghosts` per CG matrix product (74 per step). Implicit 8 GPUs −3.0 / −3.9 / −4.0 / −3.2 % (4 alternating pairs; CG 21.1 → 18.6 ms/step); shock −1.2 %, explicit within noise, 1 GPU −0.3 %.

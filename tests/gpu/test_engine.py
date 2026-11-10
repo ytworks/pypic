@@ -597,6 +597,51 @@ def test_maxwell_juttner_sampling(theta):
     assert abs(eps.mean() - expected) < 5 * eps.std() / math.sqrt(eps.size)
 
 
+def test_implicit_momentum_is_the_fixed_point_of_the_midpoint_rotation():
+    """In uniform E and B the implicit push returns u1 = 2 ub - u0 with ub = u0 + eps E + ub x t,
+    t = 2 eps B / (g0 + g1) and g1 = sqrt(1 + u1^2). Compared with that fixed point iterated in extended
+    precision, for half rotation angles |t| from 1e-9 to 0.14 and gamma from 1.1 to 30: the sweeps
+    over g1 must not stop before the direction of the momentum is converged to rounding. One evaluation
+    of the particle map (no iteration over the path, which would add sweeps): the fields are uniform."""
+    from pypic.backend import launch
+
+    cfg = SimConfig(n_cells=(8, 8, 8), dx=(1.0,) * 3, dt=0.1, solver="implicit", diag_interval=0,
+                    gauss_interval=0, species=[SpeciesConfig("e", -1, 1, [])])
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sp, g = sim.species[0], sim.grid
+    eps = sp.q * cfg.dt / (2.0 * sp.m)
+    rs = np.random.RandomState(5)
+    n = 2048
+
+    def vectors(length):
+        v = rs.standard_normal((n, 3))
+        return v / np.linalg.norm(v, axis=1)[:, None] * np.asarray(length).reshape(-1, 1)
+
+    for bmag in (1e-6, 1e-3, 0.3, 3.0):
+        u0 = vectors(10 ** rs.uniform(-0.3, 1.5, n))
+        E, B = vectors(2.0)[0], vectors(bmag)[0]
+        inject(sp, rs.uniform(0.0, 8.0, (n, 3)), u0)
+        F = [cp.full(g.shape, v) for v in (*E, *B)]
+        sim.err.fill(0)
+        launch(sim.k_ipush, n, (sp.P, sp.Pn, np.int32(n), np.int64(sp.cap), *F, g.Jx, g.Jy, g.Jz, np.float64(eps),
+                                np.float64(sp.q / sp.m), np.float64(0.0), np.int32(1),
+                                np.float64(cfg.implicit.particle_tol), np.int32(0), sim.err))
+        assert int(sim.err[0]) == 0
+        x = np.longdouble
+        a0, av, t0 = u0.astype(x), u0.astype(x) + x(eps) * E.astype(x), 2 * x(eps) * B.astype(x)
+        g0 = np.sqrt(1 + (a0 * a0).sum(1))
+        g1 = g0
+        for _ in range(100):
+            t = t0 / (g0 + g1)[:, None]
+            ub = (av + np.cross(av, t) + (av * t).sum(1)[:, None] * t) / (1 + (t * t).sum(1))[:, None]
+            u1 = 2 * ub - a0
+            g1 = np.sqrt(1 + (u1 * u1).sum(1))
+        # directions: the energy closure rescales |u1| to the work along the path, here not iterated
+        got, ref = cp.asnumpy(sp.Pn[3:6, :n]).T, u1.astype(np.float64)
+        unit = [v / np.linalg.norm(v, axis=1)[:, None] for v in (got, ref)]
+        assert np.abs(unit[0] - unit[1]).max() < 2e-15  # 4.4e-16 measured; 9e-15 with a bound 100 times looser
+
+
 def test_unconverged_implicit_step_is_not_committed():
     from pypic.simulation import ImplicitStepError
 
