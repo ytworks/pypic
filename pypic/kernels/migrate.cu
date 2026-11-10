@@ -82,3 +82,21 @@ extern "C" __global__ void mig_append(double* __restrict__ P, const long long ca
     if (j >= m) return;
     for (int r = 0; r < nrow; r++) P[r * cap + n + j] = Q[(long long)j * nrow + r];
 }
+
+// out = the n keys in ascending order, by counting: key j goes to the slot given by the number of
+// keys before it in the order (equal keys in index order, which makes the result that of a sort
+// whatever the keys). 32 threads per key, one warp: launch 32 n threads with a block size that is
+// a multiple of 32. One launch of n * n compares, for the short lists of a migration.
+#define MIG_RANK(name, T)                                                                              \
+    extern "C" __global__ void name(const T* __restrict__ key, const int n, T* __restrict__ out) {     \
+        const long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;                          \
+        const int j = (int)(t >> 5), lane = (int)(t & 31);                                             \
+        if (j >= n) return; /* a whole warp */                                                         \
+        const T kj = key[j];                                                                           \
+        int r = 0;                                                                                     \
+        for (int i = lane; i < n; i += 32) r += (key[i] < kj) | ((key[i] == kj) & (i < j));            \
+        for (int off = 16; off > 0; off >>= 1) r += __shfl_down_sync(0xffffffffu, r, off);             \
+        if (lane == 0) out[r] = kj;                                                                    \
+    }
+MIG_RANK(mig_rank32, int)
+MIG_RANK(mig_rank64, long long)

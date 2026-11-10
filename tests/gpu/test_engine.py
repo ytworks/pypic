@@ -519,6 +519,21 @@ def test_migration_across_faces_and_corners_keeps_every_particle():
         assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-12
 
 
+@pytest.mark.parametrize("name, dtype", [("mig_rank32", np.int32), ("mig_rank64", np.int64)])
+def test_migration_lists_are_ordered_like_a_sort(name, dtype):
+    """The lists of a migration are ordered by a counting kernel up to RANK_SORT_MAX keys and by a
+    sort above: both give the sorted keys, with equal keys and at lengths off the warp size too."""
+    from pypic.particles import RANK_SORT_MAX, ascending
+
+    kernel = plasma().pmod.get_function(name)
+    rng = np.random.default_rng(3)
+    for n in (2, 33, 1000, RANK_SORT_MAX, RANK_SORT_MAX + 1):
+        for bound in (n // 2 + 1, np.iinfo(dtype).max):  # with and without equal keys
+            a = cp.asarray(rng.integers(0, bound, n).astype(dtype))
+            ref = cp.sort(a)
+            assert bool((ascending(a, kernel) == ref).all()), (n, bound)
+
+
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
 def test_mixed_gather_is_decomposition_independent():
     """The float32 gather (PIC-D11) takes its weights from global coordinates: 1 GPU and a 2x2

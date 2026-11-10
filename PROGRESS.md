@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Migration lists ordered by a counting kernel instead of a radix sort (issue #35)
+- What: the two lists of a migration (leaving indices, destination keys) are ordered by `mig_rank32` / `mig_rank64` — one launch, each key to the slot given by the number of keys before it — up to `RANK_SORT_MAX` = 16384 keys, by the radix sort above. Same values in the same order: the migrated particles are unchanged. 3 alternating pairs vs 6061977 on 8 GPUs: two-stream fp64 −1.8 / −3.8 / −4.0 %, mixed −2.9 / −5.1 / −4.4 %, shock −2.3 / −2.3 / −1.0 %; synchronised `migrate` 0.54 → 0.45 (two-stream) and 0.54 → 0.41 ms/step (shock). Not adopted: the count inside the data message (ceiling 99 µs; the overflow round must be a collective, net ≈ 1.4 % of the step).
+- Why: the two sorts were 181 µs of the 606 µs of `migrate` per step; a radix sort of 2 500–14 000 keys costs 24–86 µs, the counting kernel 14–60 µs.
+- Refs: #35, #4; `pypic/kernels/migrate.cu`, `pypic/particles.py` (`ascending`); `tests/gpu/test_engine.py` (`test_migration_lists_are_ordered_like_a_sort`)
 ### 2026-11-10 — [progress] Explicit field update: ghost layer of B computed locally, 3 → 1 exchanges per step (issue #34)
 - What: `update_B` runs on the update range and one ghost layer around it (from the two exchanged ghost layers of E); `push_B` no longer exchanges. Its curl products are rounded one by one (`__dmul_rn`, explicit `fma`): the kernel variants with and without the absorbing layer were contracted differently, which left the ghosts 1 ulp off between an edge rank and a middle rank on an open decomposed axis. B changes at rounding level. 3 alternating pairs vs ac1b7ff on 8 GPUs: two-stream fp64 −1.0 / −3.0 / −4.6 % (3.66 → 3.55 ms/step), mixed −2.4 / −2.2 / −2.5 %, shock −0.8 / −1.0 / −1.4 %; synchronised `field_push` 0.36 → 0.17 ms/step.
 - Why: the two exchanges of B were 198 µs per step on 8 GPUs, 55 % of the field update.
