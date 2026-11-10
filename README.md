@@ -273,12 +273,12 @@ These are the 3-D two-stream examples run on 8 GPUs with each configuration's de
 
   | GPUs | 1 | 2 | 4 | 8 |
   |---|---|---|---|---|
-  | Step time | 37.9 ms | 19.7 ms | 10.2 ms | 5.6 ms |
-  | Speed-up | 1.0× | 1.9× | 3.7× | 6.7× |
+  | Step time | 22.0 ms | 11.5 ms | 6.0 ms | 3.4 ms |
+  | Speed-up | 1.0× | 1.9× | 3.6× | 6.4× |
 
-  A single GPU runs at 0.75 ns per particle per step (0.67 with `precision: mixed`). Measured
+  A single GPU runs at 0.44 ns per particle per step (0.36 with `precision: mixed`). Measured
   with `scripts/bench_step.py` (no output, history every 10 steps).
-- **Implicit cost**: a step costs about 14× an explicit one on one GPU (5–6 Picard iterations × about 15 CG iterations). In exchange it allows Δx ≫ λ_De and cΔt/Δx ≥ 1.
+- **Implicit cost**: a step costs about 22× an explicit one on one GPU (5–6 Picard iterations × about 15 CG iterations). In exchange it allows Δx ≫ λ_De and cΔt/Δx ≥ 1.
 
 ## Layout
 

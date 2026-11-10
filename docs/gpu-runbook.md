@@ -45,6 +45,9 @@ Wall time and ns/particle/step are recorded per gate but never decide a verdict.
 studies run `scripts/bench_step.py --example two_stream --config examples/two_stream/configs/ei.yaml
 --set cells_per_wavelength=64 --set t_end=4` on 1/2/4/8 GPUs (through `pypic.launch` for several GPUs): it
 times the steps without output, and `--phases` gives the time per phase of the step.
+With `--set t_end=4` (226 steps) the outputs requested as a count per run come far more often than in
+a production run (phase-space histograms every 2 steps instead of 49, `diag_interval` 1 instead of 12): time
+the cost of the output on the production schedule (no `t_end` override, `--steps N --with-output DIR`).
 
 ## Production runs (reported, not gated)
 
