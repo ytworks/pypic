@@ -49,6 +49,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Particle migration by dedicated kernels (issue #19)
+- What: `particles.migrate` takes, fills, classifies, packs and appends with five kernels (`pypic/kernels/migrate.cu`) on a particle-major buffer; one host sync fewer and no allreduce; particle order unchanged (old vs new arrays bitwise equal on 1/4/8 ranks). 8 GPUs: migrate 3.8 → 0.6 ms; two-stream 9.7–10.0 → 6.7–6.8 ms/step (mixed 9.2–9.4 → 6.2–6.5), shock 14.7–15.0 → 11.8.
+- Why: migration was 23–40 % of the 8-GPU step: host time of ~100 small CuPy launches for a few thousand particles (0.3 ms on 1 GPU).
+- Refs: #19, #4; `scripts/bench_step.py`; `tests/gpu/test_engine.py::test_migration_across_faces_and_corners_keeps_every_particle`
 ### 2026-11-10 — [design] PIC-D11 mixed-precision field gather, Proposed (issue #10)
 - What: `precision: mixed` gathers E, B for the explicit push from float32 copies with rank-independent weights; positions, pusher and deposit stay FP64; default `fp64`. Push 18.4 → 14.2 ms; two-stream 1 GPU 42.7 → 38.6 ms/step; shock 8 GPUs 14.4 → 13.4. All 19 explicit gates pass in mixed mode.
 - Why: `push_deposit` is FP64-pipe bound; the gather is the part that can leave FP64 without touching Gauss (deposit) or 1 vs N GPU (global weights).

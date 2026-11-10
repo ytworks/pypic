@@ -14,7 +14,7 @@ from .grid import YeeGrid
 from .kernelsrc import PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
-from .particles import ID_LIMIT, Species, migrate
+from .particles import ID_LIMIT, MIGRATE_KERNELS, Species, migrate
 from .profiles import invert_cos_density
 
 
@@ -71,6 +71,7 @@ class Simulation:
         self.k_gather = self.pmod.get_function("gather_at_particles")
         self.k_displace = self.pmod.get_function("displace_deposit")
         self.k_kick = self.pmod.get_function("boris_kick")
+        self.k_migrate = tuple(self.pmod.get_function(name) for name in MIGRATE_KERNELS)
         self.flag = cp.zeros(max(1, len(cfg.species)), dtype=cp.int32)  # per-species flag counters
         self.err = cp.zeros(2, dtype=cp.int32)
         self.itmax = cp.zeros(1, dtype=cp.int32)
@@ -370,7 +371,7 @@ class Simulation:
             J[o] -= m
 
     def _migrate(self):
-        migrate(self.species, self.grid, self.comm, self.flag)
+        migrate(self.species, self.grid, self.comm, self.flag, self.k_migrate)
 
     @property
     def _has_open(self):
