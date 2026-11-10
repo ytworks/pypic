@@ -5,6 +5,22 @@ Older `PROGRESS.md` Change Log entries, newest first. Frozen: insert only at the
 
 <!-- ARCHIVE-INSERT-POINT -->
 
+### 2026-11-10 — [progress] Performance round 2 gated: ALL PASSED on 5d7015a, fp64 and mixed
+- What: gates on the stack #19–#25: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 %, Gauss ≤ 7.6e-12, implicit energy 1.9e-10, 15 example gates, 58 GPU tests; mixed: 19 explicit gates. Baseline f31e7f9 → 5d7015a, ms/step (200-step windows, two alternating runs): two-stream 1/2/4/8 GPUs 43.1/25.1/14.6/9.5 → 37.9/19.7/10.2/5.6 (mixed 39.0/9.5 → 33.5/5.3 on 1/8), `diag_interval=1` 8 GPUs 10.9 → 6.6, shock 14.9 → 10.9, implicit 597/137 → 513/94 on 1/8. Measured without gain and not adopted: compiling out the loss reductions, `sort_interval` tuning, sort rework, paired filter passes (−0.7 %). Recorded without a criterion: `div B` of `plasma_waves:perpendicular` (B0 = 0.5) is 1.02e-12, 0.85–0.95e-12 in the three records before; the gated two-stream cases are ≤ 1.7e-14.
+- Why: evidence for the round-2 changes on one clean commit (CI cannot run the gates), and the same-window before/after numbers for the roadmap.
+- Refs: #4, #19–#25; `bench/results/2026-11-10-5d7015a34-gpu-gates.json`, `…-gpu-gates-mixed.json`; `docs/roadmap.md` R3/R4
+### 2026-11-10 — [progress] Launcher binds each rank to the NUMA node of its GPU (issue #25)
+- What: `pypic.launch` sets each rank's CPU affinity to the CPUs of the node its GPU is attached to (PCI address → `numa_node` → `cpulist`), within the CPUs the launcher may use; `--no-bind` turns it off; unknown node → no binding. 8 GPUs, default vs `--no-bind`: implicit two-stream 96.98 → 94.65 ms/step (−2.4 %, 4 pairs; −2.2 / −2.8 % in two earlier batches with external pinning), `diag_interval=1` 6.48 → 6.44 (−2.7 % with external pinning), two-stream −1.5 %, shock −0.5 %.
+- Why: 4 NUMA nodes with two GPUs each; the host thread that drives a GPU ran wherever the scheduler put it. The gain is on the cases with the most host work per step; bound runs also spread less (implicit 94.5–94.8 vs 95.8–99.2 ms).
+- Refs: #25, #4; `pypic/launch.py`; `tests/gpu/test_binding.py`
+### 2026-11-10 — [progress] Explicit step queues the field update before the migration (issue #24)
+- What: `_step_explicit` calls `push_B`/`push_E`/`push_B` before `_migrate()`. 8 GPUs: two-stream 6.19 → 5.90 ms/step (−4.7 %, 4 pairs), mixed 5.54 → 5.34, `diag_interval=1` 6.69 → 6.44, shock 11.02 → 10.83 (−1.8 %). A short explicit history agrees with the previous commit to rounding.
+- Why: the migration starts with a host read that waits for the push kernels; the field update (J and fields only, independent of the particles the migration moves) was prepared after it, serial with the push instead of behind it.
+- Refs: #24, #4; `pypic/simulation.py`
+### 2026-11-10 — [progress] Diagnostics step: field energy on the device, one reduction per record (issue #23)
+- What: `YeeGrid.field_energy_local` sums `E^2` and `B^2` with one reduction kernel each and leaves the result on the device; `_record` reduces it together with the per-species diagnostics in its one `allreduce` and one host read (before: six host reads, two `allreduce`). Two-stream with `diag_interval=1` (the planner default), 8 GPUs: 7.57 → 7.09 ms/step (−6.4 %, 6 pairs); 1 GPU 41.46 → 41.09. Recorded energies agree with the previous commit to rounding (rel ≤ 2e-16).
+- Why: with the history recorded every step the field energy and `_record` were 14 % of the 8-GPU step, almost all of it host synchronisation.
+- Refs: #23, #4; `pypic/grid.py`, `pypic/simulation.py`, `scripts/bench_step.py`
 ### 2026-11-10 — [progress] implicit_push with reciprocals instead of FP64 divisions (issue #22)
 - What: the particle map of the implicit kernel computes `eps / gbar`, `1/(1+t^2)` and `DT/(g0+g1)` once each, the Picard residual norms multiply by `1/h`, and `eps = q dt / 2m`, `q/m` come from the host. Implicit two-stream 1 GPU 586 → 513.5 ms/step (−12.4 %), 8 GPUs 109.5–110.6 → 99.7–101.0. Picard iterations (145 in 30 steps) and the energy budget error (3.03e-11) are unchanged.
 - Why: same reason as #21 — the kernel is FP64-pipe bound and the map runs once per sub-iteration of every particle. Rounding-level change, scheme unchanged.
