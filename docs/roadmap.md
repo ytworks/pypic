@@ -23,8 +23,8 @@ profiles, current filter; PIC-D9, PIC-D10).
 |---|---|---|
 | R1 | Open-boundary particle injection (thermal flux) | in the original plan; open faces currently only remove particles |
 | R2 | Restart checkpoints (float64 full state) | research output done in PR #2; restart still needed for long runs |
-| R3 | Performance: shared-memory tiled deposition, fewer host syncs, comm/compute overlap | explicit 8-GPU strong scaling is 4.0× at 50M particles |
-| R4 | Implicit solver cost: CUDA graphs or fused kernels for CG, better plasma preconditioning | ~20× explicit per step; Picard 5–6 × CG ~15 |
+| R3 | Performance: shared-memory tiled deposition, fewer host syncs, comm/compute overlap | explicit 8-GPU strong scaling is 6.7× at 50M particles (5.6 ms/step; #19–#25). The push kernels are now 70–75 % of the 8-GPU step and FP64-bound: next are a fixed-point deposit (R10), float32 storage (R5), CUDA graphs |
+| R4 | Implicit solver cost: CUDA graphs or fused kernels for CG, better plasma preconditioning | ~14× explicit per step on 1 GPU (513 ms at 50M particles), 94 ms on 8 GPUs; Picard 5–6 × CG ~15. On 8 GPUs the CG is 29 % of the step (launches and exchanges, not grid work) |
 | R5 | float32 / mixed-precision particle storage | must keep the gate criteria |
 | R6 | More examples | PR #2 set done; later: magnetised shocks, beam–plasma with B0, long production runs (shock tail, large reconnection boxes) |
 | R8 | Laser / beam drivers and a moving window (wakefield acceleration) | needs field injection at a boundary |
