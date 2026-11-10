@@ -48,6 +48,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] CG inner product in two stages (issue #5)
+- What: `Simulation._dot` reduces over the inner axes, then sums; implicit two-stream (50.3M particles) 1017 → ~570 ms/step on 1 GPU, 151 → 144 ms/step on 8 GPUs.
+- Why: a CuPy ReductionKernel to one scalar runs as one thread block (3.1 ms per call, 49 % of the implicit GPU time).
+- Refs: #5, #4; `tests/gpu/test_engine.py::test_cg_inner_product_matches_the_owned_unknowns`
 ### 2026-11-10 — [progress] Particle row offsets are 64-bit (issue #11)
 - What: the particle kernels take `cap` as 64-bit, so `row * cap` no longer overflows above ~2.7e8 particles of one species per GPU (it was an illegal address). `Species` rejects a capacity above 2**31 - 1 (the kernels' int particle index).
 - Why: a 96 GB GPU holds ~1e9 particles; the int32 offsets capped a species at ~1/4 of that (R11 needs large runs). The regression test failed on the old code.
