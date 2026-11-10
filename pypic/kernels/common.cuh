@@ -38,6 +38,40 @@ __device__ __forceinline__ double interp(const double* __restrict__ F, double X,
     return c0 * (1 - wz) + c1 * wz;
 }
 
+// The six Yee components at one particle share two sets of trilinear weights per axis: node
+// (offset 0) and half-cell (offset 0.5). Computing them once gives the same values as interp()
+// with fewer FP64 operations (issue #6).
+struct YeeWeights {
+    int in[3], ih[3];     // floor of X - 0 and X - 0.5 per axis
+    double wn[3], wh[3];  // the matching fractions
+};
+
+__device__ __forceinline__ void yee_weights(double X, double Y, double Z, YeeWeights& w) {
+    const double P[3] = {X, Y, Z};
+#pragma unroll
+    for (int a = 0; a < 3; a++) {
+        double fn = P[a], fh = P[a] - 0.5;
+        w.in[a] = (int)floor(fn);
+        w.ih[a] = (int)floor(fh);
+        w.wn[a] = fn - w.in[a];
+        w.wh[a] = fh - w.ih[a];
+    }
+}
+
+// interp(F, X, Y, Z, sx, sy, sz) with hx/hy/hz = 1 where the offset is 0.5.
+__device__ __forceinline__ double interp_w(const double* __restrict__ F, const YeeWeights& w, int hx, int hy,
+                                           int hz) {
+    int i = hx ? w.ih[0] : w.in[0], j = hy ? w.ih[1] : w.in[1], k = hz ? w.ih[2] : w.in[2];
+    double wx = hx ? w.wh[0] : w.wn[0], wy = hy ? w.wh[1] : w.wn[1], wz = hz ? w.wh[2] : w.wn[2];
+    double c00 = F[IDX(i, j, k)] * (1 - wx) + F[IDX(i + 1, j, k)] * wx;
+    double c10 = F[IDX(i, j + 1, k)] * (1 - wx) + F[IDX(i + 1, j + 1, k)] * wx;
+    double c01 = F[IDX(i, j, k + 1)] * (1 - wx) + F[IDX(i + 1, j, k + 1)] * wx;
+    double c11 = F[IDX(i, j + 1, k + 1)] * (1 - wx) + F[IDX(i + 1, j + 1, k + 1)] * wx;
+    double c0 = c00 * (1 - wy) + c10 * wy;
+    double c1 = c01 * (1 - wy) + c11 * wy;
+    return c0 * (1 - wz) + c1 * wz;
+}
+
 // Warp-level reduction then one atomic per warp.
 __device__ __forceinline__ void warp_atomic_add(double* dst, double v) {
     unsigned mask = 0xffffffffu;

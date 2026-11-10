@@ -85,6 +85,26 @@ def test_exb_drift():
 
 
 # ------------------------------------------------------------ conservation laws
+def test_esirkepov_current_moment_equals_the_displacement():
+    """Without fields, sum J dV dt = sum q w (x1 - x0) per component: the deposit of moves along
+    every axis and across cell faces carries the exact current moment (issue #6)."""
+    sim = plasma("explicit", B0=(0.0, 0.0, 0.0))
+    sp = sim.species[0]
+    rng = np.random.default_rng(5)
+    n = 2000
+    pos = rng.uniform(0.5, 1.1, (n, 3)) * np.asarray(sim.grid.L) / 1.6
+    u = rng.uniform(-3.0, 3.0, (n, 3))
+    inject(sp, pos, u, w=1.0)
+    sim.species[1].n = 0
+    sim.step()
+    g = sim.grid
+    o = g.owned_slice()
+    J = [float(cp.sum(F[o])) * g.cell_volume * sim.cfg.dt for F in (g.Jx, g.Jy, g.Jz)]
+    gam = np.sqrt(1 + np.sum(u * u, axis=1))
+    ref = sp.q * np.sum(u / gam[:, None], axis=0) * sim.cfg.dt
+    np.testing.assert_allclose(J, ref, rtol=1e-12, atol=1e-12 * np.abs(ref).max())
+
+
 @pytest.mark.parametrize("bc", ["periodic", "reflecting", "open"])
 def test_explicit_gauss_and_divB(bc):
     sim = plasma("explicit", bc=((bc, bc), ("periodic", "periodic"), (bc if bc != "open" else "periodic",) * 2))
