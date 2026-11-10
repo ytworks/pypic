@@ -424,6 +424,8 @@ class Simulation:
         self.Minv = cp.stack([1.0 / (d - 1.0 + self.Adiag[c]) for c, d in enumerate(diag)])
         self.cg_part = cp.zeros((-(-self.E1.size // CG_BLOCK), 3))  # inner products per thread block
         self.pc_part = cp.zeros((self.cg_part.shape[0], 2))  # Picard change per thread block
+        # no wall on any rank (and then no absorbing layer): the CG matrix product is one kernel
+        self.cg_fused = all(b == "periodic" for ax in self.cfg.boundaries for b in ax)
 
     def _applyD(self, B):
         if self.absorb:
@@ -436,6 +438,11 @@ class Simulation:
         owned, unconstrained E unknowns of all ranks, on the device (one reduction).
         One ghost exchange: curl E is also taken on the ghost layer that curl B reads."""
         g, dt = self.grid, self.cfg.dt
+        if self.cg_fused:  # no wall, no absorbing layer on any rank: the whole product in one launch
+            g.fill_ghosts(v)
+            launch(g.k_cg_matvec, out.size,
+                   (v, out, self.Adiag, r, self.Wmask, self.cg_part, np.float64(dt * dt / 4.0)), block=CG_BLOCK)
+            return self.comm.allreduce(self.cg_part.sum(axis=0))
         g.apply_bc_E(v)
         g.fill_ghosts(v)
         g.curl_E(v, tmp, low=True)

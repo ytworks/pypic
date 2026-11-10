@@ -37,6 +37,7 @@ class YeeGrid:
         self.k_curl_E = self.mod.get_function("curl_E")
         self.k_curl_B = self.mod.get_function("curl_B")
         self.k_cg_matvec_end = self.mod.get_function("cg_matvec_end")
+        self.k_cg_matvec = self.mod.get_function("cg_matvec")
         self.k_cg_scalars = self.mod.get_function("cg_scalars")
         self.k_cg_step = self.mod.get_function("cg_step")
         self.k_half_E = self.mod.get_function("half_E")

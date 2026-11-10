@@ -174,6 +174,61 @@ extern "C" __global__ void cg_matvec_end(double* __restrict__ w, const double* _
         for (int q = 0; q < 3; q++) part[3LL * blockIdx.x + q] = sum[q][0];
 }
 
+// The CG matrix product in one launch, where no rank has a wall or an absorbing layer:
+// w = a u + s curl curl u on the update range (curl_E on the range and the layer below it, curl_B and
+// cg_matvec_end, with their expressions), and the inner products of cg_matvec_end. Outside the update
+// range w is not written: those values are ghosts, which the CG never reads.
+__device__ __forceinline__ double curl_curl(const double* __restrict__ Ex, const double* __restrict__ Ey,
+                                            const double* __restrict__ Ez, const int q, const int i, const int j,
+                                            const int k) {
+#define CURL_X(i, j, k) ((Ez[IDX(i, (j) + 1, k)] - Ez[IDX(i, j, k)]) * (1.0 / DY) - (Ey[IDX(i, j, (k) + 1)] - Ey[IDX(i, j, k)]) * (1.0 / DZ))
+#define CURL_Y(i, j, k) ((Ex[IDX(i, j, (k) + 1)] - Ex[IDX(i, j, k)]) * (1.0 / DZ) - (Ez[IDX((i) + 1, j, k)] - Ez[IDX(i, j, k)]) * (1.0 / DX))
+#define CURL_Z(i, j, k) ((Ey[IDX((i) + 1, j, k)] - Ey[IDX(i, j, k)]) * (1.0 / DX) - (Ex[IDX(i, (j) + 1, k)] - Ex[IDX(i, j, k)]) * (1.0 / DY))
+    if (q == 0)
+        return (CURL_Z(i, j, k) - CURL_Z(i, j - 1, k)) * (1.0 / DY) - (CURL_Y(i, j, k) - CURL_Y(i, j, k - 1)) * (1.0 / DZ);
+    if (q == 1)
+        return (CURL_X(i, j, k) - CURL_X(i, j, k - 1)) * (1.0 / DZ) - (CURL_Z(i, j, k) - CURL_Z(i - 1, j, k)) * (1.0 / DX);
+    return (CURL_Y(i, j, k) - CURL_Y(i - 1, j, k)) * (1.0 / DX) - (CURL_X(i, j, k) - CURL_X(i, j - 1, k)) * (1.0 / DY);
+#undef CURL_X
+#undef CURL_Y
+#undef CURL_Z
+}
+
+extern "C" __global__ void cg_matvec(const double* __restrict__ u, double* __restrict__ w,
+                                     const double* __restrict__ a, const double* __restrict__ r,
+                                     const double* __restrict__ W, double* __restrict__ part, const double s) {
+    __shared__ double sum[3][CG_BLOCK];
+    const int ti = threadIdx.x;
+    const long long n = (long long)NX * NY * NZ;
+    const long long t = (long long)blockIdx.x * blockDim.x + ti;
+    double ru = 0.0, wu = 0.0, rr = 0.0;
+    if (t < NVEC) {
+        const int q = (int)(t / n);
+        const long long c = t - q * n;
+        const int k = (int)(c % NZ), j = (int)((c / NZ) % NY), i = (int)(c / ((long long)NY * NZ));
+        if (i >= I0X && i < I1X && j >= I0Y && j < I1Y && k >= I0Z && k < I1Z) {
+            const double wt = s * curl_curl(u, u + n, u + 2 * n, q, i, j, k) + a[t] * u[t];
+            w[t] = wt;
+            if (W[t] != 0.0) {
+                ru = r[t] * u[t];
+                wu = wt * u[t];
+                rr = r[t] * r[t];
+            }
+        }
+    }
+    sum[0][ti] = ru;
+    sum[1][ti] = wu;
+    sum[2][ti] = rr;
+    __syncthreads();
+    for (int h = CG_BLOCK / 2; h > 0; h >>= 1) {
+        if (ti < h)
+            for (int v = 0; v < 3; v++) sum[v][ti] += sum[v][ti + h];
+        __syncthreads();
+    }
+    if (ti == 0)
+        for (int v = 0; v < 3; v++) part[3LL * blockIdx.x + v] = sum[v][0];
+}
+
 // Step lengths of one CG step from sc = ((r, u), (w, u), .) of all ranks, read and kept on the
 // device: st = ((r, u) of the step before, alpha, beta), all zero before the first step.
 //   beta = (r, u) / (r, u)_before,  alpha = (r, u) / ((w, u) - beta (r, u) / alpha_before)

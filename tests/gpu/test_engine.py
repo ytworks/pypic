@@ -563,6 +563,27 @@ def test_cg_inner_products_match_the_owned_unknowns():
         assert abs(value - np.sum(W * a * b)) <= 1e-13 * np.sum(np.abs(W * a * b))
 
 
+def test_cg_matrix_product_in_one_launch_matches_the_kernel_sequence():
+    """On a periodic grid the CG takes its matrix product and inner products in one launch: they are those
+    of the general sequence (curl E, curl B, diagonal term) to rounding, on every unknown (unequal cell
+    sizes, fixed seed)."""
+    cfg = SimConfig(n_cells=(12, 10, 8), dx=(0.5, 0.4, 0.3), dt=0.7, solver="implicit", species=[],
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    assert sim.cg_fused
+    rs = cp.random.RandomState(11)
+    v, r = (rs.standard_normal((3,) + sim.grid.shape) for _ in range(2))
+    result = []
+    for fused in (True, False):
+        sim.cg_fused = fused
+        Av, tmp = cp.zeros_like(v), cp.zeros_like(v)
+        sums = cp.asnumpy(sim._matvec(v.copy(), Av, tmp, r))
+        result.append((cp.asnumpy(Av[(slice(None),) + sim.own]), sums))
+    (Av1, s1), (Av3, s3) = result
+    assert np.abs(Av3).max() > 1 and np.abs(Av1 - Av3).max() <= 1e-14 * np.abs(Av3).max()
+    assert np.all(np.abs(s1 - s3) <= 1e-13 * np.abs(Av3).sum())
+
+
 @pytest.mark.parametrize("x_faces", ["reflecting", "open"])
 def test_cg_solves_the_field_equation_to_its_tolerance(x_faces):
     """The CG keeps a recurrence for the residual and for the matrix product of its search

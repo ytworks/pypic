@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Implicit CG: matrix product in one launch on periodic grids (issue #32)
+- What: new kernel `cg_matvec` — where no rank has a wall or an absorbing layer, `w = a u + (dt²/4) curl curl u` and the three inner products are one launch instead of `curl_E`, `curl_B`, `cg_matvec_end` and a temporary field; with walls the kernel sequence is unchanged. Agrees with the sequence to rounding. Implicit two-stream, 4 alternating pairs vs a2eca7a on 8 GPUs: −1.8 / −4.2 / −5.3 / −3.3 % (`cg` 18.60 → 17.05 ms/step); 1 GPU −0.1 %.
+- Why: on the per-rank grid of 8 GPUs the three launches cost 42 µs per product (74 products per step), 12 µs of it the last kernel alone.
+- Refs: #32, #4; `pypic/kernels/fields.cu`, `pypic/simulation.py`; `tests/gpu/test_engine.py` (`test_cg_matrix_product_in_one_launch_matches_the_kernel_sequence`)
 ### 2026-11-10 — [progress] Implicit half-step fields and Picard change in dedicated kernels (issue #31)
 - What: `half_E` builds `Eh = (E0 + E1)/2` on every point, ghosts included (the ghosts of `E0` and `E1` are already those of the neighbours), so `_half_fields` drops its exchange of `Eh`; `half_B` gives `Bh = B0 - dt/2 curl Eh` in one launch; `picard_change` takes the block maxima of `|Enew - E1|` and `|Enew|` (NaN kept) instead of four whole-grid temporaries. Bitwise the previous values. Implicit two-stream, 4 alternating pairs vs 3c2532b on 8 GPUs: −4.8 / −3.0 / −5.8 / −3.1 % (`_half_fields` 2.82 → 0.99 ms/step); 1 GPU −0.4 %.
 - Why: five half-step builds and Picard checks per step were launches, temporaries and one NCCL exchange each, on a per-rank grid 8× smaller than on 1 GPU.
