@@ -19,7 +19,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12, D13, D15, D16 Accepted, PIC-D11 Proposed),
+Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D16 Accepted, PIC-D11 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
@@ -41,6 +41,9 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12,
 - Open flow: a magnetised wind through one paired and four flux faces with filter and Marder zone
   stays uniform for three crossings at the bow-shock gate size (null test M2, two field geometries,
   passed; plan Phase 3). Not shown: longer runs; the magnetic energy of the oblique case had not levelled.
+- Absorbing sphere (PIC-D14): in the gate wind with the gate dipole the charge of the insulating body
+  levels within three crossings (case B, passed). Not shown: an absorber without a dipole (its charge
+  still grows, with or without `body.relax`); `body.relax` is not for use with a dipole (plan Phase 4).
 - Known gaps: injection + filter + zone cost about +55 % over an open step without them (plan, Phase 3); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9: +4 % of a production run on 1 GPU, +13–14 % on 8; a writer thread
   was measured below the 2 % criterion and not adopted).
@@ -49,7 +52,8 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12,
   fields, PIC-D12, branch `bow-shock/1-external-fields`, gated on d2ac1d9) done. Phase 2 (injection,
   PIC-D13, branch `bow-shock/2-injection`, gated on 84f5808) done. Phase 3 (filter with open faces,
   Marder zone, PIC-D15 / PIC-D16, M2 passed; branch `bow-shock/3-filter-marder`, gated on 7893fec)
-  done. Next: Phase 4 (absorbing sphere, PIC-D14), Phase 5 (the example and its gate).
+  done. Phase 4 (absorbing sphere, PIC-D14, branch `bow-shock/4-body`) done; gates not yet run on its
+  commit. Next: Phase 5 (the example and its gate).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -59,6 +63,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12,
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [design] Absorbing sphere (PIC-D14): an insulating body that keeps the absorbed charge
+- What: `body: {center, radius, relax}`: a particle that ends a step inside the sphere is removed after its path was deposited; its charge stays at the nodes of the body, which the Gauss check leaves out (`radius + (1 + reach)·|dx|`). Particles loaded inside are dropped by one collective migration. New history keys `absorbed_kinetic`, `absorbed_charge`, `n_absorbed`; kernel constants `BODY_*`. A dipole now needs a body that covers its core. Explicit only. Measured in the gate wind (3.9e8 particles, 8 GPUs, 5761 steps, criteria fixed before the runs): with the gate dipole the charge levels (last crossing 0.043 max|Q|, passed); without a dipole it does not (0.299, failed). `body.relax` (E damped on the edges inside the sphere), built by the rule fixed for that failure, fails in both configurations (0.386 without, 0.112 with the dipole). Gauss 3–4e-14 and upstream within 0.11 % in all four.
+- Why: a charge-conserving deposit leaves the charge of a removed particle on the grid; keeping it and masking the nodes needs no Poisson correction and no work per step. The bow-shock example runs the insulating body (the dipole case passed); `body.relax` stays an option, off by default and documented as not for use with a dipole.
+- Refs: PIC-D14, PIC-D12 (`docs/design/engine.md`); plan Phase 4 (`docs/plans/2026-11-10-bow-shock.md`); `pypic/body.py`, `pypic/kernels/particles.cu`, `pypic/simulation.py`; `tests/cpu/test_body.py`, `tests/gpu/test_engine.py`, `tests/gpu/mgpu_open_flow.py`; `.claude/rules/numerics-invariants.md` (checked region). Gates not yet run on this commit. Open: the charge of an absorber without a dipole; mechanism not identified.
 ### 2026-11-11 — [progress] Filter with open faces and Marder zone gated: ALL PASSED on 7893fec, fp64 and mixed
 - What: gates on the PIC-D15 / PIC-D16 commit, 8 GPUs: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (the values of 84f5808), Gauss max 7.6e-12, implicit energy 1.9e-10, 15 example gates, 83 GPU tests; mixed: 19 explicit gates, Gauss max 7.6e-12, Buneman growth −5.1 %. Recorded without a criterion: `div B` of `plasma_waves:perpendicular` 0.92e-12 (0.95e-12 mixed), in its earlier range. The gates hold no case with a filter at an open face or a Marder zone: PIC-D15 / PIC-D16 are covered by their GPU tests and the null test M2.
 - Why: evidence that the cut of the deposit at open faces, the retreat of the Gauss check and the zone path leave the gated cases within their criteria, on one clean commit (CI cannot run the gates).

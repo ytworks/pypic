@@ -8,7 +8,7 @@ import time
 import cupy as cp
 import numpy as np
 
-from . import injection
+from . import body, injection
 from .backend import compile_module, launch
 from .config import FACES, SimConfig
 from .external import check_config, dipoles_B
@@ -18,6 +18,8 @@ from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
 from .particles import ID_LIMIT, MIGRATE_KERNELS, Species, migrate
 from .profiles import invert_cos_density
+
+NDIAG = 12  # entries of the diagnostics buffer of a species (Simulation.sdiag)
 
 
 class ImplicitStepError(RuntimeError):
@@ -63,6 +65,7 @@ class Simulation:
         reach = (self.n_filter + int(bool(cfg.current_filter.compensate))) if self.n_filter else 0
         self.zone_depth = reach + 1
         self.gauss_retreat = (reach + (1 if self.marder else 0)) if has_open else 0
+        self.body = body.check_config(cfg, reach)
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
         if cfg.precision not in ("fp64", "mixed"):
@@ -72,7 +75,7 @@ class Simulation:
             raise ValueError("precision='mixed' is for the explicit solver only (PIC-D11)")
         self.injection = injection.check_config(cfg)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
-            self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg)))
+            self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body))
         self.k_push = self.pmod.get_function("push_deposit")
         self.k_rho = self.pmod.get_function("deposit_rho")
         self.k_kin = self.pmod.get_function("kinetic")
@@ -87,6 +90,8 @@ class Simulation:
         self.k_extsum = self.pmod.get_function("ext_sum")
         self.k_inject = self.pmod.get_function("inject_face")
         self.k_partners = self.pmod.get_function("inject_partners")
+        self.k_mark_body = self.pmod.get_function("mark_body")
+        self.k_flag_dead = self.pmod.get_function("flag_dead")
         self.k_migrate = tuple(self.pmod.get_function(name) for name in MIGRATE_KERNELS)
         # per species: [s] particles flagged for removal or migration, [S + s] particles injected
         self.flag = cp.zeros(2 * max(1, len(cfg.species)), dtype=cp.int32)
@@ -106,6 +111,26 @@ class Simulation:
         if any(b.profile is not None for sc in cfg.species for b in sc.beams):
             for sp in self.species:  # drop the particles a profile gave zero weight (collective)
                 sp.compact_and_migrate(self.grid, self.comm)
+        elif self.body:  # drop the particles loaded inside the body (collective), without a second copy
+            self.flag.fill(0)
+            for i, sp in enumerate(self.species):
+                lst = sp.flag_list()
+                launch(self.k_flag_dead, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), self.flag[i:i + 1], lst,
+                                                np.int32(lst.size)))
+            self._migrate()
+        # nodes at which Gauss's law is checked: all but those that hold the charge of the body
+        self._gauss_keep = None
+        if self.body:
+            g = self.grid
+            keep = body.gauss_mask(cp, [g.global_positions(a, 0.0) * g.dx[a] for a in range(3)], cfg.body, g.dx, reach)
+            self._gauss_keep = cp.ascontiguousarray(keep[g.gauss_slice(self.gauss_retreat)])
+        # body.relax: the edges inside the body, as flat indices into the field arrays (ghosts too,
+        # so that a ghost keeps the value of the node it copies), and the factor of one step
+        self._relax = None
+        if self.body and cfg.body.relax:
+            g = self.grid
+            edges = body.relax_edges(cp, [g.global_positions(a, 0.0) * g.dx[a] for a in range(3)], cfg.body, g.dx)
+            self._relax = ([cp.flatnonzero(m) for m in edges], math.exp(-cfg.body.relax * cfg.dt))
         if not self.implicit and (moved or fields_set or any(self.B0) or self.external):
             self._initial_half_kick()
         if self.implicit:
@@ -114,7 +139,8 @@ class Simulation:
         self.time = 0.0
         self.history = {k: [] for k in (
             "step", "t", "kinetic", "electric", "magnetic", "total", "lost_kinetic", "lost_charge",
-            "injected_kinetic", "injected_charge", "n_injected", "boundary_flux", "dissipated", "budget",
+            "injected_kinetic", "injected_charge", "n_injected", "absorbed_kinetic", "absorbed_charge",
+            "n_absorbed", "boundary_flux", "dissipated", "budget",
             "px", "py", "pz", "gauss", "divB", "picard", "n_particles", "fill")}
         self.kinetic_species = {s.name: [] for s in self.species}
         self.flux_out = 0.0
@@ -173,8 +199,13 @@ class Simulation:
             if sc.particles:
                 self._load_list(sp, sc.particles, list_id)
             list_id += len(sc.particles)
+            if self.body:  # no particle starts inside the body: weight zero, removed after the set-up
+                launch(self.k_mark_body, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap)))
             self.species.append(sp)
-            self.sdiag.append(cp.zeros(9))
+            # [0] kinetic energy, [1..3] momentum (per diagnostic step); cumulative: [4] kinetic energy and
+            # [5] charge lost at open faces, [6] kinetic energy, [7] charge and [8] number injected,
+            # [9] kinetic energy, [10] charge and [11] number absorbed by the body
+            self.sdiag.append(cp.zeros(NDIAG))
         # neutrality: beams were loaded slot by slot on the same positions, so summing q w over the
         # beams of the plasma species position by position gives the net charge exactly
         plasma = [(si, bi) for si, sc in enumerate(cfg.species) if not sc.test for bi in range(len(sc.beams))]
@@ -513,6 +544,11 @@ class Simulation:
         dt = self.cfg.dt
         g.push_B(0.5 * dt)
         g.push_E(dt)
+        if self._relax:
+            for e, idx in zip((g.Ex, g.Ey, g.Ez), self._relax[0]):
+                if idx.size:
+                    flat = e.reshape(-1)
+                    flat[idx] = flat[idx] * self._relax[1]
         g.push_B(0.5 * dt)
         self._migrate()
         if self.marder:
@@ -804,7 +840,10 @@ class Simulation:
         rho = self._charge_density()
         div = g.div_E()
         s = g.gauss_slice(self.gauss_retreat)
-        err = float(cp.max(cp.abs(div[s] - rho[s]))) if div[s].size else 0.0
+        d = cp.abs(div[s] - rho[s])
+        if self._gauss_keep is not None:
+            d *= self._gauss_keep
+        err = float(cp.max(d)) if d.size else 0.0
         db = g.div_B()
         sb = g.divb_slice()
         errb = float(cp.max(cp.abs(db[sb]))) if db[sb].size else 0.0
@@ -826,14 +865,16 @@ class Simulation:
         if self.comm.size > 1:
             vec = self.comm.allreduce(vec)
         hv = cp.asnumpy(vec)
-        sd = hv[: 9 * S].reshape(S, 9)
+        sd = hv[: NDIAG * S].reshape(S, NDIAG)
         kin, lost_s = sd[:, :4], sd[:, 4]
-        n_s, fill, fe = hv[9 * S: 10 * S], hv[10 * S: 10 * S + self.comm.size], hv[10 * S + self.comm.size:]
+        hv = hv[NDIAG * S:]
+        n_s, fill, fe = hv[:S], hv[S: S + self.comm.size], hv[S + self.comm.size:]
         # test species are recorded per species but are not part of the budget
         plasma = [k for k, sp in zip(kin, self.species) if not sp.test]
         ke = sum(float(k[0]) for k in plasma)
         mom = [sum(float(k[i]) for k in plasma) for i in (1, 2, 3)]
         lost = sum(float(v) for v, sp in zip(lost_s, self.species) if not sp.test)
+        absorbed = sum(float(v) for v, sp in zip(sd[:, 9], self.species) if not sp.test)
         injected = float(np.sum(sd[:, 6]))  # test species are never injected and deposit no charge
         for sp, k in zip(self.species, kin):
             self.kinetic_species[sp.name].append(float(k[0]))
@@ -849,9 +890,12 @@ class Simulation:
         h["injected_kinetic"].append(injected)
         h["injected_charge"].append(float(np.sum(sd[:, 7])))
         h["n_injected"].append(int(round(float(np.sum(sd[:, 8])))))
+        h["absorbed_kinetic"].append(absorbed)
+        h["absorbed_charge"].append(float(np.sum(sd[:, 10])))
+        h["n_absorbed"].append(int(round(float(np.sum(sd[:, 11])))))
         h["boundary_flux"].append(self.flux_out)
         h["dissipated"].append(self.dissipated)
-        h["budget"].append(tot + lost - injected + self.flux_out + self.dissipated)
+        h["budget"].append(tot + lost + absorbed - injected + self.flux_out + self.dissipated)
         h["px"].append(mom[0])
         h["py"].append(mom[1])
         h["pz"].append(mom[2])

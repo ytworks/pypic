@@ -15,7 +15,7 @@ import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
 from pypic.analysis import open_run
-from pypic.config import Dipole, ExternalFields, OutputConfig
+from pypic.config import Body, Dipole, ExternalFields, OutputConfig
 from pypic.parallel.comm import SelfComm
 from pypic.simulation import Simulation
 
@@ -85,6 +85,7 @@ def test_field_outputs_hold_the_total_field_with_external_fields(tmp_path):
     cfg = SimConfig(n_cells=(32, 32, 32), dx=(0.5,) * 3, dt=0.05, n_steps=n, diag_interval=1, gauss_interval=0,
                     species=[SpeciesConfig("t", -1, 1, [], test=True, particles=pts)],
                     external_fields=ExternalFields(E=E, B=B0, dipoles=[Dipole(tuple(m), c, core)]),
+                    body=Body(center=c, radius=core),  # a dipole needs a body around its core (PIC-D14)
                     output=OutputConfig(dir=str(tmp_path), diagnostics=diags))
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sim.run()

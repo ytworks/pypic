@@ -16,7 +16,9 @@ the GPU gates (`scripts/gpu_gates.py`, procedure in `docs/gpu-runbook.md`) check
 - Checked region of the Gauss law: the physical nodes without the conducting faces. At an open
   face it also leaves out the face node and the nodes that the charge left there reaches:
   `passes + compensate` nodes with a current filter, one more with the Marder zone (PIC-D15,
-  PIC-D16; `Simulation.gauss_retreat`).
+  PIC-D16; `Simulation.gauss_retreat`). With an absorbing body it leaves out the nodes that hold
+  the charge of the absorbed particles: those closer to its centre than
+  `radius + (1 + passes + compensate) * |dx|` (PIC-D14; `body.gauss_radius`).
 - Charge conservation comes from the deposition, never from a Poisson correction: keep the
   Esirkepov / orbit-split deposition consistent with the CIC charge shape. The Marder zone at
   open faces (PIC-D16) changes E only on edges between nodes outside the checked region; no

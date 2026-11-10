@@ -7,7 +7,8 @@ corners every step. ``overflow`` shrinks the flag lists so that some ranks overf
 takes the full-compaction path. ``idle`` makes the positrons cold and at rest, so some steps
 flag particles of one species only, with the empty-input semantics of CuPy 14.0's bincount
 (``max`` of an empty array raises) in force. ``mixed`` uses the float32 field gather (PIC-D11).
-``dipole`` adds external fields (PIC-D12: an off-centre dipole, uniform E and B) to ``mixed``.
+``dipole`` adds external fields (PIC-D12: an off-centre dipole, uniform E and B) to ``mixed``, and the
+absorbing sphere that a dipole needs around its core (PIC-D14).
 Prints the energy history and the global count and id sums.
 """
 import json
@@ -16,7 +17,7 @@ import sys
 import cupy as cp
 
 from pypic import Beam, SimConfig, SpeciesConfig
-from pypic.config import Dipole, ExternalFields
+from pypic.config import Body, Dipole, ExternalFields
 from pypic.particles import Species
 from pypic.simulation import Simulation
 
@@ -40,15 +41,16 @@ if variant == "idle":
     cp.bincount = bincount_cupy14_0
 positron_u = (0.0, 0.0, 0.0) if variant == "idle" else (-0.5, 0.6, 0.0)
 positron_theta = 1e-8 if variant == "idle" else 0.05
-external = ExternalFields()
+external, body = ExternalFields(), None
 if variant == "dipole":
     external = ExternalFields(E=(0.0, 0.05, 0.0), B=(0.0, 0.0, 0.2),
-                              dipoles=[Dipole(moment=(0.0, 0.02, 0.05), center=(1.3, 2.1, 0.7), core=0.4)])
+                              dipoles=[Dipole(moment=(0.0, 0.02, 0.05), center=(1.3, 2.1, 0.7), core=0.3)])
+    body = Body(center=(1.3, 2.1, 0.8), radius=0.45)
 cfg = SimConfig(n_cells=(16, 16, 8), dx=(0.2,) * 3, dt=0.1, n_steps=30, dims=dims,
                 boundaries=(("periodic", "periodic"), ("periodic", "periodic"), ("reflecting", "reflecting")),
                 species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.6, 0.5, 0.1), 0.05)]),
                          SpeciesConfig("p", 1, 1, [Beam(1.0, positron_u, positron_theta)])],
-                ppc=4, diag_interval=5, gauss_interval=5, external_fields=external,
+                ppc=4, diag_interval=5, gauss_interval=5, external_fields=external, body=body,
                 precision="mixed" if variant in ("mixed", "dipole") else "fp64")
 sim = Simulation(cfg, verbose=False)
 sim.run()

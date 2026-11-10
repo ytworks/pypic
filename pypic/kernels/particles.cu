@@ -182,6 +182,9 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
                                         const double* rb, const int nrb, double* bank, const int* binfo) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     double ke = 0.0, mx = 0.0, my = 0.0, mz = 0.0, lke = 0.0, lq = 0.0;
+#ifdef BODY_SPHERE
+    double ake = 0.0, aq = 0.0, an = 0.0;  // absorbed by the body: kinetic energy, charge, particles
+#endif
     if (p < n) {
         const double w = PW(p);
         double pos0[3] = {PX(p), PY(p), PZ(p)};
@@ -289,6 +292,21 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         for (int a = 0; a < 3; a++) {
             if ((b0[a] == BC_OPEN && pos1[a] < 0.0) || (b1[a] == BC_OPEN && pos1[a] >= Lg[a])) dead = true;
         }
+#ifdef BODY_SPHERE
+        // --- absorbing body (PIC-D14): a particle that ends its step inside is removed; its whole
+        //     path was deposited, so its charge stays at the nodes of the body ---
+        const double rbx = pos1[0] - BODY_CX, rby = pos1[1] - BODY_CY, rbz = pos1[2] - BODY_CZ;
+        if (!dead && rbx * rbx + rby * rby + rbz * rbz < BODY_R2) {
+            if (do_diag) {
+                ke = 0.0; mx = my = mz = 0.0;
+            }
+            ake = w * m * (g1 - 1.0);
+            aq = qw;  // zero for test species
+            an = 1.0;
+            PW(p) = 0.0;
+            { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+        } else
+#endif
         if (dead) {
             if (do_diag) {
                 ke = 0.0; mx = my = mz = 0.0;
@@ -346,6 +364,30 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
     }
     warp_atomic_add(&diag[4], lke);
     warp_atomic_add(&diag[5], lq);
+#ifdef BODY_SPHERE
+    warp_atomic_add(&diag[9], ake);
+    warp_atomic_add(&diag[10], aq);
+    warp_atomic_add(&diag[11], an);
+#endif
+}
+
+// Set-up of a body (PIC-D14): the particles loaded inside it get weight zero. The beams of all
+// species share their positions, so what is left is as neutral as what was loaded.
+extern "C" __global__ void mark_body(double* P, const int n, const long long cap) {
+#ifdef BODY_SPHERE
+    int p = blockIdx.x * blockDim.x + threadIdx.x;
+    if (p >= n) return;
+    const double rx = PX(p) - BODY_CX, ry = PY(p) - BODY_CY, rz = PZ(p) - BODY_CZ;
+    if (rx * rx + ry * ry + rz * rz < BODY_R2) PW(p) = 0.0;
+#endif
+}
+
+// The particles of weight zero, into the list that migrate() takes out.
+extern "C" __global__ void flag_dead(const double* __restrict__ P, const int n, const long long cap, int* flag,
+                                     int* list, const int listcap) {
+    int p = blockIdx.x * blockDim.x + threadIdx.x;
+    if (p >= n) return;
+    if (PW(p) == 0.0) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
 }
 
 // ---- Initial perturbation (PIC-D9): virtual, charge-conserving displacement. The remaining

@@ -128,6 +128,35 @@ class ExternalFields:
         return any(self.E) or any(self.B) or bool(self.dipoles)
 
 
+@dataclass
+class Body:
+    """Absorbing body inside the box (PIC-D14): a particle that ends a step inside it is removed and
+    its charge stays where the deposit left it, so the body charges up like an insulator; no
+    particle is loaded inside. ``center`` and ``radius`` in c/omega_pe. ``relax`` (in omega_pe,
+    0 = off) is the rate at which the electric field of the grid decays on the edges inside the
+    body: the charge of the body then moves to its surface and the inside becomes an
+    equipotential, with the total charge unchanged; not for use with a dipole (PIC-D14, measured).
+    Explicit solver only."""
+
+    center: tuple
+    radius: float
+    shape: str = "sphere"
+    relax: float = 0.0
+
+    def __post_init__(self):
+        self.center = tuple(float(v) for v in self.center)
+        self.radius = float(self.radius)
+        if self.shape != "sphere":
+            raise ValueError("body.shape must be sphere")
+        if len(self.center) != 3:
+            raise ValueError("body.center needs three components")
+        if not self.radius > 0.0:
+            raise ValueError("body.radius must be > 0")
+        self.relax = float(self.relax)
+        if not self.relax >= 0.0:
+            raise ValueError("body.relax must be >= 0")
+
+
 FACES = ("x-", "x+", "y-", "y+", "z-", "z+")  # face index = 2 * axis + side
 
 
@@ -330,6 +359,7 @@ class SimConfig:
     # static fields felt by the particles on top of the Yee fields (PIC-D12); not together with B0 / E0
     external_fields: ExternalFields = field(default_factory=ExternalFields)
     injection: Injection = field(default_factory=Injection)  # plasma entering through open faces (PIC-D13)
+    body: Body | None = None  # absorbing sphere (PIC-D14)
     # Marder number (0 < nu <= 1/6; 0 = off) of the zone at the open faces (PIC-D16): every step
     # div E - rho diffuses in the absorbing layer and the first nodes inside, where the removed and
     # the entering particles leave charge that no deposit balances. Explicit solver only.
@@ -367,10 +397,12 @@ class SimConfig:
         ext = ext if isinstance(ext, ExternalFields) else ExternalFields(**ext)
         inj = d.pop("injection", {})
         inj = inj if isinstance(inj, Injection) else Injection(**inj)
+        body = d.pop("body", None)
+        body = body if body is None or isinstance(body, Body) else Body(**body)
         for k in ("n_cells", "dx", "B0", "E0", "dims"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:
             d["boundaries"] = tuple(tuple(b) for b in d["boundaries"])
         return cls(species=sp, implicit=imp, output=out, current_filter=flt, external_fields=ext,
-                   injection=inj, **d)
+                   injection=inj, body=body, **d)

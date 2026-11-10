@@ -20,7 +20,9 @@ profiles, current filter; PIC-D9, PIC-D10).
 Open-boundary particle injection (R1, 2026-11-11): `flux` and `paired` injecting faces (PIC-D13),
 gated on 84f5808. Current filter with open faces and the Marder zone at open faces (PIC-D15,
 PIC-D16, 2026-11-11): with them a magnetised wind through one paired and four flux faces stays
-uniform for three crossings at the bow-shock gate size (null test M2 of the plan, passed).
+uniform for three crossings at the bow-shock gate size (null test M2 of the plan, passed). Absorbing
+sphere (PIC-D14, 2026-11-11): an insulating body that removes the particles ending a step inside it
+and keeps their charge; with the gate dipole its charge levels within three crossings.
 
 ## Next (in priority order)
 

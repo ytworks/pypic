@@ -41,6 +41,9 @@ acceleration, with animations; one example per classic problem with an analytic 
   `injected_kinetic`, `injected_charge` and `n_injected` are cumulative sums over the run;
   `fill` is the largest particles / capacity ratio over ranks and species at the record. It
   describes the ranks' arrays, so it is the one history quantity that depends on the decomposition.
+- Scalar history, particles absorbed by the body (PIC-D14): `absorbed_kinetic`, `absorbed_charge`
+  and `n_absorbed` are cumulative sums over the run. `n_absorbed` counts every species; test
+  species carry no charge and no energy into the other two. Particles left out at load are not counted.
 Why: openPMD is the community standard for PIC data, so other tools read it; reduced
 diagnostics have no standard, so their schema is documented here and in `run.json`.
 

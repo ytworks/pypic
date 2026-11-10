@@ -1,6 +1,6 @@
 # Engine design
 
-Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12, D13, D15, D16 2026-11-11, bow-shock plan);
+Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12..D16 2026-11-11, bow-shock plan);
 PIC-D11 **Proposed** (2026-11-10, #10).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
@@ -124,7 +124,7 @@ Plan: `docs/plans/2026-11-10-bow-shock.md` (D-A, approved by the owner). Explici
 - **Gather:** the kernel `ext_sum` writes Yee + external array + uniform value once per step. FP64: only for the components that have an external part. `mixed`: it replaces the float32 copy of PIC-D11. Runs without external fields keep their bits.
 - **Total field elsewhere:** the initial half kick, the field outputs (`Ex..Bz`) and the fields of the tracks use the total field (`Simulation.total_field`); `run.json` records it in `field_convention`.
 - **Energies:** the history keys `electric`, `magnetic` and the Poynting outflow are those of the Yee (difference) fields. The work of the external E and of the dipole's current on the plasma is not recorded, so the monitored energy budget is not closed with external fields.
-- **Rejected at construction:** the implicit solver; `B0` or `E0` together with `external_fields` (they are initial values of the Yee fields; the uniform external fields go into `external_fields`). A dipole needs a body that covers its core (particles inside the core see a field of 2m/a³); that rule comes with the body (PIC-D14).
+- **Rejected at construction:** the implicit solver; `B0` or `E0` together with `external_fields` (they are initial values of the Yee fields; the uniform external fields go into `external_fields`). A dipole without a body that covers its core (PIC-D14): inside the core the field is as strong as 2m/a³ and is not that of a dipole.
 
 Why: a planet's dipole and the solar wind's field and motional E cross every face of an open box. As Yee fields they would be changed by the wall behind the absorbing layer and absorbed by the layer itself. OSIRIS, WarpX and Smilei also give the dipole as a field felt by the particles only.
 
@@ -148,7 +148,7 @@ Plan: `docs/plans/2026-11-10-bow-shock.md` (D-B and D-F, approved by the owner; 
 - **Compile-time mask:** `PAIRED_FACES` (bit `2·axis + side`, `pypic/kernelsrc.py`) tells `push_deposit` which faces return the neutraliser. With 0 the compiler removes that path, so a run without a paired face keeps its step time.
 - **Ids** (PIC-D8): the injected particles take one block of ids per step behind the loaded ones, from (step, cell, stream, slot). A run stops on every rank before an id reaches 2^53.
 - **Capacity:** `capacity_factor` (default 1.3) sizes the particle arrays against the loaded number. Before a step the arrays are grown if what the step can inject would not fit. Growing holds the old and the new array at once, so a large run sets the factor and watches `fill`. The planner's memory estimate counts 8 rows per particle times the factor.
-- **History:** new keys `lost_charge`, `injected_kinetic`, `injected_charge`, `n_injected` (cumulative) and `fill` (the largest particles / capacity over ranks and species; by its definition it depends on the decomposition). `budget = total + lost_kinetic − injected_kinetic + boundary flux + dissipated`. A returned neutraliser adds its old energy minus its new energy to `lost_kinetic`.
+- **History:** new keys `lost_charge`, `injected_kinetic`, `injected_charge`, `n_injected` (cumulative) and `fill` (the largest particles / capacity over ranks and species; by its definition it depends on the decomposition). `budget = total + lost_kinetic − injected_kinetic + boundary flux + dissipated` (plus `absorbed_kinetic` with a body, PIC-D14). A returned neutraliser adds its old energy minus its new energy to `lost_kinetic`.
 - **Rejected at construction:** the implicit solver; an injecting face that is not open or that meets a reflecting face; test species; beams with a profile or a perturbation; a paired face without a neutraliser, without a carrier of the opposite charge, or out of which a species drifts; a neutraliser without a paired face.
 - **Approximations:** at a paired face the neutraliser enters only as returned particles and partners, not with its own thermal flux. An edge or corner cell follows one face's mode, and a carrier entering from such a cell of a paired face always brings a partner (it pays no debt).
 
@@ -161,6 +161,49 @@ Measured (2026-11-11, RTX PRO 6000; diagnostic only):
 - **Decomposition:** a magnetised oblique flow through six open faces (one paired, four flux), 1 GPU against a 2×2 rank grid: the same ids, the same injected counts and the same bank; histories within 1e-10. The same holds with `precision: mixed` (run by hand, not a test: histories within 2.7e-13).
 - **Cost:** 120×160×160 cells, 4.9e7 particles (the per-rank size of the bow-shock gate), FP64, windows of 20 steps, against the commit before. Without injection: periodic 23.06–24.16 → 23.05–24.13 ms/step, six open faces 25.61–26.21 → 25.62–26.29. With one paired and four flux faces: 29.29–29.53 ms/step, of which the injection launches take 2.0 ms (synchronised timers, 7 %). The open run without injection loses 8 % of its particles in the measurement, so it is not a baseline at equal particle number.
 - **Measured and replaced:** the paired mask as a run-time argument cost +11 % (periodic) and +5 % (open) without any injection; one thread per layer cell took 4.7 ms/step for the same launches.
+
+### PIC-D14 — Absorbing sphere: an insulator that keeps the charge of the particles it takes (2026-11-11) — Status: Accepted
+Plan: `docs/plans/2026-11-10-bow-shock.md` (D-D; `body.relax` was built by the rule of its Phase 4 measurement). Explicit solver only.
+- `body: {shape: sphere, center, radius, relax: 0.0}` (`Body`); the rules, the kernel constants and the masks are in `pypic/body.py`.
+- **Absorption:** a particle that ends a step inside the sphere (`|x − center| < radius`) is removed after its whole path was deposited, by the removal path of the open faces (`push_deposit`, under `#ifdef BODY_SPHERE`). Test species are removed too.
+- **Charge:** the charge of an absorbed particle stays at the nodes its shape covered at its end point. The body is an insulator: it charges up, and nothing neutralises its charge. The current filter spreads that charge `reach = passes + compensate` nodes further (PIC-D15).
+- **Gauss check:** leaves out the nodes closer to the centre than `radius + (1 + reach) · |dx|`, `|dx| = sqrt(dx² + dy² + dz²)` (`body.gauss_radius`, `body.gauss_mask`). Over those nodes `Σ (div E − ρ) dV` is the absorbed charge of the history, to round-off. At every other node the contract is the one before.
+- **Load:** a particle loaded inside the sphere gets weight zero (`mark_body`) and is removed by one collective migration after the set-up, without a second copy of the arrays. Species loaded at the same points stay neutral. These particles are not counted as absorbed.
+- **`body.relax`** (rate in ω_pe; 0 = off): every step, after the update of E, the Yee E is multiplied by `exp(−relax · dt)` on every edge whose two nodes are inside the sphere (`body.relax_edges`).
+  - Such an edge changes `div E` only at nodes inside the sphere, all outside the Gauss check, and takes from one of them what it gives to the other: the charge of the body moves towards its surface, its total is unchanged, and no checked node is touched.
+  - The Yee field is the difference field (PIC-D12), so the inside becomes an equipotential of the difference field; the external E is not shorted.
+  - The factor depends on the global position of the edge only, so ghosts keep the values of their owners: no exchange and no collective. The field energy it removes is not booked in `dissipated`.
+  - Not for use with a dipole: with the gate dipole the insulating body passes the charge criteria of the measurement below and the body with `relax: 0.05` fails them (cases B and Br). Without a dipole it does not level the charge either (Ar). It is kept as an option that is off by default.
+- **Box:** the ball of the left-out nodes must lie inside the box on every axis, and `reach + 1` cells clear of an open face (the Marder zone and the nodes the filter fills from the face, PIC-D15, PIC-D16).
+- **Dipole:** a dipole of `external_fields` needs a body that covers its core, `|dipole.center − body.center| + core ≤ radius` (PIC-D12).
+- **History:** new keys `absorbed_kinetic`, `absorbed_charge`, `n_absorbed` (cumulative; `sdiag` has 12 slots, the same reduction as before). `budget = total + lost_kinetic + absorbed_kinetic − injected_kinetic + boundary flux + dissipated`.
+- **Compile-time constants:** `BODY_SPHERE`, `BODY_CX`, `BODY_CY`, `BODY_CZ`, `BODY_R2` (`pypic/kernelsrc.py`). Without a body none is defined and the kernels are compiled from the source as before: those runs keep their bits.
+- **Rejected at construction:** the implicit solver; a negative `relax`; a shape other than `sphere`; a ball of left-out nodes that leaves the box or comes too close to an open face; a dipole whose core the body does not cover.
+
+Why: an absorbing surface is what the kinetic models of small magnetospheres use for the planet (Lavorenti et al. 2022). A charge-conserving deposit leaves the charge of a removed particle on the grid (the same fact as at an open face, PIC-D15); keeping it and leaving the nodes out of the check costs nothing per step and needs no Poisson correction. With the dipole the charge of the body levels within three crossings (below), so the bow-shock example runs the insulating body.
+
+Not established:
+- Without a dipole the charge of the body does not level within three crossings, with or without `body.relax` (cases A and Ar below). The mechanism is not identified. No zone or neutralisation at the sphere was built: an absorber without a dipole is outside what was shown to reach a stationary state.
+- A use of `body.relax`: in neither measured configuration did it bring the charge of the body to a stationary state. One rate (0.05 ω_pe), fixed before the runs and not tuned; other rates were not run.
+- One size, one seed, three crossings.
+- The step cost of the body was not measured on its own (the sphere runs below take 42.4 to 44.9 ms/step on 8 GPUs with their probes, against 40.7 for the null test M2 of the same size).
+
+Measured (2026-11-11, RTX PRO 6000; diagnostic only):
+- **Tests:** a drifting plasma on a sphere, without and with `CurrentFilter(1, True)`: no particle is left inside after the load and the load is neutral (1e-13); the number absorbed equals the number missing; the charge at the left-out nodes equals `absorbed_charge` (1e-12) and Gauss's law holds elsewhere (1e-12). One electron and one test particle flying in are each counted once, with the electron's energy and charge. With `relax = 30` the sum of E² on the relaxed edges is 5.6e-4 of the value without, with the same two identities. On the CPU: the left-out ball covers every node an absorbed particle can charge, and a field on the relaxed edges has no divergence outside the sphere and none in total.
+- **Decomposition:** the open flow of PIC-D13 with a sphere centred on the edge shared by four ranks and `relax = 1`, 1 GPU against a 2×2 rank grid: the same ids, counts and bank; histories within 1e-10.
+- **Sphere in the gate wind** (plan, Phase 4; criteria fixed before the runs; scratch scripts, not in the repository): the wind of the null test M2 (`aligned`) on a sphere of radius 13.33 at 50 from the inflow face, 240×320×320 cells, 3.9e8 particles, 2×2×2 ranks, `CurrentFilter(4, True)`, `marder_zone: 0.125`, 5761 steps (three crossings of 1920), FP64. A: no dipole. B: the dipole of the bow-shock gate (moment 5680 along −z, core 4, magnetopause planned at 20). Ar, Br: the same with `relax: 0.05`. Criteria: Gauss ≤ 1e-10; the charge Q of the body changes over the last crossing by at most 0.10 max|Q|; the rms charge per node of the body at the end is at most 1.10 of the value one crossing before; upstream density and u_x within 5 % of the wind over the last crossing.
+
+  | Case | Gauss max | Change of Q, last crossing / max\|Q\| | Node rms, end / one crossing before | Upstream, worst | Verdict |
+  |---|---|---|---|---|---|
+  | A | 3.6e-14 | 0.299 | 1.374 | 0.08 % | failed |
+  | B | 4.0e-14 | 0.043 | 1.056 | 0.11 % | passed |
+  | Ar | 3.2e-14 | 0.386 | 1.534 | 0.08 % | failed |
+  | Br | 4.1e-14 | 0.112 | 1.229 | 0.11 % | failed |
+  - B: Q rises to +750 and stays between 751 and 759 from step 4320; 1479 / 621 / 427 particles are absorbed per step in the three crossings (4.9e6 in all). The surface on the stagnation line is at +145 to +191 T_e/e, the ion ram energy being 50 T_e. Electric energy of the difference field 0.97, magnetic 1.05 of the crossing before.
+  - A: Q grows almost linearly to +851, by 64 per 480 steps at the end. The sphere takes 4500 particles per step (2.5e7 in all), with 0.4 % more ion than electron charge. The potential at the centre of the body (zero at the inflow face) is between −21 and −4 T_e/e at the six probed steps. The magnetic energy of the difference field still grows (1.24 of the crossing before).
+  - Ar: Q reaches +903; the largest node charge is 6.7 against 2.0 in A (the relaxation gathers the charge at the surface).
+  - Br: Q peaks at +521 (step 2401) and falls to +263, by 58 over the last crossing; the rms charge per node grows throughout (0.64 at the end against 0.18 in B; largest node 9.3 against 2.5). The surface on the stagnation line is at +21 to +75 T_e/e. 1409 / 632 / 387 particles are absorbed per step; the profile on the stagnation line is that of B (density 3.6 n_0 at 24 upstream of the centre).
+  - 42.4 ms/step (A), 42.5 (Ar) and 44.9 (B and Br, 4.34e8 particles at the end, `fill` 0.56), probes every 480 steps included.
 
 ### PIC-D15 — Current filter with open faces: the deposit is cut at the face, which is the filter's wall (2026-11-11) — Status: Accepted
 Plan: `docs/plans/2026-11-10-bow-shock.md` (D-E as amended by its Phase 0 measurements). Amends PIC-D10. Explicit solver only.
@@ -186,7 +229,7 @@ Plan: `docs/plans/2026-11-10-bow-shock.md` (D-C; the Marder zone is the alternat
 
 Why: the CPML is driven by the derivatives of the fields, so it does not relax the static field of the charge that removal and injection leave on the face nodes. In the Phase 0 probe, relaxing E in the layer changed nothing at any rate, and the zone did; ν = 0.125 and 0.03 gave the same state. TRISTAN uses slightly conducting boundaries for the same purpose.
 
-Not established: the depth of the zone was not varied; whether the filter needs a zone at the absorbing sphere is open until PIC-D14.
+Not established: the depth of the zone was not varied. There is no zone at the absorbing sphere: with the dipole its charge levels without one, without a dipole it does not level (PIC-D14, Not established).
 
 Measured (2026-11-11, RTX PRO 6000; PIC-D15 and PIC-D16; diagnostic only):
 - **Tests:** two beams leaving through open x and y faces with `CurrentFilter(1, True)`, with and without the zone: Gauss's law to 1e-12 in the checked region while charge is lost, and the ρ of the shell equals the full ρ at every zone node (1e-12). Without particles, the field of a charge on one face node: one zone step gives the value of the discrete diffusion at that node (1e-12), `div E` inside the box stays exactly zero, and after 1500 steps `max|div E|` is below 1e-6 of its first value.
