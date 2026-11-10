@@ -107,3 +107,8 @@ Why: the numerical Cherenkov instability of relativistic flows (shocks, reconnec
 - 2026-11-09 (PR #2 review):
   - The density-perturbation inverse used Newton's method, which did not converge where the density nearly vanishes. With α = 0.99, 170 of 8192 particles were left, and the virtual move then asked for ~1e16 rounds. It is now a bisection with a residual check reduced over ranks.
   - The virtual move deposited a test species' real charge. It now uses `qdep`.
+- 2026-11-10 (#6, PIC-D2 implementation): the explicit Esirkepov deposit iterates over the 3-node
+  CIC support of each axis (from min(floor X0, floor X1)) and the 2 non-zero prefix sums of each
+  current component, instead of 4 nodes and 3 prefix terms with zero tests; the push shares the
+  node / half-cell gather weights of each axis. Same scheme and per-term arithmetic (round-off
+  order only), fewer FP64 operations: the kernel is FP64-pipe bound on SM120 (FP64 = 1/64 FP32).

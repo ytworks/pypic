@@ -48,6 +48,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [amendment] Esirkepov deposit on the 3-node CIC support (issue #6)
+- What: the explicit deposit loops over the 3 nodes per axis that a sub-cell CIC move touches (2 prefix sums per component), and the gather shares its weights. Electron `push_deposit` 37.9 → 30.8 ms; two-stream 1 GPU 51.6 → 42.7 ms/step, 8 GPUs 10.7 → 9.2–10.2; shock 8 GPUs 16.0 → 14.6–14.9.
+- Why: `push_deposit` is FP64-pipe bound (85 %) on SM120; same scheme, fewer FP64 operations.
+- Refs: #6, #4; PIC-D2 review amendment in `docs/design/engine.md`; `test_esirkepov_current_moment_equals_the_displacement`
 ### 2026-11-10 — [progress] Ghost exchange with fused slab kernels (issue #8)
 - What: ghost copy / add / zero / pack / unpack of up to 3 arrays per launch, one message per face; a self-wrapping axis is copied in place. 8 GPUs: two-stream 11.7 → 10.5–10.9 ms/step (diag every step 13.7 → 11.6–12.4), shock 17.8 → 16.0 ms/step.
 - Why: the 8-GPU step was bound by host-side sequencing of ~30 small operations per ghost call, not by bandwidth; no compute/communication overlap (the field kernels take < 0.1 ms per step, nothing to hide behind).
