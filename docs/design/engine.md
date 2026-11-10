@@ -91,6 +91,7 @@ Why: the analytic-solution examples (Landau and Dawson, orbits, Mora expansion, 
 - **Wall rules**: node-type data are mirrored about the face node; wall-normal staggered data have a zero ghost; the hi face node is filtered too. With these rules the filter is symmetric and commutes with the discrete divergence.
 - The Gauss check filters ρ in the same way.
 - Implicit particles gather F·E_h, so the energy identity Σ E_h·(F J) = Σ (F E_h)·J stays exact.
+- Along an axis that wraps onto the rank itself (periodic, not decomposed) the passes are applied as one composite stencil with indices modulo the period (issue #37): the same operator, still symmetric, equal to the passes one by one to rounding.
 - Periodic and reflecting faces only; open faces are rejected.
 
 Why: the numerical Cherenkov instability of relativistic flows (shocks, reconnection outflows). Verified: transfer function to 1e-12; Gauss ≤ 1e-12 and implicit energy ≤ 1e-11 with walls; 1 vs 2 GPUs with a decomposed wall axis.

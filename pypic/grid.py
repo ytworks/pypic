@@ -47,6 +47,7 @@ class YeeGrid:
         self.k_div_B = self.mod.get_function("div_B")
         self.k_binomial = self.mod.get_function("binomial_pass3")
         self.k_copy_pass = self.mod.get_function("copy_pass3")
+        self.k_binomial_wrap = self.mod.get_function("binomial_wrap3")
         self.k_slab_copy = self.mod.get_function("slab_copy3")
         self.k_slab_zero = self.mod.get_function("slab_zero3")
         self.k_slab_pack = self.mod.get_function("slab_pack3")
@@ -222,7 +223,9 @@ class YeeGrid:
         conducting wall node-type data are mirrored about the face node (face row (3/4, 1/4)) and
         wall-normal staggered data have a zero ghost, which makes the filter symmetric and commute
         with the discrete divergence. Call after reduce_ghosts and before apply_bc_J; the hi face
-        node of node-type data is filtered too (wall deposits live there)."""
+        node of node-type data is filtered too (wall deposits live there). Along an axis that wraps
+        onto this rank the passes are applied as one composite stencil: the same filter, with the
+        rounding of one sum instead of one per pass."""
         if passes <= 0:
             return
         g = self.g
@@ -232,8 +235,17 @@ class YeeGrid:
         arrays = list(arrays)
         assert len(arrays) <= 3 and all(F.flags.c_contiguous and F.shape == self.shape for F in arrays)
         tmp = self._filter_tmp(len(arrays))
+        cur = arrays  # where the data are: the arrays, or the work buffers after a wrapped axis
         for a in range(3):
             ax = self.d.axes[a]
+            if self._self_axis(ax):  # every pass in one launch, no ghosts needed (issue #37)
+                nxt = tmp if cur is arrays else arrays
+                self._wrapped_passes(cur, nxt, a, ax.n_int, w)
+                cur = nxt
+                continue
+            if cur is tmp:
+                self._copy_pass(arrays, tmp, a, 0, [self.shape[a]] * len(arrays))
+                cur = arrays
             lo_wall = self.d.bc[a][0] != "periodic" and ax.lo is None
             hi_wall = self.d.bc[a][1] != "periodic" and ax.hi is None
             f = g + ax.n_int  # hi face node index (ghost for periodic / rank faces)
@@ -264,6 +276,8 @@ class YeeGrid:
                     for lay in (lo_l, hi_l):
                         if lay:
                             self._slab(F, a, *lay)[...] = self._slab(T, a, *lay)
+        if cur is tmp:
+            self._copy_pass(arrays, tmp, 0, 0, [self.shape[0]] * len(arrays))
 
     def _pass_args(self, a, lo, his, n):
         hs = [np.int32(h) for h in his] + [np.int32(lo)] * (3 - len(his))
@@ -285,6 +299,21 @@ class YeeGrid:
             F = list(arrays) + [arrays[0]] * (3 - len(arrays))
             T = list(tmp) + [tmp[0]] * (3 - len(tmp))
             launch(self.k_copy_pass, count, (*F, *T, *args))
+
+    def _wrapped_passes(self, src, dst, a, n, w):
+        """dst = all the passes `w` along the self-periodic axis a applied to src, at every index
+        (the ghost layers of the axis as periodic images). The composite stencil is the convolution
+        of the passes; its coefficients are exact (dyadic) for the binomial passes and compensator."""
+        if getattr(self, "_fw", None) is None or self._fw[0] != w:
+            c = np.ones(1)
+            for wts in w:
+                c = np.convolve(c, wts)
+            self._fw = (w, cp.asarray(c[len(w):]))  # centre and one side: the stencil is symmetric
+        coef = self._fw[1]
+        S = list(src) + [src[0]] * (3 - len(src))
+        D = list(dst) + [dst[0]] * (3 - len(dst))
+        launch(self.k_binomial_wrap, math.prod(self.shape),
+               (*S, *D, np.int32(len(src)), np.int32(a), np.int32(n), np.int32(len(w)), coef))
 
     def _filter_tmp(self, k):
         if getattr(self, "_ftmp", None) is None:  # allocated on the first filtered step only

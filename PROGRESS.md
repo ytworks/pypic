@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Current filter: all passes along a self-periodic axis in one launch (issue #37)
+- What: along an axis that wraps onto the rank the N passes (+ compensator) are one composite stencil (`binomial_wrap3`, indices modulo the period, exact dyadic coefficients, evaluated symmetrically), with no ghost fill; decomposed and wall axes are unchanged. Owned cells differ from the passes one by one at rounding level; the ghosts of a wrapped axis now hold the periodic images. Shock (`pair_2d_long`, 8 GPUs), 3 alternating pairs vs 7fe5815: −9.0 / −10.3 / −8.8 % (6.87 → 6.26 ms/step); synchronised `filter_J` 1.61 → 1.01 ms/step.
+- Why: 10 of the 15 sweeps of the shock's filter were along y and z, each a ghost fill and a pass; the filter was 21 % of the step.
+- Refs: #37, #4; `pypic/kernels/fields.cu`, `pypic/grid.py`, `docs/design/engine.md` (PIC-D10); `tests/gpu/test_engine.py` (`test_current_filter_kernels_match_the_array_expressions`)
 ### 2026-11-10 — [progress] Particle sort without a second copy of the particle arrays (issue #36)
 - What: `Species.sort` gathers the rows one at a time into the key array (free once the order is known) instead of building `P[:, order]`. Same particles in the same order. One species of 25 million particles: extra pool memory of a sort 2.43 → 0.94 GiB (−61 %), 21.7–23.4 ms per sort before and after; synchronised `sort` phase 0.439 → 0.439 ms/step (two-stream, 1 GPU) and 0.077 → 0.069 (shock, 8 GPUs).
 - Why: the copy was the peak of the device memory and bounds the particles per GPU; judged by the memory, with the time as a check.

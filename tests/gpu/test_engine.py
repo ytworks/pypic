@@ -313,14 +313,18 @@ def test_fill_ghosts_gives_the_periodic_images(xbc):
             assert np.array_equal(cp.asnumpy(F), F0[np.ix_(*image)])
 
 
-@pytest.mark.parametrize("bc", ["periodic", "reflecting"])
+@pytest.mark.parametrize("bc", ["periodic", "reflecting", "mixed"])
 def test_current_filter_kernels_match_the_array_expressions(bc):
-    """The fused filter kernels give bitwise the result of the former array expressions, for J
-    (three staggers) and node data, at periodic and conducting faces."""
-    cfg = SimConfig(n_cells=(12, 10, 8), dx=(0.1,) * 3, dt=0.05, species=[], boundaries=((bc, bc),) * 3,
-                    diag_interval=0, gauss_interval=0, npml=2)
+    """The filter kernels give the result of the array expressions pass by pass, for J (three
+    staggers) and node data: bitwise at conducting faces, and to rounding on the owned cells of
+    periodic axes, whose passes are one composite stencil (here wider than the 3 cells of z). The
+    mixed case has a conducting axis between two periodic ones."""
+    kinds = ("periodic", "reflecting", "periodic") if bc == "mixed" else (bc,) * 3
+    cfg = SimConfig(n_cells=(12, 10, 3), dx=(0.1,) * 3, dt=0.05, species=[], diag_interval=0, gauss_interval=0,
+                    boundaries=tuple((k, k) for k in kinds), npml=2)
     g = Simulation(cfg, comm=SelfComm(), verbose=False).grid
     rng = np.random.default_rng(7)
+    own = tuple(slice(g.g, g.g + ax.n_int) for ax in g.d.axes)
     for staggers in (Simulation.J_STAGGER, ((0, 0, 0),)):
         for comp in (True, False):  # an even and an odd number of passes per axis
             A = [cp.asarray(rng.standard_normal(g.shape)) for _ in staggers]
@@ -328,7 +332,10 @@ def test_current_filter_kernels_match_the_array_expressions(bc):
             g.filter(A, staggers, 3, comp)
             _filter_reference(g, B, staggers, 3, comp)
             for a, b in zip(A, B):
-                assert bool(cp.all(a == b))
+                if bc == "reflecting":
+                    assert bool(cp.all(a == b))
+                else:
+                    assert float(cp.abs(a[own] - b[own]).max()) < 1e-14 * float(cp.abs(b[own]).max())
 
 
 @pytest.mark.parametrize("solver", ["explicit", "implicit"])

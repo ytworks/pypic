@@ -400,6 +400,37 @@ extern "C" __global__ void binomial_pass3(const double* __restrict__ F0, const d
     }
 }
 
+// All the passes along an axis that wraps onto this rank, in one launch: T_m = sum_d w[|d|] F_m[+d]
+// along `axis` with the indices taken modulo the period `na` (which may be shorter than the stencil),
+// for every index of the array. The ghost layers of the axis come out as the periodic images. w holds
+// the radius + 1 coefficients of the symmetric composite stencil.
+extern "C" __global__ void binomial_wrap3(const double* __restrict__ F0, const double* __restrict__ F1,
+                                          const double* __restrict__ F2, double* __restrict__ T0,
+                                          double* __restrict__ T1, double* __restrict__ T2, const int narr,
+                                          const int axis, const int na, const int radius,
+                                          const double* __restrict__ w) {
+    const long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= (long long)NX * NY * NZ) return;
+    const long long s = axis == 0 ? (long long)NY * NZ : (axis == 1 ? NZ : 1);
+    const int ix = (int)(axis == 0 ? t / s : (axis == 1 ? (t / NZ) % NY : t % NZ));
+    int p = (ix - GH) % na;  // position in the period
+    if (p < 0) p += na;
+    const long long base = t + (long long)(GH - ix) * s;  // position 0 of this line
+    const double* F[3] = {F0, F1, F2};
+    double* T[3] = {T0, T1, T2};
+    for (int m = 0; m < narr; m++) {
+        const double* f = F[m] + base;
+        double acc = w[0] * f[p * s];
+        int lo = p, hi = p;
+        for (int d = 1; d <= radius; d++) {
+            lo = lo == 0 ? na - 1 : lo - 1;
+            hi = hi == na - 1 ? 0 : hi + 1;
+            acc += w[d] * (f[lo * s] + f[hi * s]);
+        }
+        T[m][t] = acc;
+    }
+}
+
 extern "C" __global__ void copy_pass3(double* F0, double* F1, double* F2, const double* __restrict__ T0,
                                       const double* __restrict__ T1, const double* __restrict__ T2,
                                       const int narr, const int axis, const int lo, const int hi0, const int hi1,
