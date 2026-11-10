@@ -230,7 +230,9 @@ def migrate(species, grid, comm, flag):
             to_hi = (x >= hi_x) if ax.hi is not None else cp.zeros(x.shape, cp.bool_)
             dest = cp.where(to_lo, 0, cp.where(to_hi, 1, 2)).astype(cp.int8)
             Qs[i] = Q[:, _order_by(dest, 3)]
-            cnts.append(cp.bincount(dest, minlength=3))
+            # the three known classes counted on the device: no host sync, and an empty dest gives
+            # zeros (CuPy 14.0's bincount takes max() first, which raises on an empty array)
+            cnts.append(cp.stack([cp.count_nonzero(dest == v) for v in range(3)]).astype(cp.int64))
         c = cp.stack(cnts) if cnts else cp.zeros((0, 3), cp.int64)
         c_lo, c_hi = cp.ascontiguousarray(c[:, 0]), cp.ascontiguousarray(c[:, 1])
         r_hi, r_lo = cp.zeros(S, cp.int64), cp.zeros(S, cp.int64)

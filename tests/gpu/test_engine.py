@@ -446,16 +446,18 @@ def test_multi_gpu_matches_single(solver, tmp_path):
 def test_migration_across_faces_and_corners_keeps_every_particle():
     """Two species cross faces and corners of a 2x2 rank grid every step (issue #7): the run equals
     the 1-GPU run, every particle id survives, and an overflowing flag list (full-compaction path
-    on some ranks) gives the same run."""
+    on some ranks) gives the same run. With one species at rest, steps that move particles of the
+    other species only work too (PR #15 review: CuPy 14.0's bincount raised on an empty input)."""
     script = os.path.join(HERE, "mgpu_migrate.py")
     outs = {}
-    for n, dims, variant in ((1, "1,1,1", "plain"), (4, "2,2,1", "plain"), (4, "2,2,1", "overflow")):
+    for n, dims, variant in ((1, "1,1,1", "plain"), (4, "2,2,1", "plain"), (4, "2,2,1", "overflow"),
+                             (1, "1,1,1", "idle"), (4, "2,2,1", "idle")):
         r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, variant],
                            capture_output=True, text=True, timeout=600)
         assert r.returncode == 0, r.stderr[-2000:]
         outs[(n, variant)] = json.loads(r.stdout.strip().splitlines()[-1])
-    ref = outs[(1, "plain")]
-    for key in ((4, "plain"), (4, "overflow")):
+    for key in ((4, "plain"), (4, "overflow"), (4, "idle")):
+        ref = outs[(1, "idle" if key[1] == "idle" else "plain")]
         o = outs[key]
         assert o["ids"] == ref["ids"], key
         for k in ("kinetic", "electric"):
