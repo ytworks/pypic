@@ -333,16 +333,64 @@ extern "C" __global__ void slab_zero3(double* F0, double* F1, double* F2, const 
     F[off + (s0 + l) * axis_stride(axis)] = 0.0;
 }
 
-// buf[m, slab] = F_m[s0 + l] (pack) or F_m[s0 + l] = / += buf[m, slab] (unpack, add)
+// buf[f, m, slab] = F_m[s_f + l] (pack) or F_m[s_f + l] = / += buf[f, m, slab] (unpack, add), for one
+// face (s1 < 0) or two (s0, then s1) per launch. Two faces must not share a cell.
 extern "C" __global__ void slab_pack3(double* F0, double* F1, double* F2, double* buf, const int narr,
-                                      const int axis, const int s0, const int width, const int unpack,
-                                      const int add) {
+                                      const int axis, const int s0, const int s1, const int width,
+                                      const int unpack, const int add) {
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    const long long face = (long long)NX * NY * NZ / (axis == 0 ? NX : (axis == 1 ? NY : NZ)) * width * narr;
+    const bool second = t >= face;
+    if (second && s1 < 0) return;
     int m, l;
     long long off;
-    if (!slab_index(t, narr, axis, width, m, l, off)) return;
+    if (!slab_index(second ? t - face : t, narr, axis, width, m, l, off)) return;
     double* F = m == 0 ? F0 : (m == 1 ? F1 : F2);
-    double* f = F + off + (s0 + l) * axis_stride(axis);
+    double* f = F + off + ((second ? s1 : s0) + l) * axis_stride(axis);
     if (!unpack) buf[t] = *f;
     else *f = add ? __dadd_rn(*f, buf[t]) : buf[t];
+}
+
+// Ghost layers of the axes that wrap onto this rank (bits of `mask`): every ghost cell takes the value of
+// its periodic image, in one launch for all those axes. Thread t -> (region a, array, cell): region a has
+// the 2 GH ghost layers of axis a, the owned range of the masked axes below a (their ghost layers are in
+// those regions, so no cell is written twice) and every index of the other axes. An image is owned
+// along every masked axis and is not written here.
+extern "C" __global__ void slab_wrap3(double* F0, double* F1, double* F2, const int narr, const int mask) {
+    long long r = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    const int n[3] = {NX, NY, NZ};
+    for (int a = 0; a < 3; a++) {
+        if (!(mask >> a & 1)) continue;
+        int s[3], o[3];
+        for (int b = 0; b < 3; b++) {
+            const bool owned = b < a && (mask >> b & 1);
+            s[b] = b == a ? 2 * GH : (owned ? n[b] - 2 * GH : n[b]);
+            o[b] = owned ? GH : 0;
+        }
+        const long long per = (long long)s[0] * s[1] * s[2];
+        if (r >= per * narr) {
+            r -= per * narr;
+            continue;
+        }
+        const int m = (int)(r / per);
+        r -= m * per;
+        int ix[3];
+        ix[2] = (int)(r % s[2]);
+        r /= s[2];
+        ix[1] = (int)(r % s[1]);
+        ix[0] = (int)(r / s[1]);
+        long long dst = 0, src = 0;
+        for (int b = 0; b < 3; b++) {
+            const int ni = n[b] - 2 * GH;
+            int d = ix[b] + o[b];
+            if (b == a && d >= GH) d += ni;  // the upper GH layers of the region are the hi ghosts
+            int q = d;
+            if (mask >> b & 1) q = d < GH ? d + ni : (d >= GH + ni ? d - ni : d);
+            dst = dst * n[b] + d;
+            src = src * n[b] + q;
+        }
+        double* F = m == 0 ? F0 : (m == 1 ? F1 : F2);
+        F[dst] = F[src];
+        return;
+    }
 }

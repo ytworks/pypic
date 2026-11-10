@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Ghost fill in three launches (issue #29)
+- What: `slab_pack3` packs / unpacks both faces of an axis in one launch (one buffer, two NCCL messages, same order); new `slab_wrap3` fills the ghosts of all axes that wrap onto the rank in one launch from the periodic images, after the exchanges — the values of the axis-by-axis sequence, bitwise. `fill_ghosts` 8 → 3 launches per rank with one decomposed axis; `reduce_ghosts` shares the two-face pack.
+- Why: one `fill_ghosts` per CG matrix product (74 per step). Implicit 8 GPUs −3.0 / −3.9 / −4.0 / −3.2 % (4 alternating pairs; CG 21.1 → 18.6 ms/step); shock −1.2 %, explicit within noise, 1 GPU −0.3 %.
+- Refs: #29, #4; `pypic/grid.py`, `pypic/kernels/fields.cu`; `tests/gpu/test_engine.py` (`test_fill_ghosts_gives_the_periodic_images`)
 ### 2026-11-10 — [progress] Implicit CG: one reduction per iteration (issue #28)
 - What: `_cg` uses the Chronopoulos–Gear recurrence: the last kernel of the matrix product (`cg_matvec_end`) also sums `r·u`, `w·u`, `r·r` per thread block, one `allreduce` carries the three, `cg_scalars` computes α and β on the device and `cg_step` does the four vector updates and the preconditioning (before: 2.25 reductions and 3 vector kernels per iteration). Implicit two-stream, 8 GPUs, two alternating pairs: 97.5 → 89.3 and 98.0 → 89.7 ms/step (−8.4 / −8.5 %); 1 GPU 513.3 → 515.2 / 514.9 (+0.3 %: one more matrix product per solve). Iteration counts and the true residual equal the old CG (periodic / reflecting / open, `dt` 0.5–2).
 - Why: 163 NCCL `AllReduce` per step were 25 ms of the 8-GPU implicit step (`nsys`); the CG took longer on 8 GPUs than on 1.

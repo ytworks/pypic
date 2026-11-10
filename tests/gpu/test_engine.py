@@ -292,6 +292,27 @@ def _filter_reference(g, arrays, staggers, passes, compensate):
                 g._slab(F, a, g.g, hi)[...] = new
 
 
+@pytest.mark.parametrize("xbc", ["periodic", "reflecting"])
+def test_fill_ghosts_gives_the_periodic_images(xbc):
+    """Every ghost cell of a periodic axis, edges and corners included, holds exactly the value of its
+    periodic image; cells of a wall axis are left alone. All axes in one call, and one axis alone."""
+    cfg = SimConfig(n_cells=(7, 5, 3), dx=(0.1,) * 3, dt=0.05, species=[], diag_interval=0, gauss_interval=0,
+                    boundaries=((xbc, xbc), ("periodic", "periodic"), ("periodic", "periodic")), npml=2)
+    g = Simulation(cfg, comm=SelfComm(), verbose=False).grid
+    rs = cp.random.RandomState(11)
+    for axes in ((0, 1, 2), (1,)):
+        arrays = [rs.standard_normal(g.shape) for _ in range(4)]  # two launches: 3 arrays, then 1
+        before = [cp.asnumpy(F) for F in arrays]
+        g.fill_ghosts(arrays, axes=axes)
+        image = []
+        for a in range(3):
+            i, n = np.arange(g.shape[a]), g.d.axes[a].n_int
+            wraps = a in axes and g.d.bc[a][0] == "periodic"
+            image.append(g.g + (i - g.g) % n if wraps else i)
+        for F, F0 in zip(arrays, before):
+            assert np.array_equal(cp.asnumpy(F), F0[np.ix_(*image)])
+
+
 @pytest.mark.parametrize("bc", ["periodic", "reflecting"])
 def test_current_filter_kernels_match_the_array_expressions(bc):
     """The fused filter kernels give bitwise the result of the former array expressions, for J

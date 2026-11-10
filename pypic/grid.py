@@ -46,6 +46,7 @@ class YeeGrid:
         self.k_slab_copy = self.mod.get_function("slab_copy3")
         self.k_slab_zero = self.mod.get_function("slab_zero3")
         self.k_slab_pack = self.mod.get_function("slab_pack3")
+        self.k_slab_wrap = self.mod.get_function("slab_wrap3")
         self.n_update = int(np.prod([a.n_int for a in ax]))
         if self.use_pml:
             self._init_pml()
@@ -134,53 +135,59 @@ class YeeGrid:
             b = bufs[key] = cp.empty(n, dtype=cp.float64)
         return b[:n]
 
-    def _pack(self, grp, a, s0, width, buf, unpack=False, add=False):
+    def _pack(self, grp, a, starts, width, buf, unpack=False, add=False):
+        """Pack (or unpack) the slabs starting at ``starts`` (one or two faces) in one launch."""
+        s = [*starts, -1]
         launch(self.k_slab_pack, buf.size,
-               (*self._ptrs(grp), buf, np.int32(len(grp)), np.int32(a), np.int32(s0), np.int32(width),
-                np.int32(unpack), np.int32(add)))
+               (*self._ptrs(grp), buf, np.int32(len(grp)), np.int32(a), np.int32(s[0]), np.int32(s[1]),
+                np.int32(width), np.int32(unpack), np.int32(add)))
+
+    def _wrap(self, grp, mask):
+        """Ghost layers of the axes of ``mask`` (they wrap onto this rank) <- periodic images."""
+        g, count, owned = self.g, 0, list(self.shape)
+        for a in range(3):
+            if mask >> a & 1:
+                count += 2 * g * math.prod(owned) // owned[a]
+                owned[a] -= 2 * g
+        launch(self.k_slab_wrap, len(grp) * count, (*self._ptrs(grp), np.int32(len(grp)), np.int32(mask)))
 
     def _exchange_faces(self, grp, a, kind, send_lo, send_hi, recv_hi, recv_lo, add):
-        """Pack the two send slabs of every array, exchange one message per face, unpack."""
+        """Pack the send slabs of every array (both faces in one launch), exchange one message per
+        face, unpack (both faces in one launch unless they add into the same cells)."""
         ax, g = self.d.axes[a], self.g
         n = self._slab_count(a, g, len(grp))
-        sends, recvs, unp = [], [], []
-        if ax.lo is not None:
-            b = self._face_buf((kind, a, "s0"), n)
-            self._pack(grp, a, send_lo, g, b)
-            sends.append((b, ax.lo))
-        if ax.hi is not None:
-            b = self._face_buf((kind, a, "s1"), n)
-            self._pack(grp, a, send_hi, g, b)
-            sends.append((b, ax.hi))
-        if ax.hi is not None:
-            b = self._face_buf((kind, a, "r1"), n)
-            recvs.append((b, ax.hi))
-            unp.append((b, recv_hi))
-        if ax.lo is not None:
-            b = self._face_buf((kind, a, "r0"), n)
-            recvs.append((b, ax.lo))
-            unp.append((b, recv_lo))
-        self.comm.exchange(sends, recvs)
-        for b, d0 in unp:
-            self._pack(grp, a, d0, g, b, unpack=True, add=add)
+        out = [(s, r) for s, r in ((send_lo, ax.lo), (send_hi, ax.hi)) if r is not None]
+        inc = [(d, r) for d, r in ((recv_hi, ax.hi), (recv_lo, ax.lo)) if r is not None]
+        sbuf = self._face_buf((kind, a, "s"), len(out) * n)
+        rbuf = self._face_buf((kind, a, "r"), len(inc) * n)
+        self._pack(grp, a, [s for s, _ in out], g, sbuf)
+        self.comm.exchange([(sbuf[i * n:(i + 1) * n], r) for i, (_, r) in enumerate(out)],
+                           [(rbuf[i * n:(i + 1) * n], r) for i, (_, r) in enumerate(inc)])
+        starts = [d for d, _ in inc]
+        if add and len(starts) == 2 and ax.n_int < 2 * g:  # [n, n+g) and [g, 2g) overlap: one by one
+            for i, d in enumerate(starts):
+                self._pack(grp, a, [d], g, rbuf[i * n:(i + 1) * n], unpack=True, add=True)
+        else:
+            self._pack(grp, a, starts, g, rbuf, unpack=True, add=add)
 
     def fill_ghosts(self, arrays, axes=(0, 1, 2)):
         """Copy the neighbours' boundary layers into the ghost layers. Fused kernels handle up to 3
-        arrays per launch, and a face carries all of them in one message (issue #8); an axis that
-        wraps onto this rank is copied in place."""
+        arrays per launch, and a face carries all of them in one message (issue #8). The axes that
+        wrap onto this rank are filled last, in one launch, from the periodic images: the values the
+        axis-by-axis sequence gives, edges and corners included."""
         g = self.g
-        groups = self._groups(self._as_list(arrays))
-        for a in axes:
-            ax = self.d.axes[a]
-            n = ax.n_int
-            if ax.lo is None and ax.hi is None:
-                continue
-            for grp in groups:
+        for grp in self._groups(self._as_list(arrays)):
+            mask = 0
+            for a in axes:
+                ax = self.d.axes[a]
+                if ax.lo is None and ax.hi is None:
+                    continue
                 if self._self_axis(ax):
-                    self._copy(grp, a, g, n + g, g, False)  # hi ghosts <- lo boundary layer
-                    self._copy(grp, a, n, 0, g, False)  # lo ghosts <- hi boundary layer
+                    mask |= 1 << a
                 else:
-                    self._exchange_faces(grp, a, "fill", g, n, n + g, 0, add=False)
+                    self._exchange_faces(grp, a, "fill", g, ax.n_int, ax.n_int + g, 0, add=False)
+            if mask:
+                self._wrap(grp, mask)
 
     def reduce_ghosts(self, arrays):
         """Add ghost-cell contributions (current/charge deposited outside) to the owners, then zero
