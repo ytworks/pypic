@@ -159,14 +159,16 @@ __device__ void particle_map(const double* p0, const double* u0, double g0, cons
     wall_avg_B(p0, d, Bx, By, Bz, B);
     double av[3] = {u0[0] + eps * E[0], u0[1] + eps * E[1], u0[2] + eps * E[2]};
     double g1 = sqrt(1.0 + u1[0] * u1[0] + u1[1] * u1[1] + u1[2] * u1[2]);
-    double ub[3], gb;
+    double ub[3];
     for (int r = 0; r < 60; r++) {
-        gb = 0.5 * (g0 + g1);
-        double t[3] = {eps * B[0] / gb, eps * B[1] / gb, eps * B[2] / gb};
+        // one division per reciprocal: FP64 divisions are the most expensive operations here
+        const double egb = eps / (0.5 * (g0 + g1));
+        double t[3] = {egb * B[0], egb * B[1], egb * B[2]};
         double t2 = t[0] * t[0] + t[1] * t[1] + t[2] * t[2];
         double at = av[0] * t[0] + av[1] * t[1] + av[2] * t[2];
         double axt[3] = {av[1] * t[2] - av[2] * t[1], av[2] * t[0] - av[0] * t[2], av[0] * t[1] - av[1] * t[0]};
-        for (int a = 0; a < 3; a++) ub[a] = (av[a] + axt[a] + at * t[a]) / (1.0 + t2);
+        const double it2 = 1.0 / (1.0 + t2);
+        for (int a = 0; a < 3; a++) ub[a] = (av[a] + axt[a] + at * t[a]) * it2;
         for (int a = 0; a < 3; a++) u1[a] = 2.0 * ub[a] - u0[a];
         double g1n = sqrt(1.0 + u1[0] * u1[0] + u1[1] * u1[1] + u1[2] * u1[2]);
         bool done = fabs(g1n - g1) <= 2e-16 * g1n;
@@ -174,17 +176,17 @@ __device__ void particle_map(const double* p0, const double* u0, double g0, cons
         if (done) break;
     }
     // vbar = (u0 + u1) / (g0 + g1): exact energy identity (u1 - u0).vbar = g1 - g0
-    double gs = g0 + g1;
-    for (int a = 0; a < 3; a++) dn[a] = DT * (u0[a] + u1[a]) / gs;
+    const double dtg = DT / (g0 + g1);
+    for (int a = 0; a < 3; a++) dn[a] = dtg * (u0[a] + u1[a]);
 }
 
 extern "C" __global__ void implicit_push(const double* __restrict__ P, double* Pn, const int n, const long long cap,
                                          const double* __restrict__ Ex, const double* __restrict__ Ey,
                                          const double* __restrict__ Ez, const double* __restrict__ Bx,
                                          const double* __restrict__ By, const double* __restrict__ Bz,
-                                         double* Jx, double* Jy, double* Jz, const double q, const double m,
+                                         double* Jx, double* Jy, double* Jz, const double eps, const double qm,
                                          const double qdep, const int first, const double tol, const int maxit,
-                                         int* err, int* itmax) {
+                                         int* err) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
     const double p0[3] = {P[p], P[cap + p], P[2 * cap + p]};
@@ -192,20 +194,20 @@ extern "C" __global__ void implicit_push(const double* __restrict__ P, double* P
     const double w = P[6 * cap + p];
     const double g0 = sqrt(1.0 + u0[0] * u0[0] + u0[1] * u0[1] + u0[2] * u0[2]);
     const double h[3] = {DX, DY, DZ};
+    const double ih[3] = {1.0 / DX, 1.0 / DY, 1.0 / DZ};
     double d[3], u1[3], dn[3];
     if (first) {
         for (int a = 0; a < 3; a++) { d[a] = DT * u0[a] / g0; u1[a] = u0[a]; }
     } else {
         for (int a = 0; a < 3; a++) { d[a] = Pn[a * cap + p]; u1[a] = Pn[(3 + a) * cap + p]; }
     }
-    const double eps = q * DT / (2.0 * m);
     double Eeff[3];
     bool conv = false;
     int it;
     // current iterate d with its evaluation (dn, u1, Eeff) and residual r = F(d) - d
     particle_map(p0, u0, g0, d, eps, Ex, Ey, Ez, Bx, By, Bz, u1, dn, err, Eeff);
     double r[3], nrm = 0.0;
-    for (int a = 0; a < 3; a++) { r[a] = dn[a] - d[a]; nrm = fmax(nrm, fabs(r[a]) / h[a]); }
+    for (int a = 0; a < 3; a++) { r[a] = dn[a] - d[a]; nrm = fmax(nrm, fabs(r[a]) * ih[a]); }
     for (it = 0; it < maxit; it++) {
         if (nrm < tol) { conv = true; break; }  // d is the path used for both gather and deposit
         double dtr[3];
@@ -239,14 +241,14 @@ extern "C" __global__ void implicit_push(const double* __restrict__ P, double* P
                                r[0] * (JG[1][0] * JG[2][1] - JG[1][1] * JG[2][0]));
             }
             double mx = 0.0;
-            for (int a = 0; a < 3; a++) mx = fmax(mx, fabs(dl[a]) / h[a]);
+            for (int a = 0; a < 3; a++) mx = fmax(mx, fabs(dl[a]) * ih[a]);
             if (mx > 0.5) for (int a = 0; a < 3; a++) dl[a] *= 0.5 / mx;  // trust region: half a cell
             double lam = 1.0;
             for (int ls = 0; ls < 8 && !accepted; ls++, lam *= 0.5) {
                 double dt2[3], u2[3] = {u1[0], u1[1], u1[2]}, dn2[3], E2[3], r2[3], n2 = 0.0;
                 for (int a = 0; a < 3; a++) dt2[a] = d[a] + lam * dl[a];
                 particle_map(p0, u0, g0, dt2, eps, Ex, Ey, Ez, Bx, By, Bz, u2, dn2, err, E2);
-                for (int a = 0; a < 3; a++) { r2[a] = dn2[a] - dt2[a]; n2 = fmax(n2, fabs(r2[a]) / h[a]); }
+                for (int a = 0; a < 3; a++) { r2[a] = dn2[a] - dt2[a]; n2 = fmax(n2, fabs(r2[a]) * ih[a]); }
                 if (n2 < nrm) {
                     for (int a = 0; a < 3; a++) { d[a] = dt2[a]; u1[a] = u2[a]; dn[a] = dn2[a]; Eeff[a] = E2[a]; r[a] = r2[a]; }
                     nrm = n2;
@@ -260,7 +262,7 @@ extern "C" __global__ void implicit_push(const double* __restrict__ P, double* P
             int ax = 0;
             {
                 double best = -1.0;
-                for (int a = 0; a < 3; a++) if (fabs(r[a]) / h[a] > best) { best = fabs(r[a]) / h[a]; ax = a; }
+                for (int a = 0; a < 3; a++) if (fabs(r[a]) * ih[a] > best) { best = fabs(r[a]) * ih[a]; ax = a; }
             }
             {
                 double dl0[3] = {d[0], d[1], d[2]}, ut[3] = {u1[0], u1[1], u1[2]}, dnt[3], Et[3];
@@ -307,15 +309,14 @@ extern "C" __global__ void implicit_push(const double* __restrict__ P, double* P
         for (int a = 0; a < 3; a++) d[a] = dtr[a];
         particle_map(p0, u0, g0, d, eps, Ex, Ey, Ez, Bx, By, Bz, u1, dn, err, Eeff);
         nrm = 0.0;
-        for (int a = 0; a < 3; a++) { r[a] = dn[a] - d[a]; nrm = fmax(nrm, fabs(r[a]) / h[a]); }
+        for (int a = 0; a < 3; a++) { r[a] = dn[a] - d[a]; nrm = fmax(nrm, fabs(r[a]) * ih[a]); }
     }
-    atomicMax(itmax, it + 1);
     if (!conv) atomicAdd(err + 1, 1);  // non-converged particle counter
     // Exact energy closure: m (g1 - g0) = q d . E_eff along the deposited path d. For converged
     // particles this is a round-off level correction; for the rare non-converged ones it keeps
     // the total energy exact (charge conservation is unaffected since x1 = x0 + d).
     {
-        double gt = g0 + (q / m) * (d[0] * Eeff[0] + d[1] * Eeff[1] + d[2] * Eeff[2]);
+        double gt = g0 + qm * (d[0] * Eeff[0] + d[1] * Eeff[1] + d[2] * Eeff[2]);
         double un = sqrt(u1[0] * u1[0] + u1[1] * u1[1] + u1[2] * u1[2]);
         if (gt >= 1.0 && un > 0.0) {
             double sc = sqrt(gt * gt - 1.0) / un;

@@ -36,6 +36,9 @@ class YeeGrid:
         self.k_update_E = self.mod.get_function("update_E")
         self.k_curl_E = self.mod.get_function("curl_E")
         self.k_curl_B = self.mod.get_function("curl_B")
+        self.k_vec_add_scaled = self.mod.get_function("vec_add_scaled")
+        self.k_cg_update = self.mod.get_function("cg_update")
+        self.k_cg_direction = self.mod.get_function("cg_direction")
         self.k_div_E = self.mod.get_function("div_E")
         self.k_div_B = self.mod.get_function("div_B")
         self.k_binomial = self.mod.get_function("binomial_pass3")
@@ -339,8 +342,11 @@ class YeeGrid:
         self.apply_bc_E()
         self.fill_ghosts((self.Ex, self.Ey, self.Ez))
 
-    def curl_E(self, E, out, s=1.0):
-        launch(self.k_curl_E, self.n_update, (*E, *out, np.float64(s)))
+    def curl_E(self, E, out, s=1.0, low=False):
+        """out = s curl E on the update range. ``low``: also on the ghost layer below it on every
+        axis, computed from the ghosts of E (what curl_B of ``out`` reads)."""
+        n = math.prod(a.n_int + 1 for a in self.d.axes) if low else self.n_update
+        launch(self.k_curl_E, n, (*E, *out, np.float64(s), np.int32(low)))
 
     def curl_B(self, B, out, s=1.0):
         launch(self.k_curl_B, self.n_update, (*B, *out, np.float64(s)))
@@ -363,16 +369,23 @@ class YeeGrid:
         g = self.g
         return tuple(slice(g, g + a.n_int) for a in self.d.axes)
 
-    def field_energy(self, E=None, B=None, region: str = "physical"):
-        """(electric, magnetic) energy in the physical domain, or in all owned cells including
-        absorbing layers (region="all"); local sums + allreduce."""
+    _sum_sq = cp.ReductionKernel("T x, T y, T z", "T s", "x * x + y * y + z * z", "a + b", "s = a", "0",
+                                 "pypic_sum_sq")
+
+    def field_energy_local(self, E=None, B=None, region: str = "physical"):
+        """(electric, magnetic) energy of this rank in the physical domain, or in all owned cells
+        including absorbing layers (region="all"), as a device array: no host synchronisation and
+        no collective, the caller reduces it over the ranks."""
         E = E if E is not None else (self.Ex, self.Ey, self.Ez)
         B = B if B is not None else (self.Bx, self.By, self.Bz)
         s = self.physical_slice() if region == "physical" else self.owned_slice()
-        ee = sum(float(cp.sum(F[s] ** 2)) for F in E)
-        eb = sum(float(cp.sum(F[s] ** 2)) for F in B)
-        v = cp.asarray([ee, eb]) * 0.5 * self.cell_volume
-        v = self.comm.allreduce(v)
+        # two stages, as Simulation._dot: a full reduction runs as a single thread block
+        sums = [self._sum_sq(*(F[s] for F in V), axis=(1, 2)).sum() for V in (E, B)]
+        return cp.stack(sums) * (0.5 * self.cell_volume)
+
+    def field_energy(self, E=None, B=None, region: str = "physical"):
+        """Global (electric, magnetic) energy: field_energy_local + allreduce."""
+        v = cp.asnumpy(self.comm.allreduce(self.field_energy_local(E, B, region)))
         return float(v[0]), float(v[1])
 
     def poynting_out(self):

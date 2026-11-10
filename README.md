@@ -54,6 +54,9 @@ python -m pypic.launch -n 8 examples/two_stream/run.py --config examples/two_str
 python examples/two_stream/analyze.py output/two_stream/ep --movie   # + two_stream.mp4
 ```
 
+`pypic.launch` starts one process per GPU and binds each to the CPUs of the NUMA node its GPU is
+attached to; `--no-bind` leaves the CPU affinity alone.
+
 Provided configurations:
 
 | File | Mixture | Set-up |
@@ -226,6 +229,7 @@ python scripts/gpu_gates.py --gpus 8   # GPU verification gates, recorded in ben
   - CG, Picard non-convergence and ghost-width regressions
   - two-stream growth rate vs theory
   - 1-vs-2-GPU agreement
+  - the launcher's CPU binding of a rank
 - **CI** (GitHub Actions, `.github/workflows/ci.yml`, CPU only) runs:
   - ruff
   - the `PROGRESS.md` budget check
@@ -269,11 +273,12 @@ These are the 3-D two-stream examples run on 8 GPUs with each configuration's de
 
   | GPUs | 1 | 2 | 4 | 8 |
   |---|---|---|---|---|
-  | Wall time | 11.6 s | 7.0 s | 4.1 s | 2.9 s |
-  | Speed-up | 1.0× | 1.7× | 2.8× | 4.0× |
+  | Step time | 37.9 ms | 19.7 ms | 10.2 ms | 5.6 ms |
+  | Speed-up | 1.0× | 1.9× | 3.7× | 6.7× |
 
-  A single GPU runs at 1.0 ns per particle per step.
-- **Implicit cost**: a step costs about 20× an explicit one (5–6 Picard iterations × about 15 CG iterations). In exchange it allows Δx ≫ λ_De and cΔt/Δx ≥ 1.
+  A single GPU runs at 0.75 ns per particle per step (0.67 with `precision: mixed`). Measured
+  with `scripts/bench_step.py` (no output, history every 10 steps).
+- **Implicit cost**: a step costs about 14× an explicit one on one GPU (5–6 Picard iterations × about 15 CG iterations). In exchange it allows Δx ≫ λ_De and cΔt/Δx ≥ 1.
 
 ## Layout
 

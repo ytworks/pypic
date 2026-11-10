@@ -12,7 +12,7 @@ from .parallel.decomp import BC_CODES, Decomposition
 
 KERNEL_DIR = Path(__file__).parent / "kernels"
 FIELD_SOURCES = ("fields.cu",)
-PARTICLE_SOURCES = ("particles.cu", "implicit.cu")
+PARTICLE_SOURCES = ("particles.cu", "implicit.cu", "migrate.cu")
 COMPILE_OPTIONS = ("--std=c++17",)
 
 

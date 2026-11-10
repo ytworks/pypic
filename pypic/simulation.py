@@ -14,7 +14,7 @@ from .grid import YeeGrid
 from .kernelsrc import PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
-from .particles import ID_LIMIT, Species, migrate
+from .particles import ID_LIMIT, MIGRATE_KERNELS, Species, migrate
 from .profiles import invert_cos_density
 
 
@@ -71,9 +71,9 @@ class Simulation:
         self.k_gather = self.pmod.get_function("gather_at_particles")
         self.k_displace = self.pmod.get_function("displace_deposit")
         self.k_kick = self.pmod.get_function("boris_kick")
+        self.k_migrate = tuple(self.pmod.get_function(name) for name in MIGRATE_KERNELS)
         self.flag = cp.zeros(max(1, len(cfg.species)), dtype=cp.int32)  # per-species flag counters
         self.err = cp.zeros(2, dtype=cp.int32)
-        self.itmax = cp.zeros(1, dtype=cp.int32)
 
         self.species: list[Species] = []
         self.sdiag = []
@@ -313,7 +313,7 @@ class Simulation:
         if do_diag:
             for d in self.sdiag:
                 d[:4] = 0
-            self._fe = g.field_energy()
+            self._fe = g.field_energy_local()  # fields at t^n; reduced over the ranks in _record
         fields = (g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz)
         if self.mixed:  # float32 copies for the gather (PIC-D11)
             if getattr(self, "_f32", None) is None:
@@ -325,18 +325,22 @@ class Simulation:
             lst = sp.flag_list()
             launch(self.k_push, sp.n, (
                 sp.P, np.int32(sp.n), np.int64(sp.cap), *fields,
-                g.Jx, g.Jy, g.Jz, np.float64(sp.q), np.float64(sp.m), np.float64(sp.qdep), d, self.flag[i:i + 1],
+                g.Jx, g.Jy, g.Jz, np.float64(sp.q * self.cfg.dt / (2.0 * sp.m)), np.float64(sp.m),
+                np.float64(sp.qdep), d, self.flag[i:i + 1],
                 lst, np.int32(lst.size), np.int32(do_diag)))
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
         self._filter_J()
         g.apply_bc_J()
         if self.cfg.remove_mean_current:
             self._remove_mean_current()
-        self._migrate()
+        # The field update reads J and the fields, the migration the particles: queueing the update
+        # first lets the host prepare it while the push kernels run, as the migration starts with
+        # a host synchronisation.
         dt = self.cfg.dt
         g.push_B(0.5 * dt)
         g.push_E(dt)
         g.push_B(0.5 * dt)
+        self._migrate()
         if self._has_open:
             self.flux_out += dt * g.poynting_out()
 
@@ -370,7 +374,7 @@ class Simulation:
             J[o] -= m
 
     def _migrate(self):
-        migrate(self.species, self.grid, self.comm, self.flag)
+        migrate(self.species, self.grid, self.comm, self.flag, self.k_migrate)
 
     @property
     def _has_open(self):
@@ -433,16 +437,16 @@ class Simulation:
                 B[c] *= self.Dmat[c]
 
     def _matvec(self, v, out, tmp):
-        """out = A v,  A = (1 + sigma dt/2) + dt^2/4 curl D curl  (v, out, tmp stacked (3, ...))."""
+        """out = A v,  A = (1 + sigma dt/2) + dt^2/4 curl D curl  (v, out, tmp stacked (3, ...)).
+        One ghost exchange: curl E is also taken on the ghost layer that curl B reads."""
         g, dt = self.grid, self.cfg.dt
         g.apply_bc_E(v)
         g.fill_ghosts(v)
-        g.curl_E(v, tmp)
+        g.curl_E(v, tmp, low=True)
         self._applyD(tmp)
         g.apply_bc_B(tmp)
-        g.fill_ghosts(tmp)
         g.curl_B(tmp, out, dt * dt / 4.0)
-        out += self.Adiag * v
+        launch(g.k_vec_add_scaled, out.size, (out, self.Adiag, v))
         g.apply_bc_E(out)
 
     def _cg(self, x, b):
@@ -450,11 +454,12 @@ class Simulation:
         x, b: stacked (3, nx, ny, nz) arrays. Scalars stay on the GPU; convergence is checked
         every few iterations to avoid host synchronisation."""
         icfg = self.cfg.implicit
+        g = self.grid
         tmp = cp.empty_like(x)
         Ax = cp.empty_like(x)
         self._matvec(x, Ax, tmp)
         r = b - Ax
-        self.grid.apply_bc_E(r)
+        g.apply_bc_E(r)
         z = self.Minv * r
         p = z.copy()
         rz = self._dot(r, z)
@@ -465,18 +470,13 @@ class Simulation:
                 break
             self._matvec(p, Ax, tmp)
             # The convergence test runs every few iterations only, so the residual can reach exactly
-            # zero in between (e.g. a curl-free mode where A = I is solved in one step). Guard the
-            # divisions on the device: a zero denominator means the step/update is zero.
+            # zero in between (e.g. a curl-free mode where A = I is solved in one step): the kernels
+            # take a zero denominator as a zero step / update.
             pAp = self._dot(p, Ax)
-            alpha = cp.where(pAp != 0, rz / cp.where(pAp != 0, pAp, 1.0), 0.0)
-            x += alpha * p
-            r -= alpha * Ax
-            cp.multiply(self.Minv, r, out=z)
+            launch(g.k_cg_update, x.size, (x, r, z, p, Ax, self.Minv, rz, pAp))
             rz_new = self._dot(r, z)
-            p *= cp.where(rz != 0, rz_new / cp.where(rz != 0, rz, 1.0), 0.0)
-            p += z
+            launch(g.k_cg_direction, x.size, (p, z, rz_new, rz))
             rz = rz_new
-        g = self.grid
         g.apply_bc_E(x)
         g.fill_ghosts(x)
         return it
@@ -516,12 +516,12 @@ class Simulation:
             self._half_fields(E0, B0)
             G = self._gather_E()
             g.zero_J()
-            self.itmax.fill(0)
             for sp in self.species:
                 launch(self.k_ipush, sp.n, (
                     sp.P, sp.Pn, np.int32(sp.n), np.int64(sp.cap), *G, *self.Bh, g.Jx, g.Jy, g.Jz,
-                    np.float64(sp.q), np.float64(sp.m), np.float64(sp.qdep), np.int32(1 if k == 0 else 0),
-                    np.float64(icfg.particle_tol), np.int32(icfg.particle_maxit), self.err, self.itmax))
+                    np.float64(sp.q * dt / (2.0 * sp.m)), np.float64(sp.q / sp.m), np.float64(sp.qdep),
+                    np.int32(1 if k == 0 else 0), np.float64(icfg.particle_tol), np.int32(icfg.particle_maxit),
+                    self.err))
             g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
             self._filter_J()
             g.apply_bc_J()
@@ -592,13 +592,11 @@ class Simulation:
 
     # ------------------------------------------------------------ diagnostics
     def _kinetic_now(self):
-        """Kinetic energy and momentum at the current integer time level (implicit scheme)."""
-        out = []
+        """Kinetic energy and momentum at the current integer time level (implicit scheme), into
+        the diagnostics buffer of each species."""
         for sp, d in zip(self.species, self.sdiag):
             d[:4] = 0
             launch(self.k_kin, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.m), d))
-            out.append(d[:4].copy())
-        return out
 
     def gauss_error(self):
         g = self.grid
@@ -617,17 +615,20 @@ class Simulation:
         errb = float(cp.max(cp.abs(db[sb]))) if db[sb].size else 0.0
         return self.comm.allreduce_scalar(err, "max"), self.comm.allreduce_scalar(errb, "max")
 
-    def _record(self, kin_list, fe):
+    def _record(self, fe_local):
+        """Append the diagnostics of this step to the history, from the diagnostics buffers of the
+        species (kinetic energy, momentum, lost energy) and this rank's YeeGrid.field_energy_local."""
         h = self.history
         cfg = self.cfg
-        # one allreduce and one host sync for all species: kinetic + momentum, lost energy, count
+        # one allreduce and one host sync for everything
         S = len(self.species)
-        vec = cp.concatenate([cp.stack(kin_list).ravel(), cp.stack([d[4] for d in self.sdiag]),
-                              cp.asarray([float(sp.n) for sp in self.species])]) if S else cp.zeros(0)
-        if self.comm.size > 1 and S:
+        vec = cp.concatenate([*(d[:5] for d in self.sdiag), cp.asarray([float(sp.n) for sp in self.species]),
+                              fe_local])
+        if self.comm.size > 1:
             vec = self.comm.allreduce(vec)
         hv = cp.asnumpy(vec)
-        kin, lost_s, n_s = hv[: 4 * S].reshape(S, 4), hv[4 * S: 5 * S], hv[5 * S:]
+        kin, lost_s = hv[: 5 * S].reshape(S, 5)[:, :4], hv[: 5 * S].reshape(S, 5)[:, 4]
+        n_s, fe = hv[5 * S: 6 * S], hv[6 * S:]
         # test species are recorded per species but are not part of the budget
         plasma = [k for k, sp in zip(kin, self.species) if not sp.test]
         ke = sum(float(k[0]) for k in plasma)
@@ -635,12 +636,12 @@ class Simulation:
         lost = sum(float(v) for v, sp in zip(lost_s, self.species) if not sp.test)
         for sp, k in zip(self.species, kin):
             self.kinetic_species[sp.name].append(float(k[0]))
-        tot = ke + fe[0] + fe[1]
+        tot = ke + float(fe[0]) + float(fe[1])
         h["step"].append(self.step_count)
         h["t"].append(self.time)
         h["kinetic"].append(ke)
-        h["electric"].append(fe[0])
-        h["magnetic"].append(fe[1])
+        h["electric"].append(float(fe[0]))
+        h["magnetic"].append(float(fe[1]))
         h["total"].append(tot)
         h["lost_kinetic"].append(lost)
         h["boundary_flux"].append(self.flux_out)
@@ -669,16 +670,16 @@ class Simulation:
                 sp.sort(self.k_cell)
         if self.implicit:
             if do_diag:
-                kin = self._kinetic_now()
+                self._kinetic_now()
                 # with an absorbing layer the field energy stored in the layer is part of the budget
-                fe = self.grid.field_energy(region="all" if self.absorb else "physical")
-                self._record(kin, fe)
+                fe = self.grid.field_energy_local(region="all" if self.absorb else "physical")
+                self._record(fe)
             self._step_implicit(do_diag)
         else:
             self._step_explicit(do_diag)
             if do_diag:
                 # kinetic energy centred at t^n (from the push), fields at t^n
-                self._record([d[:4].copy() for d in self.sdiag], self._fe)
+                self._record(self._fe)
         self.step_count += 1
         self.time += cfg.dt
 

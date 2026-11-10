@@ -95,11 +95,12 @@ __device__ __forceinline__ void deposit_global(const double* p0, const double* p
 // diag: [0] kinetic energy (time centred), [1..3] momentum, [4] kinetic energy lost
 // through open boundaries, [5] charge lost through open boundaries.
 // flag[0]: number of particles that must be removed or migrated.
+// h = q DT / (2 m): the half kick factor of the species.
 extern "C" __global__ void push_deposit(double* P, const int n, const long long cap, const gather_t* __restrict__ Ex,
                                         const gather_t* __restrict__ Ey, const gather_t* __restrict__ Ez,
                                         const gather_t* __restrict__ Bx, const gather_t* __restrict__ By,
                                         const gather_t* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
-                                        const double q, const double m, const double qdep, double* diag, int* flag,
+                                        const double h, const double m, const double qdep, double* diag, int* flag,
                                         int* list, const int listcap, const int do_diag) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     double ke = 0.0, mx = 0.0, my = 0.0, mz = 0.0, lke = 0.0, lq = 0.0;
@@ -107,7 +108,6 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         const double w = PW(p);
         double pos0[3] = {PX(p), PY(p), PZ(p)};
         double u[3] = {PUX(p), PUY(p), PUZ(p)};
-        const double h = q * DT / (2.0 * m);
 #ifdef MIXED_GATHER
         YeeWeightsF yw;
         yee_weights_global(pos0, yw);
@@ -129,13 +129,14 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         double by = h * interp_w(By, yw, 1, 0, 1);
         double bz = h * interp_w(Bz, yw, 1, 1, 0);
 #endif
-        double g0 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
-        // --- relativistic Buneman-Boris ---
+        // --- relativistic Buneman-Boris (one division per reciprocal: FP64 divisions are the
+        //     most expensive operations of the kernel) ---
         double umx = u[0] + ex, umy = u[1] + ey, umz = u[2] + ez;  // half electric kick
-        double gm = sqrt(1.0 + umx * umx + umy * umy + umz * umz);
-        double tx = bx / gm, ty = by / gm, tz = bz / gm;
+        const double igm = 1.0 / sqrt(1.0 + umx * umx + umy * umy + umz * umz);
+        double tx = bx * igm, ty = by * igm, tz = bz * igm;
         double t2 = tx * tx + ty * ty + tz * tz;
-        double sx = 2.0 * tx / (1.0 + t2), sy = 2.0 * ty / (1.0 + t2), sz = 2.0 * tz / (1.0 + t2);
+        const double sf = 2.0 / (1.0 + t2);
+        double sx = sf * tx, sy = sf * ty, sz = sf * tz;
         double upx = umx + (umy * tz - umz * ty);
         double upy = umy + (umz * tx - umx * tz);
         double upz = umz + (umx * ty - umy * tx);
@@ -146,8 +147,10 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         u[1] = ury + ey;
         u[2] = urz + ez;  // second half electric kick
         double g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
-        double pos1[3] = {pos0[0] + DT * u[0] / g1, pos0[1] + DT * u[1] / g1, pos0[2] + DT * u[2] / g1};
+        const double dtg = DT / g1;
+        double pos1[3] = {pos0[0] + dtg * u[0], pos0[1] + dtg * u[1], pos0[2] + dtg * u[2]};
         if (do_diag) {
+            const double g0 = sqrt(1.0 + PUX(p) * PUX(p) + PUY(p) * PUY(p) + PUZ(p) * PUZ(p));
             ke = w * m * (0.5 * (g0 + g1) - 1.0);
             mx = 0.5 * w * m * (PUX(p) + u[0]);
             my = 0.5 * w * m * (PUY(p) + u[1]);
@@ -200,14 +203,18 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             PW(p) = 0.0;
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
         } else {
-            // periodic wrap on non-decomposed axes; decomposed axes are wrapped after migration
+            // periodic wrap on non-decomposed axes (a step moves a particle by less than a cell,
+            // so by at most one period); decomposed axes are wrapped after migration
             const int dec[3] = {DECX, DECY, DECZ};
             const double slo[3] = {SX0, SY0, SZ0};
             const double shi[3] = {SX1, SY1, SZ1};
             bool migrate = false;
             for (int a = 0; a < 3; a++) {
                 if (!dec[a]) {
-                    if (b0[a] == BC_PERIODIC) pos1[a] -= Lg[a] * floor(pos1[a] / Lg[a]);
+                    if (b0[a] == BC_PERIODIC) {
+                        if (pos1[a] < 0.0) pos1[a] += Lg[a];
+                        else if (pos1[a] >= Lg[a]) pos1[a] -= Lg[a];
+                    }
                 } else if (pos1[a] < slo[a] || pos1[a] >= shi[a]) {
                     migrate = true;
                 }

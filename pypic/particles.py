@@ -168,100 +168,82 @@ class Species:
         return int(comm.allreduce_scalar(float(self.n)))
 
 
-def _order_by(dest, nkeys: int):
-    """Permutation that groups columns by dest (0..nkeys-1), stable, with no host sync."""
-    m = dest.size
-    return cp.argsort(dest.astype(cp.int64) * m + cp.arange(m, dtype=cp.int64))
+MIGRATE_KERNELS = ("mig_take", "mig_fill", "mig_classify", "mig_pack", "mig_append")
 
 
-def migrate(species, grid, comm, flag):
+def migrate(species, grid, comm, flag, kernels):
     """Take the particles flagged by the push kernels (flag[s] of them for species s, indices in
     its flag list) out of every species, drop the dead ones (w == 0) and send the rest to the
     neighbour ranks, axis by axis, all species in one message group per axis (issue #7).
+    ``kernels``: the functions MIGRATE_KERNELS of the particle module (issue #19).
 
-    Host syncs: one for the flag counts (with the global total), one for the hole counts, and one
-    per decomposed axis for the message sizes. Every rank makes the same collective calls: if any
-    rank's flag list overflowed, every rank takes all its particles out (the former compaction)."""
+    Host syncs: one for the flag counts and one per decomposed axis for the message sizes. With
+    more than one rank every rank makes the same collective calls, whatever it has flagged. A
+    species whose flag list overflowed has all its particles taken out (the former compaction)."""
+    k_take, k_fill, k_classify, k_pack, k_append = kernels
     S = len(species)
-    caps = cp.asarray([sp.flag_list().size for sp in species], dtype=cp.int32)
-    loc = flag[:S].astype(cp.float64)
-    glob = cp.stack([loc.sum(), (flag[:S] > caps).sum().astype(cp.float64)])
-    if comm.size > 1:
-        glob = comm.allreduce(glob)
-    h = cp.asnumpy(cp.concatenate([loc, glob]))
-    if h[S] == 0:
+    h = cp.asnumpy(flag[:S])
+    if comm.size == 1 and not h.any():
         return
-    full = h[S + 1] > 0
     # 1. take the flagged particles out; fill the holes below n - k from the tail
-    Qs, idxs, meta = [], [], []
-    for sp, k in zip(species, h[:S].astype(np.int64)):
+    Qs = []  # per species: particle-major buffer, particles in it
+    for sp, k in zip(species, h):
+        lst = sp.flag_list()
+        full = k > lst.size
         k = sp.n if full else int(k)
-        idx = (cp.arange(sp.n, dtype=cp.int64) if full
-               else cp.sort(sp.flag_list()[:k]).astype(cp.int64))
-        Q = sp.P[:, idx]
-        idxs.append((idx, k))
-        Qs.append(Q)
-        meta.append(cp.stack([cp.count_nonzero(idx < sp.n - k), cp.count_nonzero(Q[6] == 0)]))
-    hm = cp.asnumpy(cp.stack(meta)) if meta else np.zeros((0, 2), np.int64)
-    for i, (sp, (idx, k)) in enumerate(zip(species, idxs)):
-        nh, ndead = int(hm[i, 0]), int(hm[i, 1])
-        nk = sp.n - k
-        if nh:
-            tail = cp.zeros(k, dtype=cp.int8)
-            tail[idx[nh:] - nk] = 1  # flagged positions of the tail [nk, n)
-            movers = nk + _order_by(tail, 2)[:nh]
-            sp.P[:, idx[:nh]] = sp.P[:, movers]
-        sp.n = nk
-        Q = Qs[i]
-        Qs[i] = Q[:, _order_by((Q[6] == 0).astype(cp.int8), 2)[: Q.shape[1] - ndead]]
-    # 2. axis-by-axis exchange (diagonal moves take successive axes)
-    for a in range(3):
-        ax = grid.d.axes[a]
-        if ax.nproc == 1:
-            continue
-        lo_x = ax.phys_lo * grid.dx[a]
-        hi_x = (ax.phys_lo + ax.n_phys) * grid.dx[a]
-        cnts = []
-        for i, Q in enumerate(Qs):
-            x = Q[a]
-            # 0: to lo, 1: to hi, 2: stays (at a global non-periodic face there is no neighbour:
-            # a particle exactly on the face, x = L on a reflecting wall, stays with the edge rank)
-            to_lo = (x < lo_x) if ax.lo is not None else cp.zeros(x.shape, cp.bool_)
-            to_hi = (x >= hi_x) if ax.hi is not None else cp.zeros(x.shape, cp.bool_)
-            dest = cp.where(to_lo, 0, cp.where(to_hi, 1, 2)).astype(cp.int8)
-            Qs[i] = Q[:, _order_by(dest, 3)]
-            # the three known classes counted on the device: no host sync, and an empty dest gives
-            # zeros (CuPy 14.0's bincount takes max() first, which raises on an empty array)
-            cnts.append(cp.stack([cp.count_nonzero(dest == v) for v in range(3)]).astype(cp.int64))
-        c = cp.stack(cnts) if cnts else cp.zeros((0, 3), cp.int64)
-        c_lo, c_hi = cp.ascontiguousarray(c[:, 0]), cp.ascontiguousarray(c[:, 1])
-        r_hi, r_lo = cp.zeros(S, cp.int64), cp.zeros(S, cp.int64)
-        sends = ([(c_lo, ax.lo)] if ax.lo is not None else []) + ([(c_hi, ax.hi)] if ax.hi is not None else [])
-        recvs = ([(r_hi, ax.hi)] if ax.hi is not None else []) + ([(r_lo, ax.lo)] if ax.lo is not None else [])
-        comm.exchange(sends, recvs)
-        hc = cp.asnumpy(cp.concatenate([c.ravel(), r_hi, r_lo])).astype(np.int64)
-        cs, rh, rl = hc[: 3 * S].reshape(S, 3), hc[3 * S: 4 * S], hc[4 * S:]
-        s_lo, s_hi, b_hi, b_lo = [], [], [], []
-        for i, Q in enumerate(Qs):
-            n0, n1 = cs[i, 0], cs[i, 1]
-            s_lo.append((Q[:, :n0], ax.lo))
-            s_hi.append((Q[:, n0:n0 + n1], ax.hi))
-            b_hi.append((cp.empty((Q.shape[0], int(rh[i]))), ax.hi))
-            b_lo.append((cp.empty((Q.shape[0], int(rl[i]))), ax.lo))
-        sends = (s_lo if ax.lo is not None else []) + (s_hi if ax.hi is not None else [])
-        recvs = (b_hi if ax.hi is not None else []) + (b_lo if ax.lo is not None else [])
-        comm.exchange(sends, recvs)
-        for i, Q in enumerate(Qs):
-            n01 = cs[i, 0] + cs[i, 1]
-            Q = cp.concatenate([Q[:, n01:], b_hi[i][0], b_lo[i][0]], axis=1)
-            if grid.d.bc[a][0] == "periodic":
-                L = grid.L[a]
-                Q[a] -= L * cp.floor(Q[a] / L)
-            Qs[i] = Q
+        nrow = np.int32(sp.P.shape[0])
+        Q = cp.empty(k * int(nrow))
+        if k:
+            if not full:
+                lst[:k].sort()  # the kernels fill the list in any order
+            launch(k_take, k, (sp.P, np.int64(sp.cap), nrow, lst, np.int32(k), np.int32(full), Q))
+            if not full:
+                launch(k_fill, k, (sp.P, np.int64(sp.cap), nrow, lst, np.int32(k), np.int32(sp.n - k)))
+            sp.n -= k
+        Qs.append((Q, k))
+    # 2. axis-by-axis exchange (diagonal moves take successive axes); without a decomposed axis
+    #    one pass (axis -1) drops the dead particles
+    for a in [a for a in range(3) if grid.d.axes[a].nproc > 1] or [-1]:
+        ax = grid.d.axes[a] if a >= 0 else None
+        has_lo, has_hi = (ax.lo is not None, ax.hi is not None) if ax else (False, False)
+        x_lo = ax.phys_lo * grid.dx[a] if ax else 0.0
+        x_hi = (ax.phys_lo + ax.n_phys) * grid.dx[a] if ax else 0.0
+        wrap = grid.L[a] if ax and grid.d.bc[a][0] == "periodic" else 0.0
+        # rows: to lo, to hi, stays, dead, from hi, from lo; one column per species
+        C = cp.zeros((6, S), dtype=cp.int32)
+        keys = []
+        for i, (Q, m) in enumerate(Qs):
+            key = cp.empty(m, dtype=cp.int64)
+            if m:
+                launch(k_classify, m, (Q, np.int32(species[i].P.shape[0]), np.int32(m), np.int32(a),
+                                       np.int32(has_lo), np.int32(has_hi), np.float64(x_lo), np.float64(x_hi),
+                                       key, C.ravel()[i:], np.int32(S)))
+                key.sort()
+            keys.append(key)
+        if ax:
+            comm.exchange(([(C[0], ax.lo)] if has_lo else []) + ([(C[1], ax.hi)] if has_hi else []),
+                          ([(C[4], ax.hi)] if has_hi else []) + ([(C[5], ax.lo)] if has_lo else []))
+        hc = cp.asnumpy(C).astype(np.int64)
+        s_lo, s_hi, r_hi, r_lo = [], [], [], []
+        for i, (Q, m) in enumerate(Qs):
+            n0, n1, n2, _, rh, rl = (int(v) for v in hc[:, i])
+            nrow = species[i].P.shape[0]
+            send = cp.empty((n0 + n1) * nrow)
+            keep = cp.empty((n2 + rh + rl) * nrow)
+            launch(k_pack, n0 + n1 + n2, (Q, np.int32(nrow), np.int32(m), np.int32(a), keys[i], np.int32(n0 + n1),
+                                          np.int32(n2), np.float64(wrap), send, keep))
+            if ax:
+                s_lo.append((send[: n0 * nrow], ax.lo))
+                s_hi.append((send[n0 * nrow:], ax.hi))
+                r_hi.append((keep[n2 * nrow: (n2 + rh) * nrow], ax.hi))
+                r_lo.append((keep[(n2 + rh) * nrow:], ax.lo))
+            Qs[i] = (keep, n2 + rh + rl)
+        if ax:
+            comm.exchange((s_lo if has_lo else []) + (s_hi if has_hi else []),
+                          (r_hi if has_hi else []) + (r_lo if has_lo else []))
     # 3. append the particles that now belong to this rank
-    for sp, Q in zip(species, Qs):
-        m = Q.shape[1]
+    for sp, (Q, m) in zip(species, Qs):
         if m:
             sp.ensure_capacity(sp.n + m)
-            sp.P[:, sp.n: sp.n + m] = Q
+            launch(k_append, m, (sp.P, np.int64(sp.cap), np.int32(sp.P.shape[0]), np.int32(sp.n), Q, np.int32(m)))
             sp.n += m

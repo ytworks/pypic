@@ -42,8 +42,9 @@ configuration is excluded (mixed is explicit-only). Run it after the fp64 gates 
 ## Diagnostics
 
 Wall time and ns/particle/step are recorded per gate but never decide a verdict. For scaling
-studies run `examples/two_stream/run.py` with `--set cells_per_wavelength=64 --set t_end=4`
-on 1/2/4/8 GPUs.
+studies run `scripts/bench_step.py --example two_stream --config examples/two_stream/configs/ei.yaml
+--set cells_per_wavelength=64 --set t_end=4` on 1/2/4/8 GPUs (through `pypic.launch` for several GPUs): it
+times the steps without output, and `--phases` gives the time per phase of the step.
 
 ## Production runs (reported, not gated)
 
