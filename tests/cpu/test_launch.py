@@ -16,3 +16,10 @@ def test_launcher_stops_all_ranks_when_any_rank_fails(tmp_path):
     r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", "2", str(script)], capture_output=True,
                        text=True, timeout=300)
     assert r.returncode == 17, r.stderr
+
+
+def test_cpulist_ranges_and_single_cpus():
+    """The kernel's cpulist format of a NUMA node, as the launcher reads it to bind a rank."""
+    from pypic.launch import parse_cpulist
+
+    assert parse_cpulist("0-3,8,10-11\n") == {0, 1, 2, 3, 8, 10, 11}

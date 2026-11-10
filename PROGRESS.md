@@ -49,6 +49,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Launcher binds each rank to the NUMA node of its GPU (issue #25)
+- What: `pypic.launch` sets each rank's CPU affinity to the CPUs of the node its GPU is attached to (PCI address → `numa_node` → `cpulist`), within the CPUs the launcher may use; `--no-bind` turns it off; unknown node → no binding. 8 GPUs, default vs `--no-bind`: implicit two-stream 96.98 → 94.65 ms/step (−2.4 %, 4 pairs; −2.2 / −2.8 % in two earlier batches with external pinning), `diag_interval=1` 6.48 → 6.44 (−2.7 % with external pinning), two-stream −1.5 %, shock −0.5 %.
+- Why: 4 NUMA nodes with two GPUs each; the host thread that drives a GPU ran wherever the scheduler put it. The gain is on the cases with the most host work per step; bound runs also spread less (implicit 94.5–94.8 vs 95.8–99.2 ms).
+- Refs: #25, #4; `pypic/launch.py`; `tests/gpu/test_binding.py`
 ### 2026-11-10 — [progress] Explicit step queues the field update before the migration (issue #24)
 - What: `_step_explicit` calls `push_B`/`push_E`/`push_B` before `_migrate()`. 8 GPUs: two-stream 6.19 → 5.90 ms/step (−4.7 %, 4 pairs), mixed 5.54 → 5.34, `diag_interval=1` 6.69 → 6.44, shock 11.02 → 10.83 (−1.8 %). A short explicit history agrees with the previous commit to rounding.
 - Why: the migration starts with a host read that waits for the push kernels; the field update (J and fields only, independent of the particles the migration moves) was prepared after it, serial with the push instead of behind it.

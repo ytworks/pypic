@@ -54,6 +54,9 @@ python -m pypic.launch -n 8 examples/two_stream/run.py --config examples/two_str
 python examples/two_stream/analyze.py output/two_stream/ep --movie   # + two_stream.mp4
 ```
 
+`pypic.launch` starts one process per GPU and binds each to the CPUs of the NUMA node its GPU is
+attached to; `--no-bind` leaves the CPU affinity alone.
+
 Provided configurations:
 
 | File | Mixture | Set-up |
@@ -226,6 +229,7 @@ python scripts/gpu_gates.py --gpus 8   # GPU verification gates, recorded in ben
   - CG, Picard non-convergence and ghost-width regressions
   - two-stream growth rate vs theory
   - 1-vs-2-GPU agreement
+  - the launcher's CPU binding of a rank
 - **CI** (GitHub Actions, `.github/workflows/ci.yml`, CPU only) runs:
   - ruff
   - the `PROGRESS.md` budget check
