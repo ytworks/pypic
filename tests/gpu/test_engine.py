@@ -527,7 +527,7 @@ def test_cg_handles_exact_convergence_between_checks():
 
 def test_cg_inner_product_matches_the_owned_unknowns():
     """The two-stage CG inner product (issue #5) sums exactly the owned, unconstrained E unknowns
-    and agrees with the former one-stage reduction to 1e-14 (fixed seed, same inputs)."""
+    and agrees with the former one-stage reduction to 1e-14 of its value (fixed seed, same inputs)."""
     bc = (("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
     cfg = SimConfig(n_cells=(48, 32, 24), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[], boundaries=bc,
                     diag_interval=0, gauss_interval=0)
@@ -541,7 +541,7 @@ def test_cg_inner_product_matches_the_owned_unknowns():
         old = float(sim._wdot(sim.Wmask, X, Y))  # the former single reduction to one scalar
         scale = float(np.sum(np.abs(W * x * y)))
         assert abs(new - float(np.sum(W * x * y))) <= 1e-13 * scale
-        assert abs(new - old) <= 1e-14 * scale
+        assert abs(new - old) <= 1e-14 * abs(old)  # relative to the inner product itself (issue #5)
 
 
 @pytest.mark.parametrize("theta", [1e-3, 0.05, 0.3, 3.0])
