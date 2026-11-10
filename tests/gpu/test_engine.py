@@ -416,15 +416,22 @@ def test_cg_handles_exact_convergence_between_checks():
 
 
 def test_cg_inner_product_matches_the_owned_unknowns():
-    """The two-stage CG inner product sums exactly the owned, unconstrained E unknowns (issue #5)."""
+    """The two-stage CG inner product (issue #5) sums exactly the owned, unconstrained E unknowns
+    and agrees with the former one-stage reduction to 1e-14 (fixed seed, same inputs)."""
     bc = (("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
-    cfg = SimConfig(n_cells=(12, 8, 6), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[], boundaries=bc,
+    cfg = SimConfig(n_cells=(48, 32, 24), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[], boundaries=bc,
                     diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     rng = np.random.default_rng(3)
     a, b = (rng.standard_normal((3,) + sim.grid.shape) for _ in range(2))
-    ref = float(np.sum(cp.asnumpy(sim.Wmask) * a * b))
-    assert abs(float(sim._dot(cp.asarray(a), cp.asarray(b))) - ref) <= 1e-13 * np.sum(np.abs(a * b))
+    W = cp.asnumpy(sim.Wmask)
+    for x, y in ((a, b), (a, a)):  # mixed signs, and the r.r norm of the CG convergence test
+        X, Y = cp.asarray(x), cp.asarray(y)
+        new = float(sim._dot(X, Y))
+        old = float(sim._wdot(sim.Wmask, X, Y))  # the former single reduction to one scalar
+        scale = float(np.sum(np.abs(W * x * y)))
+        assert abs(new - float(np.sum(W * x * y))) <= 1e-13 * scale
+        assert abs(new - old) <= 1e-14 * scale
 
 
 @pytest.mark.parametrize("theta", [1e-3, 0.05, 0.3, 3.0])
