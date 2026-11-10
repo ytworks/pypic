@@ -268,6 +268,35 @@ def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
         assert np.max(np.abs(e - e[0])) / e[0] < 1e-11
 
 
+# ------------------------------------------------------------------- storage
+BIG_CAP = 360_000_000  # 6 * cap > 2**31: the weight row starts beyond int32 offsets (issue #11)
+
+
+@pytest.mark.skipif(cp.cuda.Device().mem_info[0] < 32 * 2**30, reason="needs ~24 GB of free GPU memory")
+def test_particle_rows_beyond_int32_offsets():
+    """A capacity whose row offsets (row * cap) exceed 2**31 gives the same run as a small one."""
+    ref = plasma("explicit", sort_interval=5)
+    sim = plasma("explicit", sort_interval=5)
+    sp = sim.species[0]
+    ids = cp.asnumpy(sp.P[7, : sp.n]).copy()
+    sp.ensure_capacity(BIG_CAP)
+    assert 6 * sp.cap > 2**31
+    ref.run(10)
+    sim.run(10)
+    assert np.nanmax(sim.history["gauss"]) < 1e-12
+    np.testing.assert_allclose(sim.history["total"], ref.history["total"], rtol=1e-12)
+    assert np.array_equal(np.sort(cp.asnumpy(sp.P[7, : sp.n])), np.sort(ids))
+    del sim, sp
+    cp.get_default_memory_pool().free_all_blocks()
+
+
+def test_capacity_beyond_int32_particle_index_is_rejected():
+    from pypic.particles import Species
+
+    with pytest.raises(ValueError, match="2\\*\\*31"):
+        Species("e", -1, 1, 2**31)
+
+
 def test_reflecting_keeps_particles():
     bc = (("reflecting", "reflecting"),) * 3
     sim = plasma("explicit", bc=bc, drift=0.5, theta=0.01)

@@ -11,12 +11,25 @@ NROW = 8  # x y z ux uy uz w id   (id: integer-valued float64, PIC-D8)
 ID_LIMIT = 2 ** 53  # float64 represents every integer below this exactly
 
 
+# The kernels index particles with int (thread index, n); row offsets row * cap are 64-bit.
+MAX_CAPACITY = 2**31 - 1
+
+
+def check_capacity(cap: int) -> int:
+    """Particles of one species on one GPU are limited by the kernels' int particle index."""
+    cap = int(cap)
+    if cap > MAX_CAPACITY:
+        raise ValueError(f"particle capacity {cap} per species and GPU exceeds 2**31 - 1 "
+                         "(the kernels' int particle index); use more GPUs")
+    return cap
+
+
 class Species:
     def __init__(self, name: str, charge: float, mass: float, capacity: int):
         self.name = name
         self.q = float(charge)
         self.m = float(mass)
-        self.cap = int(capacity)
+        self.cap = check_capacity(capacity)
         self.P = cp.zeros((NROW, self.cap), dtype=cp.float64)
         self.n = 0
         self.Pn = None  # implicit scheme work array
@@ -27,7 +40,8 @@ class Species:
     def ensure_capacity(self, need: int):
         if need <= self.cap:
             return
-        cap = int(need * 1.25) + 1024
+        check_capacity(need)
+        cap = min(int(need * 1.25) + 1024, MAX_CAPACITY)
         P = cp.zeros((self.P.shape[0], cap), dtype=cp.float64)
         P[:, : self.n] = self.P[:, : self.n]
         self.P, self.cap = P, cap
@@ -53,7 +67,7 @@ class Species:
         gn = grid.d.n_cells
         id_base = (stream - 1) * gn[0] * gn[1] * gn[2] * ppc
         launch(kernel, ntot, (
-            self.P, np.int32(self.cap), np.int64(self.n), np.int32(ppc),
+            self.P, np.int64(self.cap), np.int64(self.n), np.int32(ppc),
             np.int32(nl[0]), np.int32(nl[1]), np.int32(nl[2]),
             np.int32(ax[0].phys_lo), np.int32(ax[1].phys_lo), np.int32(ax[2].phys_lo),
             np.int32(gn[0]), np.int32(gn[1]), np.int32(gn[2]),
@@ -65,7 +79,7 @@ class Species:
         if self.n == 0:
             return
         key = cp.empty(self.n, dtype=cp.int64)
-        launch(kernel, self.n, (self.P, np.int32(self.n), np.int32(self.cap), key))
+        launch(kernel, self.n, (self.P, np.int32(self.n), np.int64(self.cap), key))
         order = cp.argsort(key)
         self.P[:, : self.n] = self.P[:, order]
         if self.Pn is not None:
