@@ -333,11 +333,14 @@ class Simulation:
         g.apply_bc_J()
         if self.cfg.remove_mean_current:
             self._remove_mean_current()
-        self._migrate()
+        # The field update reads J and the fields, the migration the particles: queueing the update
+        # first lets the host prepare it while the push kernels run, as the migration starts with
+        # a host synchronisation.
         dt = self.cfg.dt
         g.push_B(0.5 * dt)
         g.push_E(dt)
         g.push_B(0.5 * dt)
+        self._migrate()
         if self._has_open:
             self.flux_out += dt * g.poynting_out()
 

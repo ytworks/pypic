@@ -49,6 +49,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Explicit step queues the field update before the migration (issue #24)
+- What: `_step_explicit` calls `push_B`/`push_E`/`push_B` before `_migrate()`. 8 GPUs: two-stream 6.19 → 5.90 ms/step (−4.7 %, 4 pairs), mixed 5.54 → 5.34, `diag_interval=1` 6.69 → 6.44, shock 11.02 → 10.83 (−1.8 %). A short explicit history agrees with the previous commit to rounding.
+- Why: the migration starts with a host read that waits for the push kernels; the field update (J and fields only, independent of the particles the migration moves) was prepared after it, serial with the push instead of behind it.
+- Refs: #24, #4; `pypic/simulation.py`
 ### 2026-11-10 — [progress] Diagnostics step: field energy on the device, one reduction per record (issue #23)
 - What: `YeeGrid.field_energy_local` sums `E^2` and `B^2` with one reduction kernel each and leaves the result on the device; `_record` reduces it together with the per-species diagnostics in its one `allreduce` and one host read (before: six host reads, two `allreduce`). Two-stream with `diag_interval=1` (the planner default), 8 GPUs: 7.57 → 7.09 ms/step (−6.4 %, 6 pairs); 1 GPU 41.46 → 41.09. Recorded energies agree with the previous commit to rounding (rel ≤ 2e-16).
 - Why: with the history recorded every step the field energy and `_record` were 14 % of the 8-GPU step, almost all of it host synchronisation.
