@@ -36,6 +36,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "examples" / "two_stream"))
 
 CONFIGS = ["ei", "ep", "eip", "ei_implicit", "buneman"]
+# precision: mixed (PIC-D11) applies to the explicit solver only; its record is the explicit gates
+MIXED_CONFIGS = [c for c in CONFIGS if "implicit" not in c]
+PRECISION = "fp64"
+
+
+def precision_args() -> list:
+    return ["--set", "overrides.precision=mixed"] if PRECISION == "mixed" else []
 # analytic-solution examples: (example directory, config). Each examples/<name>/analyze.py returns a
 # verdict ("passed") against its theory with the criteria documented in its README and in
 # docs/design/output-analysis.md; Gauss's law is checked here for every one of them.
@@ -95,7 +102,8 @@ def gate_two_stream(cfg: str, gpus: int, quick: bool, workdir: Path) -> dict:
 
     out = workdir / cfg
     cmd = [sys.executable, "-m", "pypic.launch", "-n", str(gpus), "examples/two_stream/run.py",
-           "--config", f"examples/two_stream/configs/{cfg}.yaml", "--out", str(out), "--progress", "1000000"]
+           "--config", f"examples/two_stream/configs/{cfg}.yaml", "--out", str(out), "--progress", "1000000",
+           *precision_args()]
     if quick:
         cmd += ["--set", "growth_times=15"]
     r = sh(cmd, timeout=7200)
@@ -132,7 +140,8 @@ def gate_example(example: str, cfg: str, gpus: int, workdir: Path) -> dict:
     runs = [(out, [])] + ([(workdir / example / f"{cfg}_half", ["--set", "dt_scale=0.5"])] if refine else [])
     for o, extra in runs:
         cmd = [sys.executable, "-m", "pypic.launch", "-n", str(1 if refine else gpus), f"examples/{example}/run.py",
-               "--config", f"examples/{example}/configs/{cfg}.yaml", "--out", str(o), "--progress", "1000000", *extra]
+               "--config", f"examples/{example}/configs/{cfg}.yaml", "--out", str(o), "--progress", "1000000", *extra,
+               *precision_args()]
         r = sh(cmd, timeout=7200)
         if r.returncode != 0:
             return {"name": name, "passed": False, "metrics": {}, "criteria": {},
@@ -161,7 +170,17 @@ def main() -> int:
     ap.add_argument("--skip-tests", action="store_true", help="only run the two-stream gates")
     ap.add_argument("--configs", nargs="*", default=CONFIGS)
     ap.add_argument("--examples", nargs="*", default=EXAMPLE_NAMES, help="example:config gates to run")
+    ap.add_argument("--precision", choices=["fp64", "mixed"], default="fp64",
+                    help="mixed: the explicit gates with precision: mixed (PIC-D11), without the GPU tests "
+                         "(precision-independent, part of the fp64 record); recorded as *-gpu-gates-mixed.json")
     a = ap.parse_args()
+    global PRECISION
+    PRECISION = a.precision
+    full_configs = MIXED_CONFIGS if a.precision == "mixed" else CONFIGS
+    if a.precision == "mixed":
+        a.skip_tests = True
+        if a.configs == CONFIGS:
+            a.configs = MIXED_CONFIGS
 
     import cupy as cp
 
@@ -191,17 +210,22 @@ def main() -> int:
             gates.append(g)
             print(f"  -> {'PASS' if g['passed'] else 'FAIL'} {g.get('failed_checks') or ''}", flush=True)
     all_passed = all(g["passed"] for g in gates)
+    mixed = a.precision == "mixed"
     record = {"date": dt.date.today().isoformat(), "commit": commit, "dirty": dirty, "gpus": a.gpus,
               "gpu_name": gpu_name, "quick": a.quick, "all_passed": all_passed, "gates": gates}
+    if mixed:
+        record["precision"] = "mixed"
     print(f"ALL {'PASSED' if all_passed else 'FAILED'}")
-    if a.quick or a.skip_tests or a.configs != CONFIGS or a.examples != EXAMPLE_NAMES:
+    if a.quick or (a.skip_tests and not mixed) or a.configs != full_configs or a.examples != EXAMPLE_NAMES:
         print("(partial/quick run: not recorded in bench/results)")
         return 0 if all_passed else 1
-    fname = f"{record['date']}-{commit[:9]}{'-dirty' if dirty else ''}-gpu-gates.json"
+    fname = f"{record['date']}-{commit[:9]}{'-dirty' if dirty else ''}-gpu-gates{'-mixed' if mixed else ''}.json"
+    entry = {"date": record["date"], "commit": commit, "dirty": dirty, "gpus": a.gpus, "gpu_name": gpu_name,
+             "all_passed": all_passed}
+    if mixed:
+        entry["precision"] = "mixed"
     # strict JSON: a metric that could not be measured is null (bench_records)
-    bench_records.write(ROOT / "bench" / "results", fname, record,
-                        {"date": record["date"], "commit": commit, "dirty": dirty, "gpus": a.gpus,
-                         "gpu_name": gpu_name, "all_passed": all_passed})
+    bench_records.write(ROOT / "bench" / "results", fname, record, entry)
     print(f"recorded bench/results/{fname}")
     if dirty:
         print("NOTE: the working tree was dirty; re-run on a clean commit for evidence that counts.")
