@@ -13,7 +13,9 @@ with ms/step and GPU-ns per particle per step.
 each (mean and maximum over the ranks, ms per step). The synchronisations remove the overlap of
 host and device work, so the step time of such a run is not the step time of the code: take the
 total from a run without ``--phases``. A phase called inside another one is counted in the outer
-phase; ``other`` is the rest of the step.
+phase; ``other`` is the rest of the step. A bracketed call outside a step (the output of the final
+time level, which ``Simulation.run`` writes after its last step) is not part of any step: it is
+reported under ``after_steps_ms``, in ms per run.
 """
 from __future__ import annotations
 
@@ -47,12 +49,18 @@ def load_planner(example: str):
 
 
 class Phases:
-    """Wall time of the bracketed calls of one rank, per phase."""
+    """Wall time of the bracketed calls of one rank, per phase.
+
+    Calls made while a step runs are the phases of that step; calls outside a step are kept apart
+    (``outside``), so that the phases of a step never add up to more than the step.
+    """
 
     def __init__(self, sync):
         self.sync = sync
         self.depth = 0
         self.on = False
+        self.in_step = False
+        self.outside: dict[str, float] = {}
         self.time: dict[str, float] = {}
         self.calls: dict[str, int] = {}
         self.longest: dict[str, float] = {}
@@ -64,6 +72,7 @@ class Phases:
         self.calls.setdefault(name, 0)
         self.longest.setdefault(name, 0.0)
         self.series.setdefault(name, [])
+        self.outside.setdefault(name, 0.0)
 
     def wrap(self, name: str, fn):
         self.name(name)
@@ -80,10 +89,13 @@ class Phases:
                 self.sync()
                 dt = time.perf_counter() - t0
                 self.depth -= 1
-                self.time[name] += dt
-                self.calls[name] += 1
-                self.longest[name] = max(self.longest[name], dt)
-                self.series[name][-1] += dt
+                if self.in_step:
+                    self.time[name] += dt
+                    self.calls[name] += 1
+                    self.longest[name] = max(self.longest[name], dt)
+                    self.series[name][-1] += dt
+                else:
+                    self.outside[name] += dt
 
         return timed
 
@@ -94,9 +106,13 @@ class Phases:
             for s in self.series.values():
                 s.append(0.0)
             self.sync()
+            self.in_step = True
             t0 = time.perf_counter()
-            step()
-            self.sync()
+            try:
+                step()
+                self.sync()
+            finally:
+                self.in_step = False
             self.step_time += time.perf_counter() - t0
 
         return timed
@@ -129,6 +145,9 @@ class Phases:
         local = cp.asarray([self.time[n] for n in names] + [self.step_time])
         mean = cp.asnumpy(comm.allreduce(local.copy())) / comm.size
         peak = cp.asnumpy(comm.allreduce(local.copy(), "max"))
+        after = cp.asarray([self.outside[n] for n in names])
+        after_mean = cp.asnumpy(comm.allreduce(after.copy())) / comm.size
+        after_peak = cp.asnumpy(comm.allreduce(after.copy(), "max"))
         ms = 1e3 / steps
         out = {"step_ms_synchronised": {"mean": mean[-1] * ms, "max": peak[-1] * ms}, "phases_ms": {}}
         for i, n in enumerate(names):
@@ -136,6 +155,8 @@ class Phases:
                 out["phases_ms"][n] = {"mean": mean[i] * ms, "max": peak[i] * ms, "calls": self.calls[n],
                                        "longest_call_rank0": self.longest[n] * 1e3}
         out["phases_ms"]["other"] = {"mean": (mean[-1] - mean[:-1].sum()) * ms}
+        out["after_steps_ms"] = {n: {"mean": after_mean[i] * 1e3, "max": after_peak[i] * 1e3}
+                                 for i, n in enumerate(names) if after_peak[i] > 0}
         if series:
             out["series_ms_rank0"] = {n: [v * 1e3 for v in self.series[n]] for n in names if self.calls[n]}
         return out
