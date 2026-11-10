@@ -52,12 +52,14 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   at 1.38 R_mp (Spreiter 1.37), upstream within 0.11 %, Gauss 4e-14; 46 ms/step, 10.1 GB per GPU. Runs of
   one seed differ in the third digit; the body charge at the end by 2 % (+730 to +749). Not shown: a
   constant body charge and absorption rate at the end (three crossings); overshoot against sheath
-  density; the production configuration (not run).
-- In progress: 3-D bow shock example and the open-boundary features it needs (R1, R6; plan
-  `docs/plans/2026-11-10-bow-shock.md`). Phases 0–4 done (PIC-D12..D16, gated on d2ac1d9, 84f5808,
-  7893fec, 98e626b). Phase 5 (the example, gate M3, the sort fix) on branch `bow-shock/5-example`,
-  gated on 39acb7f; wiki page `Bow-Shock` in `docs/wiki/` (rendered locally, the wiki repository not pushed).
-  Next: one run of `full.yaml`.
+  density. Production configuration (`full.yaml`, 600³, 3.4e9 particles, 28800 steps; one run, reported):
+  magnetopause 0.94, shock 1.32 R_mp (Spreiter 1.34), Gauss 8e-14; 2.85 h, 357 ms/step, 79.8 GB per GPU,
+  fill 0.62 (`bench/results/2026-11-11-9ba2a6518-example-bow_shock-full-run-b3d1c288.json`). Not
+  stationary at the end (particle number, body charge); the shock distance depends on the 2 n₀ definition.
+- Bow-shock plan (R1, R6; `docs/plans/2026-11-10-bow-shock.md`): all phases done. Phases 0–4
+  (PIC-D12..D16) gated on d2ac1d9, 84f5808, 7893fec, 98e626b; Phase 5 (the example, gate M3, the sort
+  fix) gated on 39acb7f, production run on 9ba2a65. On branch `bow-shock/5-example`: not pushed, no PR;
+  wiki page `Bow-Shock` in `docs/wiki/` (rendered locally, the wiki repository not pushed).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -67,6 +69,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [progress] Bow-shock production configuration run once and recorded
+- What: `full.yaml` on 8 GPUs (9ba2a65, run b3d1c288): 600³ cells, 3.44e9 particles, 28800 steps in 10268 s (357 ms/step; 318 at the start, 375 at the end; 0.76 ns per particle and step × 8 GPUs), 76.1–79.8 GB per GPU at the most (planner bound 86.2), fill 0.50 → 0.618 without reallocation. Magnetopause 0.943, shock 1.316 R_mp (Spreiter 1.338), largest density 4.27 n₀ (MHD 3.25), upstream within 0.17 %, Gauss 7.7e-14, `div B` 2.5e-13. Wiki page of the example committed (41b7d10). The plan is Done.
+- Why: the plan's last step (performance and fill ratio of the production configuration). Reported, not gated (ANA-D3). Not established: a stationary state (the particle number still grows by 0.3 % per 2400 steps, the body charge, +7120, has not levelled); run-to-run spread (one run); the shock distance is for the 2 n₀ definition (the density rises over 0.4 R_mp).
+- Refs: `bench/results/2026-11-11-9ba2a6518-example-bow_shock-full-run-b3d1c288.json`; plan Phase 5 (production configuration); `examples/bow_shock/README.md`.
 ### 2026-11-11 — [progress] Bow-shock example gated: ALL PASSED on 39acb7f, fp64 and mixed
 - What: gates on the commit of the example, 8 GPUs: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 %, Gauss max 7.6e-12, implicit energy 1.9e-10, 16 example gates (new: `bow_shock:gate`), 90 GPU tests; mixed: 20 explicit gates, Gauss max 7.7e-12, Buneman growth −4.7 %. `bow_shock:gate`: magnetopause 0.922 (mixed 0.917), shock 1.380 (1.382), compression 3.81 (3.83), Gauss 4e-14, 263 s (235 s). Without a criterion: `div B` of `plasma_waves:perpendicular` 1.05e-12 (mixed 0.93e-12). The README and plan of 39acb7f give the body charge at the end as +742; it differs between runs: five gave +741.6, +741.6, +730.5, +748.6 (FP64) and +737.8 (mixed).
 - Why: the change gate of `pypic/` (the sort) and the gate M3 of the plan. The charge differs by run-to-run divergence, not by the code: the run of the wiki page (39acb7f) and the second run before the commit hold the same absorbed charge and particle counts up to step 480 (electric energy to 8e-15), then diverge (ANA-D3, R10).

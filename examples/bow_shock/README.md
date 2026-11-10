@@ -47,3 +47,22 @@ python examples/bow_shock/analyze.py output/bow_shock/gate --movie
 - **The body charges positively** (the absorbed charge at the end is +730 to +749 in the four runs, in units of e n₀ d_e³; it is the difference of 2.4e6 absorbed ions and as many electrons) and the rate of absorption falls from 1480 to 420 particles per step between the first and the third crossing; it has not become constant by the end of the run. The particle arrays reach 57 % of their capacity (capacity factor 2).
 - **Energy** is monitored only (explicit scheme, energy of the difference fields without the work of the external field): the total changes by +2.5 % over the run.
 - **Cost**: 46 ms per step (0.85 ns per particle and step, times 8 GPUs), 264 s; 10.1 GB of device memory per GPU at the most. The planner's figure (11.0 GB) is for full particle arrays; for `full.yaml` it is 86 GB per GPU on 8 GPUs.
+
+## Result of the production configuration (8 GPUs, one run)
+
+`full.yaml`: 600³ cells, 3.4e9 particles at the start, 28800 steps (18 / Ω_ci). One recorded run (`bench/results/2026-11-11-9ba2a6518-example-bow_shock-full-run-b3d1c288.json`); the numbers are reported, not gated.
+
+| quantity | measured | reference |
+|---|---|---|
+| magnetopause distance | 0.94 R_mp | 1 (pressure balance) |
+| shock distance | 1.32 R_mp | 1.34 (Spreiter et al. 1966, with the MHD compression) |
+| largest density on the subsolar line | 4.3 n₀ | 3.25 (perpendicular MHD shock) |
+| sheath thickness / magnetopause distance | 0.40 | 0.34 (Spreiter et al. 1966) |
+| upstream density and u_x, last crossing | within 0.17 % of the wind | — |
+| Gauss's law | 8e-14 | 1e-10 |
+
+- **Not stationary at the end**: the particle number grows by 9.2 % over the run and still by 0.3 % over the last 2400 steps; the body holds the charge +7120 and absorbs 4240, 1460 and 840 particles per step in the three crossings. The sheath is 19 d_e = 1.9 d_i thick, about as thin in d_i as in the gate configuration; the note on the density maximum above holds here too.
+- **The shock distance depends on its definition** (where the density reaches 2 n₀): the density rises over 0.4 R_mp = 2 d_i, exceeding 1.1 n₀ from 1.68 R_mp and 1.5 n₀ from 1.50 R_mp. The agreement with Spreiter et al. (1966) is for this definition.
+- **Fill**: the particle arrays reach 62 % of their capacity (capacity factor 2), with no reallocation.
+- **Energy** (monitored): the total changes by −3.2 %; the budget with the outflow and the absorbed particles by +0.4 %.
+- **Cost**: 2.85 hours; 357 ms per step over the run (318 at the start, 375 at the end), 0.76 ns per particle and step, times 8 GPUs; 79.8 GB of device memory per GPU at the most (planner: 86 GB).

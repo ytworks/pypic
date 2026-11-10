@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "file": "2026-11-11-9ba2a6518-example-bow_shock-full-run-b3d1c288.json",
+      "type": "example",
+      "date": "2026-11-11",
+      "commit": "9ba2a65185cd59bceecdfc4000b57587e924353e",
+      "dirty": false,
+      "run_id": "b3d1c288",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "bow_shock",
+      "config": "full"
+    },
+    {
       "file": "2026-11-11-39acb7fca-gpu-gates-mixed.json",
       "date": "2026-11-11",
       "commit": "39acb7fca29d7db2fd79dda76526966edb93308d",
