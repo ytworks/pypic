@@ -208,6 +208,68 @@ extern "C" __global__ void cg_step(double* __restrict__ x, double* __restrict__ 
     u[t] = Minv[t] * rt;
 }
 
+// ---- half-step fields of the implicit scheme: Eh and Bh are stacked (3, NX, NY, NZ) arrays
+
+// Eh = (E0 + E1) / 2 on every point, the ghosts included: the ghosts of E0 and of E1 already hold
+// the values of their neighbours, so Eh needs no exchange of its own.
+extern "C" __global__ void half_E(const double* __restrict__ Ex, const double* __restrict__ Ey,
+                                  const double* __restrict__ Ez, const double* __restrict__ E1,
+                                  double* __restrict__ Eh) {
+    const long long n = (long long)NX * NY * NZ;
+    const long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= n) return;
+    Eh[t] = 0.5 * (Ex[t] + E1[t]);
+    Eh[n + t] = 0.5 * (Ey[t] + E1[n + t]);
+    Eh[2 * n + t] = 0.5 * (Ez[t] + E1[2 * n + t]);
+}
+
+// Bh = B0 + s curl Eh on the update range (s = -dt/2). The sum is not contracted with the product:
+// the result is the one of curl_E followed by an addition.
+extern "C" __global__ void half_B(const double* __restrict__ Eh, const double* __restrict__ Bx,
+                                  const double* __restrict__ By, const double* __restrict__ Bz,
+                                  double* __restrict__ Bh, const double s) {
+    const long long n = (long long)NX * NY * NZ;
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    int i, j, k;
+    if (!range_index(t, i, j, k)) return;
+    const double* Ex = Eh;
+    const double* Ey = Eh + n;
+    const double* Ez = Eh + 2 * n;
+    long long c = IDX(i, j, k);
+    Bh[c] = __dadd_rn(Bx[c], s * ((Ez[IDX(i, j + 1, k)] - Ez[c]) * (1.0 / DY) - (Ey[IDX(i, j, k + 1)] - Ey[c]) * (1.0 / DZ)));
+    Bh[n + c] = __dadd_rn(By[c], s * ((Ex[IDX(i, j, k + 1)] - Ex[c]) * (1.0 / DZ) - (Ez[IDX(i + 1, j, k)] - Ez[c]) * (1.0 / DX)));
+    Bh[2 * n + c] = __dadd_rn(Bz[c], s * ((Ey[IDX(i + 1, j, k)] - Ey[c]) * (1.0 / DX) - (Ex[IDX(i, j + 1, k)] - Ex[c]) * (1.0 / DY)));
+}
+
+// Change of the field over one Picard sweep: the largest |a - b| and the largest |a| over the
+// unknowns (W = 1) of each thread block, to part[2 * block]; the caller takes the largest of the
+// blocks. A NaN is kept, so that it can never pass the convergence test. Launched with CG_BLOCK
+// threads per block.
+extern "C" __global__ void picard_change(const double* __restrict__ a, const double* __restrict__ b,
+                                         const double* __restrict__ W, double* __restrict__ part) {
+    __shared__ double top[2][CG_BLOCK];
+    const int i = threadIdx.x;
+    const long long t = (long long)blockIdx.x * blockDim.x + i;
+    double d = 0.0, m = 0.0;
+    if (t < NVEC && W[t] != 0.0) {
+        d = fabs(a[t] - b[t]);
+        m = fabs(a[t]);
+    }
+    top[0][i] = d;
+    top[1][i] = m;
+    __syncthreads();
+    for (int h = CG_BLOCK / 2; h > 0; h >>= 1) {
+        if (i < h)
+            for (int q = 0; q < 2; q++) {
+                const double y = top[q][i + h];
+                if (y > top[q][i] || y != y) top[q][i] = y;
+            }
+        __syncthreads();
+    }
+    if (i == 0)
+        for (int q = 0; q < 2; q++) part[2LL * blockIdx.x + q] = top[q][0];
+}
+
 // div E (at nodes) for Gauss-law diagnostics
 extern "C" __global__ void div_E(const double* __restrict__ Ex, const double* __restrict__ Ey,
                                  const double* __restrict__ Ez, double* out) {

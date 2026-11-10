@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Implicit half-step fields and Picard change in dedicated kernels (issue #31)
+- What: `half_E` builds `Eh = (E0 + E1)/2` on every point, ghosts included (the ghosts of `E0` and `E1` are already those of the neighbours), so `_half_fields` drops its exchange of `Eh`; `half_B` gives `Bh = B0 - dt/2 curl Eh` in one launch; `picard_change` takes the block maxima of `|Enew - E1|` and `|Enew|` (NaN kept) instead of four whole-grid temporaries. Bitwise the previous values. Implicit two-stream, 4 alternating pairs vs 3c2532b on 8 GPUs: −4.8 / −3.0 / −5.8 / −3.1 % (`_half_fields` 2.82 → 0.99 ms/step); 1 GPU −0.4 %.
+- Why: five half-step builds and Picard checks per step were launches, temporaries and one NCCL exchange each, on a per-rank grid 8× smaller than on 1 GPU.
+- Refs: #31, #4; `pypic/kernels/fields.cu`, `pypic/simulation.py`; `tests/gpu/test_engine.py` (`test_half_step_fields_and_picard_change_match_the_array_expressions`)
 ### 2026-11-10 — [progress] Implicit particle map: gamma sweeps stop by a contraction bound (issue #30)
 - What: in `particle_map` the sweeps over `g1` also stop when `L = 2|b||av|/(g0+g1)^2 <= 1/2` (`b = 2 eps B`, `av = u0 + eps E`) and `L dg <= 1e-16 |u1|`: the remaining sweeps then change `u1` and `g1` by at most `2 L dg`. The sweep is `ub = (m^2 av + m av x b + (av.b) b)/(m^2 + b^2)`, one division instead of two. Sweeps per map evaluation: one 29 → 75 %, two 67 → 25 %, three 4 → 0 %. Implicit two-stream, alternating pairs vs 50f41cf: 8 GPUs −3.2 / −4.8 / −6.2 % (87.7 → 84.8, 87.9 → 83.7, 86.9 → 81.5 ms/step), 1 GPU −4.5 / −4.4 % (513 → 490). Scheme, tolerances, energy closure and Picard counts unchanged.
 - Why: `implicit_push` is 90 % of the 1-GPU implicit step; two of three map evaluations spent a second sweep (two FP64 divisions) only to confirm that `g1` no longer changes.

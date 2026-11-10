@@ -423,6 +423,7 @@ class Simulation:
                 self.Adiag[c] += 0.5 * dt * self.sigE[c]
         self.Minv = cp.stack([1.0 / (d - 1.0 + self.Adiag[c]) for c, d in enumerate(diag)])
         self.cg_part = cp.zeros((-(-self.E1.size // CG_BLOCK), 3))  # inner products per thread block
+        self.pc_part = cp.zeros((self.cg_part.shape[0], 2))  # Picard change per thread block
 
     def _applyD(self, B):
         if self.absorb:
@@ -531,8 +532,7 @@ class Simulation:
                 cp.subtract(R0[c], dt * J, out=rhs[c])
             Enew = self.E1.copy()
             self._cg(Enew, rhs)
-            nd = cp.stack([cp.max(cp.abs(Enew - self.E1) * self.Wmask), cp.max(cp.abs(Enew) * self.Wmask)])
-            num, den = (float(v) for v in self.comm.allreduce(nd, "max"))
+            num, den = self._picard_change(Enew)
             self.E1 = Enew
             converged = num <= icfg.picard_tol * max(den, 1e-30)
             if converged:
@@ -577,15 +577,18 @@ class Simulation:
                                         np.int32(lst.size)))
         self._migrate()
 
+    def _picard_change(self, Enew):
+        """Largest |Enew - E1| and largest |Enew| over the E unknowns of all ranks (a NaN is kept)."""
+        launch(self.grid.k_picard_change, Enew.size, (Enew, self.E1, self.Wmask, self.pc_part), block=CG_BLOCK)
+        return tuple(float(v) for v in self.comm.allreduce(self.pc_part.max(axis=0), "max"))
+
     def _half_fields(self, E0, B0):
         g, dt = self.grid, self.cfg.dt
-        for c in range(3):
-            self.Eh[c][...] = 0.5 * (E0[c] + self.E1[c])
+        # Eh on every point: the ghosts of E0 (filled when it was committed) and of E1 (filled with the
+        # initial guess and at the end of each field solve) are those of their neighbours already
+        launch(g.k_half_E, self.Eh[0].size, (*E0, self.E1, self.Eh))
         g.apply_bc_E(self.Eh)
-        g.fill_ghosts(self.Eh)
-        g.curl_E(self.Eh, self.Bh, -0.5 * dt)
-        for c in range(3):
-            self.Bh[c] += B0[c]
+        launch(g.k_half_B, g.n_update, (self.Eh, *B0, self.Bh, np.float64(-0.5 * dt)))
         self._applyD(self.Bh)
         g.apply_bc_B(self.Bh)
         g.fill_ghosts(self.Bh)

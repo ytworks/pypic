@@ -582,6 +582,45 @@ def test_cg_solves_the_field_equation_to_its_tolerance(x_faces):
     assert res <= 10 * cfg.implicit.cg_tol
 
 
+@pytest.mark.parametrize("x_faces", ["reflecting", "open"])
+def test_half_step_fields_and_picard_change_match_the_array_expressions(x_faces):
+    """The kernels of the half-step fields give, on every point (ghosts included), the bits of
+    Eh = (E0 + E1) / 2 with a ghost fill of its own and of Bh = D (B0 - dt/2 curl Eh). The change over a
+    Picard sweep is the largest |Enew - E1| and |Enew| over the unknowns, and a NaN unknown is kept."""
+    bc = ((x_faces, x_faces), ("periodic", "periodic"), ("periodic", "periodic"))
+    cfg = SimConfig(n_cells=(24, 6, 5), dx=(0.5, 0.4, 0.3), dt=0.2, solver="implicit", species=[], boundaries=bc,
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    g = sim.grid
+    rs = cp.random.RandomState(3)
+    E0, B0 = (g.Ex, g.Ey, g.Ez), (g.Bx, g.By, g.Bz)
+    for F in (*E0, *B0, sim.E1):
+        F[...] = rs.standard_normal(F.shape)
+    for E in (E0, sim.E1):  # as inside a step: boundary values set, ghosts filled
+        g.apply_bc_E(E)
+        g.fill_ghosts(E)
+    g.apply_bc_B(B0)
+    g.fill_ghosts(B0)
+    sim._half_fields(E0, B0)
+    Eh = cp.stack([0.5 * (e0 + e1) for e0, e1 in zip(E0, sim.E1)])
+    g.apply_bc_E(Eh)
+    g.fill_ghosts(Eh)
+    Bh = cp.zeros_like(Eh)
+    g.curl_E(Eh, Bh, -0.5 * cfg.dt)
+    for c in range(3):
+        Bh[c] += B0[c]
+    sim._applyD(Bh)
+    g.apply_bc_B(Bh)
+    g.fill_ghosts(Bh)
+    assert bool(cp.all(sim.Eh == Eh)) and bool(cp.all(sim.Bh == Bh))
+
+    Enew = sim.E1 + 1e-3 * rs.standard_normal(sim.E1.shape)
+    expected = (float(cp.max(cp.abs(Enew - sim.E1) * sim.Wmask)), float(cp.max(cp.abs(Enew) * sim.Wmask)))
+    assert sim._picard_change(Enew) == expected and expected[0] > 0
+    Enew[1][sim.own][-1, -1, -1] = np.nan
+    assert np.isnan(sim._picard_change(Enew)[0])
+
+
 @pytest.mark.parametrize("theta", [1e-3, 0.05, 0.3, 3.0])
 def test_maxwell_juttner_sampling(theta):
     from scipy.special import kve
