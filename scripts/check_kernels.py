@@ -34,15 +34,17 @@ from pypic.parallel.decomp import Decomposition  # noqa: E402
 
 ARCHS = ("compute_80", "compute_120")  # Ampere (portability) and Blackwell (target hardware)
 P, O, R = "periodic", "open", "reflecting"
-# name, n_cells, rank grid, rank, boundaries, solver, dx, dt
+# name, n_cells, rank grid, rank, boundaries, solver, dx, dt, paired injection faces (bit mask)
 CASES = [
-    ("explicit periodic, 1 rank", (16, 8, 8), (1, 1, 1), 0, ((P, P), (P, P), (P, P)), "explicit", 0.1, 0.05),
+    ("explicit periodic, 1 rank", (16, 8, 8), (1, 1, 1), 0, ((P, P), (P, P), (P, P)), "explicit", 0.1, 0.05, 0),
     ("explicit open+reflecting, CPML, decomposed rank", (32, 8, 8), (2, 1, 2), 1, ((O, O), (P, P), (R, R)),
-     "explicit", 0.1, 0.05),
+     "explicit", 0.1, 0.05, 0),
     ("implicit reflecting+open, c dt/dx = 2", (32, 16, 16), (2, 1, 1), 0, ((R, R), (P, P), (O, O)),
-     "implicit", 0.1, 0.2),
+     "implicit", 0.1, 0.2, 0),
     ("explicit mixed-precision gather (PIC-D11), decomposed rank", (32, 8, 8), (2, 2, 1), 3,
-     ((P, P), (P, P), (R, R)), "mixed", 0.1, 0.05),
+     ((P, P), (P, P), (R, R)), "mixed", 0.1, 0.05, 0),
+    ("explicit open, paired injection face x- (PIC-D13), decomposed rank", (32, 8, 8), (2, 1, 1), 0,
+     ((O, O), (O, O), (O, O)), "explicit", 0.1, 0.05, 1),
 ]
 
 
@@ -92,12 +94,12 @@ def main() -> int:
     nvrtc = NVRTC(find_nvrtc())
     print(f"NVRTC {nvrtc.version[0]}.{nvrtc.version[1]}")
     failures = 0
-    for name, n_cells, dims, rank, bc, solver, h, dt in CASES:
+    for name, n_cells, dims, rank, bc, solver, h, dt, paired in CASES:
         implicit = solver == "implicit"
         ghost = 2 if not implicit else int(math.ceil(dt / h)) + 2
         decomp = Decomposition.build(n_cells, dims, rank, bc, npml=6)
         gdef = grid_defines(decomp, (h, h, h), dt, ghost, use_pml=not implicit and any(O in b for b in bc))
-        pdef = particle_defines(gdef, mixed=solver == "mixed")
+        pdef = particle_defines(gdef, mixed=solver == "mixed", paired_faces=paired)
         units = [("fields", FIELD_SOURCES, gdef), ("particles", PARTICLE_SOURCES, pdef)]
         for unit, sources, defs in units:
             src = assemble_source(sources, defs)

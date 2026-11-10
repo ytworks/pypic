@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
-from pypic.config import ExternalFields
+from pypic.config import ExternalFields, Injection
 from pypic.parallel.comm import SelfComm
 from pypic.simulation import Simulation
 
@@ -452,6 +452,95 @@ def test_open_boundary_removes_particles():
     assert sim.history["lost_kinetic"][-1] > 0
 
 
+# ------------------------------------------------------------------ injection
+def inflow_moments(u_d, theta, n=3001):
+    """A drifting Maxwell-Juttner beam crossing a plane normal to its drift, by quadrature over
+    (u_n, u_perp): ``E[max(v_n, 0)]`` of the beam, and the mean and the variance of ``gamma - 1``
+    of the particles that cross (weight ``v_n f``)."""
+    gd, s = math.sqrt(1 + u_d * u_d), math.sqrt(theta)
+    un, up = np.meshgrid(u_d + np.linspace(-14, 14, n) * s * gd, np.linspace(0, 14, n // 2) * s, indexing="ij")
+    g = np.sqrt(1 + un ** 2 + up ** 2)
+    e = (gd * g - u_d * un - 1.0) / theta
+    f = np.exp(e.min() - e) * up
+    fw = np.maximum(un / g, 0.0) * f
+    mean = (fw * (g - 1)).sum() / fw.sum()
+    return fw.sum() / f.sum(), mean, (fw * (g - 1) ** 2).sum() / fw.sum() - mean * mean
+
+
+def test_injected_flux_is_the_inflow_of_the_drifting_maxwell_juttner_beams():
+    """An injecting open face (PIC-D13) lets in ``n E[max(v_n, 0)]`` particles per area and time of
+    each species, and Gauss's law holds while particles enter and leave."""
+    bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    drift, thetas, steps = 0.3, (0.01, 0.001), 50
+    cfg = SimConfig(n_cells=(16, 12, 12), dx=(0.5,) * 3, dt=0.2, boundaries=bc, ppc=8, npml=6,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (drift, 0, 0), thetas[0])]),
+                             SpeciesConfig("i", 1, 16, [Beam(1.0, (drift, 0, 0), thetas[1])])],
+                    injection=Injection(faces={"x-": "flux"}), diag_interval=10, gauss_interval=10)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(steps)
+    trials = 12 * 12 * cfg.ppc * steps  # one per slot of the cell layer outside the face and step
+    for d, theta in zip(sim.sdiag, thetas):
+        p = inflow_moments(drift, theta)[0] * cfg.dt / 0.5
+        assert abs(float(d[8]) - trials * p) < 5 * math.sqrt(trials * p * (1 - p))
+    assert np.nanmax(sim.history["gauss"]) < 1e-10
+
+
+def test_cold_diagonal_inflow_through_two_faces_fills_the_edge_once():
+    """A cold electron-ion beam along the x-y diagonal enters through x- and y-: the entering
+    number is the volume swept into the box, the cells outside both faces are sampled once, the
+    ids stay unique, and the two species enter at the same points (no field appears)."""
+    v, steps = 0.5, 30  # 30 steps: nothing that entered through the edge has crossed the box yet
+    u = v / math.sqrt(1 - 2 * v * v)
+    bc = (("open", "open"), ("open", "open"), ("periodic", "periodic"))
+    cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.2, boundaries=bc, ppc=8, npml=6,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (u, u, 0), 0.0)]),
+                             SpeciesConfig("i", 1, 16, [Beam(1.0, (u, u, 0), 0.0)])],
+                    injection=Injection(faces={"x-": "flux", "y-": "flux"}), diag_interval=10, gauss_interval=10)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(steps)
+    a, (lx, ly, lz) = v * cfg.dt, sim.grid.L
+    swept = steps * (lx * ly - (lx - a) * (ly - a)) * lz * cfg.ppc / sim.grid.cell_volume
+    edge_trials = 8 * cfg.ppc * steps  # slots of the cells outside both faces
+    p = (a / 0.5) ** 2
+    for sp, d in zip(sim.species, sim.sdiag):
+        assert abs(float(d[8]) - swept) < 5 * math.sqrt(swept)
+        # straight orbits: floor(x / a) counts the steps since the particle crossed x = 0
+        kx, ky = (np.floor(cp.asnumpy(sp.P[c, : sp.n]) / a) for c in (0, 1))
+        entered = np.minimum(kx, ky) < steps
+        assert abs(np.count_nonzero(entered & (kx == ky)) - edge_trials * p) < 5 * math.sqrt(edge_trials * p * (1 - p))
+    ids = cp.concatenate([sp.P[7, : sp.n] for sp in sim.species])
+    assert int(cp.unique(ids).size) == int(ids.size)
+    assert max(sim.history["electric"]) < 1e-20
+
+
+def test_paired_face_keeps_the_charge_that_crossed_it_at_zero():
+    """At a paired face the neutraliser never leaves, a carrier enters with a neutraliser born at
+    the same point, and a carrier that left is paid for by the next one entering without a partner:
+    the charge that crossed the face is the unpaid rest in the bank, and Gauss's law holds. The
+    partners have the energy of the neutraliser's inflow."""
+    bc = (("open", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
+    drift, theta = 0.1, 0.01
+    cfg = SimConfig(n_cells=(16, 12, 12), dx=(0.5,) * 3, dt=0.2, boundaries=bc, ppc=8, npml=6,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (drift, 0, 0), theta)]),
+                             SpeciesConfig("i", 1, 4, [Beam(1.0, (drift, 0, 0), theta)])],
+                    injection=Injection(faces={"x-": "paired"}, neutralizer="e"),
+                    diag_interval=10, gauss_interval=10)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(50)
+    h, (e, i) = sim.history, (cp.asnumpy(d) for d in sim.sdiag)
+    bank = float(sim.bank.sum())
+    crossed = e[7] + i[7] - e[5] - i[5]  # injected - lost charge, up to the last step
+    assert e[5] == 0.0
+    assert i[5] > 0.0 and bank < 0.25 * i[5]  # ions left through the face and most were paid for
+    assert float(sim.bank.min()) >= 0.0  # and none was paid for twice
+    assert abs(crossed + bank) < 1e-9
+    assert abs(sum(float(sp.q * sp.P[6, : sp.n].sum()) for sp in sim.species) - crossed) < 1e-9
+    assert np.nanmax(h["gauss"]) < 1e-10
+    _, mean, var = inflow_moments(drift, theta)
+    w = sim.grid.cell_volume / cfg.ppc
+    assert abs(e[6] / (w * e[8]) - mean) < 5 * math.sqrt(var / e[8])
+
+
 # --------------------------------------------------------------------- fields
 def test_vacuum_wave_dispersion():
     """A y-polarised plane wave along x follows the Yee dispersion relation."""
@@ -615,6 +704,27 @@ def test_external_dipole_is_decomposition_independent():
     a, b = (np.asarray(outs[n]["kinetic"]) for n in (1, 4))
     assert np.max(np.abs(a - b) / np.abs(a)) < 1e-10
     assert np.nanmax(np.asarray(outs[4]["gauss"], dtype=float)) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_open_flow_is_decomposition_independent():
+    """A magnetised oblique flow through six open faces, one paired and four flux (PIC-D13): what
+    enters depends on (seed, step, global cell, slot) only, so 1 GPU and a 2x2 rank grid give the
+    same run, the same particles and the same charge in the bank, and Gauss's law holds."""
+    script = os.path.join(HERE, "mgpu_open_flow.py")
+    outs = {}
+    for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, "inject"],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    ref, o = outs[1], outs[4]
+    assert o["ids"] == ref["ids"] and o["n_injected"] == ref["n_injected"]
+    assert ref["n_injected"][-1] > 0 and ref["bank"] > 0.0
+    for k in ("kinetic", "electric", "lost_charge", "injected_charge", "bank"):
+        a, b = np.asarray(ref[k]), np.asarray(o[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-12
 
 
 def test_mixed_precision_is_explicit_only():

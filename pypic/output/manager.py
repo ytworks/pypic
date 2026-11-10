@@ -22,8 +22,9 @@ from .diagnostics import KINDS, FieldSource
 from .names import expand_fields
 from .schedule import resolve
 
-SCALAR_KEYS = ("kinetic", "electric", "magnetic", "total", "lost_kinetic", "boundary_flux", "dissipated", "budget",
-               "px", "py", "pz", "gauss", "divB", "picard", "n_particles")
+SCALAR_KEYS = ("kinetic", "electric", "magnetic", "total", "lost_kinetic", "lost_charge", "injected_kinetic",
+               "injected_charge", "n_injected", "boundary_flux", "dissipated", "budget",
+               "px", "py", "pz", "gauss", "divB", "picard", "n_particles", "fill")
 
 
 class OutputError(RuntimeError):

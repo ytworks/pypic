@@ -194,7 +194,8 @@ def ascending(a, k_rank):
 
 def migrate(species, grid, comm, flag, kernels):
     """Take the particles flagged by the push kernels (flag[s] of them for species s, indices in
-    its flag list) out of every species, drop the dead ones (w == 0) and send the rest to the
+    its flag list; flag[S + s] counts the particles appended behind the n of species s, which
+    are taken in first) out of every species, drop the dead ones (w == 0) and send the rest to the
     neighbour ranks, axis by axis, all species in one message group per axis (issue #7).
     ``kernels``: the functions MIGRATE_KERNELS of the particle module (issue #19).
 
@@ -203,7 +204,10 @@ def migrate(species, grid, comm, flag, kernels):
     species whose flag list overflowed has all its particles taken out (the former compaction)."""
     k_take, k_fill, k_classify, k_pack, k_append, k_rank32, k_rank64 = kernels
     S = len(species)
-    h = cp.asnumpy(flag[:S])
+    h = cp.asnumpy(flag)
+    for sp, k in zip(species, h[S:]):  # particles the injection appended this step (PIC-D13)
+        sp.n += int(k)
+    h = h[:S]
     if comm.size == 1 and not h.any():
         return
     # 1. take the flagged particles out; fill the holes below n - k from the tail

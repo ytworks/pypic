@@ -232,8 +232,8 @@ def test_output_is_independent_of_the_gpu_count(tmp_path):
         A, B = _datasets(fa), _datasets(fb)
         assert A.keys() == B.keys(), fa
         for k in A:
-            if os.path.basename(fa) == "scalars.h5" and k in ("gauss", "divB"):
-                continue  # round-off residuals themselves
+            if os.path.basename(fa) == "scalars.h5" and k in ("gauss", "divB", "fill"):
+                continue  # round-off residuals themselves; the fill of the fullest rank's arrays
             a, b = A[k], B[k]
             assert a.shape == b.shape, (fa, k)
             if a.dtype.kind in "fc":

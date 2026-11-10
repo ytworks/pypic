@@ -126,6 +126,39 @@ class ExternalFields:
         return any(self.E) or any(self.B) or bool(self.dipoles)
 
 
+FACES = ("x-", "x+", "y-", "y+", "z-", "z+")  # face index = 2 * axis + side
+
+
+@dataclass
+class Injection:
+    """Plasma entering through open faces every step (PIC-D13). ``faces`` maps a face name
+    (``x-`` .. ``z+``) to its mode: ``flux`` launches every species from the cell layer outside
+    the face; ``paired`` is for an inflow face of a flow: the ``neutralizer`` species (the
+    electrons) is returned at the face instead of leaving, and every other injected species
+    enters together with a neutralizer particle at the same point, so the face collects no
+    charge. The distribution is that of the species' own beams. Explicit solver only."""
+
+    faces: dict = field(default_factory=dict)  # {"x-": "paired", "y-": "flux", ...}
+    species: tuple | None = None  # injected species names; None: every plasma species with beams
+    neutralizer: str | None = None  # needed by a paired face
+
+    def __post_init__(self):
+        if not isinstance(self.faces, dict):
+            raise ValueError("injection.faces maps a face name to its mode, e.g. {'x-': 'paired', 'y-': 'flux'}")
+        self.faces = {str(k): str(v) for k, v in self.faces.items()}
+        for k, v in self.faces.items():
+            if k not in FACES:
+                raise ValueError(f"injection.faces: unknown face {k!r} (one of {FACES})")
+            if v not in ("flux", "paired"):
+                raise ValueError(f"injection.faces[{k!r}]: mode must be flux or paired")
+        if self.species is not None:
+            self.species = (self.species,) if isinstance(self.species, str) else tuple(self.species)
+
+    @property
+    def active(self) -> bool:
+        return bool(self.faces)
+
+
 @dataclass
 class ImplicitConfig:
     picard_tol: float = 1e-12  # relative change of E^{n+1} between Picard iterations
@@ -294,7 +327,16 @@ class SimConfig:
     current_filter: CurrentFilter = field(default_factory=CurrentFilter)
     # static fields felt by the particles on top of the Yee fields (PIC-D12); not together with B0 / E0
     external_fields: ExternalFields = field(default_factory=ExternalFields)
+    injection: Injection = field(default_factory=Injection)  # plasma entering through open faces (PIC-D13)
+    # particle array capacity = capacity_factor x the particles loaded on the rank: the room for the
+    # density to pile up on one rank. Growing the arrays in a run holds the old and the new array
+    # at once, so set this (and watch the ``fill`` history) rather than rely on it.
+    capacity_factor: float = 1.3
     output: OutputConfig = field(default_factory=OutputConfig)
+
+    def __post_init__(self):
+        if not float(self.capacity_factor) >= 1.0:
+            raise ValueError("capacity_factor must be >= 1")
 
     def to_dict(self):
         return asdict(self)
@@ -315,9 +357,12 @@ class SimConfig:
         flt = flt if isinstance(flt, CurrentFilter) else CurrentFilter(**flt)
         ext = d.pop("external_fields", {})
         ext = ext if isinstance(ext, ExternalFields) else ExternalFields(**ext)
+        inj = d.pop("injection", {})
+        inj = inj if isinstance(inj, Injection) else Injection(**inj)
         for k in ("n_cells", "dx", "B0", "E0", "dims"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:
             d["boundaries"] = tuple(tuple(b) for b in d["boundaries"])
-        return cls(species=sp, implicit=imp, output=out, current_filter=flt, external_fields=ext, **d)
+        return cls(species=sp, implicit=imp, output=out, current_filter=flt, external_fields=ext,
+                   injection=inj, **d)

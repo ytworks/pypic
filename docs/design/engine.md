@@ -1,6 +1,6 @@
 # Engine design
 
-Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12 2026-11-11, bow-shock plan);
+Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12, D13 2026-11-11, bow-shock plan);
 PIC-D11 **Proposed** (2026-11-10, #10).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
@@ -132,6 +132,35 @@ Measured (2026-11-11, 1× RTX PRO 6000; diagnostic only):
 - **Equivalence:** 50 test particles over 200 steps in external uniform E and B hold the same bits as in the same fields given by `B0` / `E0`, in FP64 and `mixed`.
 - **Dipole:** discrete div B ≤ 8.9e-16 for max |B| = 1.7; within 0.7 % of the regularised formula beyond 6 core radii at `dx = 0.3..0.5` core radii; 1 GPU and a 2×2 rank grid agree to 1e-10 (`mixed`, with uniform fields).
 - **Cost:** 120×160×160 cells, 4.9e7 particles (the per-rank size of the bow-shock gate), uniform E and B and one dipole against no external field, 3 alternating pairs of 20 steps: FP64 22.97–23.00 → 23.12–23.18 ms/step (+0.5 to +0.9 %), `mixed` 19.09–20.17 → 19.16–20.24 (+0.3 to +0.4 %).
+
+### PIC-D13 — Plasma entering through open faces: `flux` and `paired` injection (2026-11-11) — Status: Accepted
+Plan: `docs/plans/2026-11-10-bow-shock.md` (D-B and D-F, approved by the owner; the two modes come from its Phase 0 measurements). Closes roadmap R1. Explicit solver only.
+- `injection: {faces: {"x-": "paired", "y-": "flux", ...}, species: null, neutralizer: "e"}` (`Injection`). `species: null` means every plasma species with beams. A species enters with the distribution of its own beams.
+- **Layer:** every step, after the push of all species and before the ghost reduction of J, the one cell layer outside each injecting face is sampled like the loader: `ppc` slots per cell and beam, a uniform position, a drifting Maxwell–Jüttner momentum. Each sample moves one step in a straight line and enters if it ends inside the box. One cell is enough because a particle moves less than a cell per step. Kernel `inject_face`, one thread per (cell, slot, beam); the rules and the layers are in `pypic/injection.py`.
+- **Keys:** the random numbers depend on (seed, step, global cell, slot) only, with a salt apart from the loader's, so what enters does not depend on the decomposition. Species and beams share the position key: electrons and ions are sampled at the same points.
+- **Edges and corners:** a cell outside two or three faces is sampled once, and only if all of those faces inject. It belongs to the first of its faces in the order x, y, z and follows the mode of that face.
+- **`flux`:** every injected species is launched on its own. The whole path from the layer into the box is deposited (Esirkepov), so Gauss's law holds at the face as it does for a particle that leaves.
+- **`paired`** (the inflow face of a flow): one species is the neutraliser (the electrons), every other injected species is a carrier.
+  - A neutraliser that reaches the face from inside is not removed. It is returned from the wall point with a momentum drawn from the inward flux distribution `v_n f` of its beams and finishes its step.
+  - The neutraliser is not launched from the layer. Each entering carrier brings a neutraliser particle born at the same point, with the weight that cancels its charge. The pair appears at the end point of the carrier and deposits nothing. The partner's momentum is drawn from `v_n f` (kernel `inject_partners`, one launch per step).
+  - **Bank:** a carrier that leaves through the face is removed, and its charge is added to the debt of the face column of its position at the start of the step. The next carriers entering in that column pay it: each enters without a partner and deposits its path. The payers are the first entering samples of the column's cell in the order (slot, beam), decided from the debt before the launch, so neither the thread order nor the decomposition changes the result.
+  - The charge that has crossed a paired face is the unpaid rest: `injected_charge − lost_charge = −sign(q_carrier) · Σ bank`.
+- **Compile-time mask:** `PAIRED_FACES` (bit `2·axis + side`, `pypic/kernelsrc.py`) tells `push_deposit` which faces return the neutraliser. With 0 the compiler removes that path, so a run without a paired face keeps its step time.
+- **Ids** (PIC-D8): the injected particles take one block of ids per step behind the loaded ones, from (step, cell, stream, slot). A run stops on every rank before an id reaches 2^53.
+- **Capacity:** `capacity_factor` (default 1.3) sizes the particle arrays against the loaded number. Before a step the arrays are grown if what the step can inject would not fit. Growing holds the old and the new array at once, so a large run sets the factor and watches `fill`. The planner's memory estimate counts 8 rows per particle times the factor.
+- **History:** new keys `lost_charge`, `injected_kinetic`, `injected_charge`, `n_injected` (cumulative) and `fill` (the largest particles / capacity over ranks and species; by its definition it depends on the decomposition). `budget = total + lost_kinetic − injected_kinetic + boundary flux + dissipated`. A returned neutraliser adds its old energy minus its new energy to `lost_kinetic`.
+- **Rejected at construction:** the implicit solver; an injecting face that is not open or that meets a reflecting face; test species; beams with a profile or a perturbation; a paired face without a neutraliser, without a carrier of the opposite charge, or out of which a species drifts; a neutraliser without a paired face.
+- **Approximations:** at a paired face the neutraliser enters only as returned particles and partners, not with its own thermal flux. An edge or corner cell follows one face's mode, and a carrier entering from such a cell of a paired face always brings a partner (it pays no debt).
+
+Why: the Phase 0 probe (plan, run table) showed that neither mode serves every face. Flux injection of a wind with u / v_te = 2.5 settled in a source sheath (density 1.51 at the face), where the paired face stayed stationary for 6e4 steps. Where the normal velocity is thermal the order was reversed: flux was clean and the paired rule gained 9 % density in 2e4 steps. Paying for a lost ion with the next entering ions left a debt of 611 macro-charges over 1024 columns, against 2233 when an electron was let out instead. TRISTAN injects pairs at one point; iPIC3D and MHD-AEPIC refill the boundary cells every step.
+
+Not yet established: that a magnetised oblique flow through one paired and four flux faces stays uniform (null test M2). The probe showed that open flow at the gate parameters needs the filter and the Marder zone (PIC-D15, PIC-D16), so the verdict is taken with them.
+
+Measured (2026-11-11, RTX PRO 6000; diagnostic only):
+- **Tests:** the number entering through a flux face is within 5σ of `n E[max(v_n, 0)] · area · time` (quadrature) for each species; a cold diagonal beam through two faces enters with the swept volume, fills the edge cells once and creates no field (electric energy < 1e-20); at a paired face no neutraliser is lost, the bank identity holds to 1e-9, no column is paid twice, and the partners have the mean energy of the inflow distribution within 5σ. Gauss's law holds to 1e-10 in all three.
+- **Decomposition:** a magnetised oblique flow through six open faces (one paired, four flux), 1 GPU against a 2×2 rank grid: the same ids, the same injected counts and the same bank; histories within 1e-10. The same holds with `precision: mixed` (run by hand, not a test: histories within 2.7e-13).
+- **Cost:** 120×160×160 cells, 4.9e7 particles (the per-rank size of the bow-shock gate), FP64, windows of 20 steps, against the commit before. Without injection: periodic 23.06–24.16 → 23.05–24.13 ms/step, six open faces 25.61–26.21 → 25.62–26.29. With one paired and four flux faces: 29.29–29.53 ms/step, of which the injection launches take 2.0 ms (synchronised timers, 7 %). The open run without injection loses 8 % of its particles in the measurement, so it is not a baseline at equal particle number.
+- **Measured and replaced:** the paired mask as a run-time argument cost +11 % (periodic) and +5 % (open) without any injection; one thread per layer cell took 4.7 ms/step for the same launches.
 
 ## Review amendments
 

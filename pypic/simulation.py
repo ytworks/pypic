@@ -8,8 +8,9 @@ import time
 import cupy as cp
 import numpy as np
 
+from . import injection
 from .backend import compile_module, launch
-from .config import SimConfig
+from .config import FACES, SimConfig
 from .external import check_config, dipoles_B
 from .grid import FIELD_NAMES, YeeGrid
 from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
@@ -60,7 +61,9 @@ class Simulation:
         self.mixed = cfg.precision == "mixed"
         if self.mixed and cfg.solver == "implicit":
             raise ValueError("precision='mixed' is for the explicit solver only (PIC-D11)")
-        self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(self.grid.defines, mixed=self.mixed))
+        self.injection = injection.check_config(cfg)
+        self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
+            self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg)))
         self.k_push = self.pmod.get_function("push_deposit")
         self.k_rho = self.pmod.get_function("deposit_rho")
         self.k_kin = self.pmod.get_function("kinetic")
@@ -73,13 +76,17 @@ class Simulation:
         self.k_displace = self.pmod.get_function("displace_deposit")
         self.k_kick = self.pmod.get_function("boris_kick")
         self.k_extsum = self.pmod.get_function("ext_sum")
+        self.k_inject = self.pmod.get_function("inject_face")
+        self.k_partners = self.pmod.get_function("inject_partners")
         self.k_migrate = tuple(self.pmod.get_function(name) for name in MIGRATE_KERNELS)
-        self.flag = cp.zeros(max(1, len(cfg.species)), dtype=cp.int32)  # per-species flag counters
+        # per species: [s] particles flagged for removal or migration, [S + s] particles injected
+        self.flag = cp.zeros(2 * max(1, len(cfg.species)), dtype=cp.int32)
         self.err = cp.zeros(2, dtype=cp.int32)
 
         self.species: list[Species] = []
         self.sdiag = []
         self._load_species()
+        self._init_injection()
         for c, b in zip((self.grid.Bx, self.grid.By, self.grid.Bz), cfg.B0):
             c[...] = b
         self.grid.apply_bc_B()
@@ -97,8 +104,9 @@ class Simulation:
         self.step_count = 0
         self.time = 0.0
         self.history = {k: [] for k in (
-            "step", "t", "kinetic", "electric", "magnetic", "total", "lost_kinetic", "boundary_flux",
-            "dissipated", "budget", "px", "py", "pz", "gauss", "divB", "picard", "n_particles")}
+            "step", "t", "kinetic", "electric", "magnetic", "total", "lost_kinetic", "lost_charge",
+            "injected_kinetic", "injected_charge", "n_injected", "boundary_flux", "dissipated", "budget",
+            "px", "py", "pz", "gauss", "divB", "picard", "n_particles", "fill")}
         self.kinetic_species = {s.name: [] for s in self.species}
         self.flux_out = 0.0
         self.dissipated = 0.0
@@ -119,7 +127,8 @@ class Simulation:
         cfg = self.cfg
         n_beams = sum(len(sc.beams) for sc in cfg.species)
         n_glob = math.prod(cfg.n_cells)
-        if n_beams * n_glob * cfg.ppc + sum(len(sc.particles) for sc in cfg.species) >= ID_LIMIT:
+        self._n_ids = n_beams * n_glob * cfg.ppc + sum(len(sc.particles) for sc in cfg.species)
+        if self._n_ids >= ID_LIMIT:
             raise ValueError("too many particles for exact float64 particle ids (n_beams * cells * ppc >= 2^53)")
         cells_local = int(np.prod([a.n_phys for a in self.decomp.axes]))
         order = [i for i, sc in enumerate(cfg.species) if not sc.test] + \
@@ -129,10 +138,11 @@ class Simulation:
             for bi in range(len(cfg.species[si].beams)):
                 streams[(si, bi)] = stream
                 stream += 1
+        self._streams = streams
         self._beam_ranges = {}
         list_id = float(n_beams * n_glob * cfg.ppc)  # explicit-list ids follow all beam ids
         for si, sc in enumerate(cfg.species):
-            cap = int(1.3 * cells_local * cfg.ppc * max(1, len(sc.beams))) + 4096 + len(sc.particles)
+            cap = int(cfg.capacity_factor * cells_local * cfg.ppc * max(1, len(sc.beams))) + 4096 + len(sc.particles)
             sp = Species(sc.name, sc.charge, sc.mass, cap)
             sp.test = bool(sc.test)
             sp.qdep = 0.0 if sp.test else sp.q
@@ -155,7 +165,7 @@ class Simulation:
                 self._load_list(sp, sc.particles, list_id)
             list_id += len(sc.particles)
             self.species.append(sp)
-            self.sdiag.append(cp.zeros(6))
+            self.sdiag.append(cp.zeros(9))
         # neutrality: beams were loaded slot by slot on the same positions, so summing q w over the
         # beams of the plasma species position by position gives the net charge exactly
         plasma = [(si, bi) for si, sc in enumerate(cfg.species) if not sc.test for bi in range(len(sc.beams))]
@@ -196,6 +206,103 @@ class Simulation:
         blk[7] = id0 + idx
         sp.P[:, sp.n: sp.n + m] = cp.asarray(blk)
         sp.n += m
+
+    def _init_injection(self):
+        """Injection at open faces (PIC-D13): what this rank launches every step.
+
+        ``inj_launch``: (species, face, first cell, cells, paired) per block of ``face_slabs`` and
+        species that fills it; ``inj_room``: the most particles a step can append per species;
+        ``inj_fmask``: the face bits of the species for ``push_deposit``; ``inj_bt``: the beam
+        tables of ``inject_face``; ``inj_rb``: the inflow tables of the neutraliser per face;
+        ``bank`` / ``binfo``: what the columns of the paired faces of this rank owe;
+        ``inj_pstate`` / ``inj_pface``: the partners waiting for their momentum (``inject_partners``)."""
+        cfg, S = self.cfg, len(self.species)
+        self.inj_launch, self.inj_room, self.inj_fmask = [], [0] * S, [0] * S
+        self.inj_rb, self.inj_nrb = cp.zeros(6), 1
+        self.bank, self.binfo = cp.zeros(1), cp.full(12, -1, dtype=cp.int32)
+        self.bank0 = self.bank.copy()
+        self.inj_neutral = None
+        if not self.injection:
+            return
+        index = {sc.name: si for si, sc in enumerate(cfg.species)}
+        names = [index[n] for n in injection.injected_species(cfg)]
+        modes = {FACES.index(k): v for k, v in cfg.injection.faces.items()}
+        paired = [f for f, v in modes.items() if v == "paired"]
+        ne = self.inj_neutral = index[cfg.injection.neutralizer] if paired else None
+        carriers = [si for si in names if si != ne]
+        # ids (PIC-D8) of the injected particles follow those of the loaded ones: one block per
+        # step, in it one sub-block of the extended grid (cells -1..N) per stream, then one per
+        # stream for the partners born with its particles at a paired face
+        ext = math.prod(n + 2 for n in cfg.n_cells) * cfg.ppc
+        n_streams = len(self._streams)
+        self._inj_block = 2 * n_streams * ext
+        self.inj_bt = {}
+        for si in names:
+            rows = []
+            for bi, b in enumerate(cfg.species[si].beams):
+                st = self._streams[(si, bi)]
+                rows.append([b.density * self.grid.cell_volume / cfg.ppc, b.theta, *b.drift, st,
+                             (st - 1) * ext, (n_streams + st - 1) * ext])
+            self.inj_bt[si] = cp.asarray(rows, dtype=cp.float64)
+        axes = self.decomp.axes
+        if paired:
+            beams = cfg.species[ne].beams
+            rb = np.zeros((6, len(beams), 6))
+            binfo = np.full(12, -1, dtype=np.int32)
+            binfo[6:9] = [ax.phys_lo for ax in axes]
+            binfo[9:12] = [ax.n_phys for ax in axes]
+            n_bank = 0
+            for f in paired:
+                rb[f] = injection.inflow_table(beams, f)
+                if (axes[f >> 1].hi if f & 1 else axes[f >> 1].lo) is None:
+                    binfo[f] = n_bank
+                    n_bank += math.prod(ax.n_phys for a, ax in enumerate(axes) if a != f >> 1)
+                self.inj_fmask[ne] |= 1 << f
+                for si in carriers:
+                    self.inj_fmask[si] |= 1 << (8 + f)
+            self.inj_rb, self.inj_nrb = cp.asarray(rb), len(beams)
+            self.bank, self.binfo = cp.zeros(max(n_bank, 1)), cp.asarray(binfo)
+            self.bank0 = self.bank.copy()  # the bank before a launch (inject_face)
+        for face, g0, nl in injection.face_slabs(axes, cfg.n_cells, cfg.injection.faces):
+            pair = modes[face] == "paired"
+            for si in (carriers if pair else names):
+                room = math.prod(nl) * cfg.ppc * len(cfg.species[si].beams)
+                self.inj_room[si] += room
+                if pair:
+                    self.inj_room[ne] += room
+                self.inj_launch.append((si, face, g0, nl, int(pair)))
+        room = max(self.inj_room[ne], 1) if paired else 1
+        self.inj_pstate, self.inj_pface = cp.zeros(room, dtype=cp.uint64), cp.zeros(room, dtype=cp.int32)
+
+    def _inject(self, do_diag: bool):
+        """Fill the cell layers outside the injecting faces (after the push of every species: the
+        particles are appended behind those being pushed; migrate() adds them to the counts)."""
+        cfg, g, S = self.cfg, self.grid, len(self.species)
+        id_step = float(self._n_ids + self.step_count * self._inj_block)
+        for si, face, g0, nl, pair in self.inj_launch:
+            sp = self.species[si]
+            pi = self.inj_neutral if pair else si  # the species of the partner (unused on a flux face)
+            pt = self.species[pi]
+            lst, lstp = sp.flag_list(), pt.flag_list()
+            if pair:
+                cp.copyto(self.bank0, self.bank)
+            launch(self.k_inject, math.prod(nl) * cfg.ppc * len(self.inj_bt[si]), (
+                sp.P, np.int64(sp.cap), np.int32(sp.n), self.flag[S + si:S + si + 1], self.sdiag[si],
+                self.flag[si:si + 1], lst, np.int32(lst.size), g.Jx, g.Jy, g.Jz,
+                np.float64(sp.q), np.float64(sp.m), *(np.int32(v) for v in g0), *(np.int32(v) for v in nl),
+                *(np.int32(v) for v in cfg.n_cells), np.int32(cfg.ppc), np.uint64(cfg.seed),
+                np.int64(self.step_count), np.float64(id_step), self.inj_bt[si], np.int32(len(self.inj_bt[si])),
+                np.int32(face), np.int32(pair), pt.P, np.int64(pt.cap), np.int32(pt.n),
+                self.flag[S + pi:S + pi + 1], self.sdiag[pi], self.flag[pi:pi + 1], lstp, np.int32(lstp.size),
+                np.float64(pt.q), self.inj_pstate, self.inj_pface, self.bank, self.bank0, self.binfo,
+                np.int32(do_diag)))
+        ne = self.inj_neutral
+        if ne is not None:
+            pt = self.species[ne]
+            launch(self.k_partners, self.inj_room[ne], (
+                pt.P, np.int64(pt.cap), np.int32(pt.n), self.flag[S + ne:S + ne + 1], self.sdiag[ne],
+                np.float64(pt.q), np.float64(pt.m), self.inj_rb, np.int32(self.inj_nrb), self.inj_pstate,
+                self.inj_pface, np.int32(do_diag)))
 
     def _init_external(self):
         """External static fields (PIC-D12): per component Ex..Bz the uniform value and, for B with
@@ -369,13 +476,23 @@ class Simulation:
                 d[:4] = 0
             self._fe = g.field_energy_local()  # fields at t^n; reduced over the ranks in _record
         fields = self._gather_fields()
+        if self.injection:
+            # decided from the configuration and the step: every rank raises together
+            if self._n_ids + (self.step_count + 1) * self._inj_block >= ID_LIMIT:
+                raise RuntimeError("the ids of the injected particles reach 2^53 at this step (PIC-D13)")
+            for sp, room in zip(self.species, self.inj_room):
+                sp.ensure_capacity(sp.n + room)  # before the kernels take the arrays
+        seed, step = np.uint64(self.cfg.seed), np.int64(self.step_count)
         for i, (sp, d) in enumerate(zip(self.species, self.sdiag)):
             lst = sp.flag_list()
             launch(self.k_push, sp.n, (
                 sp.P, np.int32(sp.n), np.int64(sp.cap), *fields,
                 g.Jx, g.Jy, g.Jz, np.float64(sp.q * self.cfg.dt / (2.0 * sp.m)), np.float64(sp.m),
                 np.float64(sp.qdep), d, self.flag[i:i + 1],
-                lst, np.int32(lst.size), np.int32(do_diag)))
+                lst, np.int32(lst.size), np.int32(do_diag), seed, step, np.int32(self.inj_fmask[i]),
+                self.inj_rb, np.int32(self.inj_nrb), self.bank, self.binfo))
+        if self.inj_launch:
+            self._inject(do_diag)
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
         self._filter_J()
         g.apply_bc_J()
@@ -680,18 +797,24 @@ class Simulation:
         cfg = self.cfg
         # one allreduce and one host sync for everything
         S = len(self.species)
-        vec = cp.concatenate([*(d[:5] for d in self.sdiag), cp.asarray([float(sp.n) for sp in self.species]),
+        # the fill of this rank's particle arrays, in its own slot: the sum over the ranks keeps
+        # every rank's value and the host takes the largest
+        fill = np.zeros(self.comm.size)
+        fill[self.rank] = max((sp.n / sp.cap for sp in self.species), default=0.0)
+        vec = cp.concatenate([*self.sdiag, cp.asarray([float(sp.n) for sp in self.species]), cp.asarray(fill),
                               fe_local])
         if self.comm.size > 1:
             vec = self.comm.allreduce(vec)
         hv = cp.asnumpy(vec)
-        kin, lost_s = hv[: 5 * S].reshape(S, 5)[:, :4], hv[: 5 * S].reshape(S, 5)[:, 4]
-        n_s, fe = hv[5 * S: 6 * S], hv[6 * S:]
+        sd = hv[: 9 * S].reshape(S, 9)
+        kin, lost_s = sd[:, :4], sd[:, 4]
+        n_s, fill, fe = hv[9 * S: 10 * S], hv[10 * S: 10 * S + self.comm.size], hv[10 * S + self.comm.size:]
         # test species are recorded per species but are not part of the budget
         plasma = [k for k, sp in zip(kin, self.species) if not sp.test]
         ke = sum(float(k[0]) for k in plasma)
         mom = [sum(float(k[i]) for k in plasma) for i in (1, 2, 3)]
         lost = sum(float(v) for v, sp in zip(lost_s, self.species) if not sp.test)
+        injected = float(np.sum(sd[:, 6]))  # test species are never injected and deposit no charge
         for sp, k in zip(self.species, kin):
             self.kinetic_species[sp.name].append(float(k[0]))
         tot = ke + float(fe[0]) + float(fe[1])
@@ -702,14 +825,19 @@ class Simulation:
         h["magnetic"].append(float(fe[1]))
         h["total"].append(tot)
         h["lost_kinetic"].append(lost)
+        h["lost_charge"].append(float(np.sum(sd[:, 5])))
+        h["injected_kinetic"].append(injected)
+        h["injected_charge"].append(float(np.sum(sd[:, 7])))
+        h["n_injected"].append(int(round(float(np.sum(sd[:, 8])))))
         h["boundary_flux"].append(self.flux_out)
         h["dissipated"].append(self.dissipated)
-        h["budget"].append(tot + lost + self.flux_out + self.dissipated)
+        h["budget"].append(tot + lost - injected + self.flux_out + self.dissipated)
         h["px"].append(mom[0])
         h["py"].append(mom[1])
         h["pz"].append(mom[2])
         h["picard"].append(getattr(self, "_picard_its", 0))
         h["n_particles"].append(int(round(float(np.sum(n_s)))))
+        h["fill"].append(float(np.max(fill)))
         if cfg.gauss_interval and self.step_count % cfg.gauss_interval == 0:
             ge, gb = self.gauss_error()
         else:

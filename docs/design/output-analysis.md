@@ -37,6 +37,10 @@ acceleration, with animations; one example per classic problem with an analytic 
   modes, spectra, fields of the tracks) are the fields the particles feel. With external fields
   (PIC-D12) that is Yee field + external field, while the energies `electric` / `magnetic` of the
   scalar history are those of the Yee fields alone.
+- Scalar history, particles crossing open faces (PIC-D13): `lost_kinetic`, `lost_charge`,
+  `injected_kinetic`, `injected_charge` and `n_injected` are cumulative sums over the run;
+  `fill` is the largest particles / capacity ratio over ranks and species at the record. It
+  describes the ranks' arrays, so it is the one history quantity that depends on the decomposition.
 Why: openPMD is the community standard for PIC data, so other tools read it; reduced
 diagnostics have no standard, so their schema is documented here and in `run.json`.
 

@@ -19,13 +19,13 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12 Accepted, PIC-D11 Proposed),
+Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12, D13 Accepted, PIC-D11 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
 |---|---|
 | M1 Explicit core (Yee, Boris, Esirkepov) | Complete |
-| M2 Boundaries (periodic, CPML/open, reflecting) | Complete; open-boundary injection not implemented (R1) |
+| M2 Boundaries (periodic, CPML/open, reflecting) | Complete; injection at open faces (PIC-D13, R1) implemented, GPU gates pending |
 | M3 Multi-GPU (NCCL decomposition, launcher) | Complete; 1 vs 2/8 GPU equal to ~1e-15 |
 | M4 Mixtures + planner + two-stream example | Complete; growth within 3.5 % of theory |
 | M5 Implicit energy-conserving scheme | Complete; energy error 1.9e-10 over 679 steps |
@@ -38,13 +38,15 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12 
   growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss max 7.6e-12,
   implicit energy 1.9e-10; 15 analytic-example gates (ANA-D2) pass; 75 GPU tests pass.
 - Mixed precision (PIC-D11, Proposed): 19 explicit gates ALL PASSED with `precision: mixed` on d2ac1d9 (`bench/results/2026-11-11-d2ac1d90e-gpu-gates-mixed.json`), Gauss max 7.6e-12.
-- Known gaps: no particle injection at open faces (R1); no restart checkpoints (R2); output written
+- Known gaps: open flow is not yet shown to stay stationary (needs the filter with open faces and
+  the Marder zone, bow-shock plan Phase 3); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9: +4 % of a production run on 1 GPU, +13–14 % on 8; a writer thread
   was measured below the 2 % criterion and not adopted).
 - In progress: 3-D bow shock example and the open-boundary features it needs (R1, R6; plan
   `docs/plans/2026-11-10-bow-shock.md`). Phase 0 (probe measurements) and Phase 1 (external static
-  fields, PIC-D12, branch `bow-shock/1-external-fields`, gated on d2ac1d9)
-  done; PIC-D13..D16 are written with their phases.
+  fields, PIC-D12, branch `bow-shock/1-external-fields`, gated on d2ac1d9) done. Phase 2 (injection,
+  PIC-D13, branch `bow-shock/2-injection`): implemented, 4 new GPU tests pass, gates pending; the
+  null test M2 is judged at the end of Phase 3. PIC-D14..D16 are written with their phases.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -54,6 +56,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [design] Injection at open faces (PIC-D13): `flux` and `paired` faces (roadmap R1)
+- What: every step the cell layer outside an injecting face is sampled like the loader (keys: seed, step, global cell, slot) and the samples that end inside the box enter. `flux`: each species on its own, path deposited. `paired` (wind inflow face): electrons are returned at the face instead of leaving, each ion enters with an electron born at the same point, and an ion that left is paid for by the next ions entering in its face column. `PAIRED_FACES` is a kernel constant. New history keys `lost_charge`, `injected_kinetic`, `injected_charge`, `n_injected`, `fill`; `capacity_factor`; planner memory estimate with 8 rows. Flux within 5σ of quadrature, bank identity to 1e-9, 1 GPU vs 2×2 ranks 1e-10. Step time without injection unchanged (23.05 vs 23.06, 25.62 vs 25.61 ms/step); with five injecting faces 29.3–29.5 ms/step at 4.9e7 particles, 2.0 ms of it the injection. M2 (null test of open flow) is judged at the end of Phase 3.
+- Why: Phase 0 showed that a fast inflow face needs charge-neutral pairs (flux injection settles in a source sheath) and a thermal face the plain flux (the paired rule gains density); unfiltered open flow at the gate parameters does not stay stationary, so M2 needs the Phase 3 features.
+- Refs: PIC-D13 (`docs/design/engine.md`), roadmap R1; `pypic/injection.py`, `pypic/kernels/particles.cu` (`inject_face`, `inject_partners`), `pypic/simulation.py`; `tests/cpu/test_injection.py`, `tests/gpu/test_engine.py`, `tests/gpu/mgpu_open_flow.py`; plan Phase 2
 ### 2026-11-11 — [progress] External static fields gated: ALL PASSED on d2ac1d9, fp64 and mixed
 - What: gates on the PIC-D12 commit, 8 GPUs: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (the values of 158bc20), Gauss max 7.6e-12, implicit energy 1.9e-10, 15 example gates, 75 GPU tests; mixed: 19 explicit gates, Gauss max 7.6e-12, Buneman growth −5.1 %. Recorded without a criterion: `div B` of `plasma_waves:perpendicular` 1.01e-12 (0.96e-12 mixed), in its earlier range (0.94–1.04e-12).
 - Why: evidence that the external-field path leaves the cases without external fields unchanged, on one clean commit (CI cannot run the gates).
