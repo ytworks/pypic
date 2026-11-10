@@ -4019,6 +4019,183 @@
    },
    "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
    "generated": "2026-11-10"
+  },
+  "bow_shock": {
+   "page": "Bow-Shock",
+   "title": {
+    "en": "Bow shock of a magnetised planet",
+    "ja": "磁化惑星のバウショック"
+   },
+   "cases": {
+    "gate": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "gauss_max": 3.860106678743591e-14,
+      "r_mp": 20.0,
+      "upstream_deviation": 0.00111589587175831,
+      "upstream": {
+       "e": {
+        "density": 0.00111589587175831,
+        "u_x": 0.0005945342536418652,
+        "n_end": 1.0000973098676873,
+        "u_x_end": 0.9994870933769836
+       },
+       "i": {
+        "density": 0.001068016341824185,
+        "u_x": 0.0004045882415194546,
+        "n_end": 1.0000161949856181,
+        "u_x_end": 0.9995954117584805
+       }
+      },
+      "compression": 3.838451897530008,
+      "x_compression": 25.75,
+      "compression_mhd": 2.9653419658152917,
+      "x_magnetopause": 31.557144271107443,
+      "magnetopause": 0.9221427864446279,
+      "x_shock": 22.427655009489907,
+      "shock": 1.3786172495255047,
+      "shock_spreiter": 1.3709521575187251,
+      "sheath": 0.4950149475666769,
+      "sheath_spreiter": 0.3709521575187251,
+      "magnetopause_magnetic": 0.9456883166690722,
+      "wind_density": 0.9898160058661502,
+      "body_charge": 748.640625,
+      "absorbed_per_step": [
+       1475.5479166666667,
+       616.1854166666667,
+       418.48052631578946
+      ],
+      "fill_max": 0.5685798563010375,
+      "particles_start": 391940798.0,
+      "particles_end": 433754549.0,
+      "checks": {
+       "gauss": true,
+       "upstream": true,
+       "compression": true,
+       "magnetopause": true,
+       "shock_upstream": true
+      },
+      "passed": true
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       240,
+       320,
+       320
+      ],
+      "L": [
+       120.0,
+       160.0,
+       160.0
+      ],
+      "dx": [
+       0.5,
+       0.5,
+       0.5
+      ],
+      "dt": 0.25,
+      "n_steps": 5760,
+      "t_end": 1440.0,
+      "ppc": 8,
+      "particles": 391940798,
+      "species": [
+       "e (q=-1, m=1): n=1, u=(0.2582, 0, 0), θ=0.01",
+       "i (q=+1, m=16): n=1, u=(0.2582, 0, 0), θ=0.000625"
+      ],
+      "boundaries": [
+       "x: open + paired inflow/open",
+       "y: open + flux inflow",
+       "z: open + flux inflow",
+       "absorbing sphere: radius 13.33 at (50, 80, 80)"
+      ],
+      "fields": [
+       "external E=(0, 0.0625, -0)",
+       "external B=(0, 0, 0.25)",
+       "external dipole m=(0, 0, -5657) at (50, 80, 80)"
+      ],
+      "filter_passes": 4,
+      "gpus": 8,
+      "wall_time_s": 263.2538071119925,
+      "params": {
+       "mass_ratio": 16,
+       "mach_alfven": 4,
+       "wpe_wce": 4,
+       "vte": 0.1,
+       "dp": 5,
+       "box": [
+        6,
+        8,
+        8
+       ],
+       "ppc": 8,
+       "crossings": 3
+      },
+      "planner": {
+       "r_mp": 20.0,
+       "d_i": 4.0,
+       "center": [
+        50.0,
+        80.0,
+        80.0
+       ],
+       "body_radius": 13.333333333333332,
+       "core": 4.0,
+       "v_sw": 0.25,
+       "b_imf": 0.25,
+       "B": [
+        0.0,
+        0.0,
+        0.25
+       ],
+       "E": [
+        0.0,
+        0.0625,
+        -0.0
+       ],
+       "moment": 5656.85424949238,
+       "b_standoff": 0.7071067811865476,
+       "ram_pressure": 1.0,
+       "beta": 0.6400000000000001,
+       "mach_alfven": 4,
+       "mach_fast": 3.230291412348993,
+       "compression_mhd": 2.9653419658152917,
+       "sheath_spreiter": 0.3709521575187251,
+       "shock_standoff_spreiter": 27.419043150374502,
+       "crossing_time": 480.0,
+       "crossing_steps": 1920,
+       "omega_ci_t_end": 22.5,
+       "wce_dt_surface": 1.2557426932522995,
+       "debye_cells": 0.2,
+       "particles": 393216000,
+       "memory_per_gpu_GB": 10.996337152,
+       "id_fraction": 0.0005135074206918944,
+       "coarse_cells": 8,
+       "dims": [
+        1,
+        2,
+        4
+       ]
+      }
+     },
+     "provenance": {
+      "git_commit": "39acb7fca29d7db2fd79dda76526966edb93308d",
+      "run_id": "465c39b0",
+      "created": "2026-11-11T05:51:09+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/wiki/bow_shock/gate"
+     }
+    }
+   },
+   "images": {
+    "gate-bow_shock.png": 409705,
+    "standoff.png": 33579,
+    "gate.gif": 6588097
+   },
+   "analysis_commit": "9ba2a65185cd59bceecdfc4000b57587e924353e",
+   "generated": "2026-11-11"
   }
  }
 }

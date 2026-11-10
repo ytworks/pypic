@@ -56,7 +56,8 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 - In progress: 3-D bow shock example and the open-boundary features it needs (R1, R6; plan
   `docs/plans/2026-11-10-bow-shock.md`). Phases 0–4 done (PIC-D12..D16, gated on d2ac1d9, 84f5808,
   7893fec, 98e626b). Phase 5 (the example, gate M3, the sort fix) on branch `bow-shock/5-example`,
-  gated on 39acb7f. Next: wiki page, one run of `full.yaml`.
+  gated on 39acb7f; wiki page `Bow-Shock` in `docs/wiki/` (rendered locally, the wiki repository not pushed).
+  Next: one run of `full.yaml`.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.

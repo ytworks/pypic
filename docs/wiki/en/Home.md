@@ -23,6 +23,7 @@ copied by hand.
 | [Plasma expansion into vacuum](Plasma-Expansion) | ion acceleration by the expansion sheath (TNSA) | Mora (2003) self-similar solution | velocity profile {{ plasma_expansion:r.isothermal_hydrogen.velocity_profile_median_rel_error | .1% }}; E_max {{ plasma_expansion:r.isothermal_hydrogen.E_max_median_rel_error | .0% }} below (kinetic electrons) |
 | [Relativistic pair shock](Relativistic-Shock) | γ₀ = 15 collisionless shock, Fermi acceleration | relativistic jump conditions (Synge gas, 2-D and 3-D) | β_sh {{ relativistic_shock:r.pair_3d.beta_sh_rel_error | +.1% }}, n₂/n₁ {{ relativistic_shock:r.pair_3d.compression_rel_error | +.1% }} (3-D) |
 | [Relativistic magnetic reconnection](Magnetic-Reconnection) | σ = 10 pair reconnection, plasmoids, power-law particles | Harris equilibrium; Werner et al. (2016) | p = {{ reconnection:r.pair_sigma10_large.power_law_index | .2f }} vs {{ reconnection:r.pair_sigma10_large.werner2016_index | .2f }} |
+| [Bow shock of a magnetised planet](Bow-Shock) | magnetopause and bow shock of a dipole in a magnetised wind (open 3-D box, absorbing sphere) | pressure balance; perpendicular MHD shock with the stand-off of Spreiter et al. (1966) | magnetopause {{ bow_shock:r.gate.magnetopause | .2f }} R_mp; shock {{ bow_shock:r.gate.shock | .2f }} vs {{ bow_shock:r.gate.shock_spreiter | .2f }} R_mp |
 
 ## Gallery
 
@@ -30,6 +31,7 @@ copied by hand.
 |---|---|---|
 | <img src="images/two_stream/ei.gif" width="280"><br>two-stream: phase-space vortices | <img src="images/filamentation/pair.gif" width="280"><br>filamentation: current filaments | <img src="images/reconnection/pair_sigma10_large_run2.gif" width="280"><br>reconnection: plasmoids |
 | <img src="images/landau_damping/wavebreaking.gif" width="280"><br>wave breaking: sheets cross | <img src="images/relativistic_shock/pair_2d.gif" width="280"><br>relativistic shock | <img src="images/particle_orbits/orbits.gif" width="280"><br>test-particle orbits |
+| <img src="images/bow_shock/gate.gif" width="280"><br>bow shock: ion density | | |
 
 ## How the pages are made
 
