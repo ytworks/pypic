@@ -40,6 +40,9 @@ class YeeGrid:
         self.k_div_B = self.mod.get_function("div_B")
         self.k_binomial = self.mod.get_function("binomial_pass3")
         self.k_copy_pass = self.mod.get_function("copy_pass3")
+        self.k_slab_copy = self.mod.get_function("slab_copy3")
+        self.k_slab_zero = self.mod.get_function("slab_zero3")
+        self.k_slab_pack = self.mod.get_function("slab_pack3")
         self.n_update = int(np.prod([a.n_int for a in ax]))
         if self.use_pml:
             self._init_pml()
@@ -89,55 +92,114 @@ class YeeGrid:
         # a stacked 4-D array is exchanged as one block (one message per face for all components)
         return [arrays] if isinstance(arrays, cp.ndarray) else list(arrays)
 
+    def _self_axis(self, ax):
+        """The axis wraps onto this rank (periodic, not decomposed): ghosts are local copies."""
+        r = self.comm.rank
+        return ax.lo == r and ax.hi == r
+
+    @staticmethod
+    def _groups(arrays):
+        """3-D arrays in groups of up to 3 (a stacked (k, nx, ny, nz) array counts as k arrays)."""
+        flat = []
+        for F in arrays:
+            flat.extend(list(F) if F.ndim == 4 else [F])
+        for F in flat:
+            assert F.flags.c_contiguous
+        return [flat[i:i + 3] for i in range(0, len(flat), 3)]
+
+    def _slab_count(self, a, width, narr):
+        return narr * width * (math.prod(self.shape) // self.shape[a])
+
+    def _ptrs(self, grp):
+        return tuple(grp) + (grp[0],) * (3 - len(grp))
+
+    def _copy(self, grp, a, s0, d0, width, add):
+        launch(self.k_slab_copy, self._slab_count(a, width, len(grp)),
+               (*self._ptrs(grp), np.int32(len(grp)), np.int32(a), np.int32(s0), np.int32(d0), np.int32(width),
+                np.int32(add)))
+
+    def _zero(self, grp, a, s0, width):
+        launch(self.k_slab_zero, self._slab_count(a, width, len(grp)),
+               (*self._ptrs(grp), np.int32(len(grp)), np.int32(a), np.int32(s0), np.int32(width)))
+
+    def _face_buf(self, key, n):
+        """Persistent contiguous face buffer (all arrays' slabs of one face in one NCCL message);
+        it stays referenced, as NCCL requires until groupEnd()."""
+        bufs = self.__dict__.setdefault("_face_bufs", {})
+        b = bufs.get(key)
+        if b is None or b.size < n:
+            b = bufs[key] = cp.empty(n, dtype=cp.float64)
+        return b[:n]
+
+    def _pack(self, grp, a, s0, width, buf, unpack=False, add=False):
+        launch(self.k_slab_pack, buf.size,
+               (*self._ptrs(grp), buf, np.int32(len(grp)), np.int32(a), np.int32(s0), np.int32(width),
+                np.int32(unpack), np.int32(add)))
+
+    def _exchange_faces(self, grp, a, kind, send_lo, send_hi, recv_hi, recv_lo, add):
+        """Pack the two send slabs of every array, exchange one message per face, unpack."""
+        ax, g = self.d.axes[a], self.g
+        n = self._slab_count(a, g, len(grp))
+        sends, recvs, unp = [], [], []
+        if ax.lo is not None:
+            b = self._face_buf((kind, a, "s0"), n)
+            self._pack(grp, a, send_lo, g, b)
+            sends.append((b, ax.lo))
+        if ax.hi is not None:
+            b = self._face_buf((kind, a, "s1"), n)
+            self._pack(grp, a, send_hi, g, b)
+            sends.append((b, ax.hi))
+        if ax.hi is not None:
+            b = self._face_buf((kind, a, "r1"), n)
+            recvs.append((b, ax.hi))
+            unp.append((b, recv_hi))
+        if ax.lo is not None:
+            b = self._face_buf((kind, a, "r0"), n)
+            recvs.append((b, ax.lo))
+            unp.append((b, recv_lo))
+        self.comm.exchange(sends, recvs)
+        for b, d0 in unp:
+            self._pack(grp, a, d0, g, b, unpack=True, add=add)
+
     def fill_ghosts(self, arrays, axes=(0, 1, 2)):
+        """Copy the neighbours' boundary layers into the ghost layers. Fused kernels handle up to 3
+        arrays per launch, and a face carries all of them in one message (issue #8); an axis that
+        wraps onto this rank is copied in place."""
         g = self.g
-        arrays = self._as_list(arrays)
+        groups = self._groups(self._as_list(arrays))
         for a in axes:
             ax = self.d.axes[a]
             n = ax.n_int
-            for F in arrays:
-                sends, recvs = [], []
-                if ax.lo is not None:
-                    sends.append((self._slab(F, a, g, 2 * g), ax.lo))
-                if ax.hi is not None:
-                    sends.append((self._slab(F, a, n, n + g), ax.hi))
-                if ax.hi is not None:
-                    recvs.append((self._slab(F, a, n + g, n + 2 * g), ax.hi))
-                if ax.lo is not None:
-                    recvs.append((self._slab(F, a, 0, g), ax.lo))
-                if sends or recvs:
-                    self.comm.exchange(sends, recvs)
+            if ax.lo is None and ax.hi is None:
+                continue
+            for grp in groups:
+                if self._self_axis(ax):
+                    self._copy(grp, a, g, n + g, g, False)  # hi ghosts <- lo boundary layer
+                    self._copy(grp, a, n, 0, g, False)  # lo ghosts <- hi boundary layer
+                else:
+                    self._exchange_faces(grp, a, "fill", g, n, n + g, 0, add=False)
 
     def reduce_ghosts(self, arrays):
-        """Add ghost-cell contributions (current/charge deposited outside) to the owners."""
+        """Add ghost-cell contributions (current/charge deposited outside) to the owners, then zero
+        the ghosts (same fused kernels and messages as fill_ghosts)."""
         g = self.g
-        arrays = self._as_list(arrays)
+        groups = self._groups(self._as_list(arrays))
         for a in range(3):
             ax = self.d.axes[a]
             n = ax.n_int
-            for F in arrays:
-                sends, recvs, adds = [], [], []
-                if ax.lo is not None:
-                    sends.append((self._slab(F, a, 0, g).copy(), ax.lo))
-                if ax.hi is not None:
-                    sends.append((self._slab(F, a, n + g, n + 2 * g).copy(), ax.hi))
-                if ax.hi is not None:
-                    b = cp.empty_like(self._slab(F, a, n, n + g))
-                    recvs.append((b, ax.hi))
-                    adds.append((self._slab(F, a, n, n + g), b))
-                if ax.lo is not None:
-                    b = cp.empty_like(self._slab(F, a, g, 2 * g))
-                    recvs.append((b, ax.lo))
-                    adds.append((self._slab(F, a, g, 2 * g), b))
-                if sends or recvs:
-                    self.comm.exchange(sends, recvs)
-                for dst, b in adds:
-                    dst += b
+            if ax.lo is None and ax.hi is None:
+                continue
+            for grp in groups:
+                if self._self_axis(ax):
+                    self._copy(grp, a, 0, n, g, True)  # [n, n+g) += lo ghosts
+                    self._copy(grp, a, n + g, g, g, True)  # [g, 2g) += hi ghosts
+                else:
+                    self._exchange_faces(grp, a, "reduce", 0, n + g, n, g, add=True)
                 # ghost contributions have been handed over
                 if ax.lo is not None:
-                    self._slab(F, a, 0, g)[...] = 0
+                    self._zero(grp, a, 0, g)
                 if ax.hi is not None:
-                    self._slab(F, a, n + g, n + 2 * g)[...] = 0
+                    self._zero(grp, a, n + g, g)
 
     # ------------------------------------------------------------- filtering
     def filter(self, arrays, staggers, passes: int, compensate: bool = False):

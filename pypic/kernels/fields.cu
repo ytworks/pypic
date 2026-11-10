@@ -196,3 +196,69 @@ extern "C" __global__ void copy_pass3(double* F0, double* F1, double* F2, const 
         if (pass_index(t, axis, lo, hi[m], c, s)) F[m][c] = T[m][c];
     }
 }
+
+// ---- Ghost layers (issue #8): up to 3 arrays per launch, `width` layers along `axis`, every
+// index of the other axes. Thread t -> (array m, layer l, other indices); the layer layout is
+// the C order of the slab F[..., lo:lo+width, ...], so a packed face buffer is (narr, slab).
+__device__ __forceinline__ bool slab_index(long long t, int narr, int axis, int width, int& m, int& l,
+                                           long long& off) {
+    const int n[3] = {NX, NY, NZ};
+    int s[3] = {NX, NY, NZ};
+    s[axis] = width;
+    long long per = (long long)s[0] * s[1] * s[2];
+    if (t >= per * narr) return false;
+    m = (int)(t / per);
+    long long r = t - m * per;
+    int k = (int)(r % s[2]);
+    r /= s[2];
+    int j = (int)(r % s[1]);
+    int i = (int)(r / s[1]);
+    int ix[3] = {i, j, k};
+    l = ix[axis];
+    ix[axis] = 0;
+    off = ((long long)ix[0] * n[1] + ix[1]) * n[2] + ix[2];
+    return true;
+}
+
+__device__ __forceinline__ long long axis_stride(int axis) {
+    return axis == 0 ? (long long)NY * NZ : (axis == 1 ? (long long)NZ : 1LL);
+}
+
+// F[d0 + l] = F[s0 + l] (add = 0) or F[d0 + l] += F[s0 + l] (add = 1), l < width
+extern "C" __global__ void slab_copy3(double* F0, double* F1, double* F2, const int narr, const int axis,
+                                      const int s0, const int d0, const int width, const int add) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    int m, l;
+    long long off;
+    if (!slab_index(t, narr, axis, width, m, l, off)) return;
+    double* F = m == 0 ? F0 : (m == 1 ? F1 : F2);
+    const long long st = axis_stride(axis);
+    const double v = F[off + (s0 + l) * st];
+    double* d = F + off + (d0 + l) * st;
+    *d = add ? __dadd_rn(*d, v) : v;
+}
+
+// F[s0 + l] = 0, l < width
+extern "C" __global__ void slab_zero3(double* F0, double* F1, double* F2, const int narr, const int axis,
+                                      const int s0, const int width) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    int m, l;
+    long long off;
+    if (!slab_index(t, narr, axis, width, m, l, off)) return;
+    double* F = m == 0 ? F0 : (m == 1 ? F1 : F2);
+    F[off + (s0 + l) * axis_stride(axis)] = 0.0;
+}
+
+// buf[m, slab] = F_m[s0 + l] (pack) or F_m[s0 + l] = / += buf[m, slab] (unpack, add)
+extern "C" __global__ void slab_pack3(double* F0, double* F1, double* F2, double* buf, const int narr,
+                                      const int axis, const int s0, const int width, const int unpack,
+                                      const int add) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    int m, l;
+    long long off;
+    if (!slab_index(t, narr, axis, width, m, l, off)) return;
+    double* F = m == 0 ? F0 : (m == 1 ? F1 : F2);
+    double* f = F + off + (s0 + l) * axis_stride(axis);
+    if (!unpack) buf[t] = *f;
+    else *f = add ? __dadd_rn(*f, buf[t]) : buf[t];
+}
