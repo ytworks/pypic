@@ -74,7 +74,6 @@ class Simulation:
         self.k_migrate = tuple(self.pmod.get_function(name) for name in MIGRATE_KERNELS)
         self.flag = cp.zeros(max(1, len(cfg.species)), dtype=cp.int32)  # per-species flag counters
         self.err = cp.zeros(2, dtype=cp.int32)
-        self.itmax = cp.zeros(1, dtype=cp.int32)
 
         self.species: list[Species] = []
         self.sdiag = []
@@ -434,16 +433,16 @@ class Simulation:
                 B[c] *= self.Dmat[c]
 
     def _matvec(self, v, out, tmp):
-        """out = A v,  A = (1 + sigma dt/2) + dt^2/4 curl D curl  (v, out, tmp stacked (3, ...))."""
+        """out = A v,  A = (1 + sigma dt/2) + dt^2/4 curl D curl  (v, out, tmp stacked (3, ...)).
+        One ghost exchange: curl E is also taken on the ghost layer that curl B reads."""
         g, dt = self.grid, self.cfg.dt
         g.apply_bc_E(v)
         g.fill_ghosts(v)
-        g.curl_E(v, tmp)
+        g.curl_E(v, tmp, low=True)
         self._applyD(tmp)
         g.apply_bc_B(tmp)
-        g.fill_ghosts(tmp)
         g.curl_B(tmp, out, dt * dt / 4.0)
-        out += self.Adiag * v
+        launch(g.k_vec_add_scaled, out.size, (out, self.Adiag, v))
         g.apply_bc_E(out)
 
     def _cg(self, x, b):
@@ -451,11 +450,12 @@ class Simulation:
         x, b: stacked (3, nx, ny, nz) arrays. Scalars stay on the GPU; convergence is checked
         every few iterations to avoid host synchronisation."""
         icfg = self.cfg.implicit
+        g = self.grid
         tmp = cp.empty_like(x)
         Ax = cp.empty_like(x)
         self._matvec(x, Ax, tmp)
         r = b - Ax
-        self.grid.apply_bc_E(r)
+        g.apply_bc_E(r)
         z = self.Minv * r
         p = z.copy()
         rz = self._dot(r, z)
@@ -466,18 +466,13 @@ class Simulation:
                 break
             self._matvec(p, Ax, tmp)
             # The convergence test runs every few iterations only, so the residual can reach exactly
-            # zero in between (e.g. a curl-free mode where A = I is solved in one step). Guard the
-            # divisions on the device: a zero denominator means the step/update is zero.
+            # zero in between (e.g. a curl-free mode where A = I is solved in one step): the kernels
+            # take a zero denominator as a zero step / update.
             pAp = self._dot(p, Ax)
-            alpha = cp.where(pAp != 0, rz / cp.where(pAp != 0, pAp, 1.0), 0.0)
-            x += alpha * p
-            r -= alpha * Ax
-            cp.multiply(self.Minv, r, out=z)
+            launch(g.k_cg_update, x.size, (x, r, z, p, Ax, self.Minv, rz, pAp))
             rz_new = self._dot(r, z)
-            p *= cp.where(rz != 0, rz_new / cp.where(rz != 0, rz, 1.0), 0.0)
-            p += z
+            launch(g.k_cg_direction, x.size, (p, z, rz_new, rz))
             rz = rz_new
-        g = self.grid
         g.apply_bc_E(x)
         g.fill_ghosts(x)
         return it
@@ -517,12 +512,11 @@ class Simulation:
             self._half_fields(E0, B0)
             G = self._gather_E()
             g.zero_J()
-            self.itmax.fill(0)
             for sp in self.species:
                 launch(self.k_ipush, sp.n, (
                     sp.P, sp.Pn, np.int32(sp.n), np.int64(sp.cap), *G, *self.Bh, g.Jx, g.Jy, g.Jz,
                     np.float64(sp.q), np.float64(sp.m), np.float64(sp.qdep), np.int32(1 if k == 0 else 0),
-                    np.float64(icfg.particle_tol), np.int32(icfg.particle_maxit), self.err, self.itmax))
+                    np.float64(icfg.particle_tol), np.int32(icfg.particle_maxit), self.err))
             g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
             self._filter_J()
             g.apply_bc_J()

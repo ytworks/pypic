@@ -184,7 +184,7 @@ extern "C" __global__ void implicit_push(const double* __restrict__ P, double* P
                                          const double* __restrict__ By, const double* __restrict__ Bz,
                                          double* Jx, double* Jy, double* Jz, const double q, const double m,
                                          const double qdep, const int first, const double tol, const int maxit,
-                                         int* err, int* itmax) {
+                                         int* err) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
     const double p0[3] = {P[p], P[cap + p], P[2 * cap + p]};
@@ -309,7 +309,6 @@ extern "C" __global__ void implicit_push(const double* __restrict__ P, double* P
         nrm = 0.0;
         for (int a = 0; a < 3; a++) { r[a] = dn[a] - d[a]; nrm = fmax(nrm, fabs(r[a]) / h[a]); }
     }
-    atomicMax(itmax, it + 1);
     if (!conv) atomicAdd(err + 1, 1);  // non-converged particle counter
     // Exact energy closure: m (g1 - g0) = q d . E_eff along the deposited path d. For converged
     // particles this is a round-off level correction; for the rare non-converged ones it keeps

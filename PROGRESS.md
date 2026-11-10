@@ -49,6 +49,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Implicit field solve: one ghost exchange per CG matvec (issue #20)
+- What: `curl_E` is also taken on the ghost layer that `curl_B` reads, so the matvec exchanges ghosts once (bitwise the same on the owned unknowns); the CG vector updates are three fused kernels (`vec_add_scaled`, `cg_update`, `cg_direction`); the unused `itmax` atomic of `implicit_push` is gone (no measurable effect). Implicit two-stream, 8 GPUs: `_cg` 58–60 → 31 ms, step 136–145 → 108–110 ms/step; 1 GPU 597 → 586. CG iterations unchanged.
+- Why: on 8 GPUs the CG was 42 % of the implicit step, host-side sequencing of two exchanges and ~10 small launches per iteration, not grid work.
+- Refs: #20, #4; `Simulation._matvec`, `Simulation._cg`; `pypic/kernels/fields.cu`
 ### 2026-11-10 — [progress] Particle migration by dedicated kernels (issue #19)
 - What: `particles.migrate` takes, fills, classifies, packs and appends with five kernels (`pypic/kernels/migrate.cu`) on a particle-major buffer; one host sync fewer and no allreduce; particle order unchanged (old vs new arrays bitwise equal on 1/4/8 ranks). 8 GPUs: migrate 3.8 → 0.6 ms; two-stream 9.7–10.0 → 6.7–6.8 ms/step (mixed 9.2–9.4 → 6.2–6.5), shock 14.7–15.0 → 11.8.
 - Why: migration was 23–40 % of the 8-GPU step: host time of ~100 small CuPy launches for a few thousand particles (0.3 ms on 1 GPU).

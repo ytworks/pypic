@@ -20,6 +20,18 @@ __device__ __forceinline__ bool range_index(long long t, int& i, int& j, int& k)
     return true;
 }
 
+// The update range and the ghost layer below it on every axis: the points a backward difference
+// over the update range reads.
+__device__ __forceinline__ bool range_index_low(long long t, int& i, int& j, int& k) {
+    long long n = (long long)(NIX + 1) * (NIY + 1) * (NIZ + 1);
+    if (t >= n) return false;
+    k = (int)(t % (NIZ + 1)) + I0Z - 1;
+    t /= NIZ + 1;
+    j = (int)(t % (NIY + 1)) + I0Y - 1;
+    i = (int)(t / (NIY + 1)) + I0X - 1;
+    return true;
+}
+
 extern "C" __global__ void update_B(const double* __restrict__ Ex, const double* __restrict__ Ey,
                                     const double* __restrict__ Ez, double* Bx, double* By, double* Bz,
                                     const double dtb
@@ -99,12 +111,14 @@ extern "C" __global__ void update_E(double* Ex, double* Ey, double* Ez, const do
 }
 
 // out(B-located) = s * curl E   (used by the implicit Crank-Nicolson solver)
+// low: also on the ghost layer below the update range, from the ghosts of E; curl_B of the result
+// then needs no ghost exchange.
 extern "C" __global__ void curl_E(const double* __restrict__ Ex, const double* __restrict__ Ey,
                                   const double* __restrict__ Ez, double* Ox, double* Oy, double* Oz,
-                                  const double s) {
+                                  const double s, const int low) {
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
     int i, j, k;
-    if (!range_index(t, i, j, k)) return;
+    if (!(low ? range_index_low(t, i, j, k) : range_index(t, i, j, k))) return;
     long long c = IDX(i, j, k);
     Ox[c] = s * ((Ez[IDX(i, j + 1, k)] - Ez[c]) * (1.0 / DY) - (Ey[IDX(i, j, k + 1)] - Ey[c]) * (1.0 / DZ));
     Oy[c] = s * ((Ex[IDX(i, j, k + 1)] - Ex[c]) * (1.0 / DZ) - (Ez[IDX(i + 1, j, k)] - Ez[c]) * (1.0 / DX));
@@ -122,6 +136,41 @@ extern "C" __global__ void curl_B(const double* __restrict__ Bx, const double* _
     Ox[c] = s * ((Bz[c] - Bz[IDX(i, j - 1, k)]) * (1.0 / DY) - (By[c] - By[IDX(i, j, k - 1)]) * (1.0 / DZ));
     Oy[c] = s * ((Bx[c] - Bx[IDX(i, j, k - 1)]) * (1.0 / DZ) - (Bz[c] - Bz[IDX(i - 1, j, k)]) * (1.0 / DX));
     Oz[c] = s * ((By[c] - By[IDX(i - 1, j, k)]) * (1.0 / DX) - (Bx[c] - Bx[IDX(i, j - 1, k)]) * (1.0 / DY));
+}
+
+// ---- vector kernels of the implicit field solve: stacked (3, NX, NY, NZ) arrays
+#define NVEC (3LL * NX * NY * NZ)
+
+// y += a * x
+extern "C" __global__ void vec_add_scaled(double* __restrict__ y, const double* __restrict__ a,
+                                          const double* __restrict__ x) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= NVEC) return;
+    y[t] += a[t] * x[t];
+}
+
+// CG update with alpha = rz / pAp: x += alpha p, r -= alpha Ap, z = Minv r. The scalars are read
+// on the device. pAp == 0 (the residual is already exactly zero): alpha = 0.
+extern "C" __global__ void cg_update(double* __restrict__ x, double* __restrict__ r, double* __restrict__ z,
+                                     const double* __restrict__ p, const double* __restrict__ Ap,
+                                     const double* __restrict__ Minv, const double* __restrict__ rz,
+                                     const double* __restrict__ pAp) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= NVEC) return;
+    const double alpha = pAp[0] != 0.0 ? rz[0] / pAp[0] : 0.0;
+    x[t] += alpha * p[t];
+    const double rt = r[t] - alpha * Ap[t];
+    r[t] = rt;
+    z[t] = Minv[t] * rt;
+}
+
+// CG search direction with beta = rz_new / rz: p = z + beta p. rz == 0: beta = 0.
+extern "C" __global__ void cg_direction(double* __restrict__ p, const double* __restrict__ z,
+                                        const double* __restrict__ rz_new, const double* __restrict__ rz) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= NVEC) return;
+    const double beta = rz[0] != 0.0 ? rz_new[0] / rz[0] : 0.0;
+    p[t] = beta * p[t] + z[t];
 }
 
 // div E (at nodes) for Gauss-law diagnostics
