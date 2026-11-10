@@ -48,6 +48,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Current filter as fused ping-pong pass kernels (issue #9)
+- What: one kernel per pass filters up to 3 arrays, passes alternate with work buffers; bitwise the former result. Shock `pair_2d_long` on 8 GPUs: filter cost 2.1 → ~1.6 ms of a 17.8 → ~17.6 ms step; ~250 → ~35 launches per step.
+- Why: the filter was ~250 small launches and two sweeps per pass; it is memory-bound (~1 TB/s per pass), and the halo exchange per pass (15 per step) is now most of what remains (follow-up: two passes per sweep).
+- Refs: #9, #4; PIC-D10; `tests/gpu/test_engine.py::test_current_filter_kernels_match_the_array_expressions`
 ### 2026-11-10 — [progress] CG inner product in two stages (issue #5)
 - What: `Simulation._dot` reduces over the inner axes, then sums; implicit two-stream (50.3M particles) 1017 → ~570 ms/step on 1 GPU, 151 → 144 ms/step on 8 GPUs.
 - Why: a CuPy ReductionKernel to one scalar runs as one thread block (3.1 ms per call, 49 % of the implicit GPU time).
