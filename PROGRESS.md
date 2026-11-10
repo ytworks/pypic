@@ -49,6 +49,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Diagnostics step: field energy on the device, one reduction per record (issue #23)
+- What: `YeeGrid.field_energy_local` sums `E^2` and `B^2` with one reduction kernel each and leaves the result on the device; `_record` reduces it together with the per-species diagnostics in its one `allreduce` and one host read (before: six host reads, two `allreduce`). Two-stream with `diag_interval=1` (the planner default), 8 GPUs: 7.57 → 7.09 ms/step (−6.4 %, 6 pairs); 1 GPU 41.46 → 41.09. Recorded energies agree with the previous commit to rounding (rel ≤ 2e-16).
+- Why: with the history recorded every step the field energy and `_record` were 14 % of the 8-GPU step, almost all of it host synchronisation.
+- Refs: #23, #4; `pypic/grid.py`, `pypic/simulation.py`, `scripts/bench_step.py`
 ### 2026-11-10 — [progress] implicit_push with reciprocals instead of FP64 divisions (issue #22)
 - What: the particle map of the implicit kernel computes `eps / gbar`, `1/(1+t^2)` and `DT/(g0+g1)` once each, the Picard residual norms multiply by `1/h`, and `eps = q dt / 2m`, `q/m` come from the host. Implicit two-stream 1 GPU 586 → 513.5 ms/step (−12.4 %), 8 GPUs 109.5–110.6 → 99.7–101.0. Picard iterations (145 in 30 steps) and the energy budget error (3.03e-11) are unchanged.
 - Why: same reason as #21 — the kernel is FP64-pipe bound and the map runs once per sub-iteration of every particle. Rounding-level change, scheme unchanged.

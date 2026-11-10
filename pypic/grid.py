@@ -369,16 +369,23 @@ class YeeGrid:
         g = self.g
         return tuple(slice(g, g + a.n_int) for a in self.d.axes)
 
-    def field_energy(self, E=None, B=None, region: str = "physical"):
-        """(electric, magnetic) energy in the physical domain, or in all owned cells including
-        absorbing layers (region="all"); local sums + allreduce."""
+    _sum_sq = cp.ReductionKernel("T x, T y, T z", "T s", "x * x + y * y + z * z", "a + b", "s = a", "0",
+                                 "pypic_sum_sq")
+
+    def field_energy_local(self, E=None, B=None, region: str = "physical"):
+        """(electric, magnetic) energy of this rank in the physical domain, or in all owned cells
+        including absorbing layers (region="all"), as a device array: no host synchronisation and
+        no collective, the caller reduces it over the ranks."""
         E = E if E is not None else (self.Ex, self.Ey, self.Ez)
         B = B if B is not None else (self.Bx, self.By, self.Bz)
         s = self.physical_slice() if region == "physical" else self.owned_slice()
-        ee = sum(float(cp.sum(F[s] ** 2)) for F in E)
-        eb = sum(float(cp.sum(F[s] ** 2)) for F in B)
-        v = cp.asarray([ee, eb]) * 0.5 * self.cell_volume
-        v = self.comm.allreduce(v)
+        # two stages, as Simulation._dot: a full reduction runs as a single thread block
+        sums = [self._sum_sq(*(F[s] for F in V), axis=(1, 2)).sum() for V in (E, B)]
+        return cp.stack(sums) * (0.5 * self.cell_volume)
+
+    def field_energy(self, E=None, B=None, region: str = "physical"):
+        """Global (electric, magnetic) energy: field_energy_local + allreduce."""
+        v = cp.asnumpy(self.comm.allreduce(self.field_energy_local(E, B, region)))
         return float(v[0]), float(v[1])
 
     def poynting_out(self):

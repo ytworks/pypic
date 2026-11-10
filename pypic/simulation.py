@@ -313,7 +313,7 @@ class Simulation:
         if do_diag:
             for d in self.sdiag:
                 d[:4] = 0
-            self._fe = g.field_energy()
+            self._fe = g.field_energy_local()  # fields at t^n; reduced over the ranks in _record
         fields = (g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz)
         if self.mixed:  # float32 copies for the gather (PIC-D11)
             if getattr(self, "_f32", None) is None:
@@ -589,13 +589,11 @@ class Simulation:
 
     # ------------------------------------------------------------ diagnostics
     def _kinetic_now(self):
-        """Kinetic energy and momentum at the current integer time level (implicit scheme)."""
-        out = []
+        """Kinetic energy and momentum at the current integer time level (implicit scheme), into
+        the diagnostics buffer of each species."""
         for sp, d in zip(self.species, self.sdiag):
             d[:4] = 0
             launch(self.k_kin, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.m), d))
-            out.append(d[:4].copy())
-        return out
 
     def gauss_error(self):
         g = self.grid
@@ -614,17 +612,20 @@ class Simulation:
         errb = float(cp.max(cp.abs(db[sb]))) if db[sb].size else 0.0
         return self.comm.allreduce_scalar(err, "max"), self.comm.allreduce_scalar(errb, "max")
 
-    def _record(self, kin_list, fe):
+    def _record(self, fe_local):
+        """Append the diagnostics of this step to the history, from the diagnostics buffers of the
+        species (kinetic energy, momentum, lost energy) and this rank's YeeGrid.field_energy_local."""
         h = self.history
         cfg = self.cfg
-        # one allreduce and one host sync for all species: kinetic + momentum, lost energy, count
+        # one allreduce and one host sync for everything
         S = len(self.species)
-        vec = cp.concatenate([cp.stack(kin_list).ravel(), cp.stack([d[4] for d in self.sdiag]),
-                              cp.asarray([float(sp.n) for sp in self.species])]) if S else cp.zeros(0)
-        if self.comm.size > 1 and S:
+        vec = cp.concatenate([*(d[:5] for d in self.sdiag), cp.asarray([float(sp.n) for sp in self.species]),
+                              fe_local])
+        if self.comm.size > 1:
             vec = self.comm.allreduce(vec)
         hv = cp.asnumpy(vec)
-        kin, lost_s, n_s = hv[: 4 * S].reshape(S, 4), hv[4 * S: 5 * S], hv[5 * S:]
+        kin, lost_s = hv[: 5 * S].reshape(S, 5)[:, :4], hv[: 5 * S].reshape(S, 5)[:, 4]
+        n_s, fe = hv[5 * S: 6 * S], hv[6 * S:]
         # test species are recorded per species but are not part of the budget
         plasma = [k for k, sp in zip(kin, self.species) if not sp.test]
         ke = sum(float(k[0]) for k in plasma)
@@ -632,12 +633,12 @@ class Simulation:
         lost = sum(float(v) for v, sp in zip(lost_s, self.species) if not sp.test)
         for sp, k in zip(self.species, kin):
             self.kinetic_species[sp.name].append(float(k[0]))
-        tot = ke + fe[0] + fe[1]
+        tot = ke + float(fe[0]) + float(fe[1])
         h["step"].append(self.step_count)
         h["t"].append(self.time)
         h["kinetic"].append(ke)
-        h["electric"].append(fe[0])
-        h["magnetic"].append(fe[1])
+        h["electric"].append(float(fe[0]))
+        h["magnetic"].append(float(fe[1]))
         h["total"].append(tot)
         h["lost_kinetic"].append(lost)
         h["boundary_flux"].append(self.flux_out)
@@ -666,16 +667,16 @@ class Simulation:
                 sp.sort(self.k_cell)
         if self.implicit:
             if do_diag:
-                kin = self._kinetic_now()
+                self._kinetic_now()
                 # with an absorbing layer the field energy stored in the layer is part of the budget
-                fe = self.grid.field_energy(region="all" if self.absorb else "physical")
-                self._record(kin, fe)
+                fe = self.grid.field_energy_local(region="all" if self.absorb else "physical")
+                self._record(fe)
             self._step_implicit(do_diag)
         else:
             self._step_explicit(do_diag)
             if do_diag:
                 # kinetic energy centred at t^n (from the push), fields at t^n
-                self._record([d[:4].copy() for d in self.sdiag], self._fe)
+                self._record(self._fe)
         self.step_count += 1
         self.time += cfg.dt
 

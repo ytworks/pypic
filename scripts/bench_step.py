@@ -30,7 +30,8 @@ REPO = Path(__file__).resolve().parents[1]
 # phases bracketed by --phases: attribute of the object -> phase name
 GRID_PHASES = {"zero_J": "zero_J", "reduce_ghosts": "reduce_ghosts", "fill_ghosts": "fill_ghosts",
                "apply_bc_J": "apply_bc_J", "push_B": "field_push", "push_E": "field_push",
-               "field_energy": "field_energy", "poynting_out": "poynting_out"}
+               "field_energy": "field_energy", "field_energy_local": "field_energy",
+               "poynting_out": "poynting_out"}
 SIM_PHASES = {"_filter_J": "filter_J", "_migrate": "migrate", "_record": "record", "_cg": "cg",
               "_half_fields": "half_fields", "_gather_E": "gather_E", "_kinetic_now": "kinetic_now",
               "_remove_mean_current": "remove_mean_current"}
