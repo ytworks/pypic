@@ -42,7 +42,8 @@ class FieldSource:
             arr = cp.zeros(g.shape)
             for sp in sim.species:
                 if not getattr(sp, "test", False):
-                    launch(sim.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q), arr))
+                    launch(sim.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q),
+                                             np.float64(0.0), arr))
             g.reduce_ghosts((arr,))
         else:
             base, name = comp.split(":", 1)

@@ -52,8 +52,17 @@ class Simulation:
         if cfg.remove_mean_current and any(b != "periodic" for ax in cfg.boundaries for b in ax):
             raise ValueError("remove_mean_current needs periodic boundaries on every axis")
         self.n_filter = int(cfg.current_filter.passes)
-        if self.n_filter and any(b == "open" for ax in cfg.boundaries for b in ax):
-            raise ValueError("current_filter supports periodic and reflecting faces only")
+        has_open = any(b == "open" for ax in cfg.boundaries for b in ax)
+        if self.n_filter and has_open and self.implicit:
+            raise ValueError("current_filter with an open face is for the explicit solver only (PIC-D15)")
+        self.marder = float(cfg.marder_zone)
+        if self.marder and (self.implicit or not has_open):
+            raise ValueError("marder_zone needs the explicit solver and an open face (PIC-D16)")
+        # Nodes from an open face that the charge left on the face nodes reaches through the filter
+        # (PIC-D15); the Marder zone holds one node more, and the Gauss check starts behind them.
+        reach = (self.n_filter + int(bool(cfg.current_filter.compensate))) if self.n_filter else 0
+        self.zone_depth = reach + 1
+        self.gauss_retreat = (reach + (1 if self.marder else 0)) if has_open else 0
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
         if cfg.precision not in ("fp64", "mixed"):
@@ -506,6 +515,8 @@ class Simulation:
         g.push_E(dt)
         g.push_B(0.5 * dt)
         self._migrate()
+        if self.marder:
+            g.marder_zone(self._charge_density(zone=True), self.zone_depth, self.marder)
         if self._has_open:
             self.flux_out += dt * g.poynting_out()
 
@@ -773,17 +784,26 @@ class Simulation:
             d[:4] = 0
             launch(self.k_kin, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.m), d))
 
-    def gauss_error(self):
+    def _charge_density(self, zone: bool = False):
+        """Charge density at the nodes that div E equals: deposited with the shape of the current
+        deposit, ghosts reduced, and filtered like the current (a new array). ``zone``: right at the
+        nodes of the Marder zone only, from the particles that the filter brings there."""
         g = self.grid
         rho = cp.zeros(g.shape)
+        shell = np.float64(2 * self.zone_depth if zone else 0.0)  # zone nodes + reach of the filter + a cell
         for sp in self.species:
             if not sp.test:
-                launch(self.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q), rho))
+                launch(self.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q), shell, rho))
         g.reduce_ghosts((rho,))
         if self.n_filter:  # div E equals the identically filtered charge density
             g.filter((rho,), ((0, 0, 0),), self.n_filter, self.cfg.current_filter.compensate)
+        return rho
+
+    def gauss_error(self):
+        g = self.grid
+        rho = self._charge_density()
         div = g.div_E()
-        s = g.gauss_slice()
+        s = g.gauss_slice(self.gauss_retreat)
         err = float(cp.max(cp.abs(div[s] - rho[s]))) if div[s].size else 0.0
         db = g.div_B()
         sb = g.divb_slice()

@@ -19,13 +19,13 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12, D13 Accepted, PIC-D11 Proposed),
+Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12, D13, D15, D16 Accepted, PIC-D11 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
 |---|---|
 | M1 Explicit core (Yee, Boris, Esirkepov) | Complete |
-| M2 Boundaries (periodic, CPML/open, reflecting) | Complete, with injection at open faces (PIC-D13, R1; gated on 84f5808) |
+| M2 Boundaries (periodic, CPML/open, reflecting) | Complete, with injection at open faces (PIC-D13, R1; gated on 84f5808), the current filter with open faces and the Marder zone (PIC-D15, PIC-D16; gates pending) |
 | M3 Multi-GPU (NCCL decomposition, launcher) | Complete; 1 vs 2/8 GPU equal to ~1e-15 |
 | M4 Mixtures + planner + two-stream example | Complete; growth within 3.5 % of theory |
 | M5 Implicit energy-conserving scheme | Complete; energy error 1.9e-10 over 679 steps |
@@ -38,15 +38,19 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12,
   growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss max 7.6e-12,
   implicit energy 1.9e-10; 15 analytic-example gates (ANA-D2) pass; 79 GPU tests pass.
 - Mixed precision (PIC-D11, Proposed): 19 explicit gates ALL PASSED with `precision: mixed` on 84f5808 (`bench/results/2026-11-11-84f58082d-gpu-gates-mixed.json`), Gauss max 7.6e-12.
-- Known gaps: open flow is not yet shown to stay stationary (needs the filter with open faces and
-  the Marder zone, bow-shock plan Phase 3); no restart checkpoints (R2); output written
+- Open flow: a magnetised wind through one paired and four flux faces with filter and Marder zone
+  stays uniform for three crossings at the bow-shock gate size (null test M2, two field geometries,
+  passed; plan Phase 3). Not shown: longer runs; the magnetic energy of the oblique case had not levelled.
+- Known gaps: PIC-D15 / PIC-D16 are not yet gated (GPU tests pass; the gates run on the commit);
+  injection + filter + zone cost about +55 % over an open step without them (plan, Phase 3); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9: +4 % of a production run on 1 GPU, +13–14 % on 8; a writer thread
   was measured below the 2 % criterion and not adopted).
 - In progress: 3-D bow shock example and the open-boundary features it needs (R1, R6; plan
   `docs/plans/2026-11-10-bow-shock.md`). Phase 0 (probe measurements) and Phase 1 (external static
   fields, PIC-D12, branch `bow-shock/1-external-fields`, gated on d2ac1d9) done. Phase 2 (injection,
-  PIC-D13, branch `bow-shock/2-injection`, gated on 84f5808) done; the null test M2 is judged at the
-  end of Phase 3. PIC-D14..D16 are written with their phases.
+  PIC-D13, branch `bow-shock/2-injection`, gated on 84f5808) done. Phase 3 (filter with open faces,
+  Marder zone, PIC-D15 / PIC-D16, M2 passed; branch `bow-shock/3-filter-marder`) implemented, gates
+  pending. Next: Phase 4 (absorbing sphere, PIC-D14), Phase 5 (the example and its gate).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -56,6 +60,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12,
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [design] Filter with open faces and Marder zone (PIC-D15, PIC-D16); null test M2 passed
+- What: the deposit is cut at every open face (a leaving particle leaves its charge on the face nodes), the face is the filter's wall, and `marder_zone` diffuses `div E − ρ` of the layer, the face node and `reach + 1` nodes inside to the conducting wall. The Gauss check retreats `passes + compensate` nodes at an open face (+1 with the zone). M2 (uniform magnetised wind, 240×320×320, 3.9e8 particles, 8 GPUs, 5760 steps, criteria fixed before the run) passed for two geometries: Gauss 3e-14, density within 1.25 %, velocity within 0.84 % of |v|, interior T_e ≤ 1.024 T0. Cost: filter + zone 40.0–41.2 ms/step against 31.5–32.6 with injection alone (one gate rank).
+- Why: Phase 0 showed that an open flow with a filter is stationary only with all three (cut, face wall, zone); the CPML does not relax the static field of the charge left at a face. The zone changes E only outside the checked region, so charge conservation there still comes from the deposit; `.claude/rules/numerics-invariants.md` now states the checked region and this limit.
+- Refs: PIC-D15, PIC-D16, PIC-D13 (`docs/design/engine.md`); plan Phase 3 (`docs/plans/2026-11-10-bow-shock.md`); `pypic/grid.py`, `pypic/kernels/{fields,particles}.cu`, `pypic/simulation.py`; `tests/gpu/test_engine.py`, `tests/gpu/mgpu_open_flow.py`. Bits of open-face runs change (the cut). Gates not yet run on this commit. Open: the oblique case's magnetic energy had not levelled after three crossings; zone depth not varied.
 ### 2026-11-11 — [progress] Injection at open faces gated: ALL PASSED on 84f5808, fp64 and mixed
 - What: gates on the PIC-D13 commit, 8 GPUs: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (the values of d2ac1d9), Gauss max 7.6e-12, implicit energy 1.9e-10, 15 example gates, 79 GPU tests; mixed: 19 explicit gates, Gauss max 7.6e-12, Buneman growth −4.7 % (the mixed records hold −4.7 or −5.1 %). Recorded without a criterion: `div B` of `plasma_waves:perpendicular` 0.97e-12 (0.96e-12 mixed), in its earlier range. The gates hold no case with injection: PIC-D13 is covered by its 4 GPU tests.
 - Why: evidence that the injection path (wall loop of `push_deposit`, the capacity and id checks, the new history keys) leaves the cases without injection unchanged, on one clean commit (CI cannot run the gates).

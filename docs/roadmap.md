@@ -18,8 +18,9 @@ with the set-up features they need (initial perturbations, test species, initial
 profiles, current filter; PIC-D9, PIC-D10).
 
 Open-boundary particle injection (R1, 2026-11-11): `flux` and `paired` injecting faces (PIC-D13),
-gated on 84f5808. The null test of a magnetised open flow (M2 of the bow-shock plan) waits for the
-filter with open faces and the Marder zone (its Phase 3).
+gated on 84f5808. Current filter with open faces and the Marder zone at open faces (PIC-D15,
+PIC-D16, 2026-11-11): with them a magnetised wind through one paired and four flux faces stays
+uniform for three crossings at the bow-shock gate size (null test M2 of the plan, passed).
 
 ## Next (in priority order)
 

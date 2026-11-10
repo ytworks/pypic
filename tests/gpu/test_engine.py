@@ -380,6 +380,69 @@ def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
         assert np.max(np.abs(e - e[0])) / e[0] < 1e-11
 
 
+@pytest.mark.parametrize("marder", [0.0, 0.125])
+def test_filter_and_marder_zone_at_open_faces_keep_gauss(marder):
+    """A drifting plasma leaves through open faces with the current filter on (PIC-D15), without
+    and with the Marder zone (PIC-D16): the charge left on the face nodes spreads through the
+    filter and the zone works on it, and Gauss's law stays exact at every node behind them."""
+    from pypic.config import CurrentFilter
+
+    cfg = SimConfig(n_cells=(16, 16, 12), dx=(0.5,) * 3, dt=0.2, npml=6,
+                    boundaries=(("open", "open"), ("open", "open"), ("periodic", "periodic")),
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.1, 0.05, 0), 0.02)]),
+                             SpeciesConfig("i", 1, 16, [Beam(1.0, (0.1, 0.05, 0), 0.001)])],
+                    ppc=4, diag_interval=5, gauss_interval=5, current_filter=CurrentFilter(1, True),
+                    marder_zone=marder)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(40)
+    assert sim.history["lost_charge"][-1] != 0.0
+    assert np.nanmax(sim.history["gauss"]) < 1e-12
+    if marder:  # the zone deposits the charge of the particles near the open faces only: the same there
+        g = sim.grid
+        i = np.arange(g.shape[0]) - (g.g + cfg.npml)  # node index from the face x = 0 (y alike)
+        near = cp.asarray((i <= sim.zone_depth) | (i >= 16 - sim.zone_depth))
+        zone = near[:, None, None] | near[None, :, None]
+        assert float((cp.abs(sim._charge_density(zone=True) - sim._charge_density()) * zone).max()) < 1e-12
+
+
+def test_marder_zone_takes_the_charge_left_at_an_open_face():
+    """A static field with div E - rho != 0 around one node of an open face and no charge
+    (PIC-D16): one step of the zone diffuses it with the Marder number, the conducting wall behind
+    the layer takes it all in the end, and div E never changes outside the zone."""
+    nu, npml = 0.125, 3
+    cfg = SimConfig(n_cells=(8, 6, 6), dx=(0.5, 0.4, 0.25), dt=0.1, npml=npml, species=[], diag_interval=0,
+                    gauss_interval=0, boundaries=(("open", "open"), ("periodic",) * 2, ("periodic",) * 2),
+                    marder_zone=nu)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    g = sim.grid
+    face = g.g + npml  # local index of the node plane x = 0
+    node = (face, g.g + 2, g.g + 3)
+    # E = -grad phi with phi at one node: curl-free, div E = 0 away from the node and its neighbours
+    for a, E in enumerate((g.Ex, g.Ey, g.Ez)):
+        lo = list(node)
+        lo[a] -= 1
+        E[node] = 1.0 / g.dx[a]
+        E[tuple(lo)] = -1.0 / g.dx[a]
+    g.fill_ghosts((g.Ex, g.Ey, g.Ez))
+    inside = (slice(face + sim.zone_depth + 1, face + 8 - sim.zone_depth), slice(None), slice(None))
+    own = tuple(slice(g.g, g.g + ax.n_int) for ax in g.d.axes)
+    d0 = g.div_E()
+    peak = float(d0[node])
+    assert not bool(cp.any(d0[inside]))
+    g.marder_zone(cp.zeros(g.shape), sim.zone_depth, nu)
+    h2 = 3.0 / sum(1.0 / d ** 2 for d in g.dx)
+    d1 = g.div_E()
+    expect = peak + nu * h2 * sum(
+        (float(d0[tuple(n + (b == a) for b, n in enumerate(node))]) - 2.0 * peak
+         + float(d0[tuple(n - (b == a) for b, n in enumerate(node))])) / g.dx[a] ** 2 for a in range(3))
+    assert abs(float(d1[node]) - expect) < 1e-12 * abs(peak)
+    for _ in range(1500):
+        g.marder_zone(cp.zeros(g.shape), sim.zone_depth, nu)
+    d = g.div_E()
+    assert float(cp.abs(d[own]).max()) < 1e-6 * float(cp.abs(d0[own]).max())
+    assert not bool(cp.any(d[inside]))
+
+
 # ------------------------------------------------------------------- storage
 def test_sort_orders_by_cell_and_keeps_every_particle():
     """The sort moves whole particles: every row of the particle array and of the implicit work
@@ -707,14 +770,16 @@ def test_external_dipole_is_decomposition_independent():
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
-def test_open_flow_is_decomposition_independent():
+@pytest.mark.parametrize("variant", ["inject", "inject_filter"])
+def test_open_flow_is_decomposition_independent(variant):
     """A magnetised oblique flow through six open faces, one paired and four flux (PIC-D13): what
     enters depends on (seed, step, global cell, slot) only, so 1 GPU and a 2x2 rank grid give the
-    same run, the same particles and the same charge in the bank, and Gauss's law holds."""
+    same run, the same particles and the same charge in the bank, and Gauss's law holds. With the
+    current filter and the Marder zone too (``inject_filter``, PIC-D15 and PIC-D16)."""
     script = os.path.join(HERE, "mgpu_open_flow.py")
     outs = {}
     for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
-        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, "inject"],
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, variant],
                            capture_output=True, text=True, timeout=600)
         assert r.returncode == 0, r.stderr[-2000:]
         outs[n] = json.loads(r.stdout.strip().splitlines()[-1])

@@ -79,7 +79,9 @@ class CurrentFilter:
     (-N/4, 1 + N/2, -N/4) that restores the long-wavelength response to fourth order. Suppresses
     the numerical Cherenkov instability of relativistic flows. Gauss's law stays exact (the charge
     density in the check is filtered identically) and the implicit energy stays exact (particles
-    gather the filtered field). Periodic and reflecting faces only."""
+    gather the filtered field). An open face is a wall of the filter at the face of the box and
+    the Gauss check leaves out the nodes the charge left there reaches (PIC-D15, explicit solver);
+    an open flow with a filter needs ``marder_zone`` to stay stationary."""
 
     passes: int = 0
     compensate: bool = False
@@ -328,6 +330,10 @@ class SimConfig:
     # static fields felt by the particles on top of the Yee fields (PIC-D12); not together with B0 / E0
     external_fields: ExternalFields = field(default_factory=ExternalFields)
     injection: Injection = field(default_factory=Injection)  # plasma entering through open faces (PIC-D13)
+    # Marder number (0 < nu <= 1/6; 0 = off) of the zone at the open faces (PIC-D16): every step
+    # div E - rho diffuses in the absorbing layer and the first nodes inside, where the removed and
+    # the entering particles leave charge that no deposit balances. Explicit solver only.
+    marder_zone: float = 0.0
     # particle array capacity = capacity_factor x the particles loaded on the rank: the room for the
     # density to pile up on one rank. Growing the arrays in a run holds the old and the new array
     # at once, so set this (and watch the ``fill`` history) rather than rely on it.
@@ -337,6 +343,8 @@ class SimConfig:
     def __post_init__(self):
         if not float(self.capacity_factor) >= 1.0:
             raise ValueError("capacity_factor must be >= 1")
+        if not 0.0 <= float(self.marder_zone) <= 1.0 / 6.0:
+            raise ValueError("marder_zone is a Marder number: 0 (off) or 0 < nu <= 1/6")
 
     def to_dict(self):
         return asdict(self)

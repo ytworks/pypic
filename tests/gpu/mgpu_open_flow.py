@@ -1,10 +1,12 @@
 """Helper for the open-flow test: run with ``python -m pypic.launch -n N``.
 
-    mgpu_open_flow.py <dims> <variant>    dims like 2,2,1; variant inject
+    mgpu_open_flow.py <dims> <variant>    dims like 2,2,1; variant inject | inject_filter
 
 A magnetised, oblique, thermal electron-ion flow through a box with six open faces (PIC-D13):
 x- is the paired inflow face, the y and z faces inject on their own (``flux``), x+ only removes.
 Particles enter, leave and are returned on every rank and at the edges between injecting faces.
+``inject_filter`` adds the current filter and the Marder zone (PIC-D15, PIC-D16) in a box of
+8 cells along x: with two ranks along x the zone ends at the rank face and the filter reaches across.
 Prints the histories, the charge kept in the bank of the paired face and the global id sums.
 """
 import json
@@ -14,17 +16,20 @@ import sys
 import cupy as cp
 
 from pypic import Beam, SimConfig, SpeciesConfig
-from pypic.config import ExternalFields, Injection
+from pypic.config import CurrentFilter, ExternalFields, Injection
 from pypic.simulation import Simulation
 
 dims = tuple(int(v) for v in sys.argv[1].split(","))
 variant = sys.argv[2]
-assert variant == "inject"
+assert variant in ("inject", "inject_filter")
+extra = {"n_cells": (16, 16, 8)}
+if variant == "inject_filter":
+    extra = {"n_cells": (8, 16, 12), "current_filter": CurrentFilter(1, True), "marder_zone": 0.125}
 u = (0.1, 0.1, 0.05)  # slow along x: some ions leave through the paired face and are paid for
 gamma = math.sqrt(1.0 + sum(c * c for c in u))
 v, bz = [c / gamma for c in u], 0.2
 external = ExternalFields(E=(-v[1] * bz, v[0] * bz, 0.0), B=(0.0, 0.0, bz))  # E = -v x B: the flow is force-free
-cfg = SimConfig(n_cells=(16, 16, 8), dx=(0.5,) * 3, dt=0.2, n_steps=40, dims=dims, npml=6,
+cfg = SimConfig(dx=(0.5,) * 3, dt=0.2, n_steps=40, dims=dims, npml=6, **extra,
                 boundaries=(("open", "open"),) * 3,
                 species=[SpeciesConfig("e", -1, 1, [Beam(1.0, u, 0.01)]),
                          SpeciesConfig("i", 1, 16, [Beam(1.0, u, 0.01)])],

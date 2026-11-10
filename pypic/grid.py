@@ -45,6 +45,8 @@ class YeeGrid:
         self.k_picard_change = self.mod.get_function("picard_change")
         self.k_div_E = self.mod.get_function("div_E")
         self.k_div_B = self.mod.get_function("div_B")
+        self.k_marder_residual = self.mod.get_function("marder_residual")
+        self.k_marder_apply = self.mod.get_function("marder_apply")
         self.k_binomial = self.mod.get_function("binomial_pass3")
         self.k_copy_pass = self.mod.get_function("copy_pass3")
         self.k_binomial_wrap = self.mod.get_function("binomial_wrap3")
@@ -223,9 +225,11 @@ class YeeGrid:
         conducting wall node-type data are mirrored about the face node (face row (3/4, 1/4)) and
         wall-normal staggered data have a zero ghost, which makes the filter symmetric and commute
         with the discrete divergence. Call after reduce_ghosts and before apply_bc_J; the hi face
-        node of node-type data is filtered too (wall deposits live there). Along an axis that wraps
-        onto this rank the passes are applied as one composite stencil: the same filter, with the
-        rounding of one sum instead of one per pass."""
+        node of node-type data is filtered too (wall deposits live there). An open face is a wall
+        of the same kind at the face of the box (PIC-D15): the absorbing layer behind it holds no
+        deposit (the kernels cut the paths at the face) and is not filtered. Along an axis that
+        wraps onto this rank the passes are applied as one composite stencil: the same filter,
+        with the rounding of one sum instead of one per pass."""
         if passes <= 0:
             return
         g = self.g
@@ -248,7 +252,9 @@ class YeeGrid:
                 cur = arrays
             lo_wall = self.d.bc[a][0] != "periodic" and ax.lo is None
             hi_wall = self.d.bc[a][1] != "periodic" and ax.hi is None
-            f = g + ax.n_int  # hi face node index (ghost for periodic / rank faces)
+            # the walls: the ends of the array, or the faces of the box in front of the layers
+            lo = g + ax.pml_lo  # lo face node index (first owned index at a rank face)
+            f = g + ax.n_int - ax.pml_hi  # hi face node index (ghost for periodic / rank faces)
             his = [f + 1 if (hi_wall and st[a] == 0) else f for st in staggers]
             # passes alternate between the arrays and the work buffers (ping-pong, issue #9)
             src, dst = arrays, tmp
@@ -257,25 +263,31 @@ class YeeGrid:
                 for F, st in zip(src, staggers):
                     node = st[a] == 0
                     if lo_wall:
-                        self._slab(F, a, g - 1, g)[...] = self._slab(F, a, g, g + 1) if node else 0.0
+                        self._slab(F, a, lo - 1, lo)[...] = self._slab(F, a, lo, lo + 1) if node else 0.0
                     if hi_wall:
                         if node:
                             self._slab(F, a, f + 1, f + 2)[...] = self._slab(F, a, f, f + 1)
                         else:
                             self._slab(F, a, f, f + 1)[...] = 0.0
-                self._binomial_pass(src, dst, a, g, his, wts)
+                self._binomial_pass(src, dst, a, lo, his, wts)
                 src, dst = dst, src
             if src is tmp:  # the last pass wrote the buffers: copy its range back
-                self._copy_pass(arrays, tmp, a, g, his)
+                self._copy_pass(arrays, tmp, a, lo, his)
             else:  # the last pass read the buffers: copy the layers it wrote there (ghosts, walls)
                 for F, T, st in zip(arrays, tmp, staggers):
                     node = st[a] == 0
-                    lo_l = (g - 1, g) if lo_wall else ((0, g) if ax.lo is not None else None)
+                    lo_l = (lo - 1, lo) if lo_wall else ((0, g) if ax.lo is not None else None)
                     hi_l = ((f + 1, f + 2) if node else (f, f + 1)) if hi_wall else (
                         (f, f + g) if ax.hi is not None else None)
                     for lay in (lo_l, hi_l):
                         if lay:
                             self._slab(F, a, *lay)[...] = self._slab(T, a, *lay)
+            # the mirror rows of node-type data lie in the layer of an open face: keep it empty
+            for F, st in zip(arrays, staggers):
+                if st[a] == 0 and lo_wall and ax.pml_lo:
+                    self._slab(F, a, lo - 1, lo)[...] = 0.0
+                if st[a] == 0 and hi_wall and ax.pml_hi:
+                    self._slab(F, a, f + 1, f + 2)[...] = 0.0
         if cur is tmp:
             self._copy_pass(arrays, tmp, 0, 0, [self.shape[0]] * len(arrays))
 
@@ -469,17 +481,51 @@ class YeeGrid:
         launch(self.k_div_B, self.n_update, (self.Bx, self.By, self.Bz, out))
         return out
 
-    def gauss_slice(self):
-        """Nodes where the discrete Gauss law must hold: physical domain without conducting faces."""
+    def gauss_slice(self, retreat: int = 0):
+        """Nodes where the discrete Gauss law must hold: physical domain without conducting faces,
+        and without the ``retreat`` nodes next to an open face that the filtered charge of the
+        removed and entering particles and the Marder zone reach (PIC-D15, PIC-D16)."""
         g = self.g
         sl = []
         for a, ax in enumerate(self.d.axes):
-            lo = g + ax.pml_lo
-            hi = lo + ax.n_phys
-            if self.d.bc[a][0] != "periodic" and ax.lo is None:
-                lo += 1
-            sl.append(slice(lo, hi))
+            b, n = self.d.bc[a], self.d.n_cells[a]
+            first = 0 if b[0] == "periodic" else 1 + (retreat if b[0] == "open" else 0)
+            end = n - (retreat if b[1] == "open" else 0)  # the hi face node is not an owned node
+            lo = max(ax.phys_lo, first)
+            hi = max(lo, min(ax.phys_lo + ax.n_phys, end))
+            off = g + ax.pml_lo - ax.phys_lo
+            sl.append(slice(lo + off, hi + off))
         return tuple(sl)
+
+    def marder_zone(self, rho, depth: int, number: float):
+        """One Marder step in the zone of the open faces (PIC-D16): E += nu h^2 grad(div E - rho) on
+        the edges whose two nodes are in the zone, with h^2 = 3 / sum(1/dx^2), so that the residual
+        diffuses with the number ``number`` (<= 1/6) per step. The zone holds the absorbing layer,
+        the face node and ``depth`` nodes inside, at every open face; the conducting walls take the
+        residual (0 there). ``rho``: the charge density that div E must equal (ghosts reduced,
+        filtered like the current); it is overwritten."""
+        if getattr(self, "_zone", None) is None or self._zone[0] != depth:
+            big = 1 << 30
+            zb = np.empty(6, dtype=np.int32)
+            for a, ax in enumerate(self.d.axes):
+                off = self.g + ax.pml_lo - ax.phys_lo  # local index of the global node 0
+                zb[a] = off + depth if self.d.bc[a][0] == "open" else -big
+                zb[3 + a] = off + self.d.n_cells[a] - depth if self.d.bc[a][1] == "open" else big
+            self._zone = (depth, cp.asarray(zb))
+        zb = self._zone[1]
+        launch(self.k_marder_residual, self.n_update, (self.Ex, self.Ey, self.Ez, rho, zb))
+        self.fill_ghosts((rho,))
+        for a, ib, gs in self._wall_planes():
+            sl = [slice(None)] * 3
+            sl[a] = gs
+            rho[tuple(sl)] = 0
+            sl[a] = ib
+            rho[tuple(sl)] = 0
+        h2 = 3.0 / sum(1.0 / d ** 2 for d in self.dx)
+        launch(self.k_marder_apply, self.n_update, (
+            self.Ex, self.Ey, self.Ez, rho, *(np.float64(number * h2 / d) for d in self.dx), zb))
+        self.apply_bc_E()
+        self.fill_ghosts((self.Ex, self.Ey, self.Ez))
 
     def divb_slice(self):
         g = self.g

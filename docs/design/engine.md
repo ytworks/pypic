@@ -1,6 +1,6 @@
 # Engine design
 
-Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12, D13 2026-11-11, bow-shock plan);
+Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12, D13, D15, D16 2026-11-11, bow-shock plan);
 PIC-D11 **Proposed** (2026-11-10, #10).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
@@ -93,7 +93,7 @@ Why: the analytic-solution examples (Landau and Dawson, orbits, Mora expansion, 
 - The Gauss check filters ρ in the same way.
 - Implicit particles gather F·E_h, so the energy identity Σ E_h·(F J) = Σ (F E_h)·J stays exact.
 - Along an axis that wraps onto the rank itself (periodic, not decomposed) the passes are applied as one composite stencil with indices modulo the period (issue #37): the same operator, still symmetric, equal to the passes one by one to rounding.
-- Periodic and reflecting faces only; open faces are rejected.
+- Periodic and reflecting faces. Open faces were rejected until PIC-D15 (2026-11-11), which gives the rules there.
 
 Why: the numerical Cherenkov instability of relativistic flows (shocks, reconnection outflows). Verified: transfer function to 1e-12; Gauss ≤ 1e-12 and implicit energy ≤ 1e-11 with walls; 1 vs 2 GPUs with a decomposed wall axis.
 
@@ -154,13 +154,53 @@ Plan: `docs/plans/2026-11-10-bow-shock.md` (D-B and D-F, approved by the owner; 
 
 Why: the Phase 0 probe (plan, run table) showed that neither mode serves every face. Flux injection of a wind with u / v_te = 2.5 settled in a source sheath (density 1.51 at the face), where the paired face stayed stationary for 6e4 steps. Where the normal velocity is thermal the order was reversed: flux was clean and the paired rule gained 9 % density in 2e4 steps. Paying for a lost ion with the next entering ions left a debt of 611 macro-charges over 1024 columns, against 2233 when an electron was let out instead. TRISTAN injects pairs at one point; iPIC3D and MHD-AEPIC refill the boundary cells every step.
 
-Not yet established: that a magnetised oblique flow through one paired and four flux faces stays uniform (null test M2). The probe showed that open flow at the gate parameters needs the filter and the Marder zone (PIC-D15, PIC-D16), so the verdict is taken with them.
+Null test M2 (a magnetised flow through one paired and four flux faces stays uniform): taken with the filter and the Marder zone, which open flow at the gate parameters needs (plan, Phase 0), and passed; the numbers and what it leaves open are under PIC-D16, Measured.
 
 Measured (2026-11-11, RTX PRO 6000; diagnostic only):
 - **Tests:** the number entering through a flux face is within 5σ of `n E[max(v_n, 0)] · area · time` (quadrature) for each species; a cold diagonal beam through two faces enters with the swept volume, fills the edge cells once and creates no field (electric energy < 1e-20); at a paired face no neutraliser is lost, the bank identity holds to 1e-9, no column is paid twice, and the partners have the mean energy of the inflow distribution within 5σ. Gauss's law holds to 1e-10 in all three.
 - **Decomposition:** a magnetised oblique flow through six open faces (one paired, four flux), 1 GPU against a 2×2 rank grid: the same ids, the same injected counts and the same bank; histories within 1e-10. The same holds with `precision: mixed` (run by hand, not a test: histories within 2.7e-13).
 - **Cost:** 120×160×160 cells, 4.9e7 particles (the per-rank size of the bow-shock gate), FP64, windows of 20 steps, against the commit before. Without injection: periodic 23.06–24.16 → 23.05–24.13 ms/step, six open faces 25.61–26.21 → 25.62–26.29. With one paired and four flux faces: 29.29–29.53 ms/step, of which the injection launches take 2.0 ms (synchronised timers, 7 %). The open run without injection loses 8 % of its particles in the measurement, so it is not a baseline at equal particle number.
 - **Measured and replaced:** the paired mask as a run-time argument cost +11 % (periodic) and +5 % (open) without any injection; one thread per layer cell took 4.7 ms/step for the same launches.
+
+### PIC-D15 — Current filter with open faces: the deposit is cut at the face, which is the filter's wall (2026-11-11) — Status: Accepted
+Plan: `docs/plans/2026-11-10-bow-shock.md` (D-E as amended by its Phase 0 measurements). Amends PIC-D10. Explicit solver only.
+- **Cut of the deposit** (every open face, with or without a filter): the deposited path is clipped to the box. A particle that leaves deposits up to the face and leaves its charge on the nodes of the face, around the point where it crossed; a particle entering through a `flux` face (PIC-D13) deposits from the face on. Nothing is deposited in the absorbing layer. Before, the whole path was deposited and the charge stayed on the layer nodes around the end point, one cell behind the face. Kernel helper `deposit_cut` (`push_deposit`, `inject_face`).
+- **Wall of the filter:** on an open axis the wall rules of PIC-D10 apply at the face of the box (nodes 0 and N), not at the conducting wall behind the layer, and the mirror rows in the layer are zeroed after the passes of the axis. The current in the layer is zero, and the filter stays symmetric and commutes with the divergence inside the box.
+- **Gauss check:** the charge left on the face nodes belongs to no particle, so `div E − ρ` is not zero there, and the filter spreads it `reach = passes + compensate` nodes into the box. The check leaves out the face node (as before) and the next `reach` nodes at every open face, `reach + 1` with the Marder zone (PIC-D16). Without a filter and a zone the checked region is the one before.
+- **Rejected at construction:** a filter with an open face in the implicit solver (its deposit is not cut).
+- An open flow with a filter needs the Marder zone to stay stationary (plan, Phase 0: runs `prf4w`, `prf4mw`); the filter alone is accepted, the docstring of `CurrentFilter` says what it needs.
+- **Bits:** the cut changes the results of runs with an open face that a charged particle crosses. Periodic and reflecting runs keep their bits.
+
+Why: Phase 0 of the plan. With the filter's wall at the conducting wall the charge left in the layer is spread into the box with every pass; with a filter, neither the zone alone nor the face wall alone was stable, and the uncut deposit was worse (`prf4m`, `prf4w`, `prf4mn`). The cut puts the charge on one plane of nodes, where the zone takes it.
+
+### PIC-D16 — Marder zone at open faces: the charge left at a face diffuses to the wall (2026-11-11) — Status: Accepted
+Plan: `docs/plans/2026-11-10-bow-shock.md` (D-C; the Marder zone is the alternative the plan named, chosen by its Phase 0 measurements). Explicit solver only; needs an open face.
+- `marder_zone: ν` (`SimConfig.marder_zone`), the Marder number, 0 < ν ≤ 1/6; 0 switches it off.
+- **Zone:** at every open face, the nodes of the absorbing layer, the face node and the nodes up to `reach + 1` inside the box (`reach` of PIC-D15; 0 without a filter). Membership depends on the global node index only.
+- **Step:** after the particles have moved and migrated, `F = div E − ρ` at the zone nodes, with ρ the charge density of the new positions, filtered like the current; F = 0 at the other nodes and on the conducting walls. Then `E_a += ν h² (F(+a) − F) / d_a` on every edge whose two nodes are in the zone, with `h² = 3 / Σ d_a⁻²`, followed by the wall condition and the ghost exchange of E. Kernels `marder_residual`, `marder_apply`; `Grid.marder_zone`.
+- **What it does:** F diffuses inside the zone, `F ← F + ν h² ∇²F`. The conducting wall behind the layer holds F = 0 and takes it; no edge leads out of the zone into the box, so nothing of F moves inwards. ν ≤ 1/6 keeps the explicit diffusion stable.
+- **Contract:** E changes only on edges between two zone nodes. Those nodes are outside the Gauss check (PIC-D15), so in the checked region E is advanced by the Maxwell update alone and Gauss's law holds by the deposit, as before. The zone is not a Poisson correction of the plasma: it removes the field of charge that no particle carries any more. `div B` is untouched.
+- **ρ of the zone:** `deposit_rho` takes a shell width and skips the particles farther than `2 (reach + 1)` cells from every open face. That is exactly the set that reaches a zone node through the filter.
+- **Collectives:** one ghost exchange of F and one of E per step, on every rank.
+- **Rejected at construction:** ν outside [0, 1/6]; the implicit solver; no open face.
+
+Why: the CPML is driven by the derivatives of the fields, so it does not relax the static field of the charge that removal and injection leave on the face nodes. In the Phase 0 probe, relaxing E in the layer changed nothing at any rate, and the zone did; ν = 0.125 and 0.03 gave the same state. TRISTAN uses slightly conducting boundaries for the same purpose.
+
+Not established: the depth of the zone was not varied; whether the filter needs a zone at the absorbing sphere is open until PIC-D14.
+
+Measured (2026-11-11, RTX PRO 6000; PIC-D15 and PIC-D16; diagnostic only):
+- **Tests:** two beams leaving through open x and y faces with `CurrentFilter(1, True)`, with and without the zone: Gauss's law to 1e-12 in the checked region while charge is lost, and the ρ of the shell equals the full ρ at every zone node (1e-12). Without particles, the field of a charge on one face node: one zone step gives the value of the discrete diffusion at that node (1e-12), `div E` inside the box stays exactly zero, and after 1500 steps `max|div E|` is below 1e-6 of its first value.
+- **Tight:** with one node less of retreat the Gauss check fails, and with one cell less of shell the ρ of the zone is wrong (both tried once by hand; neither is a test).
+- **Decomposition:** the open flow of PIC-D13 with `CurrentFilter(1, True)` and the zone in a box of 8 cells along x (the zone ends at the rank face and the filter reaches across), 1 GPU against a 2×2 rank grid: the same ids, injected counts and bank; histories within 1e-10.
+- **Cost:** 120×160×160 cells, 4.9e7 particles, six open faces with one paired and four flux faces, FP64, 1 GPU, windows of 20 steps: no filter 31.5–32.6 ms/step; zone alone 32.3–33.4 (+3 %); `CurrentFilter(4, True)` 34.4–35.8; filter and zone 40.0–41.2 (+13 % over the filter). 42 % of the particles are in the shell of this box (23 % of the bow-shock gate's box). With ρ deposited from every particle the zone cost +12 % alone and +17 % over the filter (ρ deposit 3.5 ms, its filter 2.2 ms, the zone kernels and exchanges 0.45 ms). The run without a filter took 29.3–29.5 ms/step in the measurement of PIC-D13; whether the cut of the deposit accounts for the difference was not separated.
+- **Null test M2** (plan, Phase 3; criteria fixed before the run; scratch scripts, not in the repository): a uniform magnetised wind at the bow-shock gate parameters, 240×320×320 cells, 3.9e8 particles, 2×2×2 ranks, x− paired, y and z faces flux, x+ removing, external `E = −v×B`, `CurrentFilter(4, True)`, `marder_zone: 0.125`, 5760 steps (three crossings), FP64. Two cases: `aligned` (v along x, B along z) and `oblique` (v = (0.225, 0.0875, 0.065), B = (0.075, −0.1, 0.2165)). Both pass all five criteria.
+  - Gauss max 3.0e-14 / 3.2e-14 (criterion 1e-10); `div B` 1.5e-15 / 3.2e-15.
+  - Density of each species in the interior and in the slab of two 8-cell blocks at each face, over the last crossing, against the sample of step 0: at most 0.70 % / 1.25 % off (criterion 5 %). The largest values are at faces the wind leaves through or runs along (y+ of `aligned`; z+ of `oblique`).
+  - Mean velocity, same samples: within 0.09 % / 0.84 % of |v| per component (criterion 5 %).
+  - Electron temperature in the interior at the end: 1.003 / 1.024 T0 (criterion 1.5), level over the last crossing. In the face slabs at most 1.044 (y+, `aligned`, still rising by 0.001 per 480 steps) and 1.12 (z+, `oblique`; 1.14 at step 2400).
+  - Energy of the difference fields, mean of the last crossing over the one before: electric 1.003 / 1.000, magnetic 1.002 / 1.043 (criterion 1.5).
+  - 40.7 ms/step on 8 GPUs (0.83 GPU-ns per particle and step), 234 s for the run; `fill` 0.77 with `capacity_factor` 1.3. The `oblique` run shared the GPUs with the test suite, so its time is not recorded here.
+  - Not established by M2: the magnetic energy of `oblique` had not levelled after three crossings (+0.7 % per 480 steps at the end; `aligned` is level from step 1440). Nothing was run beyond 5760 steps, at another seed or at another size, and the edges where the paired face meets a flux face were not looked at apart from the face slabs.
 
 ## Review amendments
 

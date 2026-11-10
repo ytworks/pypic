@@ -114,6 +114,46 @@ __device__ __forceinline__ void deposit_global(const double* p0, const double* p
               (p1[0] - OX) * (1.0 / DX), (p1[1] - OY) * (1.0 / DY), (p1[2] - OZ) * (1.0 / DZ), qw, Jx, Jy, Jz);
 }
 
+// Deposit of the part of a path that lies inside the open faces of the box (PIC-D15): the current
+// beyond an open face is not deposited. A particle that leaves through an open face leaves its
+// charge on the nodes of the face, one that enters leaves the opposite charge there; nothing is
+// deposited in the absorbing layer. Inside means 0 <= x < L, as for the removal. Without an open
+// face this is deposit_global.
+__device__ __forceinline__ void deposit_cut(const double* p0, const double* p1, double qw, double* Jx,
+                                            double* Jy, double* Jz) {
+    const double Lg[3] = {LX, LY, LZ};
+    const bool o0[3] = {BCX0 == BC_OPEN, BCY0 == BC_OPEN, BCZ0 == BC_OPEN};
+    const bool o1[3] = {BCX1 == BC_OPEN, BCY1 == BC_OPEN, BCZ1 == BC_OPEN};
+    double t0 = 0.0, t1 = 1.0;
+    for (int a = 0; a < 3; a++) {
+        const double d = p1[a] - p0[a];
+        if (o0[a]) {
+            if (p0[a] < 0.0 && p1[a] < 0.0) return;
+            if (p0[a] < 0.0) t0 = fmax(t0, (0.0 - p0[a]) / d);
+            else if (p1[a] < 0.0) t1 = fmin(t1, (0.0 - p0[a]) / d);
+        }
+        if (o1[a]) {
+            if (p0[a] >= Lg[a] && p1[a] >= Lg[a]) return;
+            if (p0[a] >= Lg[a]) t0 = fmax(t0, (Lg[a] - p0[a]) / d);
+            else if (p1[a] >= Lg[a]) t1 = fmin(t1, (Lg[a] - p0[a]) / d);
+        }
+    }
+    if (t0 == 0.0 && t1 == 1.0) {
+        deposit_global(p0, p1, qw, Jx, Jy, Jz);
+        return;
+    }
+    if (!(t0 < t1)) return;  // the path passes outside an edge of the box
+    double q0[3], q1[3];
+    for (int a = 0; a < 3; a++) {
+        const double d = p1[a] - p0[a];
+        q0[a] = t0 > 0.0 ? p0[a] + t0 * d : p0[a];
+        q1[a] = t1 < 1.0 ? p0[a] + t1 * d : p1[a];
+        if (o0[a]) { q0[a] = fmax(q0[a], 0.0); q1[a] = fmax(q1[a], 0.0); }
+        if (o1[a]) { q0[a] = fmin(q0[a], Lg[a]); q1[a] = fmin(q1[a], Lg[a]); }
+    }
+    deposit_global(q0, q1, qw, Jx, Jy, Jz);
+}
+
 // Injection at open faces (PIC-D13); defined with inject_face below.
 __device__ void sample_inflow(const double* rb, const int nb, const int axis, const double sgn,
                               unsigned long long& s, double* u);
@@ -224,7 +264,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             double pw[3];
             for (int a = 0; a < 3; a++) pw[a] = pos0[a] + tmin * (pos1[a] - pos0[a]);
             pw[amin] = wall;
-            if (qw != 0.0) deposit_global(pos0, pw, qw, Jx, Jy, Jz);
+            if (qw != 0.0) deposit_cut(pos0, pw, qw, Jx, Jy, Jz);
             trem *= 1.0 - tmin;
             const int face = 2 * amin + (wall > 0.0 ? 1 : 0);
             if ((fm >> face) & 1) {
@@ -242,7 +282,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             }
             for (int a = 0; a < 3; a++) pos0[a] = pw[a];
         }
-        if (qw != 0.0) deposit_global(pos0, pos1, qw, Jx, Jy, Jz);
+        if (qw != 0.0) deposit_cut(pos0, pos1, qw, Jx, Jy, Jz);
 
         // --- open boundaries: particle leaves and is removed ---
         bool dead = false;
@@ -379,11 +419,21 @@ extern "C" __global__ void boris_kick(double* P, const int n, const long long ca
     PUZ(p) = umz + (upx * sy - upy * sx) + ez;
 }
 
-// CIC charge density at nodes (diagnostic / Gauss check).
+// CIC charge density at nodes (diagnostic / Gauss check). shell > 0: only the particles within `shell`
+// cells of an open face, which is all that the Marder zone needs (PIC-D16).
 extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n, const long long cap, const double q,
-                                       double* rho) {
+                                       const double shell, double* rho) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
+    if (shell > 0.0) {
+        const double x[3] = {PX(p), PY(p), PZ(p)}, Lg[3] = {LX, LY, LZ}, d[3] = {DX, DY, DZ};
+        const bool o0[3] = {BCX0 == BC_OPEN, BCY0 == BC_OPEN, BCZ0 == BC_OPEN};
+        const bool o1[3] = {BCX1 == BC_OPEN, BCY1 == BC_OPEN, BCZ1 == BC_OPEN};
+        bool in = false;
+        for (int a = 0; a < 3; a++)
+            in = in || (o0[a] && x[a] < shell * d[a]) || (o1[a] && x[a] >= Lg[a] - shell * d[a]);
+        if (!in) return;
+    }
     double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
     int i = (int)floor(X), j = (int)floor(Y), k = (int)floor(Z);
     double wx = X - i, wy = Y - j, wz = Z - k;
@@ -731,7 +781,7 @@ extern "C" __global__ void inject_face(double* P, const long long cap, const int
             pair = false;
         }
     }
-    if (!pair) deposit_global(r0, r1, qw, Jx, Jy, Jz);
+    if (!pair) deposit_cut(r0, r1, qw, Jx, Jy, Jz);
     const double Lg[3] = {LX, LY, LZ};
     const int b0[3] = {BCX0, BCY0, BCZ0};
     const int dec[3] = {DECX, DECY, DECZ};
