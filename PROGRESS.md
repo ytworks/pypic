@@ -49,6 +49,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] push_deposit with reciprocals instead of FP64 divisions (issue #21)
+- What: `1/gm`, `2/(1+t^2)` and `DT/g1` are one reciprocal each (9 divisions → 3), `h = q dt / 2m` comes from the host, the periodic wrap is a comparison (same value for moves below one period), `g0` only on diagnostics steps. Two-stream 1 GPU 43.0–43.9 → 38.0–38.1 ms/step, 8 GPUs 6.6–6.8 → 6.1–6.3 (mixed 6.1–6.2 → 5.5), shock 8 GPUs 12.0–12.1 → 10.9–11.0. Not adopted (no gain): compiling out the open-boundary loss reductions.
+- Why: the kernel is FP64-pipe bound and 75–96 % of the explicit step; divisions are its most expensive operations. Rounding-level change, scheme unchanged.
+- Refs: #21, #4; `pypic/kernels/particles.cu`; `test_boris_gyration_conserves_gamma_and_period`
 ### 2026-11-10 — [progress] Implicit field solve: one ghost exchange per CG matvec (issue #20)
 - What: `curl_E` is also taken on the ghost layer that `curl_B` reads, so the matvec exchanges ghosts once (bitwise the same on the owned unknowns); the CG vector updates are three fused kernels (`vec_add_scaled`, `cg_update`, `cg_direction`); the unused `itmax` atomic of `implicit_push` is gone (no measurable effect). Implicit two-stream, 8 GPUs: `_cg` 58–60 → 31 ms, step 136–145 → 108–110 ms/step; 1 GPU 597 → 586. CG iterations unchanged.
 - Why: on 8 GPUs the CG was 42 % of the implicit step, host-side sequencing of two exchanges and ~10 small launches per iteration, not grid work.

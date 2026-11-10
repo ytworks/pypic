@@ -325,7 +325,8 @@ class Simulation:
             lst = sp.flag_list()
             launch(self.k_push, sp.n, (
                 sp.P, np.int32(sp.n), np.int64(sp.cap), *fields,
-                g.Jx, g.Jy, g.Jz, np.float64(sp.q), np.float64(sp.m), np.float64(sp.qdep), d, self.flag[i:i + 1],
+                g.Jx, g.Jy, g.Jz, np.float64(sp.q * self.cfg.dt / (2.0 * sp.m)), np.float64(sp.m),
+                np.float64(sp.qdep), d, self.flag[i:i + 1],
                 lst, np.int32(lst.size), np.int32(do_diag)))
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
         self._filter_J()
