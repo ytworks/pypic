@@ -15,11 +15,9 @@
 #define BC_REFLECT 2
 
 #define IDX(i, j, k) ((((long long)(i)) * NY + (long long)(j)) * NZ + (long long)(k))
-
-__device__ __forceinline__ double cic(double d) {
-    d = fabs(d);
-    return d < 1.0 ? 1.0 - d : 0.0;
-}
+// index steps of one node along x and y (along z: 1)
+#define STRIDE_I ((long long)NY * NZ)
+#define STRIDE_J ((long long)NZ)
 
 // Trilinear interpolation of a staggered Yee component.
 // (X,Y,Z) are local index coordinates (node i at integer i); (sx,sy,sz) are the
@@ -50,11 +48,12 @@ __device__ __forceinline__ void yee_weights(double X, double Y, double Z, YeeWei
     const double P[3] = {X, Y, Z};
 #pragma unroll
     for (int a = 0; a < 3; a++) {
-        double fn = P[a], fh = P[a] - 0.5;
-        w.in[a] = (int)floor(fn);
-        w.ih[a] = (int)floor(fh);
-        w.wn[a] = fn - w.in[a];
-        w.wh[a] = fh - w.ih[a];
+        const double fn = P[a], fh = P[a] - 0.5;
+        const double gn = floor(fn), gh = floor(fh);
+        w.in[a] = (int)gn;
+        w.ih[a] = (int)gh;
+        w.wn[a] = fn - gn;
+        w.wh[a] = fh - gh;
     }
 }
 
@@ -63,10 +62,11 @@ __device__ __forceinline__ double interp_w(const double* __restrict__ F, const Y
                                            int hz) {
     int i = hx ? w.ih[0] : w.in[0], j = hy ? w.ih[1] : w.in[1], k = hz ? w.ih[2] : w.in[2];
     double wx = hx ? w.wh[0] : w.wn[0], wy = hy ? w.wh[1] : w.wn[1], wz = hz ? w.wh[2] : w.wn[2];
-    double c00 = F[IDX(i, j, k)] * (1 - wx) + F[IDX(i + 1, j, k)] * wx;
-    double c10 = F[IDX(i, j + 1, k)] * (1 - wx) + F[IDX(i + 1, j + 1, k)] * wx;
-    double c01 = F[IDX(i, j, k + 1)] * (1 - wx) + F[IDX(i + 1, j, k + 1)] * wx;
-    double c11 = F[IDX(i, j + 1, k + 1)] * (1 - wx) + F[IDX(i + 1, j + 1, k + 1)] * wx;
+    const double* __restrict__ f = F + IDX(i, j, k);  // the 8 corners at constant offsets from one index
+    double c00 = f[0] * (1 - wx) + f[STRIDE_I] * wx;
+    double c10 = f[STRIDE_J] * (1 - wx) + f[STRIDE_I + STRIDE_J] * wx;
+    double c01 = f[1] * (1 - wx) + f[STRIDE_I + 1] * wx;
+    double c11 = f[STRIDE_J + 1] * (1 - wx) + f[STRIDE_I + STRIDE_J + 1] * wx;
     double c0 = c00 * (1 - wy) + c10 * wy;
     double c1 = c01 * (1 - wy) + c11 * wy;
     return c0 * (1 - wz) + c1 * wz;
@@ -98,10 +98,11 @@ __device__ __forceinline__ float interp_f(const float* __restrict__ F, const Yee
                                           int hz) {
     int i = hx ? w.ih[0] : w.in[0], j = hy ? w.ih[1] : w.in[1], k = hz ? w.ih[2] : w.in[2];
     float wx = hx ? w.wh[0] : w.wn[0], wy = hy ? w.wh[1] : w.wn[1], wz = hz ? w.wh[2] : w.wn[2];
-    float c00 = F[IDX(i, j, k)] * (1.0f - wx) + F[IDX(i + 1, j, k)] * wx;
-    float c10 = F[IDX(i, j + 1, k)] * (1.0f - wx) + F[IDX(i + 1, j + 1, k)] * wx;
-    float c01 = F[IDX(i, j, k + 1)] * (1.0f - wx) + F[IDX(i + 1, j, k + 1)] * wx;
-    float c11 = F[IDX(i, j + 1, k + 1)] * (1.0f - wx) + F[IDX(i + 1, j + 1, k + 1)] * wx;
+    const float* __restrict__ f = F + IDX(i, j, k);
+    float c00 = f[0] * (1.0f - wx) + f[STRIDE_I] * wx;
+    float c10 = f[STRIDE_J] * (1.0f - wx) + f[STRIDE_I + STRIDE_J] * wx;
+    float c01 = f[1] * (1.0f - wx) + f[STRIDE_I + 1] * wx;
+    float c11 = f[STRIDE_J + 1] * (1.0f - wx) + f[STRIDE_I + STRIDE_J + 1] * wx;
     float c0 = c00 * (1.0f - wy) + c10 * wy;
     float c1 = c01 * (1.0f - wy) + c11 * wy;
     return c0 * (1.0f - wz) + c1 * wz;

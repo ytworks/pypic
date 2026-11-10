@@ -14,6 +14,7 @@ KERNEL_DIR = Path(__file__).parent / "kernels"
 FIELD_SOURCES = ("fields.cu",)
 PARTICLE_SOURCES = ("particles.cu", "implicit.cu", "migrate.cu")
 COMPILE_OPTIONS = ("--std=c++17",)
+CG_BLOCK = 256  # threads per block of cg_matvec_end, which sums over each block (a power of two)
 
 
 def _fmt(v) -> str:
@@ -45,7 +46,7 @@ def grid_defines(decomp: Decomposition, dx, dt: float, ghost: int, use_pml: bool
     L = tuple(n * h for n, h in zip(decomp.n_cells, dx))
     D = {"NX": shape[0], "NY": shape[1], "NZ": shape[2], "GH": ghost,
          "DX": float(dx[0]), "DY": float(dx[1]), "DZ": float(dx[2]), "DT": float(dt),
-         "LX": L[0], "LY": L[1], "LZ": L[2]}
+         "LX": L[0], "LY": L[1], "LZ": L[2], "CG_BLOCK": CG_BLOCK}
     for a, c in enumerate("XYZ"):
         D[f"O{c}"] = (ax[a].cell_lo - ghost) * float(dx[a])
         D[f"S{c}0"] = ax[a].phys_lo * float(dx[a])

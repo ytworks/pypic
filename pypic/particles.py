@@ -76,14 +76,19 @@ class Species:
         self.n += ntot
 
     def sort(self, kernel):
+        """Order the particles by cell. The rows are gathered one at a time into the key array,
+        which is free once the order is known: no second copy of the particle arrays."""
         if self.n == 0:
             return
         key = cp.empty(self.n, dtype=cp.int64)
         launch(kernel, self.n, (self.P, np.int32(self.n), np.int64(self.cap), key))
         order = cp.argsort(key)
-        self.P[:, : self.n] = self.P[:, order]
-        if self.Pn is not None:
-            self.Pn[:, : self.n] = self.Pn[:, order]
+        buf = key.view(cp.float64)
+        for A in (self.P, self.Pn):
+            if A is not None:
+                for r in range(A.shape[0]):
+                    cp.take(A[r], order, out=buf)
+                    A[r, : self.n] = buf
 
     # --------------------------------------------------------- remove/migrate
     def flag_list(self):
@@ -168,7 +173,23 @@ class Species:
         return int(comm.allreduce_scalar(float(self.n)))
 
 
-MIGRATE_KERNELS = ("mig_take", "mig_fill", "mig_classify", "mig_pack", "mig_append")
+MIGRATE_KERNELS = ("mig_take", "mig_fill", "mig_classify", "mig_pack", "mig_append", "mig_rank32", "mig_rank64")
+RANK_SORT_MAX = 16384  # keys; about where a radix sort overtakes the n * n compares of the counting kernel
+
+
+def ascending(a, k_rank):
+    """The keys of ``a`` in ascending order: a new array, or ``a`` itself sorted in place. The
+    lists of a migration are short, and a radix sort costs several launches whatever the length;
+    up to RANK_SORT_MAX keys one launch of the counting kernel gives the same order."""
+    n = a.size
+    if n < 2:
+        return a
+    if n > RANK_SORT_MAX:
+        a.sort()
+        return a
+    out = cp.empty_like(a)
+    launch(k_rank, 32 * n, (a, np.int32(n), out))
+    return out
 
 
 def migrate(species, grid, comm, flag, kernels):
@@ -180,7 +201,7 @@ def migrate(species, grid, comm, flag, kernels):
     Host syncs: one for the flag counts and one per decomposed axis for the message sizes. With
     more than one rank every rank makes the same collective calls, whatever it has flagged. A
     species whose flag list overflowed has all its particles taken out (the former compaction)."""
-    k_take, k_fill, k_classify, k_pack, k_append = kernels
+    k_take, k_fill, k_classify, k_pack, k_append, k_rank32, k_rank64 = kernels
     S = len(species)
     h = cp.asnumpy(flag[:S])
     if comm.size == 1 and not h.any():
@@ -195,7 +216,7 @@ def migrate(species, grid, comm, flag, kernels):
         Q = cp.empty(k * int(nrow))
         if k:
             if not full:
-                lst[:k].sort()  # the kernels fill the list in any order
+                lst = ascending(lst[:k], k_rank32)  # the kernels fill the list in any order
             launch(k_take, k, (sp.P, np.int64(sp.cap), nrow, lst, np.int32(k), np.int32(full), Q))
             if not full:
                 launch(k_fill, k, (sp.P, np.int64(sp.cap), nrow, lst, np.int32(k), np.int32(sp.n - k)))
@@ -218,7 +239,7 @@ def migrate(species, grid, comm, flag, kernels):
                 launch(k_classify, m, (Q, np.int32(species[i].P.shape[0]), np.int32(m), np.int32(a),
                                        np.int32(has_lo), np.int32(has_hi), np.float64(x_lo), np.float64(x_hi),
                                        key, C.ravel()[i:], np.int32(S)))
-                key.sort()
+                key = ascending(key, k_rank64)
             keys.append(key)
         if ax:
             comm.exchange(([(C[0], ax.lo)] if has_lo else []) + ([(C[1], ax.hi)] if has_hi else []),

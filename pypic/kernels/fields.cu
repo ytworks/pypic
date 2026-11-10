@@ -32,6 +32,18 @@ __device__ __forceinline__ bool range_index_low(long long t, int& i, int& j, int
     return true;
 }
 
+// The update range and one ghost layer around it on every axis: the points of B that the update of
+// E, the gather and div B read. Computed there from the ghosts of E, B needs no exchange.
+__device__ __forceinline__ bool range_index_wide(long long t, int& i, int& j, int& k) {
+    long long n = (long long)(NIX + 2) * (NIY + 2) * (NIZ + 2);
+    if (t >= n) return false;
+    k = (int)(t % (NIZ + 2)) + I0Z - 1;
+    t /= NIZ + 2;
+    j = (int)(t % (NIY + 2)) + I0Y - 1;
+    i = (int)(t / (NIY + 2)) + I0X - 1;
+    return true;
+}
+
 extern "C" __global__ void update_B(const double* __restrict__ Ex, const double* __restrict__ Ey,
                                     const double* __restrict__ Ez, double* Bx, double* By, double* Bz,
                                     const double dtb
@@ -45,14 +57,17 @@ extern "C" __global__ void update_B(const double* __restrict__ Ex, const double*
 ) {
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
     int i, j, k;
-    if (!range_index(t, i, j, k)) return;
+    if (!range_index_wide(t, i, j, k)) return;
     long long c = IDX(i, j, k);
-    double dEz_dy = (Ez[IDX(i, j + 1, k)] - Ez[c]) * (1.0 / DY);
-    double dEy_dz = (Ey[IDX(i, j, k + 1)] - Ey[c]) * (1.0 / DZ);
-    double dEx_dz = (Ex[IDX(i, j, k + 1)] - Ex[c]) * (1.0 / DZ);
-    double dEz_dx = (Ez[IDX(i + 1, j, k)] - Ez[c]) * (1.0 / DX);
-    double dEy_dx = (Ey[IDX(i + 1, j, k)] - Ey[c]) * (1.0 / DX);
-    double dEx_dy = (Ex[IDX(i, j + 1, k)] - Ex[c]) * (1.0 / DY);
+    // Every product is rounded by itself (__dmul_rn, fma): a rank compiled with the absorbing layer
+    // and one without give the same bits where the layer's terms are zero, which the ghost layer
+    // computed here relies on.
+    const double dEz_dy = __dmul_rn(Ez[IDX(i, j + 1, k)] - Ez[c], 1.0 / DY);
+    const double dEy_dz = __dmul_rn(Ey[IDX(i, j, k + 1)] - Ey[c], 1.0 / DZ);
+    const double dEx_dz = __dmul_rn(Ex[IDX(i, j, k + 1)] - Ex[c], 1.0 / DZ);
+    const double dEz_dx = __dmul_rn(Ez[IDX(i + 1, j, k)] - Ez[c], 1.0 / DX);
+    const double dEy_dx = __dmul_rn(Ey[IDX(i + 1, j, k)] - Ey[c], 1.0 / DX);
+    const double dEx_dy = __dmul_rn(Ex[IDX(i, j + 1, k)] - Ex[c], 1.0 / DY);
 #ifdef USE_PML
     // B-located derivatives sit at half-integer positions along the derivative axis.
     pbxy[c] = bhy[j] * pbxy[c] + chy[j] * dEz_dy;
@@ -61,14 +76,15 @@ extern "C" __global__ void update_B(const double* __restrict__ Ex, const double*
     pbyx[c] = bhx[i] * pbyx[c] + chx[i] * dEz_dx;
     pbzx[c] = bhx[i] * pbzx[c] + chx[i] * dEy_dx;
     pbzy[c] = bhy[j] * pbzy[c] + chy[j] * dEx_dy;
-    Bx[c] -= dtb * (dEz_dy - dEy_dz + pbxy[c] - pbxz[c]);
-    By[c] -= dtb * (dEx_dz - dEz_dx + pbyz[c] - pbyx[c]);
-    Bz[c] -= dtb * (dEy_dx - dEx_dy + pbzx[c] - pbzy[c]);
+    const double cx = dEz_dy - dEy_dz + pbxy[c] - pbxz[c];
+    const double cy = dEx_dz - dEz_dx + pbyz[c] - pbyx[c];
+    const double cz = dEy_dx - dEx_dy + pbzx[c] - pbzy[c];
 #else
-    Bx[c] -= dtb * (dEz_dy - dEy_dz);
-    By[c] -= dtb * (dEx_dz - dEz_dx);
-    Bz[c] -= dtb * (dEy_dx - dEx_dy);
+    const double cx = dEz_dy - dEy_dz, cy = dEx_dz - dEz_dx, cz = dEy_dx - dEx_dy;
 #endif
+    Bx[c] = fma(-dtb, cx, Bx[c]);
+    By[c] = fma(-dtb, cy, By[c]);
+    Bz[c] = fma(-dtb, cz, Bz[c]);
 }
 
 extern "C" __global__ void update_E(double* Ex, double* Ey, double* Ez, const double* __restrict__ Bx,
@@ -141,36 +157,188 @@ extern "C" __global__ void curl_B(const double* __restrict__ Bx, const double* _
 // ---- vector kernels of the implicit field solve: stacked (3, NX, NY, NZ) arrays
 #define NVEC (3LL * NX * NY * NZ)
 
-// y += a * x
-extern "C" __global__ void vec_add_scaled(double* __restrict__ y, const double* __restrict__ a,
-                                          const double* __restrict__ x) {
-    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
-    if (t >= NVEC) return;
-    y[t] += a[t] * x[t];
+// Last kernel of the CG matrix product w = A u: w += Adiag u, and the inner products of the
+// Chronopoulos-Gear recurrence with it. The sums of r u, w u and r r over the unknowns (W = 1) of
+// each thread block go to part[3 * block]; the caller adds the blocks, a fixed order of summation.
+// Launched with CG_BLOCK threads per block.
+extern "C" __global__ void cg_matvec_end(double* __restrict__ w, const double* __restrict__ a,
+                                         const double* __restrict__ u, const double* __restrict__ r,
+                                         const double* __restrict__ W, double* __restrict__ part) {
+    __shared__ double sum[3][CG_BLOCK];
+    const int i = threadIdx.x;
+    const long long t = (long long)blockIdx.x * blockDim.x + i;
+    double ru = 0.0, wu = 0.0, rr = 0.0;
+    if (t < NVEC) {
+        const double wt = w[t] + a[t] * u[t];
+        w[t] = wt;
+        if (W[t] != 0.0) {  // ghost values are not defined: never multiplied, even by zero
+            ru = r[t] * u[t];
+            wu = wt * u[t];
+            rr = r[t] * r[t];
+        }
+    }
+    sum[0][i] = ru;
+    sum[1][i] = wu;
+    sum[2][i] = rr;
+    __syncthreads();
+    for (int h = CG_BLOCK / 2; h > 0; h >>= 1) {
+        if (i < h)
+            for (int q = 0; q < 3; q++) sum[q][i] += sum[q][i + h];
+        __syncthreads();
+    }
+    if (i == 0)
+        for (int q = 0; q < 3; q++) part[3LL * blockIdx.x + q] = sum[q][0];
 }
 
-// CG update with alpha = rz / pAp: x += alpha p, r -= alpha Ap, z = Minv r. The scalars are read
-// on the device. pAp == 0 (the residual is already exactly zero): alpha = 0.
-extern "C" __global__ void cg_update(double* __restrict__ x, double* __restrict__ r, double* __restrict__ z,
-                                     const double* __restrict__ p, const double* __restrict__ Ap,
-                                     const double* __restrict__ Minv, const double* __restrict__ rz,
-                                     const double* __restrict__ pAp) {
+// The CG matrix product in one launch, where no rank has a wall or an absorbing layer:
+// w = a u + s curl curl u on the update range (curl_E on the range and the layer below it, curl_B and
+// cg_matvec_end, with their expressions), and the inner products of cg_matvec_end. Outside the update
+// range w is not written: those values are ghosts, which the CG never reads.
+__device__ __forceinline__ double curl_curl(const double* __restrict__ Ex, const double* __restrict__ Ey,
+                                            const double* __restrict__ Ez, const int q, const int i, const int j,
+                                            const int k) {
+#define CURL_X(i, j, k) ((Ez[IDX(i, (j) + 1, k)] - Ez[IDX(i, j, k)]) * (1.0 / DY) - (Ey[IDX(i, j, (k) + 1)] - Ey[IDX(i, j, k)]) * (1.0 / DZ))
+#define CURL_Y(i, j, k) ((Ex[IDX(i, j, (k) + 1)] - Ex[IDX(i, j, k)]) * (1.0 / DZ) - (Ez[IDX((i) + 1, j, k)] - Ez[IDX(i, j, k)]) * (1.0 / DX))
+#define CURL_Z(i, j, k) ((Ey[IDX((i) + 1, j, k)] - Ey[IDX(i, j, k)]) * (1.0 / DX) - (Ex[IDX(i, (j) + 1, k)] - Ex[IDX(i, j, k)]) * (1.0 / DY))
+    if (q == 0)
+        return (CURL_Z(i, j, k) - CURL_Z(i, j - 1, k)) * (1.0 / DY) - (CURL_Y(i, j, k) - CURL_Y(i, j, k - 1)) * (1.0 / DZ);
+    if (q == 1)
+        return (CURL_X(i, j, k) - CURL_X(i, j, k - 1)) * (1.0 / DZ) - (CURL_Z(i, j, k) - CURL_Z(i - 1, j, k)) * (1.0 / DX);
+    return (CURL_Y(i, j, k) - CURL_Y(i - 1, j, k)) * (1.0 / DX) - (CURL_X(i, j, k) - CURL_X(i, j - 1, k)) * (1.0 / DY);
+#undef CURL_X
+#undef CURL_Y
+#undef CURL_Z
+}
+
+extern "C" __global__ void cg_matvec(const double* __restrict__ u, double* __restrict__ w,
+                                     const double* __restrict__ a, const double* __restrict__ r,
+                                     const double* __restrict__ W, double* __restrict__ part, const double s) {
+    __shared__ double sum[3][CG_BLOCK];
+    const int ti = threadIdx.x;
+    const long long n = (long long)NX * NY * NZ;
+    const long long t = (long long)blockIdx.x * blockDim.x + ti;
+    double ru = 0.0, wu = 0.0, rr = 0.0;
+    if (t < NVEC) {
+        const int q = (int)(t / n);
+        const long long c = t - q * n;
+        const int k = (int)(c % NZ), j = (int)((c / NZ) % NY), i = (int)(c / ((long long)NY * NZ));
+        if (i >= I0X && i < I1X && j >= I0Y && j < I1Y && k >= I0Z && k < I1Z) {
+            const double wt = s * curl_curl(u, u + n, u + 2 * n, q, i, j, k) + a[t] * u[t];
+            w[t] = wt;
+            if (W[t] != 0.0) {
+                ru = r[t] * u[t];
+                wu = wt * u[t];
+                rr = r[t] * r[t];
+            }
+        }
+    }
+    sum[0][ti] = ru;
+    sum[1][ti] = wu;
+    sum[2][ti] = rr;
+    __syncthreads();
+    for (int h = CG_BLOCK / 2; h > 0; h >>= 1) {
+        if (ti < h)
+            for (int v = 0; v < 3; v++) sum[v][ti] += sum[v][ti + h];
+        __syncthreads();
+    }
+    if (ti == 0)
+        for (int v = 0; v < 3; v++) part[3LL * blockIdx.x + v] = sum[v][0];
+}
+
+// Step lengths of one CG step from sc = ((r, u), (w, u), .) of all ranks, read and kept on the
+// device: st = ((r, u) of the step before, alpha, beta), all zero before the first step.
+//   beta = (r, u) / (r, u)_before,  alpha = (r, u) / ((w, u) - beta (r, u) / alpha_before)
+// A zero denominator is a zero step: the residual is already exactly zero (the convergence test
+// runs every few iterations only), or it is the first step (beta = 0).
+extern "C" __global__ void cg_scalars(const double* __restrict__ sc, double* __restrict__ st) {
+    if (blockIdx.x != 0 || threadIdx.x != 0) return;
+    const double ru = sc[0];
+    const double beta = st[0] != 0.0 ? ru / st[0] : 0.0;
+    const double den = sc[1] - (beta != 0.0 && st[1] != 0.0 ? beta * ru / st[1] : 0.0);
+    st[0] = ru;
+    st[1] = den != 0.0 ? ru / den : 0.0;
+    st[2] = beta;
+}
+
+// CG step with u = Minv r and w = A u given: p = u + beta p, s = w + beta s (= A p),
+// x += alpha p, r -= alpha s, u = Minv r.
+extern "C" __global__ void cg_step(double* __restrict__ x, double* __restrict__ r, double* __restrict__ u,
+                                   double* __restrict__ p, double* __restrict__ s,
+                                   const double* __restrict__ w, const double* __restrict__ Minv,
+                                   const double* __restrict__ st) {
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
     if (t >= NVEC) return;
-    const double alpha = pAp[0] != 0.0 ? rz[0] / pAp[0] : 0.0;
-    x[t] += alpha * p[t];
-    const double rt = r[t] - alpha * Ap[t];
+    const double alpha = st[1], beta = st[2];
+    const double pt = u[t] + beta * p[t];
+    const double sv = w[t] + beta * s[t];
+    p[t] = pt;
+    s[t] = sv;
+    x[t] += alpha * pt;
+    const double rt = r[t] - alpha * sv;
     r[t] = rt;
-    z[t] = Minv[t] * rt;
+    u[t] = Minv[t] * rt;
 }
 
-// CG search direction with beta = rz_new / rz: p = z + beta p. rz == 0: beta = 0.
-extern "C" __global__ void cg_direction(double* __restrict__ p, const double* __restrict__ z,
-                                        const double* __restrict__ rz_new, const double* __restrict__ rz) {
+// ---- half-step fields of the implicit scheme: Eh and Bh are stacked (3, NX, NY, NZ) arrays
+
+// Eh = (E0 + E1) / 2 on every point, the ghosts included: the ghosts of E0 and of E1 already hold
+// the values of their neighbours, so Eh needs no exchange of its own.
+extern "C" __global__ void half_E(const double* __restrict__ Ex, const double* __restrict__ Ey,
+                                  const double* __restrict__ Ez, const double* __restrict__ E1,
+                                  double* __restrict__ Eh) {
+    const long long n = (long long)NX * NY * NZ;
+    const long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= n) return;
+    Eh[t] = 0.5 * (Ex[t] + E1[t]);
+    Eh[n + t] = 0.5 * (Ey[t] + E1[n + t]);
+    Eh[2 * n + t] = 0.5 * (Ez[t] + E1[2 * n + t]);
+}
+
+// Bh = B0 + s curl Eh on the update range (s = -dt/2). The sum is not contracted with the product:
+// the result is the one of curl_E followed by an addition.
+extern "C" __global__ void half_B(const double* __restrict__ Eh, const double* __restrict__ Bx,
+                                  const double* __restrict__ By, const double* __restrict__ Bz,
+                                  double* __restrict__ Bh, const double s) {
+    const long long n = (long long)NX * NY * NZ;
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
-    if (t >= NVEC) return;
-    const double beta = rz[0] != 0.0 ? rz_new[0] / rz[0] : 0.0;
-    p[t] = beta * p[t] + z[t];
+    int i, j, k;
+    if (!range_index(t, i, j, k)) return;
+    const double* Ex = Eh;
+    const double* Ey = Eh + n;
+    const double* Ez = Eh + 2 * n;
+    long long c = IDX(i, j, k);
+    Bh[c] = __dadd_rn(Bx[c], s * ((Ez[IDX(i, j + 1, k)] - Ez[c]) * (1.0 / DY) - (Ey[IDX(i, j, k + 1)] - Ey[c]) * (1.0 / DZ)));
+    Bh[n + c] = __dadd_rn(By[c], s * ((Ex[IDX(i, j, k + 1)] - Ex[c]) * (1.0 / DZ) - (Ez[IDX(i + 1, j, k)] - Ez[c]) * (1.0 / DX)));
+    Bh[2 * n + c] = __dadd_rn(Bz[c], s * ((Ey[IDX(i + 1, j, k)] - Ey[c]) * (1.0 / DX) - (Ex[IDX(i, j + 1, k)] - Ex[c]) * (1.0 / DY)));
+}
+
+// Change of the field over one Picard sweep: the largest |a - b| and the largest |a| over the
+// unknowns (W = 1) of each thread block, to part[2 * block]; the caller takes the largest of the
+// blocks. A NaN is kept, so that it can never pass the convergence test. Launched with CG_BLOCK
+// threads per block.
+extern "C" __global__ void picard_change(const double* __restrict__ a, const double* __restrict__ b,
+                                         const double* __restrict__ W, double* __restrict__ part) {
+    __shared__ double top[2][CG_BLOCK];
+    const int i = threadIdx.x;
+    const long long t = (long long)blockIdx.x * blockDim.x + i;
+    double d = 0.0, m = 0.0;
+    if (t < NVEC && W[t] != 0.0) {
+        d = fabs(a[t] - b[t]);
+        m = fabs(a[t]);
+    }
+    top[0][i] = d;
+    top[1][i] = m;
+    __syncthreads();
+    for (int h = CG_BLOCK / 2; h > 0; h >>= 1) {
+        if (i < h)
+            for (int q = 0; q < 2; q++) {
+                const double y = top[q][i + h];
+                if (y > top[q][i] || y != y) top[q][i] = y;
+            }
+        __syncthreads();
+    }
+    if (i == 0)
+        for (int q = 0; q < 2; q++) part[2LL * blockIdx.x + q] = top[q][0];
 }
 
 // div E (at nodes) for Gauss-law diagnostics
@@ -229,6 +397,37 @@ extern "C" __global__ void binomial_pass3(const double* __restrict__ F0, const d
         long long c, s;
         if (!pass_index(t, axis, lo, hi[m], c, s)) continue;
         T[m][c] = __dadd_rn(__dadd_rn(__dmul_rn(wl, F[m][c - s]), __dmul_rn(wc, F[m][c])), __dmul_rn(wr, F[m][c + s]));
+    }
+}
+
+// All the passes along an axis that wraps onto this rank, in one launch: T_m = sum_d w[|d|] F_m[+d]
+// along `axis` with the indices taken modulo the period `na` (which may be shorter than the stencil),
+// for every index of the array. The ghost layers of the axis come out as the periodic images. w holds
+// the radius + 1 coefficients of the symmetric composite stencil.
+extern "C" __global__ void binomial_wrap3(const double* __restrict__ F0, const double* __restrict__ F1,
+                                          const double* __restrict__ F2, double* __restrict__ T0,
+                                          double* __restrict__ T1, double* __restrict__ T2, const int narr,
+                                          const int axis, const int na, const int radius,
+                                          const double* __restrict__ w) {
+    const long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= (long long)NX * NY * NZ) return;
+    const long long s = axis == 0 ? (long long)NY * NZ : (axis == 1 ? NZ : 1);
+    const int ix = (int)(axis == 0 ? t / s : (axis == 1 ? (t / NZ) % NY : t % NZ));
+    int p = (ix - GH) % na;  // position in the period
+    if (p < 0) p += na;
+    const long long base = t + (long long)(GH - ix) * s;  // position 0 of this line
+    const double* F[3] = {F0, F1, F2};
+    double* T[3] = {T0, T1, T2};
+    for (int m = 0; m < narr; m++) {
+        const double* f = F[m] + base;
+        double acc = w[0] * f[p * s];
+        int lo = p, hi = p;
+        for (int d = 1; d <= radius; d++) {
+            lo = lo == 0 ? na - 1 : lo - 1;
+            hi = hi == na - 1 ? 0 : hi + 1;
+            acc += w[d] * (f[lo * s] + f[hi * s]);
+        }
+        T[m][t] = acc;
     }
 }
 
@@ -298,16 +497,64 @@ extern "C" __global__ void slab_zero3(double* F0, double* F1, double* F2, const 
     F[off + (s0 + l) * axis_stride(axis)] = 0.0;
 }
 
-// buf[m, slab] = F_m[s0 + l] (pack) or F_m[s0 + l] = / += buf[m, slab] (unpack, add)
+// buf[f, m, slab] = F_m[s_f + l] (pack) or F_m[s_f + l] = / += buf[f, m, slab] (unpack, add), for one
+// face (s1 < 0) or two (s0, then s1) per launch. Two faces must not share a cell.
 extern "C" __global__ void slab_pack3(double* F0, double* F1, double* F2, double* buf, const int narr,
-                                      const int axis, const int s0, const int width, const int unpack,
-                                      const int add) {
+                                      const int axis, const int s0, const int s1, const int width,
+                                      const int unpack, const int add) {
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    const long long face = (long long)NX * NY * NZ / (axis == 0 ? NX : (axis == 1 ? NY : NZ)) * width * narr;
+    const bool second = t >= face;
+    if (second && s1 < 0) return;
     int m, l;
     long long off;
-    if (!slab_index(t, narr, axis, width, m, l, off)) return;
+    if (!slab_index(second ? t - face : t, narr, axis, width, m, l, off)) return;
     double* F = m == 0 ? F0 : (m == 1 ? F1 : F2);
-    double* f = F + off + (s0 + l) * axis_stride(axis);
+    double* f = F + off + ((second ? s1 : s0) + l) * axis_stride(axis);
     if (!unpack) buf[t] = *f;
     else *f = add ? __dadd_rn(*f, buf[t]) : buf[t];
+}
+
+// Ghost layers of the axes that wrap onto this rank (bits of `mask`): every ghost cell takes the value of
+// its periodic image, in one launch for all those axes. Thread t -> (region a, array, cell): region a has
+// the 2 GH ghost layers of axis a, the owned range of the masked axes below a (their ghost layers are in
+// those regions, so no cell is written twice) and every index of the other axes. An image is owned
+// along every masked axis and is not written here.
+extern "C" __global__ void slab_wrap3(double* F0, double* F1, double* F2, const int narr, const int mask) {
+    long long r = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    const int n[3] = {NX, NY, NZ};
+    for (int a = 0; a < 3; a++) {
+        if (!(mask >> a & 1)) continue;
+        int s[3], o[3];
+        for (int b = 0; b < 3; b++) {
+            const bool owned = b < a && (mask >> b & 1);
+            s[b] = b == a ? 2 * GH : (owned ? n[b] - 2 * GH : n[b]);
+            o[b] = owned ? GH : 0;
+        }
+        const long long per = (long long)s[0] * s[1] * s[2];
+        if (r >= per * narr) {
+            r -= per * narr;
+            continue;
+        }
+        const int m = (int)(r / per);
+        r -= m * per;
+        int ix[3];
+        ix[2] = (int)(r % s[2]);
+        r /= s[2];
+        ix[1] = (int)(r % s[1]);
+        ix[0] = (int)(r / s[1]);
+        long long dst = 0, src = 0;
+        for (int b = 0; b < 3; b++) {
+            const int ni = n[b] - 2 * GH;
+            int d = ix[b] + o[b];
+            if (b == a && d >= GH) d += ni;  // the upper GH layers of the region are the hi ghosts
+            int q = d;
+            if (mask >> b & 1) q = d < GH ? d + ni : (d >= GH + ni ? d - ni : d);
+            dst = dst * n[b] + d;
+            src = src * n[b] + q;
+        }
+        double* F = m == 0 ? F0 : (m == 1 ? F1 : F2);
+        F[dst] = F[src];
+        return;
+    }
 }

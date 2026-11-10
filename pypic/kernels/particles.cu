@@ -12,75 +12,97 @@
 #define PW(p) P[6 * cap + (p)]
 #define PID(p) P[7 * cap + (p)]
 
+// CIC weights of the two ends of a move along one axis, on the 3 nodes from n = min(floor X0, floor X1)
+// (|X1 - X0| < 1): (1 - w, w, 0) for an end in cell n, (0, 1 - w, w) for an end in cell n + 1, with
+// w = X - floor X as in deposit_rho. Node 2 has weight only when the ends are in different cells (wide).
+struct AxisShape {
+    int n;
+    bool wide;
+    double S0[3], dS[3];
+};
+
+__device__ __forceinline__ void axis_shape(const double X0, const double X1, AxisShape& s) {
+    const double f0 = floor(X0), f1 = floor(X1);
+    const int c0 = (int)f0, c1 = (int)f1;
+    const double w0 = X0 - f0, w1 = X1 - f1, v0 = 1.0 - w0, v1 = 1.0 - w1;
+    const bool up0 = c0 > c1, up1 = c1 > c0;  // this end is in cell n + 1
+    s.n = up0 ? c1 : c0;
+    s.wide = c0 != c1;
+    s.S0[0] = up0 ? 0.0 : v0;
+    s.S0[1] = up0 ? v0 : w0;
+    s.S0[2] = up0 ? w0 : 0.0;
+    s.dS[0] = (up1 ? 0.0 : v1) - s.S0[0];
+    s.dS[1] = (up1 ? v1 : w1) - s.S0[1];
+    s.dS[2] = (up1 ? w1 : 0.0) - s.S0[2];
+}
+
 // Esirkepov deposition of a straight segment (X0,Y0,Z0)->(X1,Y1,Z1) in local index
 // coordinates. |X1-X0| < 1 is required. qw = charge * weight.
-// With CIC and a move below one cell, each axis has at most 3 nodes with S0 or S1 != 0, starting
-// at min(floor X0, floor X1), and the current along an axis has 2 non-zero prefix sums (the third
-// equals sum dS = 0). This specialised form does the same arithmetic per term as the generic
-// 4-node loop with fewer FP64 operations (issue #6).
-__device__ void esirkepov(double X0, double Y0, double Z0, double X1, double Y1, double Z1, double qw,
-                          double* Jx, double* Jy, double* Jz) {
-    const int i0 = (int)fmin(floor(X0), floor(X1)), j0 = (int)fmin(floor(Y0), floor(Y1)),
-              k0 = (int)fmin(floor(Z0), floor(Z1));
-    double S0x[3], S0y[3], S0z[3], dSx[3], dSy[3], dSz[3];
-#pragma unroll
-    for (int a = 0; a < 3; a++) {
-        S0x[a] = cic(X0 - (i0 + a));
-        dSx[a] = cic(X1 - (i0 + a)) - S0x[a];
-        S0y[a] = cic(Y0 - (j0 + a));
-        dSy[a] = cic(Y1 - (j0 + a)) - S0y[a];
-        S0z[a] = cic(Z0 - (k0 + a));
-        dSz[a] = cic(Z1 - (k0 + a)) - S0z[a];
-    }
-    const double cx = qw * (1.0 / (DY * DZ * DT));
-    const double cy = qw * (1.0 / (DX * DZ * DT));
-    const double cz = qw * (1.0 / (DX * DY * DT));
+// The current along an axis is the prefix sum of -c dS over its nodes: two faces carry current (the
+// second only for a wide move; the third sum is sum dS = 0), each times the transverse weight
+//   W(b, c) = S0 S0' + (dS S0' + S0 dS') / 2 + dS dS' / 3 = S0'[c] A[b] + dS'[c] B[b],
+// A = S0 + dS / 2, B = S0 / 2 + dS / 3. An axis without displacement carries no current.
+__device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, double X1, double Y1, double Z1, double qw,
+                                          double* Jx, double* Jy, double* Jz) {
+    AxisShape x, y, z;
+    axis_shape(X0, X1, x);
+    axis_shape(Y0, Y1, y);
+    axis_shape(Z0, Z1, z);
     const double third = 1.0 / 3.0;
-    // Jx
-#pragma unroll
-    for (int b = 0; b < 3; b++) {
-        if (S0y[b] == 0.0 && dSy[b] == 0.0) continue;
-#pragma unroll
-        for (int c = 0; c < 3; c++) {
-            if (S0z[c] == 0.0 && dSz[c] == 0.0) continue;
-            double wyz = S0y[b] * S0z[c] + 0.5 * dSy[b] * S0z[c] + 0.5 * S0y[b] * dSz[c] + third * dSy[b] * dSz[c];
-            double acc = 0.0;
-#pragma unroll
-            for (int a = 0; a < 2; a++) {
-                acc -= cx * dSx[a] * wyz;
-                if (acc != 0.0) atomicAdd(&Jx[IDX(i0 + a, j0 + b, k0 + c)], acc);
-            }
-        }
-    }
-    // Jy
+    double Ax[3], Bx[3], Ay[3], By[3];
 #pragma unroll
     for (int a = 0; a < 3; a++) {
-        if (S0x[a] == 0.0 && dSx[a] == 0.0) continue;
-#pragma unroll
-        for (int c = 0; c < 3; c++) {
-            if (S0z[c] == 0.0 && dSz[c] == 0.0) continue;
-            double wxz = S0x[a] * S0z[c] + 0.5 * dSx[a] * S0z[c] + 0.5 * S0x[a] * dSz[c] + third * dSx[a] * dSz[c];
-            double acc = 0.0;
-#pragma unroll
-            for (int b = 0; b < 2; b++) {
-                acc -= cy * dSy[b] * wxz;
-                if (acc != 0.0) atomicAdd(&Jy[IDX(i0 + a, j0 + b, k0 + c)], acc);
-            }
-        }
+        Ax[a] = x.S0[a] + 0.5 * x.dS[a];
+        Bx[a] = 0.5 * x.S0[a] + third * x.dS[a];
+        Ay[a] = y.S0[a] + 0.5 * y.dS[a];
+        By[a] = 0.5 * y.S0[a] + third * y.dS[a];
     }
-    // Jz
-#pragma unroll
-    for (int a = 0; a < 3; a++) {
-        if (S0x[a] == 0.0 && dSx[a] == 0.0) continue;
+    const long long base = IDX(x.n, y.n, z.n);
+    if (X1 != X0) {
+        const double cx = qw * (1.0 / (DY * DZ * DT));
+        const double f0 = -cx * x.dS[0], f1 = f0 - cx * x.dS[1];
 #pragma unroll
         for (int b = 0; b < 3; b++) {
-            if (S0y[b] == 0.0 && dSy[b] == 0.0) continue;
-            double wxy = S0x[a] * S0y[b] + 0.5 * dSx[a] * S0y[b] + 0.5 * S0x[a] * dSy[b] + third * dSx[a] * dSy[b];
-            double acc = 0.0;
+            if (b == 2 && !y.wide) continue;
 #pragma unroll
-            for (int c = 0; c < 2; c++) {
-                acc -= cz * dSz[c] * wxy;
-                if (acc != 0.0) atomicAdd(&Jz[IDX(i0 + a, j0 + b, k0 + c)], acc);
+            for (int c = 0; c < 3; c++) {
+                if (c == 2 && !z.wide) continue;
+                const double W = z.S0[c] * Ay[b] + z.dS[c] * By[b];
+                double* J = Jx + (base + b * STRIDE_J + c);
+                atomicAdd(J, f0 * W);
+                if (x.wide) atomicAdd(J + STRIDE_I, f1 * W);
+            }
+        }
+    }
+    if (Y1 != Y0) {
+        const double cy = qw * (1.0 / (DX * DZ * DT));
+        const double f0 = -cy * y.dS[0], f1 = f0 - cy * y.dS[1];
+#pragma unroll
+        for (int a = 0; a < 3; a++) {
+            if (a == 2 && !x.wide) continue;
+#pragma unroll
+            for (int c = 0; c < 3; c++) {
+                if (c == 2 && !z.wide) continue;
+                const double W = z.S0[c] * Ax[a] + z.dS[c] * Bx[a];
+                double* J = Jy + (base + a * STRIDE_I + c);
+                atomicAdd(J, f0 * W);
+                if (y.wide) atomicAdd(J + STRIDE_J, f1 * W);
+            }
+        }
+    }
+    if (Z1 != Z0) {
+        const double cz = qw * (1.0 / (DX * DY * DT));
+        const double f0 = -cz * z.dS[0], f1 = f0 - cz * z.dS[1];
+#pragma unroll
+        for (int a = 0; a < 3; a++) {
+            if (a == 2 && !x.wide) continue;
+#pragma unroll
+            for (int b = 0; b < 3; b++) {
+                if (b == 2 && !y.wide) continue;
+                const double W = y.S0[b] * Ax[a] + y.dS[b] * Bx[a];
+                double* J = Jz + (base + a * STRIDE_I + b * STRIDE_J);
+                atomicAdd(J, f0 * W);
+                if (z.wide) atomicAdd(J + 1, f1 * W);
             }
         }
     }

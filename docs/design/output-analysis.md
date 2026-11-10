@@ -110,6 +110,14 @@ Why: these numbers are research results with statistical spread, not contracts.
 Full research output (modes, lineout, phase space ×100, spectra, 6 field dumps, slices, 2000
 tracks): 32 MB on disk for 62 MB raw; wall time 18.3 s vs 15.6 s without output.
 
+The wall times are those of the code of that date. On 158bc20 (2026-11-10) the production run
+(`cells_per_wavelength=64`, 4936 steps, 50M particles) with the full output set costs 3.80–3.83
+ms/step against 3.36–3.37 without output on 8 GPUs (+13–14 %, 0.45 ms/step), and 23.03 against
+22.15 on 1 GPU (+4.0 %). A bench run shortened with `t_end` keeps the number of outputs per run and
+overstates this cost (`docs/gpu-runbook.md`). A writer thread on rank 0 was measured at −4.0 / −1.5 /
+−1.3 % of the 8-GPU run and not adopted: OUT-D2 (synchronous write, errors raised on every rank at
+the output) is unchanged.
+
 ## Review amendments
 
 - 2026-11-09 (PR #2 review):

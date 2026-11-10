@@ -16,6 +16,13 @@ total from a run without ``--phases``. A phase called inside another one is coun
 phase; ``other`` is the rest of the step. A bracketed call outside a step (the output of the final
 time level, which ``Simulation.run`` writes after its last step) is not part of any step: it is
 reported under ``after_steps_ms``, in ms per run.
+
+With ``--with-output`` the calls inside the ``output`` phase are timed apart (``output_detail``):
+per diagnostic its ``accumulate``, ``compute`` and ``write``, and the shared parts (``root_io``,
+the gathers, the host copy). Each has its inclusive time and its time exclusive of the detail calls
+made inside it, per call, next to the output interval of the diagnostic (``output_every``): the
+intervals follow from the run length, so a shortened run (``--set t_end=...``) writes far more often
+than the production configuration. Cost per step of a production run = per-call time / its interval.
 """
 from __future__ import annotations
 
@@ -66,6 +73,8 @@ class Phases:
         self.longest: dict[str, float] = {}
         self.series: dict[str, list] = {}
         self.step_time = 0.0
+        self.detail: dict[str, list] = {}  # name -> [inclusive s, exclusive s, calls]
+        self.open: list[list] = []  # detail calls in progress: [time of the detail calls inside]
 
     def name(self, name: str):
         self.time.setdefault(name, 0.0)
@@ -96,6 +105,32 @@ class Phases:
                     self.series[name][-1] += dt
                 else:
                     self.outside[name] += dt
+
+        return timed
+
+    def wrap_detail(self, name: str, fn):
+        """Time a call made inside a phase of a step: inclusive, and exclusive of the detail calls
+        it makes itself. The phase keeps counting it (a detail is a breakdown, not a phase)."""
+        rec = self.detail.setdefault(name, [0.0, 0.0, 0])
+
+        def timed(*a, **k):
+            if not (self.on and self.in_step and self.depth):
+                return fn(*a, **k)
+            self.sync()
+            inner = [0.0]
+            self.open.append(inner)
+            t0 = time.perf_counter()
+            try:
+                return fn(*a, **k)
+            finally:
+                self.sync()
+                dt = time.perf_counter() - t0
+                self.open.pop()
+                if self.open:
+                    self.open[-1][0] += dt
+                rec[0] += dt
+                rec[1] += dt - inner[0]
+                rec[2] += 1
 
         return timed
 
@@ -136,6 +171,28 @@ class Phases:
 
         simulation_launch, simulation.launch = simulation.launch, launch
         sim.step = self.wrap_step(sim.step)
+        if sim.output.enabled:
+            self.install_output(sim.output)
+
+    def install_output(self, out):
+        """Detail of the output phase. The names are the same on every rank (the report is a
+        collective), whichever rank does the work."""
+        import pypic.output.diagnostics as diagnostics
+
+        write = out._write
+        writes = {}
+        for dg in out.diags:
+            name = dg.d.name
+            if dg.r.average:
+                dg.accumulate = self.wrap_detail(f"accumulate:{name}", dg.accumulate)
+            dg.compute = self.wrap_detail(f"compute:{name}", dg.compute)
+            writes[name] = self.wrap_detail(f"write:{name}", write)
+        out._write = lambda dg, step, data: writes[dg.d.name](dg, step, data)
+        out._write_scalars = self.wrap_detail("write:scalars", out._write_scalars)
+        out._root_io = self.wrap_detail("root_io", out._root_io)
+        out.src.get = self.wrap_detail("field_source", out.src.get)
+        for fn in ("gather_blocks", "gather_columns", "_finish", "_select"):
+            setattr(diagnostics, fn, self.wrap_detail(fn.lstrip("_"), getattr(diagnostics, fn)))
 
     def report(self, comm, steps: int, series: bool) -> dict:
         """ms per step of every phase, mean and maximum over the ranks (collective)."""
@@ -157,8 +214,30 @@ class Phases:
         out["phases_ms"]["other"] = {"mean": (mean[-1] - mean[:-1].sum()) * ms}
         out["after_steps_ms"] = {n: {"mean": after_mean[i] * 1e3, "max": after_peak[i] * 1e3}
                                  for i, n in enumerate(names) if after_peak[i] > 0}
+        if self.detail:
+            out["output_detail"] = self.report_detail(comm)
         if series:
             out["series_ms_rank0"] = {n: [v * 1e3 for v in self.series[n]] for n in names if self.calls[n]}
+        return out
+
+
+    def report_detail(self, comm) -> dict:
+        """Per call, in ms: inclusive and exclusive time on rank 0 and the maximum over the ranks
+        (rank 0 writes the files; the other ranks wait for it inside ``root_io``)."""
+        import cupy as cp
+
+        names = sorted(self.detail)
+        local = cp.asarray([self.detail[n][:2] for n in names], dtype=cp.float64)
+        peak = cp.asnumpy(comm.allreduce(local.copy(), "max"))
+        root = cp.asnumpy(comm.allreduce(local * float(comm.rank == 0)))
+        calls = cp.asnumpy(comm.allreduce(cp.asarray([float(self.detail[n][2]) for n in names]), "max"))
+        out = {}
+        for i, n in enumerate(names):
+            if calls[i]:
+                per = 1e3 / calls[i]
+                out[n] = {"calls": int(calls[i]),
+                          "per_call_ms_rank0": root[i, 0] * per, "per_call_ms_max": peak[i, 0] * per,
+                          "exclusive_ms_rank0": root[i, 1] * per, "exclusive_ms_max": peak[i, 1] * per}
         return out
 
 
@@ -184,11 +263,15 @@ def main(argv=None) -> int:
     out_over = d.pop("output", {})
     world = int(os.environ.get("PYPIC_WORLD_SIZE", "1"))
     cfg, _, _ = plan(params_from_dict(d), n_gpus=world)
+    every = {}
     if a.with_output:
         out = {f.name: getattr(cfg.output, f.name) for f in dataclasses.fields(cfg.output)}
         out.update(out_over)
         out.update(dir=a.with_output, overwrite=True)
         cfg.output = OutputConfig.from_dict(out)
+        from pypic.output.schedule import resolve
+
+        every = {r.name: r.every for r in resolve(cfg)}
     else:
         cfg.output = OutputConfig()
 
@@ -208,7 +291,8 @@ def main(argv=None) -> int:
         "example": a.example, "config": a.config, "set": a.set, "gpus": sim.comm.size,
         "solver": cfg.solver, "precision": cfg.precision, "n_cells": list(cfg.n_cells),
         "particles": sim._n_total_end, "diag_interval": cfg.diag_interval,
-        "sort_interval": cfg.sort_interval, "output": bool(a.with_output), "warmup": a.warmup,
+        "sort_interval": cfg.sort_interval, "output": bool(a.with_output), "output_every": every,
+        "planned_steps": cfg.n_steps, "warmup": a.warmup,
         "steps": a.steps, "synchronised": bool(phases),
         "ms_per_step": sim.wall_time / a.steps * 1e3, "ns_per_particle_step": sim.push_rate(),
     }

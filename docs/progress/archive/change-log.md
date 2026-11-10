@@ -5,6 +5,58 @@ Older `PROGRESS.md` Change Log entries, newest first. Frozen: insert only at the
 
 <!-- ARCHIVE-INSERT-POINT -->
 
+### 2026-11-10 — [progress] Implicit particle map: gamma sweeps stop by a contraction bound (issue #30)
+- What: in `particle_map` the sweeps over `g1` also stop when `L = 2|b||av|/(g0+g1)^2 <= 1/2` (`b = 2 eps B`, `av = u0 + eps E`) and `L dg <= 1e-16 |u1|`: the remaining sweeps then change `u1` and `g1` by at most `2 L dg`. The sweep is `ub = (m^2 av + m av x b + (av.b) b)/(m^2 + b^2)`, one division instead of two. Sweeps per map evaluation: one 29 → 75 %, two 67 → 25 %, three 4 → 0 %. Implicit two-stream, alternating pairs vs 50f41cf: 8 GPUs −3.2 / −4.8 / −6.2 % (87.7 → 84.8, 87.9 → 83.7, 86.9 → 81.5 ms/step), 1 GPU −4.5 / −4.4 % (513 → 490). Scheme, tolerances, energy closure and Picard counts unchanged.
+- Why: `implicit_push` is 90 % of the 1-GPU implicit step; two of three map evaluations spent a second sweep (two FP64 divisions) only to confirm that `g1` no longer changes.
+- Refs: #30, #4; `pypic/kernels/implicit.cu`; `tests/gpu/test_engine.py` (`test_implicit_momentum_is_the_fixed_point_of_the_midpoint_rotation`)
+### 2026-11-10 — [progress] Ghost fill in three launches (issue #29)
+- What: `slab_pack3` packs / unpacks both faces of an axis in one launch (one buffer, two NCCL messages, same order); new `slab_wrap3` fills the ghosts of all axes that wrap onto the rank in one launch from the periodic images, after the exchanges — the values of the axis-by-axis sequence, bitwise. `fill_ghosts` 8 → 3 launches per rank with one decomposed axis; `reduce_ghosts` shares the two-face pack.
+- Why: one `fill_ghosts` per CG matrix product (74 per step). Implicit 8 GPUs −3.0 / −3.9 / −4.0 / −3.2 % (4 alternating pairs; CG 21.1 → 18.6 ms/step); shock −1.2 %, explicit within noise, 1 GPU −0.3 %.
+- Refs: #29, #4; `pypic/grid.py`, `pypic/kernels/fields.cu`; `tests/gpu/test_engine.py` (`test_fill_ghosts_gives_the_periodic_images`)
+### 2026-11-10 — [progress] Implicit CG: one reduction per iteration (issue #28)
+- What: `_cg` uses the Chronopoulos–Gear recurrence: the last kernel of the matrix product (`cg_matvec_end`) also sums `r·u`, `w·u`, `r·r` per thread block, one `allreduce` carries the three, `cg_scalars` computes α and β on the device and `cg_step` does the four vector updates and the preconditioning (before: 2.25 reductions and 3 vector kernels per iteration). Implicit two-stream, 8 GPUs, two alternating pairs: 97.5 → 89.3 and 98.0 → 89.7 ms/step (−8.4 / −8.5 %); 1 GPU 513.3 → 515.2 / 514.9 (+0.3 %: one more matrix product per solve). Iteration counts and the true residual equal the old CG (periodic / reflecting / open, `dt` 0.5–2).
+- Why: 163 NCCL `AllReduce` per step were 25 ms of the 8-GPU implicit step (`nsys`); the CG took longer on 8 GPUs than on 1.
+- Refs: #28, #4; `pypic/simulation.py`, `pypic/kernels/fields.cu`, `pypic/kernelsrc.py` (`CG_BLOCK`); `tests/gpu/test_engine.py`
+### 2026-11-10 — [progress] Time-averaged lineout and modes share one profile per step (issue #27)
+- What: `FieldSource.profile(comp, axis)` sums a component over the two other axes once per step and shares it; `LineoutDiag` and `ModesDiag` accumulate that real profile in place, and the mode transform is applied once per output (linear, so the same result). Two-stream production run with output (4936 steps, 8 GPUs, two alternating pairs): 6.62 → 6.17 and 6.42 → 6.19 ms/step (−6.9 / −3.6 %); the per-step accumulation 0.364 → 0.118 ms/step. The 13 output files agree with 3e013df within 1e-12.
+- Why: the averaged diagnostics accumulate every step; each did its own reduction of the whole grid with temporaries and a complex transform per step — the largest part of the output cost of a production run (8–10 % of the run on 8 GPUs).
+- Refs: #27, #4; `pypic/output/diagnostics.py`
+### 2026-11-10 — [progress] Correction: `div B` of `plasma_waves:perpendicular` is within its earlier range
+- What: the entry below ("Performance round 2 gated") says the value was 0.85–0.95e-12 "in the three records before". That is wrong: the 18 earlier fp64 gate records span 0.85–1.17e-12, eight of them ≥ 1.0e-12 (77f26df, two records before, has 1.17e-12). The 1.02e-12 on 5d7015a is inside that range; `push_B` and the `div B` diagnostic are unchanged, and no regression is observed. The case has no `div B` criterion.
+- Why: found in the review of PR #26; the wrong comparison read as a drift towards the 1e-12 contract.
+- Refs: PR #26 review; `bench/results/*-gpu-gates.json` (`plasma_waves:perpendicular`, `divB_max`)
+### 2026-11-10 — [progress] Performance round 2 gated: ALL PASSED on 5d7015a, fp64 and mixed
+- What: gates on the stack #19–#25: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 %, Gauss ≤ 7.6e-12, implicit energy 1.9e-10, 15 example gates, 58 GPU tests; mixed: 19 explicit gates. Baseline f31e7f9 → 5d7015a, ms/step (200-step windows, two alternating runs): two-stream 1/2/4/8 GPUs 43.1/25.1/14.6/9.5 → 37.9/19.7/10.2/5.6 (mixed 39.0/9.5 → 33.5/5.3 on 1/8), `diag_interval=1` 8 GPUs 10.9 → 6.6, shock 14.9 → 10.9, implicit 597/137 → 513/94 on 1/8. Measured without gain and not adopted: compiling out the loss reductions, `sort_interval` tuning, sort rework, paired filter passes (−0.7 %). Recorded without a criterion: `div B` of `plasma_waves:perpendicular` (B0 = 0.5) is 1.02e-12, 0.85–0.95e-12 in the three records before; the gated two-stream cases are ≤ 1.7e-14.
+- Why: evidence for the round-2 changes on one clean commit (CI cannot run the gates), and the same-window before/after numbers for the roadmap.
+- Refs: #4, #19–#25; `bench/results/2026-11-10-5d7015a34-gpu-gates.json`, `…-gpu-gates-mixed.json`; `docs/roadmap.md` R3/R4
+### 2026-11-10 — [progress] Launcher binds each rank to the NUMA node of its GPU (issue #25)
+- What: `pypic.launch` sets each rank's CPU affinity to the CPUs of the node its GPU is attached to (PCI address → `numa_node` → `cpulist`), within the CPUs the launcher may use; `--no-bind` turns it off; unknown node → no binding. 8 GPUs, default vs `--no-bind`: implicit two-stream 96.98 → 94.65 ms/step (−2.4 %, 4 pairs; −2.2 / −2.8 % in two earlier batches with external pinning), `diag_interval=1` 6.48 → 6.44 (−2.7 % with external pinning), two-stream −1.5 %, shock −0.5 %.
+- Why: 4 NUMA nodes with two GPUs each; the host thread that drives a GPU ran wherever the scheduler put it. The gain is on the cases with the most host work per step; bound runs also spread less (implicit 94.5–94.8 vs 95.8–99.2 ms).
+- Refs: #25, #4; `pypic/launch.py`; `tests/gpu/test_binding.py`
+### 2026-11-10 — [progress] Explicit step queues the field update before the migration (issue #24)
+- What: `_step_explicit` calls `push_B`/`push_E`/`push_B` before `_migrate()`. 8 GPUs: two-stream 6.19 → 5.90 ms/step (−4.7 %, 4 pairs), mixed 5.54 → 5.34, `diag_interval=1` 6.69 → 6.44, shock 11.02 → 10.83 (−1.8 %). A short explicit history agrees with the previous commit to rounding.
+- Why: the migration starts with a host read that waits for the push kernels; the field update (J and fields only, independent of the particles the migration moves) was prepared after it, serial with the push instead of behind it.
+- Refs: #24, #4; `pypic/simulation.py`
+### 2026-11-10 — [progress] Diagnostics step: field energy on the device, one reduction per record (issue #23)
+- What: `YeeGrid.field_energy_local` sums `E^2` and `B^2` with one reduction kernel each and leaves the result on the device; `_record` reduces it together with the per-species diagnostics in its one `allreduce` and one host read (before: six host reads, two `allreduce`). Two-stream with `diag_interval=1` (the planner default), 8 GPUs: 7.57 → 7.09 ms/step (−6.4 %, 6 pairs); 1 GPU 41.46 → 41.09. Recorded energies agree with the previous commit to rounding (rel ≤ 2e-16).
+- Why: with the history recorded every step the field energy and `_record` were 14 % of the 8-GPU step, almost all of it host synchronisation.
+- Refs: #23, #4; `pypic/grid.py`, `pypic/simulation.py`, `scripts/bench_step.py`
+### 2026-11-10 — [progress] implicit_push with reciprocals instead of FP64 divisions (issue #22)
+- What: the particle map of the implicit kernel computes `eps / gbar`, `1/(1+t^2)` and `DT/(g0+g1)` once each, the Picard residual norms multiply by `1/h`, and `eps = q dt / 2m`, `q/m` come from the host. Implicit two-stream 1 GPU 586 → 513.5 ms/step (−12.4 %), 8 GPUs 109.5–110.6 → 99.7–101.0. Picard iterations (145 in 30 steps) and the energy budget error (3.03e-11) are unchanged.
+- Why: same reason as #21 — the kernel is FP64-pipe bound and the map runs once per sub-iteration of every particle. Rounding-level change, scheme unchanged.
+- Refs: #22, #4; `pypic/kernels/implicit.cu`, `pypic/simulation.py`
+### 2026-11-10 — [progress] push_deposit with reciprocals instead of FP64 divisions (issue #21)
+- What: `1/gm`, `2/(1+t^2)` and `DT/g1` are one reciprocal each (9 divisions → 3), `h = q dt / 2m` comes from the host, the periodic wrap is a comparison (same value for moves below one period), `g0` only on diagnostics steps. Two-stream 1 GPU 43.0–43.9 → 38.0–38.1 ms/step, 8 GPUs 6.6–6.8 → 6.1–6.3 (mixed 6.1–6.2 → 5.5), shock 8 GPUs 12.0–12.1 → 10.9–11.0. Not adopted (no gain): compiling out the open-boundary loss reductions.
+- Why: the kernel is FP64-pipe bound and 75–96 % of the explicit step; divisions are its most expensive operations. Rounding-level change, scheme unchanged.
+- Refs: #21, #4; `pypic/kernels/particles.cu`; `test_boris_gyration_conserves_gamma_and_period`
+### 2026-11-10 — [progress] Implicit field solve: one ghost exchange per CG matvec (issue #20)
+- What: `curl_E` is also taken on the ghost layer that `curl_B` reads, so the matvec exchanges ghosts once (bitwise the same on the owned unknowns); the CG vector updates are three fused kernels (`vec_add_scaled`, `cg_update`, `cg_direction`); the unused `itmax` atomic of `implicit_push` is gone (no measurable effect). Implicit two-stream, 8 GPUs: `_cg` 58–60 → 31 ms, step 136–145 → 108–110 ms/step; 1 GPU 597 → 586. CG iterations unchanged.
+- Why: on 8 GPUs the CG was 42 % of the implicit step, host-side sequencing of two exchanges and ~10 small launches per iteration, not grid work.
+- Refs: #20, #4; `Simulation._matvec`, `Simulation._cg`; `pypic/kernels/fields.cu`
+### 2026-11-10 — [progress] Particle migration by dedicated kernels (issue #19)
+- What: `particles.migrate` takes, fills, classifies, packs and appends with five kernels (`pypic/kernels/migrate.cu`) on a particle-major buffer; one host sync fewer and no allreduce; particle order unchanged (old vs new arrays bitwise equal on 1/4/8 ranks). 8 GPUs: migrate 3.8 → 0.6 ms; two-stream 9.7–10.0 → 6.7–6.8 ms/step (mixed 9.2–9.4 → 6.2–6.5), shock 14.7–15.0 → 11.8.
+- Why: migration was 23–40 % of the 8-GPU step: host time of ~100 small CuPy launches for a few thousand particles (0.3 ms on 1 GPU).
+- Refs: #19, #4; `scripts/bench_step.py`; `tests/gpu/test_engine.py::test_migration_across_faces_and_corners_keeps_every_particle`
 ### 2026-11-10 — [design] PIC-D11 mixed-precision field gather, Proposed (issue #10)
 - What: `precision: mixed` gathers E, B for the explicit push from float32 copies with rank-independent weights; positions, pusher and deposit stay FP64; default `fp64`. Push 18.4 → 14.2 ms; two-stream 1 GPU 42.7 → 38.6 ms/step; shock 8 GPUs 14.4 → 13.4. All 19 explicit gates pass in mixed mode.
 - Why: `push_deposit` is FP64-pipe bound; the gather is the part that can leave FP64 without touching Gauss (deposit) or 1 vs N GPU (global weights).

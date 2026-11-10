@@ -11,7 +11,7 @@ import numpy as np
 from .backend import compile_module, launch
 from .config import SimConfig
 from .grid import YeeGrid
-from .kernelsrc import PARTICLE_SOURCES, particle_defines
+from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
 from .particles import ID_LIMIT, MIGRATE_KERNELS, Species, migrate
@@ -422,61 +422,69 @@ class Simulation:
             for c in range(3):
                 self.Adiag[c] += 0.5 * dt * self.sigE[c]
         self.Minv = cp.stack([1.0 / (d - 1.0 + self.Adiag[c]) for c, d in enumerate(diag)])
-
-    _wdot = cp.ReductionKernel("T w, T a, T b", "T y", "w * a * b", "a + b", "y = a", "0", "pypic_wdot")
-
-    def _dot(self, a, b):
-        """Global inner product over owned, unconstrained E unknowns (stays on the device).
-        Two stages (inner axes, then the rest): a full reduction to one scalar runs as a single
-        thread block in CuPy's ReductionKernel, ~36x slower on a 1e6-cell grid (issue #5)."""
-        return self.comm.allreduce(self._wdot(self.Wmask, a, b, axis=(2, 3)).sum().reshape(1)).reshape(())
+        self.cg_part = cp.zeros((-(-self.E1.size // CG_BLOCK), 3))  # inner products per thread block
+        self.pc_part = cp.zeros((self.cg_part.shape[0], 2))  # Picard change per thread block
+        # no wall on any rank (and then no absorbing layer): the CG matrix product is one kernel
+        self.cg_fused = all(b == "periodic" for ax in self.cfg.boundaries for b in ax)
 
     def _applyD(self, B):
         if self.absorb:
             for c in range(3):
                 B[c] *= self.Dmat[c]
 
-    def _matvec(self, v, out, tmp):
-        """out = A v,  A = (1 + sigma dt/2) + dt^2/4 curl D curl  (v, out, tmp stacked (3, ...)).
+    def _matvec(self, v, out, tmp, r):
+        """out = A v,  A = (1 + sigma dt/2) + dt^2/4 curl D curl  (v, out, tmp, r stacked (3, ...)),
+        and the inner products the CG takes with it: returns ((r, v), (out, v), (r, r)) over the
+        owned, unconstrained E unknowns of all ranks, on the device (one reduction).
         One ghost exchange: curl E is also taken on the ghost layer that curl B reads."""
         g, dt = self.grid, self.cfg.dt
+        if self.cg_fused:  # no wall, no absorbing layer on any rank: the whole product in one launch
+            g.fill_ghosts(v)
+            launch(g.k_cg_matvec, out.size,
+                   (v, out, self.Adiag, r, self.Wmask, self.cg_part, np.float64(dt * dt / 4.0)), block=CG_BLOCK)
+            return self.comm.allreduce(self.cg_part.sum(axis=0))
         g.apply_bc_E(v)
         g.fill_ghosts(v)
         g.curl_E(v, tmp, low=True)
         self._applyD(tmp)
         g.apply_bc_B(tmp)
         g.curl_B(tmp, out, dt * dt / 4.0)
-        launch(g.k_vec_add_scaled, out.size, (out, self.Adiag, v))
+        # the sums of each thread block, then of the blocks: a full reduction to one scalar by a
+        # ReductionKernel runs as a single thread block (issue #5)
+        launch(g.k_cg_matvec_end, out.size, (out, self.Adiag, v, r, self.Wmask, self.cg_part), block=CG_BLOCK)
         g.apply_bc_E(out)
+        return self.comm.allreduce(self.cg_part.sum(axis=0))
 
     def _cg(self, x, b):
-        """Jacobi-preconditioned CG for A x = b with A symmetric positive definite.
+        """Jacobi-preconditioned CG for A x = b with A symmetric positive definite, in the form of
+        Chronopoulos and Gear: the matrix product of the search direction follows from a
+        recurrence, so that all inner products of an iteration are taken with its one matrix
+        product (u = Minv r, w = A u) and reduced over the ranks together.
         x, b: stacked (3, nx, ny, nz) arrays. Scalars stay on the GPU; convergence is checked
         every few iterations to avoid host synchronisation."""
         icfg = self.cfg.implicit
         g = self.grid
         tmp = cp.empty_like(x)
-        Ax = cp.empty_like(x)
-        self._matvec(x, Ax, tmp)
-        r = b - Ax
+        w = cp.empty_like(x)
+        bb = self._matvec(x, w, tmp, b)[2]
+        r = b - w
         g.apply_bc_E(r)
-        z = self.Minv * r
-        p = z.copy()
-        rz = self._dot(r, z)
-        tol2 = (icfg.cg_tol ** 2) * float(self._dot(b, b))
+        u = self.Minv * r
+        p = cp.zeros_like(x)
+        s = cp.zeros_like(x)
+        st = cp.zeros(3)
+        sc = self._matvec(u, w, tmp, r)
+        tol2 = (icfg.cg_tol ** 2) * float(bb)
         it = 0
         for it in range(icfg.cg_maxit):
-            if it % 4 == 0 and float(self._dot(r, r)) <= tol2:
+            if it % 4 == 0 and float(sc[2]) <= tol2:
                 break
-            self._matvec(p, Ax, tmp)
             # The convergence test runs every few iterations only, so the residual can reach exactly
-            # zero in between (e.g. a curl-free mode where A = I is solved in one step): the kernels
-            # take a zero denominator as a zero step / update.
-            pAp = self._dot(p, Ax)
-            launch(g.k_cg_update, x.size, (x, r, z, p, Ax, self.Minv, rz, pAp))
-            rz_new = self._dot(r, z)
-            launch(g.k_cg_direction, x.size, (p, z, rz_new, rz))
-            rz = rz_new
+            # zero in between (e.g. a curl-free mode where A = I is solved in one step): cg_scalars
+            # takes a zero denominator as a zero step.
+            launch(g.k_cg_scalars, 1, (sc, st))
+            launch(g.k_cg_step, x.size, (x, r, u, p, s, w, self.Minv, st))
+            sc = self._matvec(u, w, tmp, r)
         g.apply_bc_E(x)
         g.fill_ghosts(x)
         return it
@@ -531,8 +539,7 @@ class Simulation:
                 cp.subtract(R0[c], dt * J, out=rhs[c])
             Enew = self.E1.copy()
             self._cg(Enew, rhs)
-            nd = cp.stack([cp.max(cp.abs(Enew - self.E1) * self.Wmask), cp.max(cp.abs(Enew) * self.Wmask)])
-            num, den = (float(v) for v in self.comm.allreduce(nd, "max"))
+            num, den = self._picard_change(Enew)
             self.E1 = Enew
             converged = num <= icfg.picard_tol * max(den, 1e-30)
             if converged:
@@ -577,15 +584,18 @@ class Simulation:
                                         np.int32(lst.size)))
         self._migrate()
 
+    def _picard_change(self, Enew):
+        """Largest |Enew - E1| and largest |Enew| over the E unknowns of all ranks (a NaN is kept)."""
+        launch(self.grid.k_picard_change, Enew.size, (Enew, self.E1, self.Wmask, self.pc_part), block=CG_BLOCK)
+        return tuple(float(v) for v in self.comm.allreduce(self.pc_part.max(axis=0), "max"))
+
     def _half_fields(self, E0, B0):
         g, dt = self.grid, self.cfg.dt
-        for c in range(3):
-            self.Eh[c][...] = 0.5 * (E0[c] + self.E1[c])
+        # Eh on every point: the ghosts of E0 (filled when it was committed) and of E1 (filled with the
+        # initial guess and at the end of each field solve) are those of their neighbours already
+        launch(g.k_half_E, self.Eh[0].size, (*E0, self.E1, self.Eh))
         g.apply_bc_E(self.Eh)
-        g.fill_ghosts(self.Eh)
-        g.curl_E(self.Eh, self.Bh, -0.5 * dt)
-        for c in range(3):
-            self.Bh[c] += B0[c]
+        launch(g.k_half_B, g.n_update, (self.Eh, *B0, self.Bh, np.float64(-0.5 * dt)))
         self._applyD(self.Bh)
         g.apply_bc_B(self.Bh)
         g.fill_ghosts(self.Bh)

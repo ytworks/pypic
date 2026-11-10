@@ -292,14 +292,39 @@ def _filter_reference(g, arrays, staggers, passes, compensate):
                 g._slab(F, a, g.g, hi)[...] = new
 
 
-@pytest.mark.parametrize("bc", ["periodic", "reflecting"])
+@pytest.mark.parametrize("xbc", ["periodic", "reflecting"])
+def test_fill_ghosts_gives_the_periodic_images(xbc):
+    """Every ghost cell of a periodic axis, edges and corners included, holds exactly the value of its
+    periodic image; cells of a wall axis are left alone. All axes in one call, and one axis alone."""
+    cfg = SimConfig(n_cells=(7, 5, 3), dx=(0.1,) * 3, dt=0.05, species=[], diag_interval=0, gauss_interval=0,
+                    boundaries=((xbc, xbc), ("periodic", "periodic"), ("periodic", "periodic")), npml=2)
+    g = Simulation(cfg, comm=SelfComm(), verbose=False).grid
+    rs = cp.random.RandomState(11)
+    for axes in ((0, 1, 2), (1,)):
+        arrays = [rs.standard_normal(g.shape) for _ in range(4)]  # two launches: 3 arrays, then 1
+        before = [cp.asnumpy(F) for F in arrays]
+        g.fill_ghosts(arrays, axes=axes)
+        image = []
+        for a in range(3):
+            i, n = np.arange(g.shape[a]), g.d.axes[a].n_int
+            wraps = a in axes and g.d.bc[a][0] == "periodic"
+            image.append(g.g + (i - g.g) % n if wraps else i)
+        for F, F0 in zip(arrays, before):
+            assert np.array_equal(cp.asnumpy(F), F0[np.ix_(*image)])
+
+
+@pytest.mark.parametrize("bc", ["periodic", "reflecting", "mixed"])
 def test_current_filter_kernels_match_the_array_expressions(bc):
-    """The fused filter kernels give bitwise the result of the former array expressions, for J
-    (three staggers) and node data, at periodic and conducting faces."""
-    cfg = SimConfig(n_cells=(12, 10, 8), dx=(0.1,) * 3, dt=0.05, species=[], boundaries=((bc, bc),) * 3,
-                    diag_interval=0, gauss_interval=0, npml=2)
+    """The filter kernels give the result of the array expressions pass by pass, for J (three
+    staggers) and node data: bitwise at conducting faces, and to rounding on the owned cells of
+    periodic axes, whose passes are one composite stencil (here wider than the 3 cells of z). The
+    mixed case has a conducting axis between two periodic ones."""
+    kinds = ("periodic", "reflecting", "periodic") if bc == "mixed" else (bc,) * 3
+    cfg = SimConfig(n_cells=(12, 10, 3), dx=(0.1,) * 3, dt=0.05, species=[], diag_interval=0, gauss_interval=0,
+                    boundaries=tuple((k, k) for k in kinds), npml=2)
     g = Simulation(cfg, comm=SelfComm(), verbose=False).grid
     rng = np.random.default_rng(7)
+    own = tuple(slice(g.g, g.g + ax.n_int) for ax in g.d.axes)
     for staggers in (Simulation.J_STAGGER, ((0, 0, 0),)):
         for comp in (True, False):  # an even and an odd number of passes per axis
             A = [cp.asarray(rng.standard_normal(g.shape)) for _ in staggers]
@@ -307,7 +332,10 @@ def test_current_filter_kernels_match_the_array_expressions(bc):
             g.filter(A, staggers, 3, comp)
             _filter_reference(g, B, staggers, 3, comp)
             for a, b in zip(A, B):
-                assert bool(cp.all(a == b))
+                if bc == "reflecting":
+                    assert bool(cp.all(a == b))
+                else:
+                    assert float(cp.abs(a[own] - b[own]).max()) < 1e-14 * float(cp.abs(b[own]).max())
 
 
 @pytest.mark.parametrize("solver", ["explicit", "implicit"])
@@ -332,6 +360,27 @@ def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
 
 
 # ------------------------------------------------------------------- storage
+def test_sort_orders_by_cell_and_keeps_every_particle():
+    """The sort moves whole particles: every row of the particle array and of the implicit work
+    array follows the same order, and the cells come out ascending."""
+    from pypic.backend import launch
+
+    sim = plasma("implicit", sort_interval=0)
+    sim.run(2)
+    for sp in sim.species:
+        n = sp.n
+        before = [cp.asnumpy(A[:, :n]) for A in (sp.P, sp.Pn)]
+        sp.sort(sim.k_cell)
+        after = [cp.asnumpy(A[:, :n]) for A in (sp.P, sp.Pn)]
+        assert not np.array_equal(before[0][7], after[0][7])  # the particles were out of order
+        by_id0, by_id1 = np.argsort(before[0][7]), np.argsort(after[0][7])
+        for b, a in zip(before, after):
+            assert np.array_equal(b[:, by_id0], a[:, by_id1])
+        key = cp.empty(n, dtype=cp.int64)
+        launch(sim.k_cell, n, (sp.P, np.int32(n), np.int64(sp.cap), key))
+        assert bool((key[1:] >= key[:-1]).all())
+
+
 BIG_CAP = 360_000_000  # 6 * cap > 2**31: the weight row starts beyond int32 offsets (issue #11)
 
 
@@ -463,6 +512,18 @@ def test_multi_gpu_matches_single(solver, tmp_path):
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_locally_computed_ghost_layer_of_B_equals_the_neighbours_values():
+    """The explicit update computes B on one ghost layer instead of exchanging it. With open x on 4
+    ranks the edge ranks run the kernel with the absorbing layer and the middle ranks the one
+    without: both must give the same bits, or the ghosts drift from the neighbours' values."""
+    r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", "4", os.path.join(HERE, "mgpu_regress.py"),
+                        "b_ghost"], capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stderr[-2000:]
+    for rank in range(4):
+        assert f"RESULT rank={rank} ranks_with_a_difference=0 b_is_nonzero=True" in r.stdout, r.stdout
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
 def test_migration_across_faces_and_corners_keeps_every_particle():
     """Two species cross faces and corners of a 2x2 rank grid every step (issue #7): the run equals
     the 1-GPU run, every particle id survives, and an overflowing flag list (full-compaction path
@@ -484,6 +545,21 @@ def test_migration_across_faces_and_corners_keeps_every_particle():
             a, b = np.asarray(ref[k]), np.asarray(o[k])
             assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, (key, k)
         assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-12
+
+
+@pytest.mark.parametrize("name, dtype", [("mig_rank32", np.int32), ("mig_rank64", np.int64)])
+def test_migration_lists_are_ordered_like_a_sort(name, dtype):
+    """The lists of a migration are ordered by a counting kernel up to RANK_SORT_MAX keys and by a
+    sort above: both give the sorted keys, with equal keys and at lengths off the warp size too."""
+    from pypic.particles import RANK_SORT_MAX, ascending
+
+    kernel = plasma().pmod.get_function(name)
+    rng = np.random.default_rng(3)
+    for n in (2, 33, 1000, RANK_SORT_MAX, RANK_SORT_MAX + 1):
+        for bound in (n // 2 + 1, np.iinfo(dtype).max):  # with and without equal keys
+            a = cp.asarray(rng.integers(0, bound, n).astype(dtype))
+            ref = cp.sort(a)
+            assert bool((ascending(a, kernel) == ref).all()), (n, bound)
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
@@ -525,23 +601,100 @@ def test_cg_handles_exact_convergence_between_checks():
     assert float(cp.max(cp.abs(x[(slice(None),) + sim.own] - b[(slice(None),) + sim.own]))) < 1e-12
 
 
-def test_cg_inner_product_matches_the_owned_unknowns():
-    """The two-stage CG inner product (issue #5) sums exactly the owned, unconstrained E unknowns
-    and agrees with the former one-stage reduction to 1e-14 of its value (fixed seed, same inputs)."""
+def test_cg_inner_products_match_the_owned_unknowns():
+    """The inner products that the CG takes with its matrix product (sums per thread block, then
+    of the blocks) are those over the owned, unconstrained E unknowns: (r, v), (A v, v), (r, r)
+    agree with the sums on the host (fixed seed; mixed signs, and the norm of the convergence test)."""
     bc = (("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
     cfg = SimConfig(n_cells=(48, 32, 24), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[], boundaries=bc,
                     diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     rng = np.random.default_rng(3)
-    a, b = (rng.standard_normal((3,) + sim.grid.shape) for _ in range(2))
-    W = cp.asnumpy(sim.Wmask)
-    for x, y in ((a, b), (a, a)):  # mixed signs, and the r.r norm of the CG convergence test
-        X, Y = cp.asarray(x), cp.asarray(y)
-        new = float(sim._dot(X, Y))
-        old = float(sim._wdot(sim.Wmask, X, Y))  # the former single reduction to one scalar
-        scale = float(np.sum(np.abs(W * x * y)))
-        assert abs(new - float(np.sum(W * x * y))) <= 1e-13 * scale
-        assert abs(new - old) <= 1e-14 * abs(old)  # relative to the inner product itself (issue #5)
+    v, r = (cp.asarray(rng.standard_normal((3,) + sim.grid.shape)) for _ in range(2))
+    Av, tmp = cp.empty_like(v), cp.empty_like(v)
+    got = cp.asnumpy(sim._matvec(v, Av, tmp, r))
+    W, v, r, Av = (cp.asnumpy(a) for a in (sim.Wmask, v, r, Av))
+    for value, (a, b) in zip(got, ((r, v), (Av, v), (r, r))):
+        assert abs(value - np.sum(W * a * b)) <= 1e-13 * np.sum(np.abs(W * a * b))
+
+
+def test_cg_matrix_product_in_one_launch_matches_the_kernel_sequence():
+    """On a periodic grid the CG takes its matrix product and inner products in one launch: they are those
+    of the general sequence (curl E, curl B, diagonal term) to rounding, on every unknown (unequal cell
+    sizes, fixed seed)."""
+    cfg = SimConfig(n_cells=(12, 10, 8), dx=(0.5, 0.4, 0.3), dt=0.7, solver="implicit", species=[],
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    assert sim.cg_fused
+    rs = cp.random.RandomState(11)
+    v, r = (rs.standard_normal((3,) + sim.grid.shape) for _ in range(2))
+    result = []
+    for fused in (True, False):
+        sim.cg_fused = fused
+        Av, tmp = cp.zeros_like(v), cp.zeros_like(v)
+        sums = cp.asnumpy(sim._matvec(v.copy(), Av, tmp, r))
+        result.append((cp.asnumpy(Av[(slice(None),) + sim.own]), sums))
+    (Av1, s1), (Av3, s3) = result
+    assert np.abs(Av3).max() > 1 and np.abs(Av1 - Av3).max() <= 1e-14 * np.abs(Av3).max()
+    assert np.all(np.abs(s1 - s3) <= 1e-13 * np.abs(Av3).sum())
+
+
+@pytest.mark.parametrize("x_faces", ["reflecting", "open"])
+def test_cg_solves_the_field_equation_to_its_tolerance(x_faces):
+    """The CG keeps a recurrence for the residual and for the matrix product of its search
+    direction; the residual of its result, taken with the matrix itself, is at the level of
+    cg_tol (conducting walls, and the absorbing layer of open faces; fixed seed)."""
+    bc = ((x_faces, x_faces), ("periodic", "periodic"), ("periodic", "periodic"))
+    cfg = SimConfig(n_cells=(48, 16, 12), dx=(0.5,) * 3, dt=1.0, solver="implicit", species=[], boundaries=bc,
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    b = cp.asarray(np.random.default_rng(5).standard_normal((3,) + sim.grid.shape)) * sim.Wmask
+    x = cp.zeros_like(b)
+    its = sim._cg(x, b)
+    Ax, tmp = cp.empty_like(x), cp.empty_like(x)
+    sim._matvec(x, Ax, tmp, b)
+    res = float(cp.linalg.norm((b - Ax) * sim.Wmask)) / float(cp.linalg.norm(b))
+    assert 0 < its < cfg.implicit.cg_maxit
+    assert res <= 10 * cfg.implicit.cg_tol
+
+
+@pytest.mark.parametrize("x_faces", ["reflecting", "open"])
+def test_half_step_fields_and_picard_change_match_the_array_expressions(x_faces):
+    """The kernels of the half-step fields give, on every point (ghosts included), the bits of
+    Eh = (E0 + E1) / 2 with a ghost fill of its own and of Bh = D (B0 - dt/2 curl Eh). The change over a
+    Picard sweep is the largest |Enew - E1| and |Enew| over the unknowns, and a NaN unknown is kept."""
+    bc = ((x_faces, x_faces), ("periodic", "periodic"), ("periodic", "periodic"))
+    cfg = SimConfig(n_cells=(24, 6, 5), dx=(0.5, 0.4, 0.3), dt=0.2, solver="implicit", species=[], boundaries=bc,
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    g = sim.grid
+    rs = cp.random.RandomState(3)
+    E0, B0 = (g.Ex, g.Ey, g.Ez), (g.Bx, g.By, g.Bz)
+    for F in (*E0, *B0, sim.E1):
+        F[...] = rs.standard_normal(F.shape)
+    for E in (E0, sim.E1):  # as inside a step: boundary values set, ghosts filled
+        g.apply_bc_E(E)
+        g.fill_ghosts(E)
+    g.apply_bc_B(B0)
+    g.fill_ghosts(B0)
+    sim._half_fields(E0, B0)
+    Eh = cp.stack([0.5 * (e0 + e1) for e0, e1 in zip(E0, sim.E1)])
+    g.apply_bc_E(Eh)
+    g.fill_ghosts(Eh)
+    Bh = cp.zeros_like(Eh)
+    g.curl_E(Eh, Bh, -0.5 * cfg.dt)
+    for c in range(3):
+        Bh[c] += B0[c]
+    sim._applyD(Bh)
+    g.apply_bc_B(Bh)
+    g.fill_ghosts(Bh)
+    assert bool(cp.all(sim.Eh == Eh)) and bool(cp.all(sim.Bh == Bh))
+
+    Enew = sim.E1 + 1e-3 * rs.standard_normal(sim.E1.shape)
+    expected = (float(cp.max(cp.abs(Enew - sim.E1) * sim.Wmask)), float(cp.max(cp.abs(Enew) * sim.Wmask)))
+    assert sim._picard_change(Enew) == expected and expected[0] > 0
+    Enew[1][sim.own][-1, -1, -1] = np.nan
+    assert np.isnan(sim._picard_change(Enew)[0])
 
 
 @pytest.mark.parametrize("theta", [1e-3, 0.05, 0.3, 3.0])
@@ -557,6 +710,51 @@ def test_maxwell_juttner_sampling(theta):
     eps = np.sqrt(1 + (u ** 2).sum(0)) - 1
     expected = kve(1, 1 / theta) / kve(2, 1 / theta) + 3 * theta - 1
     assert abs(eps.mean() - expected) < 5 * eps.std() / math.sqrt(eps.size)
+
+
+def test_implicit_momentum_is_the_fixed_point_of_the_midpoint_rotation():
+    """In uniform E and B the implicit push returns u1 = 2 ub - u0 with ub = u0 + eps E + ub x t,
+    t = 2 eps B / (g0 + g1) and g1 = sqrt(1 + u1^2). Compared with that fixed point iterated in extended
+    precision, for half rotation angles |t| from 1e-9 to 0.14 and gamma from 1.1 to 30: the sweeps
+    over g1 must not stop before the direction of the momentum is converged to rounding. One evaluation
+    of the particle map (no iteration over the path, which would add sweeps): the fields are uniform."""
+    from pypic.backend import launch
+
+    cfg = SimConfig(n_cells=(8, 8, 8), dx=(1.0,) * 3, dt=0.1, solver="implicit", diag_interval=0,
+                    gauss_interval=0, species=[SpeciesConfig("e", -1, 1, [])])
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sp, g = sim.species[0], sim.grid
+    eps = sp.q * cfg.dt / (2.0 * sp.m)
+    rs = np.random.RandomState(5)
+    n = 2048
+
+    def vectors(length):
+        v = rs.standard_normal((n, 3))
+        return v / np.linalg.norm(v, axis=1)[:, None] * np.asarray(length).reshape(-1, 1)
+
+    for bmag in (1e-6, 1e-3, 0.3, 3.0):
+        u0 = vectors(10 ** rs.uniform(-0.3, 1.5, n))
+        E, B = vectors(2.0)[0], vectors(bmag)[0]
+        inject(sp, rs.uniform(0.0, 8.0, (n, 3)), u0)
+        F = [cp.full(g.shape, v) for v in (*E, *B)]
+        sim.err.fill(0)
+        launch(sim.k_ipush, n, (sp.P, sp.Pn, np.int32(n), np.int64(sp.cap), *F, g.Jx, g.Jy, g.Jz, np.float64(eps),
+                                np.float64(sp.q / sp.m), np.float64(0.0), np.int32(1),
+                                np.float64(cfg.implicit.particle_tol), np.int32(0), sim.err))
+        assert int(sim.err[0]) == 0
+        x = np.longdouble
+        a0, av, t0 = u0.astype(x), u0.astype(x) + x(eps) * E.astype(x), 2 * x(eps) * B.astype(x)
+        g0 = np.sqrt(1 + (a0 * a0).sum(1))
+        g1 = g0
+        for _ in range(100):
+            t = t0 / (g0 + g1)[:, None]
+            ub = (av + np.cross(av, t) + (av * t).sum(1)[:, None] * t) / (1 + (t * t).sum(1))[:, None]
+            u1 = 2 * ub - a0
+            g1 = np.sqrt(1 + (u1 * u1).sum(1))
+        # directions: the energy closure rescales |u1| to the work along the path, here not iterated
+        got, ref = cp.asnumpy(sp.Pn[3:6, :n]).T, u1.astype(np.float64)
+        unit = [v / np.linalg.norm(v, axis=1)[:, None] for v in (got, ref)]
+        assert np.abs(unit[0] - unit[1]).max() < 2e-15  # 4.4e-16 measured; 9e-15 with a bound 100 times looser
 
 
 def test_unconverged_implicit_step_is_not_committed():

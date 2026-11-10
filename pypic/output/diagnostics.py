@@ -23,9 +23,11 @@ class FieldSource:
     def __init__(self, sim):
         self.sim = sim
         self.cache = {}
+        self.profiles = {}
 
     def clear(self):
         self.cache = {}
+        self.profiles = {}
 
     def get(self, comp: str) -> cp.ndarray:
         """Full local array (with ghosts). Deposited quantities are collective (ghost reduction)."""
@@ -52,6 +54,13 @@ class FieldSource:
 
     def phys(self, comp: str) -> cp.ndarray:
         return self.get(comp)[self.sim.grid.physical_slice()]
+
+    def profile(self, comp: str, axis: int) -> cp.ndarray:
+        """Sum of the local physical cells over the two other axes (shared: do not modify)."""
+        key = (comp, axis)
+        if key not in self.profiles:
+            self.profiles[key] = cp.sum(self.phys(comp), axis=tuple(b for b in range(3) if b != axis))
+        return self.profiles[key]
 
 
 def _finish(arr: cp.ndarray, d) -> np.ndarray:
@@ -262,29 +271,24 @@ class LineoutDiag(Diag):
         self.comps = expand_fields(d.fields)
         self.a = "xyz".index(d.axis)
 
-    def _local(self, src):
+    def accumulate(self, src):
+        """Add the profiles of this step to the running sum (in place: one launch per component
+        on top of the shared profile)."""
         sim = self.sim
         ax = sim.decomp.axes[self.a]
-        N = sim.cfg.n_cells[self.a]
-        others = tuple(b for b in range(3) if b != self.a)
-        vals = cp.zeros((len(self.comps), N))
+        if self.accum is None:
+            self.accum = cp.zeros((len(self.comps), sim.cfg.n_cells[self.a]))
         for k, comp in enumerate(self.comps):
-            vals[k, ax.phys_lo: ax.phys_lo + ax.n_phys] = cp.sum(src.phys(comp), axis=others)
-        return vals
-
-    def accumulate(self, src):
-        v = self._local(src)
-        self.accum = v if self.accum is None else self.accum + v
+            self.accum[k, ax.phys_lo: ax.phys_lo + ax.n_phys] += src.profile(comp, self.a)
         self.n_acc += 1
-        self.t_acc += self.sim.time
+        self.t_acc += sim.time
 
     def compute(self, src: FieldSource):
         sim = self.sim
-        if self.r.average and self.accum is not None:
-            v, n, t = self.accum, self.n_acc, self.t_acc / self.n_acc
-            self.accum, self.n_acc, self.t_acc = None, 0, 0.0
-        else:
-            v, n, t = self._local(src), 1, sim.time
+        if not (self.r.average and self.accum is not None):
+            self.accumulate(src)
+        v, n, t = self.accum, self.n_acc, self.t_acc / self.n_acc
+        self.accum, self.n_acc, self.t_acc = None, 0, 0.0
         ntr = math.prod(sim.cfg.n_cells) // sim.cfg.n_cells[self.a]
         v = sim.comm.allreduce(v) / (n * ntr)
         if not self.root:
@@ -323,29 +327,42 @@ class ModesDiag(Diag):
                 gl.append((cp.asarray([j for j, _ in lst]), py, pz, Mx))
             self.groups[comp] = gl
 
-    def _local(self, src):
-        out = cp.zeros((len(self.comps), len(self.modes)), dtype=cp.complex128)
-        for k, comp in enumerate(self.comps):
-            F = src.phys(comp)
-            for idx, py, pz, Mx in self.groups[comp]:
-                A = F.sum(axis=2) if pz is None else cp.tensordot(F, pz, axes=([2], [0]))
-                A = A.sum(axis=1) if py is None else cp.tensordot(A, py, axes=([1], [0]))
-                out[k, idx] = Mx @ A.astype(cp.complex128)
-        return out
+    def _reduced(self, src, comp, py, pz):
+        """The field summed over y and z with the phases of one (my, mz) group: a profile in x."""
+        if py is None and pz is None:
+            return src.profile(comp, 0)
+        F = src.phys(comp)
+        A = F.sum(axis=2) if pz is None else cp.tensordot(F, pz, axes=([2], [0]))
+        return A.sum(axis=1) if py is None else cp.tensordot(A, py, axes=([1], [0]))
 
     def accumulate(self, src):
-        v = self._local(src)
-        self.accum = v if self.accum is None else self.accum + v
+        """Add the x profiles of this step to the running sums. The transform along x is linear, so
+        it is applied once, to the sum (:meth:`compute`)."""
+        first = self.accum is None
+        if first:
+            self.accum = []
+        i = 0
+        for comp in self.comps:
+            for _, py, pz, _ in self.groups[comp]:
+                A = self._reduced(src, comp, py, pz)
+                if first:
+                    self.accum.append(A.copy())
+                else:
+                    self.accum[i] += A
+                i += 1
         self.n_acc += 1
         self.t_acc += self.sim.time
 
     def compute(self, src):
         sim = self.sim
-        if self.r.average and self.accum is not None:
-            v, n, t = self.accum, self.n_acc, self.t_acc / self.n_acc
-            self.accum, self.n_acc, self.t_acc = None, 0, 0.0
-        else:
-            v, n, t = self._local(src), 1, sim.time
+        if not (self.r.average and self.accum is not None):
+            self.accumulate(src)
+        acc, n, t = iter(self.accum), self.n_acc, self.t_acc / self.n_acc
+        self.accum, self.n_acc, self.t_acc = None, 0, 0.0
+        v = cp.zeros((len(self.comps), len(self.modes)), dtype=cp.complex128)
+        for k, comp in enumerate(self.comps):
+            for idx, _, _, Mx in self.groups[comp]:
+                v[k, idx] = Mx @ next(acc).astype(cp.complex128)
         ri = sim.comm.allreduce(cp.stack([v.real, v.imag]))
         v = (ri[0] + 1j * ri[1]) / (n * self.N)
         if not self.root:

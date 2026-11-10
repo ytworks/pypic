@@ -36,16 +36,22 @@ class YeeGrid:
         self.k_update_E = self.mod.get_function("update_E")
         self.k_curl_E = self.mod.get_function("curl_E")
         self.k_curl_B = self.mod.get_function("curl_B")
-        self.k_vec_add_scaled = self.mod.get_function("vec_add_scaled")
-        self.k_cg_update = self.mod.get_function("cg_update")
-        self.k_cg_direction = self.mod.get_function("cg_direction")
+        self.k_cg_matvec_end = self.mod.get_function("cg_matvec_end")
+        self.k_cg_matvec = self.mod.get_function("cg_matvec")
+        self.k_cg_scalars = self.mod.get_function("cg_scalars")
+        self.k_cg_step = self.mod.get_function("cg_step")
+        self.k_half_E = self.mod.get_function("half_E")
+        self.k_half_B = self.mod.get_function("half_B")
+        self.k_picard_change = self.mod.get_function("picard_change")
         self.k_div_E = self.mod.get_function("div_E")
         self.k_div_B = self.mod.get_function("div_B")
         self.k_binomial = self.mod.get_function("binomial_pass3")
         self.k_copy_pass = self.mod.get_function("copy_pass3")
+        self.k_binomial_wrap = self.mod.get_function("binomial_wrap3")
         self.k_slab_copy = self.mod.get_function("slab_copy3")
         self.k_slab_zero = self.mod.get_function("slab_zero3")
         self.k_slab_pack = self.mod.get_function("slab_pack3")
+        self.k_slab_wrap = self.mod.get_function("slab_wrap3")
         self.n_update = int(np.prod([a.n_int for a in ax]))
         if self.use_pml:
             self._init_pml()
@@ -134,53 +140,59 @@ class YeeGrid:
             b = bufs[key] = cp.empty(n, dtype=cp.float64)
         return b[:n]
 
-    def _pack(self, grp, a, s0, width, buf, unpack=False, add=False):
+    def _pack(self, grp, a, starts, width, buf, unpack=False, add=False):
+        """Pack (or unpack) the slabs starting at ``starts`` (one or two faces) in one launch."""
+        s = [*starts, -1]
         launch(self.k_slab_pack, buf.size,
-               (*self._ptrs(grp), buf, np.int32(len(grp)), np.int32(a), np.int32(s0), np.int32(width),
-                np.int32(unpack), np.int32(add)))
+               (*self._ptrs(grp), buf, np.int32(len(grp)), np.int32(a), np.int32(s[0]), np.int32(s[1]),
+                np.int32(width), np.int32(unpack), np.int32(add)))
+
+    def _wrap(self, grp, mask):
+        """Ghost layers of the axes of ``mask`` (they wrap onto this rank) <- periodic images."""
+        g, count, owned = self.g, 0, list(self.shape)
+        for a in range(3):
+            if mask >> a & 1:
+                count += 2 * g * math.prod(owned) // owned[a]
+                owned[a] -= 2 * g
+        launch(self.k_slab_wrap, len(grp) * count, (*self._ptrs(grp), np.int32(len(grp)), np.int32(mask)))
 
     def _exchange_faces(self, grp, a, kind, send_lo, send_hi, recv_hi, recv_lo, add):
-        """Pack the two send slabs of every array, exchange one message per face, unpack."""
+        """Pack the send slabs of every array (both faces in one launch), exchange one message per
+        face, unpack (both faces in one launch unless they add into the same cells)."""
         ax, g = self.d.axes[a], self.g
         n = self._slab_count(a, g, len(grp))
-        sends, recvs, unp = [], [], []
-        if ax.lo is not None:
-            b = self._face_buf((kind, a, "s0"), n)
-            self._pack(grp, a, send_lo, g, b)
-            sends.append((b, ax.lo))
-        if ax.hi is not None:
-            b = self._face_buf((kind, a, "s1"), n)
-            self._pack(grp, a, send_hi, g, b)
-            sends.append((b, ax.hi))
-        if ax.hi is not None:
-            b = self._face_buf((kind, a, "r1"), n)
-            recvs.append((b, ax.hi))
-            unp.append((b, recv_hi))
-        if ax.lo is not None:
-            b = self._face_buf((kind, a, "r0"), n)
-            recvs.append((b, ax.lo))
-            unp.append((b, recv_lo))
-        self.comm.exchange(sends, recvs)
-        for b, d0 in unp:
-            self._pack(grp, a, d0, g, b, unpack=True, add=add)
+        out = [(s, r) for s, r in ((send_lo, ax.lo), (send_hi, ax.hi)) if r is not None]
+        inc = [(d, r) for d, r in ((recv_hi, ax.hi), (recv_lo, ax.lo)) if r is not None]
+        sbuf = self._face_buf((kind, a, "s"), len(out) * n)
+        rbuf = self._face_buf((kind, a, "r"), len(inc) * n)
+        self._pack(grp, a, [s for s, _ in out], g, sbuf)
+        self.comm.exchange([(sbuf[i * n:(i + 1) * n], r) for i, (_, r) in enumerate(out)],
+                           [(rbuf[i * n:(i + 1) * n], r) for i, (_, r) in enumerate(inc)])
+        starts = [d for d, _ in inc]
+        if add and len(starts) == 2 and ax.n_int < 2 * g:  # [n, n+g) and [g, 2g) overlap: one by one
+            for i, d in enumerate(starts):
+                self._pack(grp, a, [d], g, rbuf[i * n:(i + 1) * n], unpack=True, add=True)
+        else:
+            self._pack(grp, a, starts, g, rbuf, unpack=True, add=add)
 
     def fill_ghosts(self, arrays, axes=(0, 1, 2)):
         """Copy the neighbours' boundary layers into the ghost layers. Fused kernels handle up to 3
-        arrays per launch, and a face carries all of them in one message (issue #8); an axis that
-        wraps onto this rank is copied in place."""
+        arrays per launch, and a face carries all of them in one message (issue #8). The axes that
+        wrap onto this rank are filled last, in one launch, from the periodic images: the values the
+        axis-by-axis sequence gives, edges and corners included."""
         g = self.g
-        groups = self._groups(self._as_list(arrays))
-        for a in axes:
-            ax = self.d.axes[a]
-            n = ax.n_int
-            if ax.lo is None and ax.hi is None:
-                continue
-            for grp in groups:
+        for grp in self._groups(self._as_list(arrays)):
+            mask = 0
+            for a in axes:
+                ax = self.d.axes[a]
+                if ax.lo is None and ax.hi is None:
+                    continue
                 if self._self_axis(ax):
-                    self._copy(grp, a, g, n + g, g, False)  # hi ghosts <- lo boundary layer
-                    self._copy(grp, a, n, 0, g, False)  # lo ghosts <- hi boundary layer
+                    mask |= 1 << a
                 else:
-                    self._exchange_faces(grp, a, "fill", g, n, n + g, 0, add=False)
+                    self._exchange_faces(grp, a, "fill", g, ax.n_int, ax.n_int + g, 0, add=False)
+            if mask:
+                self._wrap(grp, mask)
 
     def reduce_ghosts(self, arrays):
         """Add ghost-cell contributions (current/charge deposited outside) to the owners, then zero
@@ -211,7 +223,9 @@ class YeeGrid:
         conducting wall node-type data are mirrored about the face node (face row (3/4, 1/4)) and
         wall-normal staggered data have a zero ghost, which makes the filter symmetric and commute
         with the discrete divergence. Call after reduce_ghosts and before apply_bc_J; the hi face
-        node of node-type data is filtered too (wall deposits live there)."""
+        node of node-type data is filtered too (wall deposits live there). Along an axis that wraps
+        onto this rank the passes are applied as one composite stencil: the same filter, with the
+        rounding of one sum instead of one per pass."""
         if passes <= 0:
             return
         g = self.g
@@ -221,8 +235,17 @@ class YeeGrid:
         arrays = list(arrays)
         assert len(arrays) <= 3 and all(F.flags.c_contiguous and F.shape == self.shape for F in arrays)
         tmp = self._filter_tmp(len(arrays))
+        cur = arrays  # where the data are: the arrays, or the work buffers after a wrapped axis
         for a in range(3):
             ax = self.d.axes[a]
+            if self._self_axis(ax):  # every pass in one launch, no ghosts needed (issue #37)
+                nxt = tmp if cur is arrays else arrays
+                self._wrapped_passes(cur, nxt, a, ax.n_int, w)
+                cur = nxt
+                continue
+            if cur is tmp:
+                self._copy_pass(arrays, tmp, a, 0, [self.shape[a]] * len(arrays))
+                cur = arrays
             lo_wall = self.d.bc[a][0] != "periodic" and ax.lo is None
             hi_wall = self.d.bc[a][1] != "periodic" and ax.hi is None
             f = g + ax.n_int  # hi face node index (ghost for periodic / rank faces)
@@ -253,6 +276,8 @@ class YeeGrid:
                     for lay in (lo_l, hi_l):
                         if lay:
                             self._slab(F, a, *lay)[...] = self._slab(T, a, *lay)
+        if cur is tmp:
+            self._copy_pass(arrays, tmp, 0, 0, [self.shape[0]] * len(arrays))
 
     def _pass_args(self, a, lo, his, n):
         hs = [np.int32(h) for h in his] + [np.int32(lo)] * (3 - len(his))
@@ -274,6 +299,21 @@ class YeeGrid:
             F = list(arrays) + [arrays[0]] * (3 - len(arrays))
             T = list(tmp) + [tmp[0]] * (3 - len(tmp))
             launch(self.k_copy_pass, count, (*F, *T, *args))
+
+    def _wrapped_passes(self, src, dst, a, n, w):
+        """dst = all the passes `w` along the self-periodic axis a applied to src, at every index
+        (the ghost layers of the axis as periodic images). The composite stencil is the convolution
+        of the passes; its coefficients are exact (dyadic) for the binomial passes and compensator."""
+        if getattr(self, "_fw", None) is None or self._fw[0] != w:
+            c = np.ones(1)
+            for wts in w:
+                c = np.convolve(c, wts)
+            self._fw = (w, cp.asarray(c[len(w):]))  # centre and one side: the stencil is symmetric
+        coef = self._fw[1]
+        S = list(src) + [src[0]] * (3 - len(src))
+        D = list(dst) + [dst[0]] * (3 - len(dst))
+        launch(self.k_binomial_wrap, math.prod(self.shape),
+               (*S, *D, np.int32(len(src)), np.int32(a), np.int32(n), np.int32(len(w)), coef))
 
     def _filter_tmp(self, k):
         if getattr(self, "_ftmp", None) is None:  # allocated on the first filtered step only
@@ -327,12 +367,14 @@ class YeeGrid:
 
     # ------------------------------------------------------------ updates
     def push_B(self, dtb: float):
+        """B -= dtb curl E on the update range and one ghost layer around it, from the exchanged
+        ghosts of E (two layers): the neighbours' values of B, bit for bit, without an exchange.
+        The outermost ghost layer of B is not updated; nothing reads it."""
         args = [self.Ex, self.Ey, self.Ez, self.Bx, self.By, self.Bz, np.float64(dtb)]
         if self.use_pml:
             args += self.psiB + self.pml_B
-        launch(self.k_update_B, self.n_update, tuple(args))
+        launch(self.k_update_B, math.prod(a.n_int + 2 for a in self.d.axes), tuple(args))
         self.apply_bc_B()
-        self.fill_ghosts((self.Bx, self.By, self.Bz))
 
     def push_E(self, dte: float):
         args = [self.Ex, self.Ey, self.Ez, self.Bx, self.By, self.Bz, self.Jx, self.Jy, self.Jz, np.float64(dte)]
@@ -379,7 +421,7 @@ class YeeGrid:
         E = E if E is not None else (self.Ex, self.Ey, self.Ez)
         B = B if B is not None else (self.Bx, self.By, self.Bz)
         s = self.physical_slice() if region == "physical" else self.owned_slice()
-        # two stages, as Simulation._dot: a full reduction runs as a single thread block
+        # two stages: a full reduction to one scalar runs as a single thread block (issue #5)
         sums = [self._sum_sq(*(F[s] for F in V), axis=(1, 2)).sum() for V in (E, B)]
         return cp.stack(sums) * (0.5 * self.cell_volume)
 
