@@ -188,14 +188,14 @@ def _figure(run, info, line, res, path):
 
 
 def summary(results: dict[str, dict], path: str) -> str:
-    """Magnetopause distance, shock distance and sheath compression of every run against the pressure
-    balance, the stand-off of Spreiter et al. (1966) and the perpendicular MHD shock."""
+    """Magnetopause distance, shock distance and largest density on the subsolar line of every run
+    against the pressure balance, the stand-off of Spreiter et al. (1966) and the perpendicular MHD shock."""
     P.style()
     names = list(results)
     y = np.arange(len(names))[::-1]
     panels = (("magnetopause", None, "magnetopause distance / R_mp", "pressure balance"),
               ("shock", "shock_spreiter", "shock distance / Spreiter et al. (1966)", "Spreiter et al. (1966)"),
-              ("compression", "compression_mhd", "sheath compression / perpendicular MHD shock", "MHD shock"))
+              ("compression", "compression_mhd", "largest density / perpendicular MHD shock", "MHD shock"))
     fig, axes = P.plt.subplots(1, 3, figsize=(14, 0.5 * len(names) + 1.8), sharey=True)
     for k, (ax, (key, th, lab, th_lab)) in enumerate(zip(axes, panels)):
         if k == 0:
@@ -206,8 +206,10 @@ def summary(results: dict[str, dict], path: str) -> str:
             r = results[n]
             ref = r[th] if th else 1.0
             ax.plot(r[key] / ref, yi, "o", ms=8, color=P.color(0), label=("PIC" if yi == y[0] else None))
-            ax.annotate(f"{r[key]:.2f} vs {ref:.2f}", (r[key] / ref, yi), xytext=(0, 10), textcoords="offset points",
-                        ha="center", fontsize=7, color=P.INK["secondary"])
+            side = -1 if r[key] < ref else 1  # the label stays on the point's side of the reference line
+            ax.annotate(f"{r[key]:.2f} vs {ref:.2f}", (r[key] / ref, yi), xytext=(8 * side, 8),
+                        textcoords="offset points", ha="right" if side < 0 else "left", fontsize=7,
+                        color=P.INK["secondary"])
         ax.set_xlim(0.5, 1.5)
         ax.set_xlabel(lab)
         ax.grid(axis="y", visible=False)
