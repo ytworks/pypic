@@ -19,7 +19,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accepted, PIC-D11 Proposed),
+Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accepted, PIC-D11 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
@@ -41,6 +41,9 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 - Known gaps: no particle injection at open faces (R1); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9: +4 % of a production run on 1 GPU, +13–14 % on 8; a writer thread
   was measured below the 2 % criterion and not adopted).
+- In progress: 3-D bow shock example and the open-boundary features it needs (R1, R6; plan
+  `docs/plans/2026-11-10-bow-shock.md`). Phase 0 (probe measurements) done; no engine change yet,
+  PIC-D12..D16 are written with their phases.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -50,6 +53,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [design] Bow-shock plan: open-boundary design fixed by the Phase 0 measurements
+- What: plan for `examples/bow_shock/` and its engine features (external static fields + dipole, injection at open faces, absorbing sphere, filter with open faces). A scratch probe on the unchanged engine (128×32×32, up to 6e4 steps) fixed three points: an open face needs the deposit cut at the face, the filter's wall at the box face and a Marder zone (layer + face + passes + 2 nodes) together; the wind inflow face injects charge-neutral pairs and the side faces a fixed flux; ions leaving through the paired face are paid for by the next entering ions.
+- Why: a relaxation of E in the layer had no effect at any rate, and each of the three measures alone failed with a filter; flux injection at u / v_te = 2.5 settled in a source sheath (n 1.51 at the face, potential range 17 T0) while the paired face stayed stationary for 6e4 steps, and the reverse held for faces with a thermal normal velocity (paired: density +9 % in 2e4 steps).
+- Refs: `docs/plans/2026-11-10-bow-shock.md` (run table); roadmap R1, R6; PIC-D12..D16 (not yet written)
 ### 2026-11-10 — [progress] Performance round 3 gated: ALL PASSED on 158bc20, fp64 and mixed
 - What: gates on the stack #27–#37: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 %, Gauss max 7.6e-12, implicit energy 1.9e-10, 15 example gates, 71 GPU tests; mixed: 19 explicit gates, Gauss max 7.7e-12. Recorded without a criterion: `div B` of `plasma_waves:perpendicular` 1.00e-12 (0.95e-12 mixed), in its earlier range. 3e013df → 158bc20, ms/step (two alternating runs): two-stream 1/2/4/8 GPUs 37.9/19.7/10.2/5.7 → 22.0/11.5/6.0/3.4 (−42/−41/−41/−40 %), mixed 33.5/17.5/9.3/5.3 → 18.2/9.9/5.3/3.1, shock 8 GPUs 10.9 → 6.3 (−43 %), implicit 1 GPU 513 → 488 (−4.9 %) and 8 GPUs 101–103 → 76–78 (−22 to −27 %, 60-step windows), production run with the full output set 40.6 → 23.0 (1 GPU) and 6.4–6.5 → 3.8 (8 GPUs).
 - Why: evidence for the round-3 changes on one clean commit (CI cannot run the gates). M6 stays Partial: the push kernel is 71 % of the 8-GPU step (94 % on 1 GPU) and FP64-bound, and the open items change the arithmetic (R10, R5, PIC-D11).
