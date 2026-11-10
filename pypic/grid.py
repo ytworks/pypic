@@ -36,9 +36,9 @@ class YeeGrid:
         self.k_update_E = self.mod.get_function("update_E")
         self.k_curl_E = self.mod.get_function("curl_E")
         self.k_curl_B = self.mod.get_function("curl_B")
-        self.k_vec_add_scaled = self.mod.get_function("vec_add_scaled")
-        self.k_cg_update = self.mod.get_function("cg_update")
-        self.k_cg_direction = self.mod.get_function("cg_direction")
+        self.k_cg_matvec_end = self.mod.get_function("cg_matvec_end")
+        self.k_cg_scalars = self.mod.get_function("cg_scalars")
+        self.k_cg_step = self.mod.get_function("cg_step")
         self.k_div_E = self.mod.get_function("div_E")
         self.k_div_B = self.mod.get_function("div_B")
         self.k_binomial = self.mod.get_function("binomial_pass3")
@@ -379,7 +379,7 @@ class YeeGrid:
         E = E if E is not None else (self.Ex, self.Ey, self.Ez)
         B = B if B is not None else (self.Bx, self.By, self.Bz)
         s = self.physical_slice() if region == "physical" else self.owned_slice()
-        # two stages, as Simulation._dot: a full reduction runs as a single thread block
+        # two stages: a full reduction to one scalar runs as a single thread block (issue #5)
         sums = [self._sum_sq(*(F[s] for F in V), axis=(1, 2)).sum() for V in (E, B)]
         return cp.stack(sums) * (0.5 * self.cell_volume)
 

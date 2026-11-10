@@ -525,23 +525,40 @@ def test_cg_handles_exact_convergence_between_checks():
     assert float(cp.max(cp.abs(x[(slice(None),) + sim.own] - b[(slice(None),) + sim.own]))) < 1e-12
 
 
-def test_cg_inner_product_matches_the_owned_unknowns():
-    """The two-stage CG inner product (issue #5) sums exactly the owned, unconstrained E unknowns
-    and agrees with the former one-stage reduction to 1e-14 of its value (fixed seed, same inputs)."""
+def test_cg_inner_products_match_the_owned_unknowns():
+    """The inner products that the CG takes with its matrix product (sums per thread block, then
+    of the blocks) are those over the owned, unconstrained E unknowns: (r, v), (A v, v), (r, r)
+    agree with the sums on the host (fixed seed; mixed signs, and the norm of the convergence test)."""
     bc = (("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
     cfg = SimConfig(n_cells=(48, 32, 24), dx=(0.5,) * 3, dt=0.5, solver="implicit", species=[], boundaries=bc,
                     diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     rng = np.random.default_rng(3)
-    a, b = (rng.standard_normal((3,) + sim.grid.shape) for _ in range(2))
-    W = cp.asnumpy(sim.Wmask)
-    for x, y in ((a, b), (a, a)):  # mixed signs, and the r.r norm of the CG convergence test
-        X, Y = cp.asarray(x), cp.asarray(y)
-        new = float(sim._dot(X, Y))
-        old = float(sim._wdot(sim.Wmask, X, Y))  # the former single reduction to one scalar
-        scale = float(np.sum(np.abs(W * x * y)))
-        assert abs(new - float(np.sum(W * x * y))) <= 1e-13 * scale
-        assert abs(new - old) <= 1e-14 * abs(old)  # relative to the inner product itself (issue #5)
+    v, r = (cp.asarray(rng.standard_normal((3,) + sim.grid.shape)) for _ in range(2))
+    Av, tmp = cp.empty_like(v), cp.empty_like(v)
+    got = cp.asnumpy(sim._matvec(v, Av, tmp, r))
+    W, v, r, Av = (cp.asnumpy(a) for a in (sim.Wmask, v, r, Av))
+    for value, (a, b) in zip(got, ((r, v), (Av, v), (r, r))):
+        assert abs(value - np.sum(W * a * b)) <= 1e-13 * np.sum(np.abs(W * a * b))
+
+
+@pytest.mark.parametrize("x_faces", ["reflecting", "open"])
+def test_cg_solves_the_field_equation_to_its_tolerance(x_faces):
+    """The CG keeps a recurrence for the residual and for the matrix product of its search
+    direction; the residual of its result, taken with the matrix itself, is at the level of
+    cg_tol (conducting walls, and the absorbing layer of open faces; fixed seed)."""
+    bc = ((x_faces, x_faces), ("periodic", "periodic"), ("periodic", "periodic"))
+    cfg = SimConfig(n_cells=(48, 16, 12), dx=(0.5,) * 3, dt=1.0, solver="implicit", species=[], boundaries=bc,
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    b = cp.asarray(np.random.default_rng(5).standard_normal((3,) + sim.grid.shape)) * sim.Wmask
+    x = cp.zeros_like(b)
+    its = sim._cg(x, b)
+    Ax, tmp = cp.empty_like(x), cp.empty_like(x)
+    sim._matvec(x, Ax, tmp, b)
+    res = float(cp.linalg.norm((b - Ax) * sim.Wmask)) / float(cp.linalg.norm(b))
+    assert 0 < its < cfg.implicit.cg_maxit
+    assert res <= 10 * cfg.implicit.cg_tol
 
 
 @pytest.mark.parametrize("theta", [1e-3, 0.05, 0.3, 3.0])

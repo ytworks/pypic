@@ -141,36 +141,71 @@ extern "C" __global__ void curl_B(const double* __restrict__ Bx, const double* _
 // ---- vector kernels of the implicit field solve: stacked (3, NX, NY, NZ) arrays
 #define NVEC (3LL * NX * NY * NZ)
 
-// y += a * x
-extern "C" __global__ void vec_add_scaled(double* __restrict__ y, const double* __restrict__ a,
-                                          const double* __restrict__ x) {
-    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
-    if (t >= NVEC) return;
-    y[t] += a[t] * x[t];
+// Last kernel of the CG matrix product w = A u: w += Adiag u, and the inner products of the
+// Chronopoulos-Gear recurrence with it. The sums of r u, w u and r r over the unknowns (W = 1) of
+// each thread block go to part[3 * block]; the caller adds the blocks, a fixed order of summation.
+// Launched with CG_BLOCK threads per block.
+extern "C" __global__ void cg_matvec_end(double* __restrict__ w, const double* __restrict__ a,
+                                         const double* __restrict__ u, const double* __restrict__ r,
+                                         const double* __restrict__ W, double* __restrict__ part) {
+    __shared__ double sum[3][CG_BLOCK];
+    const int i = threadIdx.x;
+    const long long t = (long long)blockIdx.x * blockDim.x + i;
+    double ru = 0.0, wu = 0.0, rr = 0.0;
+    if (t < NVEC) {
+        const double wt = w[t] + a[t] * u[t];
+        w[t] = wt;
+        if (W[t] != 0.0) {  // ghost values are not defined: never multiplied, even by zero
+            ru = r[t] * u[t];
+            wu = wt * u[t];
+            rr = r[t] * r[t];
+        }
+    }
+    sum[0][i] = ru;
+    sum[1][i] = wu;
+    sum[2][i] = rr;
+    __syncthreads();
+    for (int h = CG_BLOCK / 2; h > 0; h >>= 1) {
+        if (i < h)
+            for (int q = 0; q < 3; q++) sum[q][i] += sum[q][i + h];
+        __syncthreads();
+    }
+    if (i == 0)
+        for (int q = 0; q < 3; q++) part[3LL * blockIdx.x + q] = sum[q][0];
 }
 
-// CG update with alpha = rz / pAp: x += alpha p, r -= alpha Ap, z = Minv r. The scalars are read
-// on the device. pAp == 0 (the residual is already exactly zero): alpha = 0.
-extern "C" __global__ void cg_update(double* __restrict__ x, double* __restrict__ r, double* __restrict__ z,
-                                     const double* __restrict__ p, const double* __restrict__ Ap,
-                                     const double* __restrict__ Minv, const double* __restrict__ rz,
-                                     const double* __restrict__ pAp) {
+// Step lengths of one CG step from sc = ((r, u), (w, u), .) of all ranks, read and kept on the
+// device: st = ((r, u) of the step before, alpha, beta), all zero before the first step.
+//   beta = (r, u) / (r, u)_before,  alpha = (r, u) / ((w, u) - beta (r, u) / alpha_before)
+// A zero denominator is a zero step: the residual is already exactly zero (the convergence test
+// runs every few iterations only), or it is the first step (beta = 0).
+extern "C" __global__ void cg_scalars(const double* __restrict__ sc, double* __restrict__ st) {
+    if (blockIdx.x != 0 || threadIdx.x != 0) return;
+    const double ru = sc[0];
+    const double beta = st[0] != 0.0 ? ru / st[0] : 0.0;
+    const double den = sc[1] - (beta != 0.0 && st[1] != 0.0 ? beta * ru / st[1] : 0.0);
+    st[0] = ru;
+    st[1] = den != 0.0 ? ru / den : 0.0;
+    st[2] = beta;
+}
+
+// CG step with u = Minv r and w = A u given: p = u + beta p, s = w + beta s (= A p),
+// x += alpha p, r -= alpha s, u = Minv r.
+extern "C" __global__ void cg_step(double* __restrict__ x, double* __restrict__ r, double* __restrict__ u,
+                                   double* __restrict__ p, double* __restrict__ s,
+                                   const double* __restrict__ w, const double* __restrict__ Minv,
+                                   const double* __restrict__ st) {
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
     if (t >= NVEC) return;
-    const double alpha = pAp[0] != 0.0 ? rz[0] / pAp[0] : 0.0;
-    x[t] += alpha * p[t];
-    const double rt = r[t] - alpha * Ap[t];
+    const double alpha = st[1], beta = st[2];
+    const double pt = u[t] + beta * p[t];
+    const double sv = w[t] + beta * s[t];
+    p[t] = pt;
+    s[t] = sv;
+    x[t] += alpha * pt;
+    const double rt = r[t] - alpha * sv;
     r[t] = rt;
-    z[t] = Minv[t] * rt;
-}
-
-// CG search direction with beta = rz_new / rz: p = z + beta p. rz == 0: beta = 0.
-extern "C" __global__ void cg_direction(double* __restrict__ p, const double* __restrict__ z,
-                                        const double* __restrict__ rz_new, const double* __restrict__ rz) {
-    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
-    if (t >= NVEC) return;
-    const double beta = rz[0] != 0.0 ? rz_new[0] / rz[0] : 0.0;
-    p[t] = beta * p[t] + z[t];
+    u[t] = Minv[t] * rt;
 }
 
 // div E (at nodes) for Gauss-law diagnostics

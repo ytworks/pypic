@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Implicit CG: one reduction per iteration (issue #28)
+- What: `_cg` uses the Chronopoulos–Gear recurrence: the last kernel of the matrix product (`cg_matvec_end`) also sums `r·u`, `w·u`, `r·r` per thread block, one `allreduce` carries the three, `cg_scalars` computes α and β on the device and `cg_step` does the four vector updates and the preconditioning (before: 2.25 reductions and 3 vector kernels per iteration). Implicit two-stream, 8 GPUs, two alternating pairs: 97.5 → 89.3 and 98.0 → 89.7 ms/step (−8.4 / −8.5 %); 1 GPU 513.3 → 515.2 / 514.9 (+0.3 %: one more matrix product per solve). Iteration counts and the true residual equal the old CG (periodic / reflecting / open, `dt` 0.5–2).
+- Why: 163 NCCL `AllReduce` per step were 25 ms of the 8-GPU implicit step (`nsys`); the CG took longer on 8 GPUs than on 1.
+- Refs: #28, #4; `pypic/simulation.py`, `pypic/kernels/fields.cu`, `pypic/kernelsrc.py` (`CG_BLOCK`); `tests/gpu/test_engine.py`
 ### 2026-11-10 — [progress] Time-averaged lineout and modes share one profile per step (issue #27)
 - What: `FieldSource.profile(comp, axis)` sums a component over the two other axes once per step and shares it; `LineoutDiag` and `ModesDiag` accumulate that real profile in place, and the mode transform is applied once per output (linear, so the same result). Two-stream production run with output (4936 steps, 8 GPUs, two alternating pairs): 6.62 → 6.17 and 6.42 → 6.19 ms/step (−6.9 / −3.6 %); the per-step accumulation 0.364 → 0.118 ms/step. The 13 output files agree with 3e013df within 1e-12.
 - Why: the averaged diagnostics accumulate every step; each did its own reduction of the whole grid with temporaries and a complex transform per step — the largest part of the output cost of a production run (8–10 % of the run on 8 GPUs).
