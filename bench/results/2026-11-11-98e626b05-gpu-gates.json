@@ -1,0 +1,738 @@
+{
+  "date": "2026-11-11",
+  "commit": "98e626b05c7f2c0ed8e1a2515e0573b34963acf7",
+  "dirty": false,
+  "gpus": 8,
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "quick": false,
+  "all_passed": true,
+  "gates": [
+    {
+      "name": "gpu-tests",
+      "passed": true,
+      "metrics": {
+        "passed": 89,
+        "failed": 0,
+        "skipped": 0
+      },
+      "criteria": {
+        "failed": 0,
+        "skipped": 0
+      },
+      "log_tail": null
+    },
+    {
+      "name": "two-stream:ei",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.3516099942828085,
+        "growth_theory": 0.34152114213476215,
+        "growth_rel_error": 0.029540929984549345,
+        "gauss_max": 2.173261570703744e-12,
+        "divB_max": 4.3483805704811726e-15,
+        "energy_error_max": 0.0021930501923725066,
+        "wall_time_s": 4.18788951006718,
+        "ns_per_particle_step_x_gpus": 2.153326683217805
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:ep",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.46022807896778,
+        "growth_theory": 0.4680931521766451,
+        "growth_rel_error": -0.01680236758921232,
+        "gauss_max": 8.407927132303428e-13,
+        "divB_max": 9.761140974548347e-15,
+        "energy_error_max": 0.0023989141431882462,
+        "wall_time_s": 3.7723575088893995,
+        "ns_per_particle_step_x_gpus": 2.1363423209798587
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:eip",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.3247179816128144,
+        "growth_theory": 0.3322174078098893,
+        "growth_rel_error": -0.022573850800035194,
+        "gauss_max": 3.4833941287004677e-12,
+        "divB_max": 7.774201916087607e-15,
+        "energy_error_max": 0.00029366292658854264,
+        "wall_time_s": 8.042488115956075,
+        "ns_per_particle_step_x_gpus": 1.6367721630793426
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:ei_implicit",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.35355043999420654,
+        "growth_theory": 0.34152114213476215,
+        "growth_rel_error": 0.03522270329811005,
+        "gauss_max": 5.884737142025642e-13,
+        "divB_max": 1.382756184194453e-15,
+        "energy_error_max": 1.8854525140848235e-10,
+        "wall_time_s": 19.563212216016836,
+        "ns_per_particle_step_x_gpus": 293.08878604725
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12,
+        "energy_error_max": 1e-08
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:buneman",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.05122590431927053,
+        "growth_theory": 0.05372784084847818,
+        "growth_rel_error": -0.046566854161579796,
+        "gauss_max": 7.587284966970032e-12,
+        "divB_max": 1.6065851562907912e-14,
+        "energy_error_max": 0.004418020277801476,
+        "wall_time_s": 13.141940564033575,
+        "ns_per_particle_step_x_gpus": 38.66013089232709
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "plasma_waves:unmagnetized",
+      "passed": true,
+      "metrics": {
+        "geometry": "unmagnetized",
+        "d_omega": 0.020978985316372073,
+        "branches": {
+          "Ex: Langmuir (kinetic)": {
+            "component": "Ex",
+            "points": 24,
+            "found": 24,
+            "median_rel_error": 0.013869614651192045,
+            "max_rel_error": 0.022003074541604824,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ey: EM (Yee)": {
+            "component": "Ey",
+            "points": 24,
+            "found": 24,
+            "median_rel_error": 0.0033870830432480535,
+            "max_rel_error": 0.011965178826665855,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ez: EM (Yee)": {
+            "component": "Ez",
+            "points": 24,
+            "found": 24,
+            "median_rel_error": 0.0032422150945239196,
+            "max_rel_error": 0.011802943614031988,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          }
+        },
+        "passed": true,
+        "gauss_max": 5.25304105769564e-12,
+        "divB_max": 3.972516759986888e-15,
+        "wall_time_s": 6.511742650065571,
+        "ns_per_particle_step_x_gpus": 2.2705966070986126
+      },
+      "criteria": {
+        "analysis": "examples/plasma_waves/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "plasma_waves:perpendicular",
+      "passed": true,
+      "metrics": {
+        "geometry": "perpendicular",
+        "d_omega": 0.020957887585698498,
+        "branches": {
+          "Ez: O mode": {
+            "component": "Ez",
+            "points": 20,
+            "found": 20,
+            "median_rel_error": 0.0005062283648649402,
+            "max_rel_error": 0.0017788841718260307,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ey: X upper": {
+            "component": "Ey",
+            "points": 20,
+            "found": 20,
+            "median_rel_error": 0.000652526760086427,
+            "max_rel_error": 0.0017836818259895062,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ey: X lower": {
+            "component": "Ey",
+            "points": 20,
+            "found": 20,
+            "median_rel_error": 0.04647832297125147,
+            "max_rel_error": 0.08880380231562529,
+            "fraction_within_tolerance": 0.45,
+            "checked": false
+          },
+          "Ex: Bernstein 1": {
+            "component": "Ex",
+            "points": 91,
+            "found": 83,
+            "median_rel_error": 0.004558220611157008,
+            "max_rel_error": 0.019377333563954532,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ex: Bernstein 2": {
+            "component": "Ex",
+            "points": 91,
+            "found": 91,
+            "median_rel_error": 0.007005764977997909,
+            "max_rel_error": 0.019568055764681642,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ex: Bernstein 3": {
+            "component": "Ex",
+            "points": 91,
+            "found": 73,
+            "median_rel_error": 0.00735765301117697,
+            "max_rel_error": 0.011690481534160826,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ex: Bernstein 4": {
+            "component": "Ex",
+            "points": 91,
+            "found": 37,
+            "median_rel_error": 0.007051749306170415,
+            "max_rel_error": 0.03341553775280436,
+            "fraction_within_tolerance": 0.972972972972973,
+            "checked": false
+          }
+        },
+        "passed": true,
+        "gauss_max": 4.9767689969115736e-12,
+        "divB_max": 1.0523223469669238e-12,
+        "wall_time_s": 18.165868951007724,
+        "ns_per_particle_step_x_gpus": 2.0031592361424306
+      },
+      "criteria": {
+        "analysis": "examples/plasma_waves/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "landau_damping:landau",
+      "passed": true,
+      "metrics": {
+        "case": "landau",
+        "omega_fit": 1.4140515105015148,
+        "gamma_fit": -0.16041577806765694,
+        "omega_theory": 1.415661888604536,
+        "gamma_theory": -0.15335946690960525,
+        "omega_rel_error": -0.0011375442935803181,
+        "gamma_rel_error": 0.046011578549701775,
+        "fit_window": [
+          0.0,
+          19.738822639500157
+        ],
+        "passed": true,
+        "gauss_max": 3.8141712010997253e-13,
+        "wall_time_s": 23.276236551930197,
+        "ns_per_particle_step_x_gpus": 1.4491414663906645
+      },
+      "criteria": {
+        "analysis": "examples/landau_damping/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "landau_damping:dawson",
+      "passed": true,
+      "metrics": {
+        "case": "dawson",
+        "sheets": 304,
+        "freq_rel_error_median": 0.003054706455748235,
+        "amp_rel_error_median": 0.003916383186031491,
+        "passed": true,
+        "gauss_max": 8.336040191458949e-14,
+        "wall_time_s": 4.7846903399331495,
+        "ns_per_particle_step_x_gpus": 19.557616026365217
+      },
+      "criteria": {
+        "analysis": "examples/landau_damping/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "landau_damping:wavebreaking",
+      "passed": true,
+      "metrics": {
+        "case": "wavebreaking",
+        "t_cross": 0.9733688258898454,
+        "t_cross_theory": 0.9851107833377457,
+        "rel_error": -0.011919428399835678,
+        "max_gamma_end": 1.0106178522109985,
+        "passed": true,
+        "gauss_max": 1.8327006578999772e-13,
+        "wall_time_s": 4.825967096025124,
+        "ns_per_particle_step_x_gpus": 21.91619462524198
+      },
+      "criteria": {
+        "analysis": "examples/landau_damping/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "landau_damping:relativistic",
+      "passed": true,
+      "metrics": {
+        "case": "relativistic",
+        "sheets": 304,
+        "beta_max": 0.3000126296706434,
+        "omega_theory_max_amplitude": 0.9823436391298078,
+        "freq_rel_error_median": 0.0007469563361271096,
+        "nonrelativistic_shift": 0.015112769702573359,
+        "passed": true,
+        "gauss_max": 2.710887070378476e-13,
+        "wall_time_s": 2.8684177059913054,
+        "ns_per_particle_step_x_gpus": 36.47381726571789
+      },
+      "criteria": {
+        "analysis": "examples/landau_damping/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "filamentation:pair",
+      "passed": true,
+      "metrics": {
+        "k": [
+          0.3535533905932738,
+          0.7071067811865476,
+          1.0606601717798212,
+          1.4142135623730951,
+          1.7677669529663689,
+          2.1213203435596424,
+          2.4748737341529163,
+          2.8284271247461903,
+          3.181980515339464,
+          3.5355339059327378,
+          3.889087296526011,
+          4.242640687119285,
+          4.59619407771256,
+          4.949747468305833,
+          5.303300858899106,
+          5.656854249492381
+        ],
+        "gamma_fit": [
+          -0.014839559310638711,
+          0.25015341215657033,
+          0.39241548921320624,
+          0.43554433767356715,
+          0.4660837997280142,
+          0.4965385110658228,
+          0.5173186821868531,
+          0.5324627086172907,
+          0.5456958233231709,
+          0.5470219833749078,
+          0.5499894194719805,
+          0.5580006845186467,
+          0.565220224444789,
+          0.5574635317936887,
+          0.5599528049050416,
+          0.5580637864028849
+        ],
+        "gamma_theory": [
+          0.168010823542332,
+          0.29761089070947644,
+          0.3857485605584397,
+          0.4440850886405144,
+          0.48314961856256716,
+          0.5099456092168514,
+          0.5288291964749573,
+          0.5424930111747623,
+          0.5526250973806509,
+          0.5603067546456856,
+          0.566247330208554,
+          0.5709233929296238,
+          0.5746625073716389,
+          0.5776946751337253,
+          0.5801846079619779,
+          0.582252416106359
+        ],
+        "linear_window": [
+          6.777474258761586,
+          10.432741274722943
+        ],
+        "median_rel_error_m2_10": 0.021766034032974037,
+        "max_rel_error_m2_10": 0.15946149833351841,
+        "eps_B_peak": 0.19457772170489643,
+        "t_peak": 31.678980804998496,
+        "B_sat_trapping_estimate": 0.14982614944167713,
+        "passed": true,
+        "gauss_max": 2.2637447472106942e-13,
+        "wall_time_s": 7.09145828790497,
+        "ns_per_particle_step_x_gpus": 2.99775781695089
+      },
+      "criteria": {
+        "analysis": "examples/filamentation/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:gyration",
+      "passed": true,
+      "metrics": {
+        "case": "gyration",
+        "dt": 0.05,
+        "max_rel_position_error": 0.0032341159460324786,
+        "per_particle": [
+          0.0032341159460324786,
+          0.003149022946435586,
+          0.002688077929453628,
+          0.0017234249859616228,
+          0.000666976643909282,
+          0.0001586706554914355,
+          2.331266498924542e-05,
+          3.2782387483646064e-06
+        ],
+        "refined_dt": 0.025,
+        "refined_max_error": 0.000808498662342447,
+        "convergence_ratio": 4.000150027041899,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 0.36484668799676,
+        "ns_per_particle_step_x_gpus": 72505.30365595389
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:exb",
+      "passed": true,
+      "metrics": {
+        "case": "exb",
+        "dt": 0.05,
+        "max_rel_position_error": 0.0002030416598340844,
+        "per_particle": [
+          0.0002030416598334059,
+          0.00020304165983363207,
+          0.0002030416598340844,
+          0.0002030416598340844,
+          0.00020304165983351896,
+          0.0002030416598340844,
+          0.0002030416598340844,
+          0.000203041659833519
+        ],
+        "refined_dt": 0.025,
+        "refined_max_error": 5.0762407118177874e-05,
+        "convergence_ratio": 3.999843020867617,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 0.7158372839912772,
+        "ns_per_particle_step_x_gpus": 71185.09188457411
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:hyperbolic",
+      "passed": true,
+      "metrics": {
+        "case": "hyperbolic",
+        "dt": 0.07957747154594767,
+        "max_rel_position_error": 5.545345811679774e-07,
+        "per_particle": [
+          5.545345810186311e-07,
+          5.545345808692849e-07,
+          5.545345810186311e-07,
+          5.545345810186311e-07,
+          5.545345811679774e-07,
+          5.545345810186311e-07,
+          5.545345810186311e-07,
+          5.545345811679774e-07
+        ],
+        "refined_dt": 0.039788735772973836,
+        "refined_max_error": 1.3863135592658216e-07,
+        "convergence_ratio": 4.000066056207757,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 0.7043095779372379,
+        "ns_per_particle_step_x_gpus": 70038.74084499183
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:e_gt_b",
+      "passed": true,
+      "metrics": {
+        "case": "e_gt_b",
+        "dt": 0.03183098861837907,
+        "max_rel_position_error": 4.0535862864628415e-07,
+        "per_particle": [
+          4.05358628318725e-07,
+          4.053586281003522e-07,
+          4.053586285370978e-07,
+          4.053586285370978e-07,
+          4.0535862788197943e-07,
+          4.053586284279114e-07,
+          4.0535862864628415e-07,
+          4.0535862799116584e-07
+        ],
+        "refined_dt": 0.015915494309189534,
+        "refined_max_error": 1.0155170841165382e-07,
+        "convergence_ratio": 3.9916475555793425,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 0.6986373399849981,
+        "ns_per_particle_step_x_gpus": 69474.67581394174
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:plane_wave",
+      "passed": true,
+      "metrics": {
+        "case": "plane_wave",
+        "dt": 0.02454369260617026,
+        "max_rel_position_error": 0.0004451529534347191,
+        "per_particle": [
+          0.0003777720290853526,
+          0.0003280000745488882,
+          0.00018851167823665787,
+          0.0004451529534347191,
+          0.0003777720291450795,
+          0.0003280000745429512,
+          0.00018851167574875297,
+          0.00044515294970466727
+        ],
+        "drift_measured": 0.499811113985457,
+        "drift_theory_node": 0.5,
+        "refined_dt": 0.01227184630308513,
+        "refined_max_error": 0.00011833132240939523,
+        "convergence_ratio": 3.7619198735446147,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 0.8795870069880038,
+        "ns_per_particle_step_x_gpus": 71580.97387597688
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "plasma_expansion:isothermal_hydrogen",
+      "passed": true,
+      "metrics": {
+        "tau_end": 9.991201846809222,
+        "E_max_final": 0.1525048952560169,
+        "E_max_theory_final": 0.17968179513276566,
+        "E_max_median_rel_error": 0.14862093974118107,
+        "E_max_max_rel_error": 0.21735640160943248,
+        "front_median_rel_error": 0.07614532796457085,
+        "spectrum_rms_log_ratio": 0.45519149336638276,
+        "electron_temperature_final_over_initial": 1.0643460987083626,
+        "velocity_profile_median_rel_error": 0.08294851193253369,
+        "regime": "isothermal (thick slab)",
+        "passed": true,
+        "gauss_max": 5.806026015867105e-12,
+        "wall_time_s": 13.924780257977545,
+        "ns_per_particle_step_x_gpus": 3.7323429271233457
+      },
+      "criteria": {
+        "analysis": "examples/plasma_expansion/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "relativistic_shock:pair_2d",
+      "passed": true,
+      "metrics": {
+        "dims_eff": 2,
+        "beta_sh": 0.47143671698163436,
+        "beta_sh_theory": 0.49715693370682207,
+        "beta_sh_rel_error": -0.0517346032638361,
+        "compression": 3.069960117340088,
+        "compression_theory": 3.006962460928112,
+        "compression_rel_error": 0.02095059623475698,
+        "compression_gamma_3_2": 3.1333333333333333,
+        "density_ahead_of_shock": 1.0625396966934204,
+        "beta_sh_gamma_3_2": 0.46770717334674267,
+        "t_measured": 298.2197176579748,
+        "theta_downstream_fit": 4.204740998577472,
+        "theta2_theory": 7.440763653560054,
+        "nonthermal_fraction": 0.09082548844935691,
+        "tail_index_p": null,
+        "tail_index_err": null,
+        "tail_range": [
+          null,
+          null
+        ],
+        "tail_index_window_p": null,
+        "tail_index_window_err": null,
+        "tail_window": [
+          45.177455135327435,
+          48.370906627537025
+        ],
+        "tail_index_literature_2d": 2.4,
+        "t_spectrum": 396.98079298625566,
+        "gamma_max_t": [
+          null,
+          16.00545172108987,
+          16.00545172108987,
+          16.00545172108987,
+          19.216319778256796,
+          27.699681801130712,
+          33.256539866670046,
+          39.92816422383116,
+          45.10391056958129,
+          47.93818914044657,
+          54.15224661312787,
+          54.15224661312787,
+          57.555112355844884,
+          50.95057056128253,
+          47.93818914044657,
+          50.95057056128253,
+          47.93818914044657,
+          47.93818914044657,
+          50.95057056128253,
+          50.95057056128253,
+          54.15224661312787,
+          54.15224661312787,
+          54.15224661312787,
+          54.15224661312787,
+          57.555112355844884,
+          57.555112355844884,
+          57.555112355844884,
+          57.555112355844884,
+          57.555112355844884,
+          61.171810321362976,
+          61.171810321362976,
+          57.555112355844884,
+          57.555112355844884,
+          57.555112355844884,
+          61.171810321362976,
+          61.171810321362976,
+          61.171810321362976,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          69.10129518219576,
+          69.10129518219576
+        ],
+        "gamma_max_growth_exponent": 0.255833585943092,
+        "gamma_max_growth_literature": 0.5,
+        "eps_B_end": 0.01972321785188898,
+        "passed": true,
+        "gauss_max": 2.4051594049723235e-12,
+        "wall_time_s": 6.889850188978016,
+        "ns_per_particle_step_x_gpus": 6.262909864075735
+      },
+      "criteria": {
+        "analysis": "examples/relativistic_shock/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "reconnection:pair_sigma10",
+      "passed": true,
+      "metrics": {
+        "equilibrium_max_dev_over_B0": 0.011379027591618384,
+        "reconnection_rate_peak": 0.20745359951717193,
+        "reconnection_rate_mean_active": 0.10067196081087322,
+        "reconnection_rate_literature": 0.1,
+        "magnetic_energy_converted": 0.547049771818024,
+        "power_law_index": 2.3904307902615143,
+        "power_law_err": 0.04895042081597267,
+        "power_law_range": [
+          5.0,
+          50.0
+        ],
+        "werner2016_index": 2.1213594362117862,
+        "sigma": 10,
+        "E_parallel_share_top1pct": 0.004592729060234828,
+        "passed": true,
+        "gauss_max": 2.737809978725636e-13,
+        "wall_time_s": 9.63888180302456,
+        "ns_per_particle_step_x_gpus": 3.1624740223883725
+      },
+      "criteria": {
+        "analysis": "examples/reconnection/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    }
+  ]
+}
