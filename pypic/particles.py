@@ -76,14 +76,19 @@ class Species:
         self.n += ntot
 
     def sort(self, kernel):
+        """Order the particles by cell. The rows are gathered one at a time into the key array,
+        which is free once the order is known: no second copy of the particle arrays."""
         if self.n == 0:
             return
         key = cp.empty(self.n, dtype=cp.int64)
         launch(kernel, self.n, (self.P, np.int32(self.n), np.int64(self.cap), key))
         order = cp.argsort(key)
-        self.P[:, : self.n] = self.P[:, order]
-        if self.Pn is not None:
-            self.Pn[:, : self.n] = self.Pn[:, order]
+        buf = key.view(cp.float64)
+        for A in (self.P, self.Pn):
+            if A is not None:
+                for r in range(A.shape[0]):
+                    cp.take(A[r], order, out=buf)
+                    A[r, : self.n] = buf
 
     # --------------------------------------------------------- remove/migrate
     def flag_list(self):

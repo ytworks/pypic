@@ -353,6 +353,27 @@ def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
 
 
 # ------------------------------------------------------------------- storage
+def test_sort_orders_by_cell_and_keeps_every_particle():
+    """The sort moves whole particles: every row of the particle array and of the implicit work
+    array follows the same order, and the cells come out ascending."""
+    from pypic.backend import launch
+
+    sim = plasma("implicit", sort_interval=0)
+    sim.run(2)
+    for sp in sim.species:
+        n = sp.n
+        before = [cp.asnumpy(A[:, :n]) for A in (sp.P, sp.Pn)]
+        sp.sort(sim.k_cell)
+        after = [cp.asnumpy(A[:, :n]) for A in (sp.P, sp.Pn)]
+        assert not np.array_equal(before[0][7], after[0][7])  # the particles were out of order
+        by_id0, by_id1 = np.argsort(before[0][7]), np.argsort(after[0][7])
+        for b, a in zip(before, after):
+            assert np.array_equal(b[:, by_id0], a[:, by_id1])
+        key = cp.empty(n, dtype=cp.int64)
+        launch(sim.k_cell, n, (sp.P, np.int32(n), np.int64(sp.cap), key))
+        assert bool((key[1:] >= key[:-1]).all())
+
+
 BIG_CAP = 360_000_000  # 6 * cap > 2**31: the weight row starts beyond int32 offsets (issue #11)
 
 

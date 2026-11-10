@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Particle sort without a second copy of the particle arrays (issue #36)
+- What: `Species.sort` gathers the rows one at a time into the key array (free once the order is known) instead of building `P[:, order]`. Same particles in the same order. One species of 25 million particles: extra pool memory of a sort 2.43 → 0.94 GiB (−61 %), 21.7–23.4 ms per sort before and after; synchronised `sort` phase 0.439 → 0.439 ms/step (two-stream, 1 GPU) and 0.077 → 0.069 (shock, 8 GPUs).
+- Why: the copy was the peak of the device memory and bounds the particles per GPU; judged by the memory, with the time as a check.
+- Refs: #36, #4; `pypic/particles.py`; `tests/gpu/test_engine.py` (`test_sort_orders_by_cell_and_keeps_every_particle`)
 ### 2026-11-10 — [progress] Migration lists ordered by a counting kernel instead of a radix sort (issue #35)
 - What: the two lists of a migration (leaving indices, destination keys) are ordered by `mig_rank32` / `mig_rank64` — one launch, each key to the slot given by the number of keys before it — up to `RANK_SORT_MAX` = 16384 keys, by the radix sort above. Same values in the same order: the migrated particles are unchanged. 3 alternating pairs vs 6061977 on 8 GPUs: two-stream fp64 −1.8 / −3.8 / −4.0 %, mixed −2.9 / −5.1 / −4.4 %, shock −2.3 / −2.3 / −1.0 %; synchronised `migrate` 0.54 → 0.45 (two-stream) and 0.54 → 0.41 ms/step (shock). Not adopted: the count inside the data message (ceiling 99 µs; the overflow round must be a collective, net ≈ 1.4 % of the step).
 - Why: the two sorts were 181 µs of the 606 µs of `migrate` per step; a radix sort of 2 500–14 000 keys costs 24–86 µs, the counting kernel 14–60 µs.
