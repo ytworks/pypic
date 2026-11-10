@@ -30,7 +30,7 @@ python examples/bow_shock/analyze.py output/bow_shock/gate --movie
 - **Gate** (definitions in `docs/plans/2026-11-10-bow-shock.md`, fixed before the first run): Gauss's law ≤ 1e-10; upstream density and u_x of both species within 5 % of the wind during the last crossing; ion density compression ≥ 2 in the sheath on the subsolar line; magnetopause (where the density falls back to the wind density) within 25 % of R_mp; shock upstream of the magnetopause.
 - **Reported**: the measured compression and shock distance against the MHD shock and Spreiter et al. (1966); the magnetopause by magnetic pressure; the sheath thickness; the charge of the body and the particles it absorbs per step; the largest fill ratio of the particle arrays.
 
-## Result of the gate configuration (8 GPUs, two runs with the same seed)
+## Result of the gate configuration (8 GPUs, four runs with the same seed)
 
 | quantity | measured | reference |
 |---|---|---|
@@ -41,9 +41,9 @@ python examples/bow_shock/analyze.py output/bow_shock/gate --movie
 | upstream density and u_x, last crossing | within 0.11 % of the wind | gate 5 % |
 | Gauss's law | 4e-14 | gate 1e-10 |
 
-- **Two runs give different third digits.** The deposit adds the particles' contributions in an order that differs from run to run, so two runs with the same seed differ in the last bit after the first step, and the flow amplifies the difference: 1e-6 of the field energy after 1440 steps in a smaller run, and the ranges of the table after the 5760 steps of this one (ANA-D3; roadmap R10). The gate criteria are far from these differences.
+- **Runs with the same seed give different third digits.** The deposit adds the particles' contributions in an order that differs from run to run, so two runs with the same seed differ in the last bit after the first step, and the flow amplifies the difference: 1e-6 of the field energy after 1440 steps in a smaller run, and the ranges of the table after the 5760 steps of this one (ANA-D3; roadmap R10). The gate criteria are far from these differences. The four runs are two before the commit of the example, the gate record (`bench/results/`) and the run of the wiki page; the plan lists each.
 - **The density maximum is not the mean sheath density.** It lies above the MHD compression. Supercritical perpendicular shocks are known to overshoot behind the ramp (Leroy et al. 1982), and the sheath here is 9 d_e ≈ 2 d_i thick, too thin for a plateau behind an overshoot; this run does not separate the two.
 - **The sheath is thicker than the gas-dynamic value** because the magnetopause lies 7 to 8 % inside R_mp while the shock is at the predicted distance.
-- **The body charges positively** (the absorbed charge is +742 at the end, in units of e n₀ d_e³) and the rate of absorption falls from 1480 to 420 particles per step between the first and the third crossing; it has not become constant by the end of the run. The particle arrays reach 57 % of their capacity (capacity factor 2).
+- **The body charges positively** (the absorbed charge at the end is +730 to +749 in the four runs, in units of e n₀ d_e³; it is the difference of 2.4e6 absorbed ions and as many electrons) and the rate of absorption falls from 1480 to 420 particles per step between the first and the third crossing; it has not become constant by the end of the run. The particle arrays reach 57 % of their capacity (capacity factor 2).
 - **Energy** is monitored only (explicit scheme, energy of the difference fields without the work of the external field): the total changes by +2.5 % over the run.
 - **Cost**: 46 ms per step (0.85 ns per particle and step, times 8 GPUs), 264 s; 10.1 GB of device memory per GPU at the most. The planner's figure (11.0 GB) is for full particle arrays; for `full.yaml` it is 86 GB per GPU on 8 GPUs.
