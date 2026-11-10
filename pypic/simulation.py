@@ -54,7 +54,12 @@ class Simulation:
             raise ValueError("current_filter supports periodic and reflecting faces only")
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
-        self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(self.grid.defines))
+        if cfg.precision not in ("fp64", "mixed"):
+            raise ValueError("precision must be 'fp64' or 'mixed'")
+        self.mixed = cfg.precision == "mixed"
+        if self.mixed and cfg.solver == "implicit":
+            raise ValueError("precision='mixed' is for the explicit solver only (PIC-D11)")
+        self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(self.grid.defines, mixed=self.mixed))
         self.k_push = self.pmod.get_function("push_deposit")
         self.k_rho = self.pmod.get_function("deposit_rho")
         self.k_kin = self.pmod.get_function("kinetic")
@@ -309,10 +314,17 @@ class Simulation:
             for d in self.sdiag:
                 d[:4] = 0
             self._fe = g.field_energy()
+        fields = (g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz)
+        if self.mixed:  # float32 copies for the gather (PIC-D11)
+            if getattr(self, "_f32", None) is None:
+                self._f32 = [cp.empty(g.shape, dtype=cp.float32) for _ in fields]
+            for dst, src in zip(self._f32, fields):
+                cp.copyto(dst, src, casting="same_kind")
+            fields = self._f32
         for i, (sp, d) in enumerate(zip(self.species, self.sdiag)):
             lst = sp.flag_list()
             launch(self.k_push, sp.n, (
-                sp.P, np.int32(sp.n), np.int64(sp.cap), g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz,
+                sp.P, np.int32(sp.n), np.int64(sp.cap), *fields,
                 g.Jx, g.Jy, g.Jz, np.float64(sp.q), np.float64(sp.m), np.float64(sp.qdep), d, self.flag[i:i + 1],
                 lst, np.int32(lst.size), np.int32(do_diag)))
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))

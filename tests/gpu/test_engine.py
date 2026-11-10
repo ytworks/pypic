@@ -486,6 +486,29 @@ def test_migration_across_faces_and_corners_keeps_every_particle():
         assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-12
 
 
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_mixed_gather_is_decomposition_independent():
+    """The float32 gather (PIC-D11) takes its weights from global coordinates: 1 GPU and a 2x2
+    rank grid give the same run, Gauss's law holds, and it stays close to the FP64 run."""
+    script = os.path.join(HERE, "mgpu_migrate.py")
+    outs = {}
+    for n, dims, variant in ((1, "1,1,1", "mixed"), (4, "2,2,1", "mixed"), (1, "1,1,1", "plain")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, variant],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[(n, variant)] = json.loads(r.stdout.strip().splitlines()[-1])
+    a, b = (np.asarray(outs[(n, "mixed")]["kinetic"]) for n in (1, 4))
+    assert np.max(np.abs(a - b) / np.abs(a)) < 1e-10
+    assert np.nanmax(np.asarray(outs[(4, "mixed")]["gauss"], dtype=float)) < 1e-12
+    f = np.asarray(outs[(1, "plain")]["kinetic"])
+    assert np.max(np.abs(a - f) / np.abs(f)) < 1e-5
+
+
+def test_mixed_precision_is_explicit_only():
+    with pytest.raises(ValueError, match="explicit"):
+        plasma("implicit", precision="mixed")
+
+
 # --------------------------------------------------------- review regressions
 def test_cg_handles_exact_convergence_between_checks():
     """A curl-free uniform field is solved in one CG step (A = I on that mode); the following

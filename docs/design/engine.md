@@ -1,6 +1,6 @@
 # Engine design
 
-Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2).
+Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2); PIC-D11 **Proposed** (2026-11-10, #10).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -91,6 +91,23 @@ Why: the analytic-solution examples (Landau and Dawson, orbits, Mora expansion, 
 - Periodic and reflecting faces only; open faces are rejected.
 
 Why: the numerical Cherenkov instability of relativistic flows (shocks, reconnection outflows). Verified: transfer function to 1e-12; Gauss ≤ 1e-12 and implicit energy ≤ 1e-11 with walls; 1 vs 2 GPUs with a decomposed wall axis.
+
+### PIC-D11 — Mixed-precision field gather (2026-11-10, #10) — Status: Proposed
+- `precision: "fp64" | "mixed"` (default `fp64`). With `mixed`, the explicit push reads E and B from float32 copies made once per step. The six trilinear interpolations run in FP32.
+- **Unchanged (FP64):** positions, momenta, the Boris rotation, the Esirkepov current deposit, ρ and the field solver.
+- **Why the deposit stays FP64:** Gauss's law to 1e-10 needs the deposited current to satisfy the discrete continuity equation against the FP64 CIC charge. FP32 shape factors break that telescoping sum at ~1e-7 per step.
+- **Rank independence:** the gather weights come from global index coordinates `x / dx`, computed in FP64 and rounded once to FP32. The local index is the global cell minus the rank's integer offset (`OXI..`). So the weights do not depend on the rank layout, and 1 vs N GPUs stays equal to round-off.
+- **Scope:** explicit solver only. The implicit energy identity needs the gather and the deposit on the same FP64 path weights, so `mixed` with `implicit` is rejected.
+
+Why: `push_deposit` is FP64-pipe bound on SM120, where FP64 runs at 1/64 of FP32. The gather is the part of the push that can leave FP64 without touching a conservation contract.
+
+Measured (2026-11-10, 8× RTX PRO 6000; diagnostic only):
+- **Speed:** the push without deposit falls from 18.4 to 14.2 ms per step. The 1-GPU two-stream step falls from 42.7 to 38.6 ms, the 8-GPU two-stream step from 9.4 to 9.1 ms, and the 8-GPU shock step from 14.4 to 13.4 ms.
+- **Gates:** all 19 explicit gate configurations pass with `precision: mixed`: two-stream ei/ep/eip/buneman and the 15 analytic-example gates, including the particle-orbit Δt convergence. Growth errors and Gauss (≤ 7.7e-12) match FP64.
+- **Tests:** 1 GPU and a 2×2 rank grid agree to 1e-10. A small plasma differs from FP64 by ~2e-11 in kinetic energy.
+
+Status stays Proposed: the default remains `fp64` until the owner accepts `mixed` as a default.
+
 
 ## Review amendments
 

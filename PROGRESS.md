@@ -48,6 +48,10 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [design] PIC-D11 mixed-precision field gather, Proposed (issue #10)
+- What: `precision: mixed` gathers E, B for the explicit push from float32 copies with rank-independent weights; positions, pusher and deposit stay FP64; default `fp64`. Push 18.4 → 14.2 ms; two-stream 1 GPU 42.7 → 38.6 ms/step; shock 8 GPUs 14.4 → 13.4. All 19 explicit gates pass in mixed mode.
+- Why: `push_deposit` is FP64-pipe bound; the gather is the part that can leave FP64 without touching Gauss (deposit) or 1 vs N GPU (global weights).
+- Refs: #10, #4; PIC-D11 in `docs/design/engine.md`; `test_mixed_gather_is_decomposition_independent`
 ### 2026-11-10 — [amendment] Esirkepov deposit on the 3-node CIC support (issue #6)
 - What: the explicit deposit loops over the 3 nodes per axis that a sub-cell CIC move touches (2 prefix sums per component), and the gather shares its weights. Electron `push_deposit` 37.9 → 30.8 ms; two-stream 1 GPU 51.6 → 42.7 ms/step, 8 GPUs 10.7 → 9.2–10.2; shock 8 GPUs 16.0 → 14.6–14.9.
 - Why: `push_deposit` is FP64-pipe bound (85 %) on SM120; same scheme, fewer FP64 operations.

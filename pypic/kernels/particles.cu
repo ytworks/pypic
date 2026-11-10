@@ -95,10 +95,10 @@ __device__ __forceinline__ void deposit_global(const double* p0, const double* p
 // diag: [0] kinetic energy (time centred), [1..3] momentum, [4] kinetic energy lost
 // through open boundaries, [5] charge lost through open boundaries.
 // flag[0]: number of particles that must be removed or migrated.
-extern "C" __global__ void push_deposit(double* P, const int n, const long long cap, const double* __restrict__ Ex,
-                                        const double* __restrict__ Ey, const double* __restrict__ Ez,
-                                        const double* __restrict__ Bx, const double* __restrict__ By,
-                                        const double* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
+extern "C" __global__ void push_deposit(double* P, const int n, const long long cap, const gather_t* __restrict__ Ex,
+                                        const gather_t* __restrict__ Ey, const gather_t* __restrict__ Ez,
+                                        const gather_t* __restrict__ Bx, const gather_t* __restrict__ By,
+                                        const gather_t* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
                                         const double q, const double m, const double qdep, double* diag, int* flag,
                                         int* list, const int listcap, const int do_diag) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
@@ -107,9 +107,19 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         const double w = PW(p);
         double pos0[3] = {PX(p), PY(p), PZ(p)};
         double u[3] = {PUX(p), PUY(p), PUZ(p)};
+        const double h = q * DT / (2.0 * m);
+#ifdef MIXED_GATHER
+        YeeWeightsF yw;
+        yee_weights_global(pos0, yw);
+        double ex = h * (double)interp_f(Ex, yw, 1, 0, 0);
+        double ey = h * (double)interp_f(Ey, yw, 0, 1, 0);
+        double ez = h * (double)interp_f(Ez, yw, 0, 0, 1);
+        double bx = h * (double)interp_f(Bx, yw, 0, 1, 1);
+        double by = h * (double)interp_f(By, yw, 1, 0, 1);
+        double bz = h * (double)interp_f(Bz, yw, 1, 1, 0);
+#else
         const double X = (pos0[0] - OX) * (1.0 / DX), Y = (pos0[1] - OY) * (1.0 / DY),
                      Z = (pos0[2] - OZ) * (1.0 / DZ);
-        const double h = q * DT / (2.0 * m);
         YeeWeights yw;
         yee_weights(X, Y, Z, yw);
         double ex = h * interp_w(Ex, yw, 1, 0, 0);
@@ -118,6 +128,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         double bx = h * interp_w(Bx, yw, 0, 1, 1);
         double by = h * interp_w(By, yw, 1, 0, 1);
         double bz = h * interp_w(Bz, yw, 1, 1, 0);
+#endif
         double g0 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
         // --- relativistic Buneman-Boris ---
         double umx = u[0] + ex, umy = u[1] + ey, umz = u[2] + ez;  // half electric kick
