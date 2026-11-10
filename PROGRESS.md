@@ -47,13 +47,14 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 - Known gaps: injection + filter + zone cost about +55 % over an open step without them (plan, Phase 3); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9: +4 % of a production run on 1 GPU, +13–14 % on 8; a writer thread
   was measured below the 2 % criterion and not adopted).
+- Bow shock (`examples/bow_shock`, gate M3 of the plan, passed in two runs on 8 GPUs): magnetopause at
+  0.92–0.93 of the pressure-balance distance, shock at 1.38 R_mp (Spreiter 1.37), upstream within 0.11 %,
+  Gauss 4e-14; 46 ms/step, 10.1 GB per GPU. Not shown: a constant body charge and absorption rate at the
+  end (three crossings); overshoot against sheath density; the production configuration (not run).
 - In progress: 3-D bow shock example and the open-boundary features it needs (R1, R6; plan
-  `docs/plans/2026-11-10-bow-shock.md`). Phase 0 (probe measurements) and Phase 1 (external static
-  fields, PIC-D12, branch `bow-shock/1-external-fields`, gated on d2ac1d9) done. Phase 2 (injection,
-  PIC-D13, branch `bow-shock/2-injection`, gated on 84f5808) done. Phase 3 (filter with open faces,
-  Marder zone, PIC-D15 / PIC-D16, M2 passed; branch `bow-shock/3-filter-marder`, gated on 7893fec)
-  done. Phase 4 (absorbing sphere, PIC-D14, branch `bow-shock/4-body`, gated on 98e626b) done.
-  Next: Phase 5 (the example and its gate).
+  `docs/plans/2026-11-10-bow-shock.md`). Phases 0–4 done (PIC-D12..D16, gated on d2ac1d9, 84f5808,
+  7893fec, 98e626b). Phase 5 (the example, gate M3, the sort fix) on branch `bow-shock/5-example`:
+  gates not yet run on its commit. Next: gates, wiki page, one run of `full.yaml`.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -63,6 +64,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [progress] Bow-shock example and gate M3 passed; the sort returns its memory to the device
+- What: `examples/bow_shock` (planner, theory, analysis, `gate.yaml`, `full.yaml`), registered in `scripts/gpu_gates.py`, ANA-D2 and the wiki builder. Gate configuration (240×320×320, 3.9e8 particles, 8 GPUs, 5760 steps, criteria fixed before the first run), two runs: Gauss 4e-14, upstream within 0.11 %, compression 3.8 (≥ 2), magnetopause 0.92–0.93 R_mp (within 25 %), shock 1.38 R_mp (Spreiter 1.37); 46 ms/step. Fix found by the run: `Species.sort` left its temporaries in CuPy's pool, which grew to 82 GB on one GPU for 10 GB of arrays while the particle number grew; it now frees them after a sort larger than any before (10.1 GB). `ID_LIMIT` moved to `pypic/config.py`, `injection.ids_per_step` for planners.
+- Why: the example is the target of the plan (R6); the pool growth would have stopped `full.yaml` (86 GB per GPU with full arrays by the new planner estimate). The two runs differ in the third digit by the unordered atomic adds of the deposit (ANA-D3, R10), not by the fix.
+- Refs: plan Phase 5 (`docs/plans/2026-11-10-bow-shock.md`); PIC-D13 (Capacity, amended); ANA-D2; `examples/bow_shock/`, `pypic/particles.py`, `tests/gpu/test_engine.py`, `tests/cpu/test_setup.py`, `tests/cpu/test_theory.py`. Gates not yet run on this commit. Open: body charge not constant at the end; `full.yaml` not run.
 ### 2026-11-11 — [progress] Absorbing sphere gated: ALL PASSED on 98e626b, fp64 and mixed
 - What: gates on the PIC-D14 commit, 8 GPUs: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (the values of 7893fec), Gauss max 7.6e-12, implicit energy 1.9e-10, 15 example gates, 89 GPU tests; mixed: 19 explicit gates, Gauss max 7.7e-12, Buneman growth −4.7 %. Recorded without a criterion: `div B` of `plasma_waves:perpendicular` 1.05e-12 (1.13e-12 mixed); the FP64 records held 0.87–1.17e-12 before, the mixed ones 0.85–0.96e-12, so the mixed value is the largest of its kind. The gates hold no case with a body: PIC-D14 is covered by its GPU tests and the sphere measurement of the plan.
 - Why: evidence that the body path (`push_deposit` under `BODY_SPHERE`, 12 diagnostic slots, the masked Gauss check) leaves the cases without a body within their criteria, on one clean commit (CI cannot run the gates).

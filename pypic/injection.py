@@ -50,6 +50,14 @@ def injected_species(cfg):
     return [s.name for s in cfg.species if s.beams and not s.test]
 
 
+def ids_per_step(cfg) -> int:
+    """Particle ids (PIC-D8) that one step reserves for the entering particles: per stream (a beam
+    of a species) one sub-block of the extended grid (cells -1..N) and one for the partners born
+    with its particles at a paired face. A run of n steps needs loaded + n * ids_per_step < ID_LIMIT."""
+    n_streams = sum(len(s.beams) for s in cfg.species)
+    return 2 * n_streams * math.prod(n + 2 for n in cfg.n_cells) * cfg.ppc
+
+
 def paired_faces(cfg) -> int:
     """Bit ``2 * axis + side`` per paired face (the kernel constant ``PAIRED_FACES``)."""
     return sum(1 << FACES.index(k) for k, v in cfg.injection.faces.items() if v == "paired")

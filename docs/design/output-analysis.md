@@ -101,6 +101,7 @@ gate configs and also requires Gauss ≤ 1e-10. Criteria (fixed before the gate 
 | plasma_expansion:isothermal_hydrogen | self-similar ion velocity within 10 %, E_max within 20 % (median) |
 | relativistic_shock:pair_2d | shock speed and compression within 10 % of the Synge-gas jump conditions |
 | reconnection:pair_sigma10 | B_x(y) within 5 % of B0 of the Harris sheet before the onset |
+| bow_shock:gate | upstream density and u_x within 5 % of the wind over the last crossing; sheath compression ≥ 2; magnetopause within 25 % of the pressure-balance distance; shock upstream of it (definitions in docs/plans/2026-11-10-bow-shock.md) |
 
 Why: agreement with analytic and linear theory is the test policy's observable result.
 - Where the model and collisionless PIC differ physically, the tolerance sits above the measured, explained offset. The case is Mora's isothermal electrons; see examples/plasma_expansion/README.md.

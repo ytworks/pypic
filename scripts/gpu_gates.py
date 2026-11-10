@@ -54,6 +54,7 @@ EXAMPLES = [
     ("particle_orbits", "gyration"), ("particle_orbits", "exb"), ("particle_orbits", "hyperbolic"),
     ("particle_orbits", "e_gt_b"), ("particle_orbits", "plane_wave"),
     ("plasma_expansion", "isothermal_hydrogen"), ("relativistic_shock", "pair_2d"), ("reconnection", "pair_sigma10"),
+    ("bow_shock", "gate"),
 ]
 EXAMPLE_NAMES = [f"{e}:{c}" for e, c in EXAMPLES]
 # examples verified by a convergence check: run again with dt_scale=0.5, on one GPU (few particles)

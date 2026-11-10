@@ -71,6 +71,30 @@ def test_mora_relations():
     assert np.allclose(T.max_energy(t, Te, mi), 0.5 * mi * vf ** 2, rtol=1e-12)  # E_max = m_i v_f^2 / 2
 
 
+def test_bow_shock_scales():
+    T = _example_theory("bow_shock")
+    g = T.GAMMA
+    # the compression comes from the mass, momentum and induction equations; the energy flux
+    # rho v^3 / 2 + gamma / (gamma - 1) p v + B^2 v is the equation they leave over
+    for ma, beta in ((1.5, 0.1), (4.0, 0.64), (5.0, 0.64), (20.0, 3.0)):
+        d = T.downstream(ma, beta)
+        x, v2 = d["compression"], d["v"]
+        up = 0.5 * ma ** 3 + g / (g - 1) * 0.5 * beta * ma + ma
+        down = 0.5 * x * v2 ** 3 + g / (g - 1) * d["p"] * v2 + d["B"] ** 2 * v2
+        assert x > 1.0 and abs(down / up - 1.0) < 1e-12, (ma, beta)
+    # no shock at the fast magnetosonic Mach number 1, (gamma + 1) / (gamma - 1) for a strong shock
+    beta = 0.64
+    ma1 = math.sqrt(1.0 + 0.5 * g * beta)
+    assert abs(T.fast_mach(ma1, beta) - 1.0) < 1e-14 and abs(T.compression(ma1, beta) - 1.0) < 1e-12
+    assert T.compression(0.5 * ma1, beta) == 1.0
+    assert abs(T.compression(1e4, beta) - 4.0) < 1e-6
+    # magnetopause: the doubled dipole field of the planner's moment balances the ram pressure at R_mp
+    r, v, mi = 20.0, 0.25, 16.0
+    m = T.dipole_moment(r, v, mi)
+    assert abs(0.5 * (2.0 * m / r ** 3) ** 2 / (mi * v * v) - 1.0) < 1e-14
+    assert abs(T.standoff_distance(m, v, mi) / r - 1.0) < 1e-14
+
+
 def test_profiles():
     from pypic.profiles import evaluate, validate
 

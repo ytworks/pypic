@@ -535,6 +535,21 @@ def test_sort_orders_by_cell_and_keeps_every_particle():
         assert bool((key[1:] >= key[:-1]).all())
 
 
+def test_sort_of_a_growing_species_does_not_grow_the_memory_pool():
+    """Regression: CuPy's pool keeps a freed block only for requests that fit, so the temporaries of
+    the sorts of a species that gains particles (injection) piled up until the device was full."""
+    sim = plasma("explicit", sort_interval=0)
+    sp = sim.species[0]
+    pool = cp.get_default_memory_pool()
+    pool.free_all_blocks()
+    n, held = sp.n, []
+    for part in (0.5, 0.75, 1.0):
+        sp.n = int(part * n)
+        sp.sort(sim.k_cell)
+        held.append(pool.total_bytes())
+    assert held[1] == held[0] and held[2] == held[0], held
+
+
 BIG_CAP = 360_000_000  # 6 * cap > 2**31: the weight row starts beyond int32 offsets (issue #11)
 
 

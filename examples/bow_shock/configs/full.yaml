@@ -1,0 +1,12 @@
+# Production: m_i/m_e = 100, M_A = 5 (v_sw = 0.125 c), magnetopause at 5 d_i = 100 cells. 600^3 cells,
+# 3.5e9 particles, 28800 steps (3 crossings = 18 / Omega_ci); about three hours on 8 GPUs of 96 GB.
+mass_ratio: 100
+mach_alfven: 5
+wpe_wce: 4
+vte: 0.1
+dp: 5
+box: [6, 6, 6]
+ppc: 8
+crossings: 3
+coarse: 0.1
+slice_coarsen: 2

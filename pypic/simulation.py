@@ -10,13 +10,13 @@ import numpy as np
 
 from . import body, injection
 from .backend import compile_module, launch
-from .config import FACES, SimConfig
+from .config import FACES, ID_LIMIT, SimConfig
 from .external import check_config, dipoles_B
 from .grid import FIELD_NAMES, YeeGrid
 from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
-from .particles import ID_LIMIT, MIGRATE_KERNELS, Species, migrate
+from .particles import MIGRATE_KERNELS, Species, migrate
 from .profiles import invert_cos_density
 
 NDIAG = 12  # entries of the diagnostics buffer of a species (Simulation.sdiag)
@@ -275,7 +275,7 @@ class Simulation:
         # stream for the partners born with its particles at a paired face
         ext = math.prod(n + 2 for n in cfg.n_cells) * cfg.ppc
         n_streams = len(self._streams)
-        self._inj_block = 2 * n_streams * ext
+        self._inj_block = injection.ids_per_step(cfg)  # = 2 * n_streams * ext
         self.inj_bt = {}
         for si in names:
             rows = []
