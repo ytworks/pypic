@@ -49,6 +49,10 @@ Snapshot date: 2026-11-10. Decisions: `docs/design/engine.md` (PIC-D1..D10 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-10 — [progress] Correction: `div B` of `plasma_waves:perpendicular` is within its earlier range
+- What: the entry below ("Performance round 2 gated") says the value was 0.85–0.95e-12 "in the three records before". That is wrong: the 18 earlier fp64 gate records span 0.85–1.17e-12, eight of them ≥ 1.0e-12 (77f26df, two records before, has 1.17e-12). The 1.02e-12 on 5d7015a is inside that range; `push_B` and the `div B` diagnostic are unchanged, and no regression is observed. The case has no `div B` criterion.
+- Why: found in the review of PR #26; the wrong comparison read as a drift towards the 1e-12 contract.
+- Refs: PR #26 review; `bench/results/*-gpu-gates.json` (`plasma_waves:perpendicular`, `divB_max`)
 ### 2026-11-10 — [progress] Performance round 2 gated: ALL PASSED on 5d7015a, fp64 and mixed
 - What: gates on the stack #19–#25: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 %, Gauss ≤ 7.6e-12, implicit energy 1.9e-10, 15 example gates, 58 GPU tests; mixed: 19 explicit gates. Baseline f31e7f9 → 5d7015a, ms/step (200-step windows, two alternating runs): two-stream 1/2/4/8 GPUs 43.1/25.1/14.6/9.5 → 37.9/19.7/10.2/5.6 (mixed 39.0/9.5 → 33.5/5.3 on 1/8), `diag_interval=1` 8 GPUs 10.9 → 6.6, shock 14.9 → 10.9, implicit 597/137 → 513/94 on 1/8. Measured without gain and not adopted: compiling out the loss reductions, `sort_interval` tuning, sort rework, paired filter passes (−0.7 %). Recorded without a criterion: `div B` of `plasma_waves:perpendicular` (B0 = 0.5) is 1.02e-12, 0.85–0.95e-12 in the three records before; the gated two-stream cases are ≤ 1.7e-14.
 - Why: evidence for the round-2 changes on one clean commit (CI cannot run the gates), and the same-window before/after numbers for the roadmap.
