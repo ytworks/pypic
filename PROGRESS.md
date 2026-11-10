@@ -37,6 +37,7 @@ Snapshot date: 2026-11-09. Decisions: `docs/design/engine.md` (PIC-D1..D10, Acce
 - GPU gates: ALL PASSED on 77f26df (mixed-precision gather switch, PIC-D11 Proposed, #10), 8 GPUs (`bench/results/2026-11-10-77f26df31-gpu-gates.json`):
   growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss ≤ 7.6e-12,
   implicit energy 1.9e-10; 15 analytic-example gates (ANA-D2) pass; 57 GPU tests pass.
+- Mixed precision (PIC-D11, Proposed): 19 explicit gates ALL PASSED with `precision: mixed` on 14392c7 (`bench/results/2026-11-10-14392c76d-gpu-gates-mixed.json`), Gauss ≤ 7.7e-12.
 - Known gaps: no particle injection at open faces (R1); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
