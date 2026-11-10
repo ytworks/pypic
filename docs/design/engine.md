@@ -43,6 +43,9 @@ Why: wall splitting keeps charge conservation; the implicit layer keeps the ener
 ### PIC-D5 — 3-D Cartesian decomposition, one process per GPU, NCCL
 Halo fill/reduce axis by axis (edges and corners by composition), particle migration axis by
 axis, launcher `python -m pypic.launch -n N` (spawns ranks, distributes the NCCL id).
+The explicit update of B computes one ghost layer from the exchanged ghosts of E instead of
+exchanging B (issue #34); its products are rounded one by one, so ranks with and without an
+absorbing layer give the same bits.
 Why: no MPI dependency on the target machine; results equal to round-off for any rank layout.
 
 ### PIC-D6 — Neutral, decomposition-independent loading

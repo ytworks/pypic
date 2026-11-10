@@ -338,12 +338,14 @@ class YeeGrid:
 
     # ------------------------------------------------------------ updates
     def push_B(self, dtb: float):
+        """B -= dtb curl E on the update range and one ghost layer around it, from the exchanged
+        ghosts of E (two layers): the neighbours' values of B, bit for bit, without an exchange.
+        The outermost ghost layer of B is not updated; nothing reads it."""
         args = [self.Ex, self.Ey, self.Ez, self.Bx, self.By, self.Bz, np.float64(dtb)]
         if self.use_pml:
             args += self.psiB + self.pml_B
-        launch(self.k_update_B, self.n_update, tuple(args))
+        launch(self.k_update_B, math.prod(a.n_int + 2 for a in self.d.axes), tuple(args))
         self.apply_bc_B()
-        self.fill_ghosts((self.Bx, self.By, self.Bz))
 
     def push_E(self, dte: float):
         args = [self.Ex, self.Ey, self.Ez, self.Bx, self.By, self.Bz, self.Jx, self.Jy, self.Jz, np.float64(dte)]

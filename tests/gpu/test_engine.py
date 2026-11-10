@@ -484,6 +484,18 @@ def test_multi_gpu_matches_single(solver, tmp_path):
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_locally_computed_ghost_layer_of_B_equals_the_neighbours_values():
+    """The explicit update computes B on one ghost layer instead of exchanging it. With open x on 4
+    ranks the edge ranks run the kernel with the absorbing layer and the middle ranks the one
+    without: both must give the same bits, or the ghosts drift from the neighbours' values."""
+    r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", "4", os.path.join(HERE, "mgpu_regress.py"),
+                        "b_ghost"], capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stderr[-2000:]
+    for rank in range(4):
+        assert f"RESULT rank={rank} ranks_with_a_difference=0 b_is_nonzero=True" in r.stdout, r.stdout
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
 def test_migration_across_faces_and_corners_keeps_every_particle():
     """Two species cross faces and corners of a 2x2 rank grid every step (issue #7): the run equals
     the 1-GPU run, every particle id survives, and an overflowing flag list (full-compaction path

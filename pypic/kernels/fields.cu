@@ -32,6 +32,18 @@ __device__ __forceinline__ bool range_index_low(long long t, int& i, int& j, int
     return true;
 }
 
+// The update range and one ghost layer around it on every axis: the points of B that the update of
+// E, the gather and div B read. Computed there from the ghosts of E, B needs no exchange.
+__device__ __forceinline__ bool range_index_wide(long long t, int& i, int& j, int& k) {
+    long long n = (long long)(NIX + 2) * (NIY + 2) * (NIZ + 2);
+    if (t >= n) return false;
+    k = (int)(t % (NIZ + 2)) + I0Z - 1;
+    t /= NIZ + 2;
+    j = (int)(t % (NIY + 2)) + I0Y - 1;
+    i = (int)(t / (NIY + 2)) + I0X - 1;
+    return true;
+}
+
 extern "C" __global__ void update_B(const double* __restrict__ Ex, const double* __restrict__ Ey,
                                     const double* __restrict__ Ez, double* Bx, double* By, double* Bz,
                                     const double dtb
@@ -45,14 +57,17 @@ extern "C" __global__ void update_B(const double* __restrict__ Ex, const double*
 ) {
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
     int i, j, k;
-    if (!range_index(t, i, j, k)) return;
+    if (!range_index_wide(t, i, j, k)) return;
     long long c = IDX(i, j, k);
-    double dEz_dy = (Ez[IDX(i, j + 1, k)] - Ez[c]) * (1.0 / DY);
-    double dEy_dz = (Ey[IDX(i, j, k + 1)] - Ey[c]) * (1.0 / DZ);
-    double dEx_dz = (Ex[IDX(i, j, k + 1)] - Ex[c]) * (1.0 / DZ);
-    double dEz_dx = (Ez[IDX(i + 1, j, k)] - Ez[c]) * (1.0 / DX);
-    double dEy_dx = (Ey[IDX(i + 1, j, k)] - Ey[c]) * (1.0 / DX);
-    double dEx_dy = (Ex[IDX(i, j + 1, k)] - Ex[c]) * (1.0 / DY);
+    // Every product is rounded by itself (__dmul_rn, fma): a rank compiled with the absorbing layer
+    // and one without give the same bits where the layer's terms are zero, which the ghost layer
+    // computed here relies on.
+    const double dEz_dy = __dmul_rn(Ez[IDX(i, j + 1, k)] - Ez[c], 1.0 / DY);
+    const double dEy_dz = __dmul_rn(Ey[IDX(i, j, k + 1)] - Ey[c], 1.0 / DZ);
+    const double dEx_dz = __dmul_rn(Ex[IDX(i, j, k + 1)] - Ex[c], 1.0 / DZ);
+    const double dEz_dx = __dmul_rn(Ez[IDX(i + 1, j, k)] - Ez[c], 1.0 / DX);
+    const double dEy_dx = __dmul_rn(Ey[IDX(i + 1, j, k)] - Ey[c], 1.0 / DX);
+    const double dEx_dy = __dmul_rn(Ex[IDX(i, j + 1, k)] - Ex[c], 1.0 / DY);
 #ifdef USE_PML
     // B-located derivatives sit at half-integer positions along the derivative axis.
     pbxy[c] = bhy[j] * pbxy[c] + chy[j] * dEz_dy;
@@ -61,14 +76,15 @@ extern "C" __global__ void update_B(const double* __restrict__ Ex, const double*
     pbyx[c] = bhx[i] * pbyx[c] + chx[i] * dEz_dx;
     pbzx[c] = bhx[i] * pbzx[c] + chx[i] * dEy_dx;
     pbzy[c] = bhy[j] * pbzy[c] + chy[j] * dEx_dy;
-    Bx[c] -= dtb * (dEz_dy - dEy_dz + pbxy[c] - pbxz[c]);
-    By[c] -= dtb * (dEx_dz - dEz_dx + pbyz[c] - pbyx[c]);
-    Bz[c] -= dtb * (dEy_dx - dEx_dy + pbzx[c] - pbzy[c]);
+    const double cx = dEz_dy - dEy_dz + pbxy[c] - pbxz[c];
+    const double cy = dEx_dz - dEz_dx + pbyz[c] - pbyx[c];
+    const double cz = dEy_dx - dEx_dy + pbzx[c] - pbzy[c];
 #else
-    Bx[c] -= dtb * (dEz_dy - dEy_dz);
-    By[c] -= dtb * (dEx_dz - dEz_dx);
-    Bz[c] -= dtb * (dEy_dx - dEx_dy);
+    const double cx = dEz_dy - dEy_dz, cy = dEx_dz - dEz_dx, cz = dEy_dx - dEx_dy;
 #endif
+    Bx[c] = fma(-dtb, cx, Bx[c]);
+    By[c] = fma(-dtb, cy, By[c]);
+    Bz[c] = fma(-dtb, cz, Bz[c]);
 }
 
 extern "C" __global__ void update_E(double* Ex, double* Ey, double* Ez, const double* __restrict__ Bx,
