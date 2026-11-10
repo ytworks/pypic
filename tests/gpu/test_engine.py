@@ -247,6 +247,49 @@ def test_current_filter_transfer_function():
             assert abs(float(cp.max(F[g.physical_slice()])) - T) < 1e-12
 
 
+def _filter_reference(g, arrays, staggers, passes, compensate):
+    """The array-expression filter that the fused kernels replaced (issue #9)."""
+    w = [(0.25, 0.5, 0.25)] * passes + ([(-passes / 4.0, 1.0 + passes / 2.0, -passes / 4.0)] if compensate else [])
+    for a in range(3):
+        ax = g.d.axes[a]
+        lo_wall = g.d.bc[a][0] != "periodic" and ax.lo is None
+        hi_wall = g.d.bc[a][1] != "periodic" and ax.hi is None
+        f = g.g + ax.n_int
+        for wl, wc, wr in w:
+            g.fill_ghosts(arrays, axes=(a,))
+            for F, st in zip(arrays, staggers):
+                node = st[a] == 0
+                if lo_wall:
+                    g._slab(F, a, g.g - 1, g.g)[...] = g._slab(F, a, g.g, g.g + 1) if node else 0.0
+                if hi_wall:
+                    if node:
+                        g._slab(F, a, f + 1, f + 2)[...] = g._slab(F, a, f, f + 1)
+                    else:
+                        g._slab(F, a, f, f + 1)[...] = 0.0
+                hi = f + 1 if (hi_wall and node) else f
+                new = (wl * g._slab(F, a, g.g - 1, hi - 1) + wc * g._slab(F, a, g.g, hi)
+                       + wr * g._slab(F, a, g.g + 1, hi + 1))
+                g._slab(F, a, g.g, hi)[...] = new
+
+
+@pytest.mark.parametrize("bc", ["periodic", "reflecting"])
+def test_current_filter_kernels_match_the_array_expressions(bc):
+    """The fused filter kernels give bitwise the result of the former array expressions, for J
+    (three staggers) and node data, at periodic and conducting faces."""
+    cfg = SimConfig(n_cells=(12, 10, 8), dx=(0.1,) * 3, dt=0.05, species=[], boundaries=((bc, bc),) * 3,
+                    diag_interval=0, gauss_interval=0, npml=2)
+    g = Simulation(cfg, comm=SelfComm(), verbose=False).grid
+    rng = np.random.default_rng(7)
+    for staggers in (Simulation.J_STAGGER, ((0, 0, 0),)):
+        for comp in (True, False):  # an even and an odd number of passes per axis
+            A = [cp.asarray(rng.standard_normal(g.shape)) for _ in staggers]
+            B = [a.copy() for a in A]
+            g.filter(A, staggers, 3, comp)
+            _filter_reference(g, B, staggers, 3, comp)
+            for a, b in zip(A, B):
+                assert bool(cp.all(a == b))
+
+
 @pytest.mark.parametrize("solver", ["explicit", "implicit"])
 @pytest.mark.parametrize("bc", ["periodic", "reflecting"])
 def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):

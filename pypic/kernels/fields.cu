@@ -145,3 +145,54 @@ extern "C" __global__ void div_B(const double* __restrict__ Bx, const double* __
     out[c] = (Bx[IDX(i + 1, j, k)] - Bx[c]) * (1.0 / DX) + (By[IDX(i, j + 1, k)] - By[c]) * (1.0 / DY) +
              (Bz[IDX(i, j, k + 1)] - Bz[c]) * (1.0 / DZ);
 }
+
+// ---- Binomial current filter (PIC-D10), one pass along one axis for up to 3 arrays.
+// T_m = wl F_m[-1] + wc F_m[0] + wr F_m[+1] along `axis`, for local index lo <= i_axis < hi_m and
+// every index of the other axes (ghosts included); copy_pass3 then writes T back to F. The
+// explicit rounding intrinsics keep the order of the former array expression (no FMA
+// contraction), so the result is bitwise identical to it.
+__device__ __forceinline__ bool pass_index(long long t, int axis, int lo, int hi, long long& c, long long& s) {
+    const int n[3] = {NX, NY, NZ};
+    int m[3] = {NX, NY, NZ};
+    m[axis] = hi - lo;
+    if (m[axis] <= 0 || t >= (long long)m[0] * m[1] * m[2]) return false;
+    int k = (int)(t % m[2]);
+    t /= m[2];
+    int j = (int)(t % m[1]);
+    int i = (int)(t / m[1]);
+    int ix[3] = {i, j, k};
+    ix[axis] += lo;
+    c = ((long long)ix[0] * n[1] + ix[1]) * n[2] + ix[2];
+    s = axis == 0 ? (long long)n[1] * n[2] : (axis == 1 ? n[2] : 1);
+    return true;
+}
+
+extern "C" __global__ void binomial_pass3(const double* __restrict__ F0, const double* __restrict__ F1,
+                                          const double* __restrict__ F2, double* T0, double* T1, double* T2,
+                                          const int narr, const int axis, const int lo, const int hi0,
+                                          const int hi1, const int hi2, const double wl, const double wc,
+                                          const double wr) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    const double* F[3] = {F0, F1, F2};
+    double* T[3] = {T0, T1, T2};
+    const int hi[3] = {hi0, hi1, hi2};
+    for (int m = 0; m < narr; m++) {
+        long long c, s;
+        if (!pass_index(t, axis, lo, hi[m], c, s)) continue;
+        T[m][c] = __dadd_rn(__dadd_rn(__dmul_rn(wl, F[m][c - s]), __dmul_rn(wc, F[m][c])), __dmul_rn(wr, F[m][c + s]));
+    }
+}
+
+extern "C" __global__ void copy_pass3(double* F0, double* F1, double* F2, const double* __restrict__ T0,
+                                      const double* __restrict__ T1, const double* __restrict__ T2,
+                                      const int narr, const int axis, const int lo, const int hi0, const int hi1,
+                                      const int hi2) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    double* F[3] = {F0, F1, F2};
+    const double* T[3] = {T0, T1, T2};
+    const int hi[3] = {hi0, hi1, hi2};
+    for (int m = 0; m < narr; m++) {
+        long long c, s;
+        if (pass_index(t, axis, lo, hi[m], c, s)) F[m][c] = T[m][c];
+    }
+}
