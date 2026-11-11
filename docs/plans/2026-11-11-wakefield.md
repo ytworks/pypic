@@ -190,6 +190,20 @@ the far face, so no plasma touches an open face.
 - Both gates also need Gauss ≤ 1e-10 in the checked region (the gate driver's criterion).
 - The time estimates of the table are replaced by the plans of the configurations: about 6,200
   steps for `laser_linear` and 1,420 for `beam_linear`.
+- Notes written with the example (2026-11-11, before the first run; no limit and no measured
+  quantity changes):
+  - The null runs are the gate configurations with `--set drive=false`, not a third value of
+    `driver`: the box, the run time and the predicted amplitude that the 1 % refers to are those
+    of the gate, and `driver` names it. Max |E_x| is taken over all outputs.
+  - The mean electron density is taken on the plane through the axis, from one c/omega_p inside
+    each end of the plateau, without the two nodes next to each transverse face (a node on a
+    wall holds half a cell).
+  - `A_th(x)` uses the Rayleigh length of the grid in vacuum. Inside the plasma the wavenumber is
+    0.5 % smaller, which moves the focus by 0.13 c/omega_p and changes `a0²` on the axis by
+    less than 0.2 % in the window; not included.
+  - The measurement is checked on planted wakes before the first run
+    (`tests/cpu/test_example_analysis.py`): a wake with 1.03 times the amplitude, 1.004 times the
+    wavenumber and 0.95 times the radial field of the theory returns these three numbers.
 
 ### Stage 4 — moving window (PIC-D22, OUT-D5)
 

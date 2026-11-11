@@ -103,6 +103,8 @@ gate configs and also requires Gauss ≤ 1e-10. Criteria (fixed before the gate 
 | reconnection:pair_sigma10 | B_x(y) within 5 % of B0 of the Harris sheet before the onset |
 | bow_shock:gate | upstream density and u_x within 5 % of the wind over the last crossing; sheath compression ≥ 2; magnetopause within 25 % of the pressure-balance distance; shock upstream of it (definitions in docs/plans/2026-11-10-bow-shock.md) |
 | blast_wave:gate | front faster than the fast magnetosonic speed and largest ring mean of B_z above 1.5 B0 while the front is between 0.3 and 0.7 R_B; front radii on the axes and the diagonals within 5 %; largest extent of the debris ions within 25 % of Eq. 4 of Le et al. 2021 (D = 3) and reached before the end; ambient densities and \|B\| ahead of the front within 5 % of step 0; div B ≤ 1e-12 (definitions in docs/plans/2026-11-11-blast-wave.md) |
+| wakefield:laser_linear | fit of the on-axis E_x behind the pulse, c A_th(x) cos(k x + φ) + b with the linear theory A_th at the place: \|c − 1\| ≤ 5 %, \|k v_g − 1\| ≤ 2 %; E_r / E_x at r = w / 2 within 10 % (definitions in docs/plans/2026-11-11-wakefield.md) |
+| wakefield:beam_linear | the same fit over five wavelengths behind the bunch: \|c − 1\| ≤ 5 %, \|k β − 1\| ≤ 2 %; amplitude at r = σ_r over the one on the axis within 10 % of R(σ_r) / R(0) |
 
 Why: agreement with analytic and linear theory is the test policy's observable result.
 - Where the model and collisionless PIC differ physically, the tolerance sits above the measured, explained offset. The case is Mora's isothermal electrons; see examples/plasma_expansion/README.md.
