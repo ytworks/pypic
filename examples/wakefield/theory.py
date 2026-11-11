@@ -31,6 +31,39 @@ steady field of the same mode,
 The part of the start that travels with the bunch (small k_perp) loses its phase at the rate
 k_perp^2 / (2 k_x) + k_x / (2 gamma^2): the field is there after a time of the order
 2 gamma^2 sigma_x, not gamma r.
+
+Linear wake (cold plasma of the density n0 = 1, ions at rest; E in m c omega_pe / e). The density
+answers the charge of a driver and the ponderomotive force of a pulse point by point,
+
+    (d^2/dt^2 + 1) dn = n_b                 (electron bunch of the density n_b),
+    (d^2/dt^2 + 1) phi = <a^2> / 2          (pulse; <a^2> = a_env^2 / 2 for linear polarisation),
+
+so behind the driver every point oscillates at omega_pe and the pattern has the wavenumber
+k_w = 1 / v, v the speed of the driver (the group velocity of the pulse, beta of the bunch).
+
+Pulse with the envelope a0 exp(-(t / tau)^2) exp(-r^2 / w^2) of the field (the `gaussian` envelope
+of the antenna, tau = duration): behind it E = -grad phi with
+
+    E_x = A exp(-2 r^2 / w^2) cos,    E_r = -A (4 r / (k_w w^2)) exp(-2 r^2 / w^2) sin,
+    A = a0^2 (tau / 4) sqrt(pi / 2) exp(-tau^2 / 8),
+
+largest for tau = 2. a0 and w are the local ones of the beam (`beam_at`): the wake of a pulse that
+diffracts follows a0(x)^2 and w(x). On the Yee grid the pulse travels with
+v_g = (sin(k dx) / dx) / (sin(omega dt) / dt), sin^2(omega dt / 2) / dt^2 = sin^2(k dx / 2) / dx^2
++ 1 / 4 (the leapfrog of the particles gives the plasma term exactly; the shape of the particles
+lowers it by a factor of the order 1 - (k dx)^2 / 6, which is not included).
+
+Rigid Gaussian bunch of the charge q per particle, peak density n_b: with the fields
+exp(i k (x - beta t)) in the dielectric 1 - 1 / omega^2 the longitudinal field is
+-i k rho (1 / eps - beta^2) / (k_perp^2 + 1 + k^2 / gamma^2), and the pole of 1 / eps at
+k = k_w = 1 / beta leaves behind the bunch
+
+    E_x = -q n_b sqrt(2 pi) sigma_x exp(-k_w^2 sigma_x^2 / 2) R(r) cos(k_w xi),
+    R(r) = k_w^2 int_0^inf r' exp(-r'^2 / (2 sigma_r^2)) I_0(k_w r_<) K_0(k_w r_>) dr',
+
+R(0) = s exp(s) E_1(s) with s = (k_w sigma_r)^2 / 2. Limits: a wide bunch has
+R = exp(-r^2 / (2 sigma_r^2)) and the wake of a sheet, whose field jumps by its charge per area;
+a thin one has R = (k_w sigma_r)^2 K_0(k_w r).
 """
 from __future__ import annotations
 
@@ -38,7 +71,7 @@ import math
 
 import numpy as np
 from scipy.integrate import quad
-from scipy.special import j1
+from scipy.special import i0e, j1, k0e
 
 
 def bunch_charge(density: float, sigma_x: float, sigma_r: float) -> float:
@@ -79,3 +112,53 @@ def bunch_startup(r, t: float, sigma_x: float, sigma_r: float, gamma: float, nk:
 
     out = [(mid(e, rr) / mid(steady, rr), mid(b, rr) / mid(steady, rr)) for rr in np.atleast_1d(r)]
     return np.asarray(out).T
+
+
+def beam_at(d: float, a0: float, waist: float, rayleigh: float):
+    """(a0, waist) of a Gaussian beam at the distance d from its focus."""
+    f = math.sqrt(1.0 + (d / rayleigh) ** 2)
+    return a0 / f, waist * f
+
+
+def yee_group_velocity(omega: float, dx: float, dt: float, omega_p: float = 1.0) -> float:
+    """Group velocity along x of a wave of the frequency omega on the Yee grid in a cold plasma."""
+    s2 = (dx / dt * math.sin(0.5 * omega * dt)) ** 2 - (0.5 * omega_p * dx) ** 2
+    if not 0.0 < s2 < 1.0:
+        raise ValueError(f"the grid carries no wave at omega = {omega} in a plasma with omega_p = {omega_p}")
+    k = 2.0 / dx * math.asin(math.sqrt(s2))
+    return (math.sin(k * dx) / dx) / (math.sin(omega * dt) / dt)
+
+
+def laser_wake(a0: float, duration: float, waist: float, r: float = 0.0, speed: float = 1.0):
+    """Amplitudes (E_x, E_r) at the radius r of the linear wake behind a linearly polarised pulse
+    with the field envelope a0 exp(-(t / duration)^2) exp(-r^2 / waist^2) and the group velocity
+    ``speed``; E_r is a quarter of a period away from E_x."""
+    amp = a0 * a0 * 0.25 * duration * math.sqrt(0.5 * math.pi) * math.exp(-duration ** 2 / 8.0)
+    amp *= math.exp(-2.0 * (r / waist) ** 2)
+    return amp, amp * 4.0 * r * speed / waist ** 2
+
+
+def beam_wake_profile(r, sigma_r: float, kw: float = 1.0):
+    """R(r): the wake of a bunch with the radial density exp(-r^2 / (2 sigma_r^2)) relative to the
+    wake of a sheet; ``kw`` = 1 / beta."""
+    def inner(x, rr):  # I_0(kw x) K_0(kw rr), x <= rr
+        return x * math.exp(-0.5 * (x / sigma_r) ** 2 + kw * (x - rr)) * i0e(kw * x) * k0e(kw * rr)
+
+    def outer(x, rr):  # I_0(kw rr) K_0(kw x), x >= rr
+        return x * math.exp(-0.5 * (x / sigma_r) ** 2 + kw * (rr - x)) * i0e(kw * rr) * k0e(kw * x)
+
+    out = []
+    for rr in np.atleast_1d(r):
+        a = quad(inner, 0.0, rr, args=(rr,), epsabs=0.0, epsrel=1e-10, limit=400)[0] if rr > 0.0 else 0.0
+        b = quad(outer, rr, rr + 40.0 * sigma_r, args=(rr,), epsabs=0.0, epsrel=1e-10, limit=400)[0]
+        out.append(kw * kw * (a + b))
+    return np.asarray(out)
+
+
+def beam_wake(density: float, sigma_x: float, sigma_r: float, gamma: float, r=0.0):
+    """Amplitude of E_x at the radii r of the linear wake behind a rigid Gaussian bunch of the peak
+    density ``density``; the pattern is cos(k_w xi) with k_w = 1 / beta and has the sign of -q
+    right behind the bunch."""
+    kw = 1.0 / math.sqrt(1.0 - 1.0 / gamma ** 2)
+    return (density * math.sqrt(2.0 * math.pi) * sigma_x * math.exp(-0.5 * (kw * sigma_x) ** 2)
+            * beam_wake_profile(r, sigma_r, kw))
