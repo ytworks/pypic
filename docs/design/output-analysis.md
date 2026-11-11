@@ -97,11 +97,16 @@ gate configs and also requires Gauss ≤ 1e-10. Criteria (fixed before the gate 
 | landau_damping:dawson / relativistic | sheet frequency within 1 % (amplitude 2 %) / exact relativistic period within 0.5 % |
 | landau_damping:wavebreaking | first crossing time within 5 % of arcsin(ω_pe / k v₀) |
 | filamentation:pair | median growth-rate error ≤ 10 % over m = 2…10 (common linear window) |
+| filamentation:pair_b0 | flow-aligned B0 at half the stabilising field: median growth-rate error ≤ 10 % over m = 4…10 against the relation with Ω (`pypic.theory.streaming.filamentation_growth`) |
+| filamentation:pair_b0_stable | B0 at 1.5 times the stabilising field: Σ\|B_m\|² (m = 2…10) at the end ≤ e² times its value at 10 % of the run |
 | particle_orbits:* | position error ≤ 2 % of the orbit size and error ratio Δt / (Δt/2) in [3, 5] |
 | plasma_expansion:isothermal_hydrogen | self-similar ion velocity within 10 %, E_max within 20 % (median) |
 | relativistic_shock:pair_2d | shock speed and compression within 10 % of the Synge-gas jump conditions |
+| relativistic_shock:pair_2d_sigma | σ = 0.3, field out of the plane: shock speed and compression within 10 % of the magnetised jump conditions; mean downstream B_z / B1 within 10 % of the compression |
 | reconnection:pair_sigma10 | B_x(y) within 5 % of B0 of the Harris sheet before the onset |
 | bow_shock:gate | upstream density and u_x within 5 % of the wind over the last crossing; sheath compression ≥ 2; magnetopause within 25 % of the pressure-balance distance; shock upstream of it (definitions in docs/plans/2026-11-10-bow-shock.md) |
+| bow_shock:south | the criteria of bow_shock:gate; B_z reverses once between the shock and the body, at x_rev with \|x_rev / R_mp − 1\| ≤ 0.25 |
+| bow_shock:oblique | the criteria of bow_shock:gate with the upstream state taken at z − z_c ≥ 1.5 R_mp (definitions of the three in docs/plans/2026-11-11-more-examples.md) |
 | blast_wave:gate | front faster than the fast magnetosonic speed and largest ring mean of B_z above 1.5 B0 while the front is between 0.3 and 0.7 R_B; front radii on the axes and the diagonals within 5 %; largest extent of the debris ions within 25 % of Eq. 4 of Le et al. 2021 (D = 3) and reached before the end; ambient densities and \|B\| ahead of the front within 5 % of step 0; div B ≤ 1e-12 (definitions in docs/plans/2026-11-11-blast-wave.md) |
 
 Why: agreement with analytic and linear theory is the test policy's observable result.
