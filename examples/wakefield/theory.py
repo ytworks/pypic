@@ -44,11 +44,13 @@ k_w = 1 / v, v the speed of the driver (the group velocity of the pulse, beta of
 Pulse with the envelope a0 exp(-(t / tau)^2) exp(-r^2 / w^2) of the field (the `gaussian` envelope
 of the antenna, tau = duration): behind it E = -grad phi with
 
-    E_x = A exp(-2 r^2 / w^2) cos,    E_r = -A (4 r / (k_w w^2)) exp(-2 r^2 / w^2) sin,
-    A = a0^2 (tau / 4) sqrt(pi / 2) exp(-tau^2 / 8),
+    phi = A exp(-2 r^2 / w^2) sin(t - k_w x),    A = a0^2 (tau / 4) sqrt(pi / 2) exp(-tau^2 / 8),
+    E_x = k_w A exp(-2 r^2 / w^2) cos(t - k_w x),    E_r = (4 r / w^2) A exp(-2 r^2 / w^2) sin(t - k_w x),
 
 largest for tau = 2. a0 and w are the local ones of the beam (`beam_at`): the wake of a pulse that
-diffracts follows a0(x)^2 and w(x). On the Yee grid the pulse travels with
+diffracts follows a0(x)^2 and w(x). a0 is the amplitude inside the plasma: a pulse that enters
+through a ramp much longer than its wavelength keeps its energy flux, so a^2 = a0_vacuum^2 / eta
+with the refractive index eta = sqrt(1 - 1 / omega^2) (`amplitude_in_plasma`). On the Yee grid the pulse travels with
 v_g = (sin(k dx) / dx) / (sin(omega dt) / dt), sin^2(omega dt / 2) / dt^2 = sin^2(k dx / 2) / dx^2
 + 1 / 4 (the leapfrog of the particles gives the plasma term exactly; the shape of the particles
 lowers it by a factor of the order 1 - (k dx)^2 / 6, which is not included).
@@ -132,10 +134,17 @@ def yee_group_velocity(omega: float, dx: float, dt: float, omega_p: float = 1.0)
 def laser_wake(a0: float, duration: float, waist: float, r: float = 0.0, speed: float = 1.0):
     """Amplitudes (E_x, E_r) at the radius r of the linear wake behind a linearly polarised pulse
     with the field envelope a0 exp(-(t / duration)^2) exp(-r^2 / waist^2) and the group velocity
-    ``speed``; E_r is a quarter of a period away from E_x."""
-    amp = a0 * a0 * 0.25 * duration * math.sqrt(0.5 * math.pi) * math.exp(-duration ** 2 / 8.0)
-    amp *= math.exp(-2.0 * (r / waist) ** 2)
-    return amp, amp * 4.0 * r * speed / waist ** 2
+    ``speed``, a0 inside the plasma: E = -grad phi, E_x = phi / speed and E_r = (4 r / waist^2) phi,
+    a quarter of a period apart."""
+    phi = a0 * a0 * 0.25 * duration * math.sqrt(0.5 * math.pi) * math.exp(-duration ** 2 / 8.0)
+    phi *= math.exp(-2.0 * (r / waist) ** 2)
+    return phi / speed, phi * 4.0 * r / waist ** 2
+
+
+def amplitude_in_plasma(a0: float, omega: float, density: float = 1.0) -> float:
+    """a0 of a pulse inside a plasma of the density ``density`` that it entered from vacuum through
+    a long ramp: the energy flux a^2 omega k is kept."""
+    return a0 * (1.0 - density / omega ** 2) ** -0.25
 
 
 def beam_wake_profile(r, sigma_r: float, kw: float = 1.0):

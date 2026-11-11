@@ -137,6 +137,16 @@ limits are CPU tests in `tests/cpu/test_wakefield.py`):
   compares with the theory at the place of the measurement. The limits of the table stay.
 - Group velocity on the grid (`yee_group_velocity`): for `dx = lambda0 / 32`, `dt = dx / 2` it is
   0.99142 (0.99499 without the grid), 0.86 % below c against the 2 % of the wavelength criterion.
+- Correction of the pulse formula (2026-11-11, found while writing the example, before the first
+  run): the first item gives the amplitude of phi and of E_x for a pattern that moves with c. With
+  the pattern `phi(t - x / v_g)` the fields are `E_x = phi / v_g` and `E_r = (4 r / w²) phi`
+  (`laser_wake` had `phi` and `(4 r v_g / w²) phi`: both low by the factor v_g, the ratio right);
+  CPU test: E_x from its own equation, `E_x'' + E_x = (1 / v) d/dt (a² / 4)`. And a0 is the
+  amplitude inside the plasma: through the ramp the pulse keeps its energy flux, `a² = a0² / eta`,
+  `eta = sqrt(1 - omega_p² / omega0²)` (`amplitude_in_plasma`; CPU test: the wave equation through
+  a ramp of 20 wavelengths). Predicted E_x on the axis at the focus: 3.853e-3 (3.801e-3 above:
+  +0.87 % from 1 / v_g, +0.50 % from eta); E_r / E_x at r = w / 2 stays `0.5 v_g` = 0.4957. Neither
+  term was taken from a paper.
 
 ### Stage 4 — moving window (PIC-D22, OUT-D5)
 

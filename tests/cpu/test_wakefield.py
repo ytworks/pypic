@@ -48,8 +48,9 @@ def test_bunch_startup_goes_from_no_field_to_the_steady_field():
 
 def test_laser_wake_is_the_oscillator_driven_by_the_pulse():
     """phi'' + phi = a_env^2 / 4 integrated through the pulse leaves the amplitude of `laser_wake`
-    (E_x = -d phi / d zeta has the amplitude of phi at k_w = 1); the wake is largest for
-    duration = 2, and E_r / E_x at r is 4 r / w^2."""
+    (E_x = -d phi / dx has the amplitude of phi at k_w = 1); the wake is largest for duration = 2.
+    At the speed v the pattern is phi(t - x / v): E_x = phi / v, and E_r = (4 r / w^2) phi does
+    not depend on v."""
     T = _theory()
     a0, tau = 0.1, 2.7
     sol = solve_ivp(lambda t, y: [y[1], 0.25 * a0 ** 2 * math.exp(-2.0 * (t / tau) ** 2) - y[0]], (-30.0, 30.0),
@@ -60,7 +61,34 @@ def test_laser_wake_is_the_oscillator_driven_by_the_pulse():
     assert best == pytest.approx(2.0, abs=0.011)
     ex_r, er_r = T.laser_wake(a0, tau, 4.0, r=2.0)
     assert ex_r == pytest.approx(ex * math.exp(-0.5)) and er_r / ex_r == pytest.approx(0.5)
+    # E_x from its own equation, E_x'' + E_x = -d/dx (a^2 / 4) = (1 / v) d/dt (a^2 / 4)
+    v = 0.8
+    own = solve_ivp(lambda t, y: [y[1], -a0 ** 2 * t / (v * tau ** 2) * math.exp(-2.0 * (t / tau) ** 2) - y[0]],
+                    (-30.0, 30.0), [0.0, 0.0], rtol=1e-11, atol=1e-16)
+    slow = T.laser_wake(a0, tau, 4.0, r=2.0, speed=v)
+    assert math.hypot(*own.y[:, -1]) == pytest.approx(slow[0] * math.exp(0.5), rel=1e-7)
+    assert slow == pytest.approx((ex_r / v, er_r))
     assert T.beam_at(3.0, 0.1, 4.0, 3.0) == pytest.approx((0.1 / math.sqrt(2.0), 4.0 * math.sqrt(2.0)))
+
+
+def test_pulse_keeps_its_flux_through_a_long_ramp():
+    """E'' + (omega^2 - n(x)) E = 0 through a ramp of the density from 0 to 1, 20 wavelengths long:
+    the amplitude behind the ramp over the incident one is `amplitude_in_plasma`."""
+    T = _theory()
+    om, x0, x1 = 3.0, 0.0, 20.0 * 2.0 * math.pi / 3.0
+    k = math.sqrt(om * om - 1.0)
+
+    def rhs(x, y):
+        n = min(max((x - x0) / (x1 - x0), 0.0), 1.0)
+        return [y[1], -(om * om - n) * y[0]]
+
+    # from the transmitted wave exp(i k x) back into the vacuum
+    sol = solve_ivp(rhs, (x1 + 1.0, x0 - 1.0), [np.exp(1j * k * (x1 + 1.0)), 1j * k * np.exp(1j * k * (x1 + 1.0))],
+                    rtol=1e-11, atol=1e-14)
+    e, de = sol.y[:, -1]
+    incident = abs(0.5 * (e + de / (1j * om)))
+    assert 1.0 / incident == pytest.approx(T.amplitude_in_plasma(1.0, om), rel=1e-4)
+    assert T.amplitude_in_plasma(0.1, 1e6) == pytest.approx(0.1)
 
 
 def test_yee_group_velocity_has_the_limits_of_the_plasma_and_of_the_grid():
