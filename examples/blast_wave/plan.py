@@ -4,7 +4,7 @@ A magnetised plasma at rest (electrons and ions, uniform field B0 along z) fills
 keeps entering through its six faces. At the centre sits an absorbing sphere with a magnetic dipole.
 A dense shell of debris around the sphere starts with a radial speed V_d = M_A v_A; it sweeps up
 the ambient plasma, pushes the field out of a cavity and drives a shock outwards (Le et al. 2021;
-Keenan et al. 2021 for a cloud in a uniform field). B0 and the dipole are external fields, so the
+Keenan et al. 2022 for a cloud in a uniform field). B0 and the dipole are external fields, so the
 grid holds the difference to them (PIC-D12 to PIC-D16).
 
 The planner takes dimensionless numbers (mass ratio, Alfven Mach number of the debris,

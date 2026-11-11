@@ -1,4 +1,4 @@
-"""Scales of a debris cloud that expands into a magnetised plasma (Le et al. 2021; Keenan et al. 2021).
+"""Scales of a debris cloud that expands into a magnetised plasma (Le et al. 2021; Keenan et al. 2022).
 
 Units: c = eps0 = 1, lengths in c/omega_pe (d_e), masses in m_e, the ambient density n = 1.
 

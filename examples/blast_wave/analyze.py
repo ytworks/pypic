@@ -1,6 +1,6 @@
 """Analyse a blast-wave run.
 
-python examples/blast_wave/analyze.py output/blast_wave/gate
+python examples/blast_wave/analyze.py output/blast_wave/gate [--movie]
 
 With debris: the gate of docs/plans/2026-11-11-blast-wave.md, Phase 3 with its amendment. Measured in
 the plane z = centre (perpendicular to B0), B_z of the total field.
@@ -357,6 +357,8 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
         "ambient_deviation": ahead["deviation"],
         "ahead": {k: ahead[k] for k in ("steps", "blocks", "n:e", "n:i", "B")},
         # reported
+        "front_mach_fast": wm["front_speed"] / info["v_fast"],
+        "debris_extent_ratio": float(np.max(h["extent"])) / T.debris_extent(r_m, m_a),
         "front_end": float(h["front"][-1]), "front_max": float(h["fronts"].max()),
         "cavity_max": _finite_max(h["cavity"]),
         "cavity_static": 2.0 ** (1.0 / 3.0) * info["dipole_radius"] if info["body"] else float("nan"),
@@ -456,9 +458,30 @@ def _figure(run, info, h, res, j, path):
     return P.save(fig, path)
 
 
+def movie(run_dir: str, out: str | None = None, fps: int = 12, n_frames: int = 100, dpi: int = 110) -> str:
+    """B_z and the ambient ions in the plane across B0, the debris ions in a plane along it."""
+    from pypic.analysis import Movie
+    from pypic.analysis.animate import SlicePanel
+
+    run = open_run(run_dir)
+    info = run.meta["planner"]
+    kw = dict(signed=False, blank=(info["center"], info["body_radius"]) if info["body"] else None)
+    m = Movie(run, title="blast wave around a magnetised body")
+    bz = dict(scale=1.0 / info["b0"], vlim=(0.0, 3.0), label="B_z / B0 (z = centre)")
+    m.add(SlicePanel(run, "slice_z", "Bz", **bz, **kw))
+    m.add(SlicePanel(run, "slice_z", "n:i", vlim=(0.0, 3.0), label="ambient ions, n / n0 (z = centre)", **kw))
+    if info["debris"]:
+        m.add(SlicePanel(run, "slice_y", "n:di", log=True, label="debris ions, n / n0 (y = centre)", **kw))
+    return m.save(out or os.path.join(run_dir, "blast_wave.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("run_dir")
+    ap.add_argument("--movie", action="store_true")
     a = ap.parse_args()
     with_debris = open_run(a.run_dir).meta["planner"]["debris"]
-    print(json.dumps(analyze(a.run_dir) if with_debris else null_test(a.run_dir), indent=2, default=float))
+    r = analyze(a.run_dir) if with_debris else null_test(a.run_dir)
+    if a.movie:
+        r["movie"] = movie(a.run_dir)
+    print(json.dumps(r, indent=2, default=float))

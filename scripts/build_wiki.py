@@ -150,6 +150,12 @@ EXAMPLES: dict[str, dict] = {
         "movies": ["gate"],
         "summary": {"kind": "results", "file": "standoff.png"},
     },
+    "blast_wave": {
+        "page": "Blast-Wave",
+        "title": {"en": "Blast wave around a magnetised body", "ja": "磁化天体のまわりの爆風"},
+        "cases": {"gate": fresh("gate", gpus=8)},
+        "movies": ["gate"],
+    },
 }
 
 
