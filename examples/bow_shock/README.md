@@ -52,22 +52,24 @@ python examples/bow_shock/analyze.py output/bow_shock/gate --movie
 - **Energy** is monitored only (explicit scheme, energy of the difference fields without the work of the external field): the total changes by +2.5 % over the run.
 - **Cost**: 46 ms per step (0.85 ns per particle and step, times 8 GPUs), 264 s; 10.1 GB of device memory per GPU at the most. The planner's figure (11.0 GB) is for full particle arrays; for `full.yaml` it is 86 GB per GPU on 8 GPUs.
 
-## Southward and oblique IMF (8 GPUs, one run each)
+## Southward and oblique IMF (8 GPUs, three runs each)
+
+Three runs of each configuration with the same seed: the first run, and the two runs of the gate record of c54e5d1 (FP64 and `mixed`). The table gives the range of the three. The runs differ because the order of the deposit differs from run to run (see above) and, for the third, because of the float32 gather; the three runs of each configuration pass every gate limit.
 
 | quantity | `south` | `oblique` | northward gate |
 |---|---|---|---|
-| magnetopause distance (density) | 0.91 R_mp | 0.96 R_mp | 0.92 to 0.93 R_mp |
-| shock distance | 1.18 R_mp | 1.25 R_mp | 1.38 R_mp |
-| largest density on the subsolar line | 2.48 n₀ | 3.26 n₀ | 3.8 n₀ |
+| magnetopause distance (density) | 0.85 to 0.91 R_mp | 0.96 to 0.97 R_mp | 0.92 to 0.93 R_mp |
+| shock distance | 1.08 to 1.18 R_mp | 1.25 to 1.28 R_mp | 1.38 R_mp |
+| largest density on the subsolar line | 2.48 to 3.35 n₀ | 2.99 to 3.26 n₀ | 3.8 n₀ |
 | MHD compression | 2.97 | 3.19 (θ_Bn = 45°) | 2.97 |
-| sheath thickness / magnetopause distance | 0.30 | 0.30 | 0.49 to 0.50 |
-| shock on the flank (line x = x_c, plane y = y_c), +z and −z | 2.24 and 2.30 R_mp | 2.38 and 1.57 R_mp | — |
-| upstream density and u_x, last crossing | within 0.13 % | within 0.12 % | within 0.11 % |
-| Gauss's law | 6e-14 | 3e-14 | 4e-14 |
+| sheath thickness / magnetopause distance | 0.27 to 0.32 | 0.30 to 0.33 | 0.49 to 0.50 |
+| shock on the flank (line x = x_c, plane y = y_c), +z and −z | 2.24 to 2.31 and 2.24 to 2.30 R_mp | 2.38 to 2.39 and 1.55 to 1.57 R_mp | — |
+| upstream density and u_x, last crossing | within 0.14 % | within 0.12 % | within 0.11 % |
+| Gauss's law | 6e-14 to 7e-14 | 3e-14 | 4e-14 |
 
-- **Southward IMF: one reversal of B_z, at 1.005 R_mp**, 0.09 R_mp (1.9 d_e) upstream of the magnetopause by density: the density falls back to the wind value inside the field reversal. The shock stands 0.20 R_mp closer to the planet than with the northward field and the sheath is 40 % thinner. The run does not show what removes the flux (the reconnection rate at the magnetopause was not measured).
-- **Oblique IMF: the flank is not symmetric.** On the side z > z_c (quasi-perpendicular) the shock is at 2.38 R_mp, on the side z < z_c (quasi-parallel) at 1.57 R_mp. The moments ahead of the quasi-parallel side deviate from the wind by 0.09 %: no foreshock is seen in density and mean velocity at this size and length (22.5 / Ω_ci). The compression is 2.4 % above the oblique MHD jump.
-- **Cost**: as the gate (46 to 47 ms per step, 264 to 269 s).
+- **Southward IMF: one reversal of B_z in every run, at 0.93 to 1.00 R_mp**, 0.09 to 0.11 R_mp (1.8 to 2.2 d_e) upstream of the magnetopause by density: the density falls back to the wind value inside the field reversal. The shock stands 0.20 to 0.30 R_mp closer to the planet than with the northward field and the sheath is 35 to 45 % thinner. The place of the layer moves by 0.07 R_mp between the runs and the largest density by a third; one run of this size does not fix them better than that. The run does not show what removes the flux (the reconnection rate at the magnetopause was not measured).
+- **Oblique IMF: the flank is not symmetric.** On the side z > z_c (quasi-perpendicular) the shock is at 2.38 to 2.39 R_mp, on the side z < z_c (quasi-parallel) at 1.55 to 1.57 R_mp. The moments ahead of the quasi-parallel side deviate from the wind by 0.09 to 0.10 %: no foreshock is seen in density and mean velocity at this size and length (22.5 / Ω_ci). The largest density lies between 6 % below and 2 % above the oblique MHD jump.
+- **Cost**: as the gate (46 to 47 ms per step, 264 to 269 s in FP64).
 
 ## Result at R_mp = 10 d_i (8 GPUs, one run)
 

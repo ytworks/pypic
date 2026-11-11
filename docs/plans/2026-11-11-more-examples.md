@@ -1,6 +1,6 @@
 # More examples: the seven open items of R6
 
-Status: In progress
+Status: Done (PR #41) — the seven items have a gated or a recorded configuration; gate records on c54e5d1 in FP64 and with `precision: mixed`, ALL PASSED (Results, Gate records on c54e5d1); PIC-D18 Accepted
 Refs: roadmap R6 (R11 stays open); PIC-D18 (new); ANA-D2, ANA-D3; PIC-D12..D17 (used as they are)
 
 ## Context
@@ -563,3 +563,59 @@ Reported — shock tail (`long` is t = 2000 with two recorded runs; the box doub
 Gate runs of this pull request: the full gates (`pytest tests/gpu`, `scripts/gpu_gates.py --gpus 8`
 in FP64 and mixed) are taken once, on its final head (owner instruction of 2026-11-11); the stages
 above were verified with targeted runs.
+
+### Gate records on c54e5d1 (2026-11-12): ALL PASSED in FP64 and mixed
+
+`bench/results/2026-11-12-c54e5d104-gpu-gates.json` (29 gates: 94 GPU tests, 6 two-stream, 22
+examples) and `…-gpu-gates-mixed.json` (27 gates: 5 two-stream, 22 examples), 8 GPUs, clean
+commit. The largest Gauss residual is 7.6e-12 in FP64 and 7.7e-12 in mixed (`two-stream:buneman`).
+The gates this plan adds:
+
+| Gate | Criterion | Limit | FP64 | mixed |
+|---|---|---|---|---|
+| `two-stream:ei_b0` | growth rate of k_max | 10 % | +2.2 % | +2.2 % |
+| `filamentation:pair_b0` | median growth error, m = 4…10 | ≤ 10 % | 5.7 % | 5.7 % |
+| `filamentation:pair_b0_stable` | Σ\|B_m\|² (m = 2…10), end over 10 % of the run | ≤ e² = 7.39 | 6.02 | 6.02 |
+| `relativistic_shock:pair_2d_sigma` | β_sh | 10 % | −7.2 % | −7.2 % |
+| | n₂/n₁ | 10 % | +4.2 % | +4.4 % |
+| | ⟨B_z⟩ / B₁ against r | 10 % | +4.0 % | +4.0 % |
+| `bow_shock:south` | magnetopause by density | within 25 % of R_mp | 0.883 | 0.846 |
+| | reversals of B_z; \|(x_c − x_rev)/R_mp − 1\| | 1; ≤ 0.25 | 1; 0.009 | 1; 0.066 |
+| | sheath compression | ≥ 2 | 3.34 | 3.35 |
+| | upstream n and u_x | 5 % | 0.13 % | 0.14 % |
+| `bow_shock:oblique` | magnetopause by density | within 25 % of R_mp | 0.965 | 0.970 |
+| | sheath compression | ≥ 2 | 3.11 | 2.99 |
+| | upstream n and u_x (z − z_c ≥ 1.5 R_mp) | 5 % | 0.12 % | 0.12 % |
+
+Gauss's law of the five example gates: ≤ 1.3e-12 (limit 1e-10; the bow-shock runs ≤ 7.3e-14); the
+shock stands upstream of the magnetopause in the four bow-shock runs.
+
+**The bow-shock values of the gate runs are not those of the targeted runs of Stage 1.** Three
+runs of each configuration with the same seed (R_mp units; reported values below the line of
+dashes):
+
+| | `south`, Stage 1 | `south`, FP64 record | `south`, mixed record | `oblique`, Stage 1 | `oblique`, FP64 record | `oblique`, mixed record |
+|---|---|---|---|---|---|---|
+| magnetopause | 0.910 | 0.883 | 0.846 | 0.960 | 0.965 | 0.970 |
+| largest density (n₀) | 2.48 | 3.34 | 3.35 | 3.26 | 3.11 | 2.99 |
+| reversal of B_z | 1.005 | 0.991 | 0.934 | — | — | — |
+| - - - | | | | | | |
+| shock | 1.178 | 1.169 | 1.077 | 1.251 | 1.280 | 1.267 |
+| sheath / magnetopause distance | 0.295 | 0.323 | 0.273 | 0.303 | 0.326 | 0.306 |
+| erosion x_rev − x_mp | −0.094 | −0.108 | −0.088 | — | — | — |
+| flank, +z and −z | 2.236, 2.300 | 2.305, 2.278 | 2.276, 2.244 | 2.38, 1.57 | 2.385, 1.546 | 2.383, 1.570 |
+
+- The analysis did not change between the runs: the present `analyze.py` gives the Stage 1
+  values again on the Stage 1 outputs (`south`: 2.4799, 0.9103, 1.1785, 1.0048; `oblique`: 3.263,
+  0.9601, 1.2513). The differences are those between runs with the same seed (the order of the
+  deposit, roadmap R10; the third run also has the float32 gather), amplified by the flow over
+  5760 steps, as for the northward gate (`examples/bow_shock/README.md`).
+- They are larger for `south` than for the northward gate (magnetopause 0.85 to 0.91 against
+  0.92 to 0.93; largest density 2.48 to 3.35): the layer at the field reversal is not at rest.
+  Every run passes every limit; the closest is the magnetopause of the mixed `south` run, 15.4 %
+  inside R_mp against the limit of 25 %.
+- Consequence for the text: the README of the example and the roadmap now give the ranges of the
+  three runs for `south` and `oblique` instead of the values of the first run. No limit and no
+  definition changed.
+
+PIC-D18 is Accepted with these records (`relativistic_shock:pair_2d_sigma` on 8 GPUs).

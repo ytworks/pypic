@@ -38,10 +38,11 @@ debris extent 21 to 22 % above the scaling of Le et al. 2021 (a 2-D fit used wit
 
 More examples (R6, 2026-11-12; plan `docs/plans/2026-11-11-more-examples.md`): the seven items
 that were left.
-- Bow shock with a southward IMF (`bow_shock/south`, gate): B_z reverses once, 1.005 R_mp from the
-  centre; with an oblique IMF (`oblique`, gate; 45° on the subsolar line): magnetopause 0.96 R_mp,
-  shock 1.25 R_mp; at twice the magnetosphere (`dp10`, R_mp = 10 d_i, 480×640², 3.1e9 particles,
-  one recorded run of 1.0 h): magnetopause 0.94 R_mp, shock 1.44 R_mp, compression 3.8.
+- Bow shock with a southward IMF (`bow_shock/south`, gate): B_z reverses once, 0.93 to 1.00 R_mp
+  from the centre in three runs with the same seed; with an oblique IMF (`oblique`, gate; 45° on
+  the subsolar line): magnetopause 0.96 to 0.97 R_mp, shock 1.25 to 1.28 R_mp; at twice the
+  magnetosphere (`dp10`, R_mp = 10 d_i, 480×640², 3.1e9 particles, one recorded run of 1.0 h):
+  magnetopause 0.94 R_mp, shock 1.44 R_mp, compression 3.8.
 - Blast wave at R_m = 12 d_i (`rm12`, 576³, 3.2e9 particles, recorded): debris extent 15 % above
   Eq. 4 of Le et al. 2021 (21 % at 8 d_i); as a Gaussian cloud without the body (`cloud`,
   reported): the gate criteria on the front hold (1.8 fast speeds, B_z 2.1 B0).

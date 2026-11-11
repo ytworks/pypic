@@ -60,7 +60,7 @@ python examples/relativistic_shock/analyze.py output/relativistic_shock/pair_2d 
 
 ## Magnetised shock (8 GPUs, FP64, one run each)
 
-`pair_2d_sigma.yaml`: γ₀ = 15, σ = 0.3, B₁ = 3.0 along z, 1792×80×4 cells, 4.6e6 particles, 2066 steps (7 s). The limits were fixed before the first run (`docs/plans/2026-11-11-more-examples.md`), and the first run passed them. The other three rows are `--set` variants of it (`field=in`, `sigma=0.1`, `sigma=1`); the criteria are evaluated and are not gates there. These are targeted runs without a record in `bench/results/`; the gate record of `pair_2d_sigma` comes with the gate run of the pull request.
+`pair_2d_sigma.yaml`: γ₀ = 15, σ = 0.3, B₁ = 3.0 along z, 1792×80×4 cells, 4.6e6 particles, 2066 steps (7 s). The limits were fixed before the first run (`docs/plans/2026-11-11-more-examples.md`), and the first run passed them. The other three rows are `--set` variants of it (`field=in`, `sigma=0.1`, `sigma=1`); the criteria are evaluated and are not gates there. These are targeted runs without a record in `bench/results/`. The gate record of `pair_2d_sigma` is in `bench/results/2026-11-12-c54e5d104-gpu-gates.json` (and `…-mixed.json`): β_sh −7.2 %, n₂/n₁ +4.2 % (mixed +4.4 %), field +4.0 %; the second digit of the density jump differs between runs with the same seed.
 
 | run | jump used | β_sh | n₂/n₁ | ⟨B⟩/B₁ downstream | precursor δB/B₁ (rms, max) | Gauss |
 |---|---|---|---|---|---|---|
