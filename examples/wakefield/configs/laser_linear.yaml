@@ -14,3 +14,4 @@ duration: 2
 waist: 4
 plane_x: 2
 ppc: 8
+lattice: [2, 2, 2]

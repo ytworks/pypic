@@ -47,6 +47,7 @@ class WakeParams:
     ramp: tuple = (4.0, 8.0, 58.0, 61.0)  # density 0, n0, n0, 0 at these x (linear in between)
     x_end: float = 54.0  # place of the driver at the end of the run
     ppc: int = 8
+    lattice: tuple | None = None  # places of the ppc particles of a cell (PIC-D23); None: random
     ion_mass: float = 1836.0
     n_out: int = 8  # outputs of the plane through the axis
     # laser
@@ -202,7 +203,8 @@ def plan_wakefield(p: WakeParams, n_gpus: int = 1):
     except ValueError:
         dims = None
     cfg = SimConfig(n_cells=n_cells, dx=(dx, dy, dy), dt=dt, n_steps=n_steps, species=species, ppc=p.ppc,
-                    seed=p.seed, dims=dims, boundaries=bc, lasers=lasers, diag_interval=max(1, n_steps // 500),
+                    lattice=p.lattice, seed=p.seed, dims=dims, boundaries=bc, lasers=lasers,
+                    diag_interval=max(1, n_steps // 500),
                     gauss_interval=max(1, n_steps // 25), sort_interval=50,
                     output=OutputConfig(diagnostics=diags, timescales={"plasma_period": 2.0 * math.pi,
                                                                        "t_end": n_steps * dt}))

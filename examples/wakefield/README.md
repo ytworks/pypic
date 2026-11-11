@@ -21,7 +21,7 @@ python -m pypic.launch -n 8 examples/wakefield/run.py --config examples/wakefiel
 python examples/wakefield/analyze.py output/wakefield/laser_linear
 ```
 
-- **Set-up**: electrons and ions (mass 1836) at 8 particles per cell each, loaded at the same places, so the plasma has no field before the driver arrives. Open x faces; the density rises over a ramp and falls again before the far face, so no plasma touches an open face. The run ends when the driver is at `x_end`.
+- **Set-up**: electrons and ions (mass 1836) at 8 particles per cell each, loaded at the same places, so the plasma has no field before the driver arrives. The gate configurations put the 8 particles of a cell on a 2 × 2 × 2 lattice (`lattice`, PIC-D23), so the plasma also starts without the density noise of random places. Open x faces; the density rises over a ramp and falls again before the far face, so no plasma touches an open face. The run ends when the driver is at `x_end`.
   - Pulse: the antenna stands in the vacuum before the ramp. The Rayleigh length (80 c/ω_pe) is not long against the box, so a₀² on the axis changes by up to 13 % along it and the theory is evaluated at the place of the measurement.
   - Bunch: it starts inside the plateau. Its partner stays behind as a charge that the plasma screens; between periodic transverse faces that charge would add a uniform E_x of about 2 % of the wake, which the conducting walls remove.
 - **Analysis**: on the plane through the axis (for the pulse the one normal to its polarisation, where the laser has no E_x and E_z is the radial field), at the last output, behind the driver.
