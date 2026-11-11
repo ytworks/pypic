@@ -207,3 +207,22 @@ def test_filamentation_planner_takes_the_field_along_the_drift_from_the_marginal
     stable_cfg, _, stable = F.plan_filamentation(F.FilamentationParams(b0=1.5))
     assert stable["stable"] and max(stable["gamma_theory"]) == 0.0
     assert stable_cfg.n_steps == free_cfg.n_steps  # no growth time of its own: the length of the free case
+
+
+def test_shock_planner_gives_the_magnetised_flow_its_motional_field():
+    """sigma sets B1 from the enthalpy flux of the flow, the field direction the axis, and E0 is
+    -v x B0 (force-free flow, PIC-D18); the box follows the faster magnetised shock."""
+    S = _example_planner("relativistic_shock")
+    free_cfg, _, free = S.plan_shock(S.ShockParams(t_end=50.0))
+    assert tuple(free_cfg.B0) == tuple(free_cfg.E0) == (0.0, 0.0, 0.0)
+    for name, axis, dims in (("out", 2, 2), ("in", 1, 3)):
+        cfg, _, info = S.plan_shock(S.ShockParams(sigma=0.3, field=name, t_end=50.0))
+        u = cfg.species[0].beams[0].drift
+        gamma = math.sqrt(1 + sum(c * c for c in u))
+        v, B = [c / gamma for c in u], cfg.B0
+        mass = sum(b.density * s.mass for s in cfg.species for b in s.beams)
+        assert B[axis] ** 2 == pytest.approx(0.3 * gamma * mass) and sum(c * c for c in B) == B[axis] ** 2
+        v_x_B = (v[1] * B[2] - v[2] * B[1], v[2] * B[0] - v[0] * B[2], v[0] * B[1] - v[1] * B[0])
+        assert tuple(cfg.E0) == pytest.approx(tuple(-c for c in v_x_B), abs=1e-14)
+        assert info["dims_eff"] == dims and info["jump"]["beta_sh"] > free["jump"]["beta_sh"]
+        assert cfg.n_cells[0] > free_cfg.n_cells[0]
