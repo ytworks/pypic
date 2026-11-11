@@ -348,8 +348,39 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
     return res
 
 
+def movie(run_dir: str, out: str | None = None, fps: int = 6, n_frames: int = 100, dpi: int = 110) -> str:
+    """The plane through the axis at its laboratory place: E_x and the driver (E_y of the pulse, or the density
+    of the bunch); the radial field of a linear wake; the electron density and the phase space (x, u_x) of a
+    blowout run."""
+    from pypic.analysis import Movie
+    from pypic.analysis.animate import PhasePanel, SlicePanel
+
+    run = open_run(run_dir)
+    p = PL.params_from_dict(run.meta["planner"]["params"])
+    blowout = p.regime == "blowout"
+    m = Movie(run, title=f"wake of a {'laser pulse' if p.driver == 'laser' else 'bunch'}", ncols=1,
+              panel_size=(9.0, 2.6))
+    if blowout:
+        m.add(SlicePanel(run, "axis_plane", "n:electron", signed=False, vlim=(0.0, 4.0), label="electron density [n0]"))
+    m.add(SlicePanel(run, "axis_plane", "Ex", label="E_x"))
+    if not blowout:
+        m.add(SlicePanel(run, "axis_plane", "Ez", label="E_z"))
+    if p.driver == "laser":
+        m.add(SlicePanel(run, "axis_plane", "Ey", label="E_y (pulse)"))
+    else:
+        m.add(SlicePanel(run, "axis_plane", "n:bunch", signed=False, vlim=(0.0, p.bunch_density),
+                         label="bunch density [n0]"))
+    if blowout:
+        m.add(PhasePanel(run, "phase", "electron"))
+    return m.save(out or os.path.join(run_dir, "wakefield.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("run_dir")
+    ap.add_argument("--movie", action="store_true")
     a = ap.parse_args()
-    print(json.dumps(analyze(a.run_dir), indent=2, default=float))
+    r = analyze(a.run_dir)
+    if a.movie:
+        r["movie"] = movie(a.run_dir)
+    print(json.dumps(r, indent=2, default=float))

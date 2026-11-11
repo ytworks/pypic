@@ -160,6 +160,32 @@ def test_movie_writes_an_animation(tmp_path):
     assert Image.open(out).n_frames == 6
 
 
+def test_movie_shows_a_moving_window_at_its_laboratory_place(tmp_path):
+    """Three outputs of a plane across y and of a histogram over (x, u_x); the window has gone 0, 4 and 10
+    cells of 0.5 at them: the pictures of the last frame lie 5 further in x than the first (OUT-D5)."""
+    from types import SimpleNamespace
+
+    from pypic.analysis import Movie
+    from pypic.analysis.animate import PhasePanel, SlicePanel
+
+    shift, t = np.array([0, 4, 10]), np.array([0.0, 1.0, 2.0])
+    data = np.arange(32.0).reshape(8, 4) + 1.0
+
+    def extent(comp, i=None):
+        x0 = 0.0 if i is None else 0.5 * shift[i]
+        return [x0, x0 + 4.0, 0.0, 2.0]
+
+    plane = SimpleNamespace(t=t, layout={"axis": "y"}, window_shift=shift, extent=extent,
+                            read=lambda c, i: data * (i + 1))
+    hist = SimpleNamespace(t=t, window_shift=shift, quantities=["x", "ux"], read=lambda sp, i: data,
+                           edges=[np.linspace(0.0, 4.0, 9), np.linspace(-1.0, 1.0, 5)])
+    run = SimpleNamespace(series={"plane": plane, "phase": hist}.get, dx=[0.5] * 3)
+    a, b = SlicePanel(run, "plane", "Ex"), PhasePanel(run, "phase", "e")
+    Movie(run).add(a).add(b).save(str(tmp_path / "m.gif"), fps=5)
+    assert list(a.im.get_extent()) == [5.0, 9.0, 0.0, 2.0] and a.ax.get_xlim() == (5.0, 9.0)
+    assert list(b.im.get_extent()) == [5.0, 9.0, -1.0, 1.0] and b.ax.get_xlim() == (5.0, 9.0)
+
+
 class _Tracks:
     """Minimal stand-in for analysis.run.Tracks (float32 rows, as written by default)."""
 
