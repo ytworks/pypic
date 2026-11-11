@@ -304,6 +304,7 @@ def conditions(d: Path) -> dict:
         "particles": npart,
         "species": [_species(s) for s in cfg["species"]], "boundaries": bnd,
         "fields": fields, "filter_passes": int(filt.get("passes", 0) or 0),
+        "window": r.get("window"),  # of a moving-window run: start, margin and the number of shifts
         "gpus": meta_run.get("gpus", r.get("world_size")), "wall_time_s": meta_run.get("wall_time_s"),
         "params": r["meta"].get("params", {}),
         "planner": {k: v for k, v in r["meta"].get("planner", {}).items() if k != "params"},
