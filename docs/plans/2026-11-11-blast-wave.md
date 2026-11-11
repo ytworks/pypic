@@ -1,5 +1,5 @@
 # Blast wave around a magnetised body (`examples/blast_wave`) and radial beams (PIC-D17)
-Status: In progress — Phase 3 (the gate). Phase 2 done: the example with planner, analysis and CPU tests; the gate configuration has not run yet. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
+Status: In progress — Phase 3 (the gate). The first run of the gate configuration passed all seven criteria (Phase 3, Result of the first run); the gate record on a clean commit is next. Phase 2 done: the example with planner, analysis and CPU tests. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
 Refs: roadmap R6; PIC-D12..D16 (used as they are), PIC-D17 (new, Phase 1)
 
 ## Context
@@ -347,6 +347,42 @@ Definitions fixed while building the analysis, before the first run with debris:
   the kernels' limit 2³¹ − 1, with the engine's formula (PIC-D17); "a shell that overlaps the body"
   is more than 1 % of the shell's particles inside the body radius (0.03 % at the gate); ω_pe at the
   peak of the shell is √(1 + n_pk) (ambient and debris electrons).
+
+### Result of the first run (2026-11-11; 1223a21, clean tree, 8 GPUs, FP64, one run)
+
+`gate.yaml` as committed: 943,087,492 particles at the start, 1760 steps, 165 s (93.5 ms per step,
+0.80 ns per particle and step, times 8 GPUs). All seven criteria pass.
+
+| Criterion | Measured | Limit |
+|---|---|---|
+| Gauss, div B | 6.9e-15, 9.0e-15 | 1e-10, 1e-12 |
+| Ambient plasma ahead of the front | within 0.050 % (n_e; n_i 0.044 %, \|B\| 0.015 %); 258,678 blocks at step 0, 145,526 at the end | 5 % |
+| Speed of the front (14 samples in the window) | 0.1627 c = 2.10 fast speeds = 0.87 V_d | > 0.0774 c |
+| Largest ring mean of B_z / B0 in the window | 2.69 | > 1.5 |
+| Axes against diagonals | 0.21 % | 5 % |
+| Largest ∆98 of the debris ions | 39.5 d_e = 1.24 R_m at step 616 (of 1760) | 24.5 to 40.8 d_e (Eq. 4: 32.6) |
+
+- ∆98 is 21 % above Eq. 4 with D = 3, 4 points inside the band. This is one run, and the bow-shock
+  gate showed differences in the third digit between runs with the same seed; how far ∆98 moves
+  between runs has not been measured. After its maximum ∆98 falls to 34.3 d_e at the end.
+- The front leaves the debris: it is 10.5 d_e ahead of ∆98 at the end of the window (step 660) and
+  43 d_e at the end of the run (front 77.4 d_e = 1.16 R_B, ∆98 34.3 d_e). The largest ring mean of B_z
+  falls from 2.6 B0 (step 352) to 1.5 B0 (end).
+- Compression: the perpendicular MHD shock gives 2.51 at M_A = 3 and 2.26 at the measured speed of
+  the front (M_A = 2.60); the measured 2.69 is the largest ring mean of B_z, not a mean behind a
+  plane shock.
+- Magnetic cavity: largest radius 33.25 d_e = 0.50 R_B = 1.04 R_m, constant over the last 350 steps
+  (the static field alone: 8.1 d_e).
+- Debris at the end (3-D density of the debris ions): rms distance 36.8 d_e along B0, 14.8 d_e per
+  direction across.
+- Energy: the budget changes by +1.95 % of the energy at step 0, which is 10.9 % of the kinetic
+  energy of the debris (N1, the ambient plasma alone: +2.2 %). The debris ions keep 20 % of their
+  kinetic energy; the ambient ions gain 41 % of the kinetic energy of the debris.
+- Body: potential against the plasma at two dipole radii 4.9 T_e / e in the plane across B0 and
+  1.3 T_e / e in the plane along it; charge +22.5 at the end (largest 32.9); 106,480 particles
+  absorbed. Reported without a limit (Phase 0, Amendment).
+- Fill of the particle arrays 67 % at the most (capacity factor 1.5); the particle number falls
+  from 943.1e6 to 936.7e6.
 
 ## Phase 4 — production run and documents
 

@@ -64,8 +64,11 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   the code (radial beams, PIC-D17 Proposed: a shell with a radial drift, loaded into the cells its
   shape reaches; gated on 574c904 in FP64, existing gates unchanged; mixed with the example gate, Phase 3). Phase 2 done:
   the example (debris shell in 4 beams per species, planner rejections, gate analysis, `full.yaml`, README, CPU tests;
-  MHD scales shared with the bow shock in `pypic/setup/mhd.py`). The gate configuration has not run with debris
-  (Phase 3, criteria fixed in the plan); `pypic/` changed (two moves), gates not rerun yet. A trial at R_m = 4 d_i
+  MHD scales shared with the bow shock in `pypic/setup/mhd.py`). Phase 3: the first run of the gate configuration
+  (1223a21, 8 GPUs, FP64, one run) passed all seven criteria fixed in the plan: front 2.1 fast speeds, B_z up to 2.7 B0,
+  axes against diagonals 0.2 %, debris extent 1.24 R_m (Eq. 4 of Le et al. 2021: 1.02 R_m; band ± 25 %, so 4 points
+  inside it), plasma ahead within 0.05 %, Gauss 7e-15. `blast_wave:gate` is in `scripts/gpu_gates.py`; the gate
+  record (FP64 and mixed; `pypic/` changed by two moves since 574c904) is not made yet. A trial at R_m = 4 d_i
   (176³): 4 beams lower the numerical energy gain of the debris from 1.4 % to 0.4 % of its kinetic energy; the
   debris extent there is 2.1 R_m against 1.0 R_m of Le et al. 2021 (Eq. 4) — another regime than the gate (ρ_d = 0.75 R_m).
   Phase 0: planner skeleton and null-test analysis in `examples/blast_wave` (no debris yet). N1 (plasma at rest, six `flux` faces, 384³, 1760 steps) passed; N2 (with body and
