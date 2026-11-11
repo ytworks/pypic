@@ -388,3 +388,56 @@ Reported:
   74,489 MiB = 78.1 GB (the others 46 to 71 GiB), against 68.6 GB of the planner for full particle
   arrays: 14 % above it, with the arrays 67 % full. A 200-step probe therefore does not bound the
   memory of a run; `dp10` below is judged with this in mind.
+
+### Stage 4 — PIC-D18 and `relativistic_shock/pair_2d_sigma` (2026-11-11): gate criteria passed
+
+The wall test of PIC-D18 (`test_exb_drifting_plasma_between_reflecting_walls_keeps_its_drift`)
+passes on the branch and was run once on the code before the change, where the construction
+raises `ValueError: E0 component y is tangential to the conducting faces of axis x`.
+
+`pair_2d_sigma` (γ0 = 15, σ = 0.3, B1 = 3.0 along z, E_y = −β0 B1; 1792×80×4 cells, 2066 steps,
+4.6e6 particles), targeted run on 8 GPUs, FP64, on ec0ce42 (7 s). It is the first run of the
+configuration; the limits were fixed before it.
+
+| Criterion | Limit | Measured | |
+|---|---|---|---|
+| β_sh against the magnetised jump (2-D gas: 0.6448) | 10 % | 0.5984, −7.2 % | pass |
+| n2 / n1 against the jump (2.547) | 10 % | 2.666, +4.7 % | pass |
+| Downstream ⟨B_z⟩ / B1 against r (2.547) | 10 % | 2.651, +4.1 % | pass |
+| Gauss | 1e-10 | 1.2e-12 | pass |
+
+The existing gate `pair_2d` (no field, same analysis code) in the same session: β_sh −5.3 %,
+n2 / n1 +1.9 %, Gauss 2.4e-12 (README: −5.1 %, +1.7 %; the runs are independent realizations).
+The gate record is taken with the full gates at the final head of the pull request.
+
+Reported (one run each, 8 GPUs, FP64, `--set` on `pair_2d_sigma`; the gate criteria are evaluated
+and are not gates here):
+
+| Run | Jump used | β_sh | n2 / n1 | ⟨B⟩ / B1 downstream | Precursor δB / B1 (rms, max) | Density peak at the front |
+|---|---|---|---|---|---|---|
+| σ = 0.3, B along z (gate) | 2-D gas: 0.645, 2.547 | 0.598 (−7.2 %) | 2.666 (+4.7 %) | 2.651 (+4.1 %) | 0.71, 1.9 | 11.4 n1 |
+| σ = 0.3, B along y (`field=in`) | 3-D gas: 0.549, 2.817 | 0.571 (+4.0 %) | 2.800 (−0.6 %) | 2.746 (−2.5 %) | 0.59, 2.2 | 8.1 n1 |
+| σ = 0.1, B along z | 2-D gas: 0.561, 2.780 | 0.522 (−6.8 %) | 2.995 (+7.7 %) | 2.972 (+6.9 %) | 1.08, 3.5 | 5.9 n1 |
+| σ = 1, B along z | 2-D gas: 0.783, 2.274 | 0.809 (+3.3 %) | 2.262 (−0.6 %) | 2.281 (+0.3 %) | 0.34, 0.73 | 12.5 n1 |
+
+- **Flux freezing holds**: the mean downstream field over B1 is within 2 % of the measured
+  density compression in the four runs (−0.6 %, −2.0 %, −0.8 %, +0.8 %).
+- **In-plane field**: the particles gyrate out of the simulation plane, the gas has three degrees
+  of freedom and the run follows the 3-D jump (−0.6 % in n2 / n1), not the 2-D one (2.547: +10 %).
+- **Precursor**: an electromagnetic wave train runs ahead of the shock in all four runs
+  (line-out of the field component along B1, measured at t ≈ 0.7 of the validity time between
+  5 skin depths ahead of the shock and the farthest point that deviates by 5 % from B1). Its
+  leading edge is at 278 to 285 c/ω_pe at t = 294 to 302, i.e. it has travelled at c since the
+  start of the run: it contains the front that the wall launches when it shorts E_y at t = 0
+  (PIC-D18) and the emission of the forming shock; the two are not separated. The amplitude falls
+  with σ between 0.1 and 1. The density in the wave train deviates by 1 % rms. No comparison
+  with a published precursor amplitude was made.
+- The deviations of β_sh and n2 / n1 have opposite signs in every run, as mass conservation asks
+  (β_sh = β0 / (r − 1) in the wall frame); the pair measured at σ = 0.3 satisfies it within 0.1 %,
+  the others within 2 to 4 % (the speed is a fit over a time window, the density a median at its
+  end).
+- Downstream spectrum at t = 397: no power-law tail in any of the runs (the fit finds none);
+  temperature of the Maxwell–Jüttner fit 3.9 (σ = 0.3), 4.9 (in-plane), 3.7 (σ = 0.1), 3.7
+  (σ = 1) against 6.8, 4.3, 7.1, 6.4 of the jump; the gate without a field gives 4.2 against 7.4
+  with the same fit, so the fit of the quasi-2-D runs is low by the same factor with and without
+  the field and is not a statement about the heating.
