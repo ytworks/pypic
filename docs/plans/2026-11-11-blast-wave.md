@@ -1,5 +1,5 @@
 # Blast wave around a magnetised body (`examples/blast_wave`) and radial beams (PIC-D17)
-Status: Done (2026-11-11). Phase 4 done: the production run is recorded and the wiki page is built locally; the wiki and the branch are not pushed (Phase 4, Result). Phase 3 done: the gate records passed on 9bfa1a5 in FP64 and with `precision: mixed` (Phase 3, Result of the records on 9bfa1a5). The FP64 gate record passed on ae4bb69 with `blast_wave:gate` in it (Phase 3, Result of the gate record) and PIC-D17 is Accepted. The first run of the gate configuration passed all seven criteria (Phase 3, Result of the first run). Phase 2 done: the example with planner, analysis and CPU tests. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
+Status: Done (2026-11-11). Review of PR #40: two fixes in the example, gate records taken again on 17f1b5f in FP64 and with `precision: mixed`, ALL PASSED (Phase 3, Review of PR #40). Phase 4 done: the production run is recorded and the wiki page is built locally; the wiki is not published (Phase 4, Result). Phase 3 done: the gate records passed on 9bfa1a5 in FP64 and with `precision: mixed` (Phase 3, Result of the records on 9bfa1a5). The FP64 gate record passed on ae4bb69 with `blast_wave:gate` in it (Phase 3, Result of the gate record) and PIC-D17 is Accepted. The first run of the gate configuration passed all seven criteria (Phase 3, Result of the first run). Phase 2 done: the example with planner, analysis and CPU tests. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
 Refs: roadmap R6; PIC-D12..D16 (used as they are), PIC-D17 (new, Phase 1)
 
 ## Context
@@ -459,6 +459,57 @@ gates). `blast_wave:gate`, same seed as before:
   or more in common with FP64. The 21 % above Eq. 4 are in both precisions. Not shown: another seed.
 - `bow_shock:gate` in these records: magnetopause 0.923 (FP64) and 0.915 (mixed), shock 1.381 and
   1.382; the ae4bb69 record had 0.916 and 1.381 in FP64.
+
+### Review of PR #40 (2026-11-11; fixes in 17f1b5f, records on 17f1b5f, clean tree, 8 GPUs)
+
+Two findings of the review, both reproduced before the fix:
+
+- `theory.shell_peak_density` normalised the Gaussian over all radii, r < 0 included. The planner
+  accepts shells that are not thin (`shell_radius` 0.1, `shell_width` 0.3, no body); that one held
+  112,416 ion charges against 137,258 for R_m = 32 (18.1 % fewer). The integral now starts at the
+  centre (the closed form `shell_fraction_inside` used already). Of the two fixes the review names,
+  this one was taken, not a rejection in the planner: a rejection keeps an approximation in every
+  shell that is accepted. For the gate and production shells (r_s / w = 3.3) the peak density rises
+  from 16.511255005787422 to 16.5112550898059 (5.1e-9 of its value).
+- `plane_history` used rings of the cell width also for slices written as block means
+  (`slice_coarsen`). With blocks of 3 or 4 cells some rings held no sample and ∆98 was nan in every
+  frame, so the criterion of the debris extent could not pass. `body_potential` had the same rings:
+  nan for blocks of 4 in the gate geometry. The rings are now as wide as the slice samples are apart
+  (`_sample_spacing`); `body_potential` rounds the number of rings down, so that none is narrower.
+  With `slice_coarsen: 1` nothing changes: the plane history and the body potential of the saved
+  gate run (3752d32) and of the production run are identical before and after the fix.
+
+CPU tests: the planner test integrates the beams of the shell above; a test of the analysis on
+slices written as means over blocks of 1, 3 and 4 cells. Both fail on 19fdbca.
+
+The peak density changes the bits of the gate configuration, so the gates were run again: ALL PASSED
+(`bench/results/2026-11-11-17f1b5f10-gpu-gates.json`: 93 GPU tests, five two-stream gates, 17
+example gates; `…-gpu-gates-mixed.json`: four two-stream gates, 17 example gates). `blast_wave:gate`:
+
+| Quantity | FP64 (9bfa1a5) | FP64 (17f1b5f) | mixed (17f1b5f) |
+|---|---|---|---|
+| Speed of the front | 0.16274968378855556 c | 0.16274968398709116 c | 0.16274967747865163 c |
+| Largest ring mean of B_z / B0 | 2.6865894164931907 | 2.686589418502336 | 2.6865894278783475 |
+| Axes against diagonals | 0.21272968616 % | 0.21272959942 % | 0.21272989526 % |
+| Largest ∆98, its step | 39.54555853000368 d_e, 616 | 39.54555853148343 d_e, 616 | 39.54555838722154 d_e, 616 |
+| Ambient plasma ahead of the front | 0.0500293 % | 0.0500168 % | 0.0502002 % |
+| Gauss, div B | 6.2e-15, 8.8e-15 | 6.3e-15, 8.9e-15 | 7.4e-15, 9.7e-15 |
+| Energy budget change / debris kinetic energy | 10.899890 % | 10.900165 % | 10.897218 % |
+| Body charge at the end, particles absorbed | +22.4937968, 106,480 | +22.4213580, 106,400 | +20.6544349, 106,446 |
+| Body potential across / along B0 | 4.937, 1.262 T_e / e | 5.022, 1.236 T_e / e | 5.005, 1.226 T_e / e |
+| Largest `fill` | 0.6701040 | 0.6701046 | 0.6701157 |
+| Time per step | 93.2 ms | 93.2 ms | 84.9 ms |
+
+- The seven criteria pass in both precisions. Against the FP64 runs before the change, the FP64 run
+  has 9 digits of the front speed and of the ring mean in common, 10 of ∆98 and 6 of the symmetry.
+  The 21 % above Eq. 4 are unchanged.
+- The charge of the body at the end moves by 0.3 % and its potential by 2 % (FP64) for a change of
+  5e-9 in the shell density; the same-seed runs before had them equal in 9 digits. The largest
+  charge (32.8818217) is the same in 9 digits in all runs.
+- `bow_shock:gate` in these records: magnetopause 0.922 (FP64) and 0.911 (mixed), shock 1.379 and
+  1.381.
+- Not repeated on 17f1b5f: the production run (3752d32) and the run behind the wiki page (3752d32).
+  The gates include `pytest tests/gpu` (93 passed); `pypic/` is unchanged since 9bfa1a5.
 
 ## Phase 4 — production run and documents
 

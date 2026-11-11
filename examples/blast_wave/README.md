@@ -39,7 +39,7 @@ python examples/blast_wave/analyze.py output/blast_wave/gate
   - the ambient densities and |B| ahead of the front stay within 5 % of their initial values.
 - **Reported**: the compression against the MHD shock; the distance between the front and the debris; the extent of the debris along and across B₀; the radius of the magnetic cavity; the charge and the potential of the body; the energy budget; the largest fill ratio of the particle arrays.
 
-## Result of the gate configuration (8 GPUs; three FP64 runs with the same seed, one with `precision: mixed`)
+## Result of the gate configuration (8 GPUs; three FP64 runs with the same seed and one with `precision: mixed`, then the gate records on 17f1b5f)
 
 | quantity | measured | reference |
 |---|---|---|
@@ -51,17 +51,18 @@ python examples/blast_wave/analyze.py output/blast_wave/gate
 | Gauss's law, div B | 6e-15 to 8e-15, 9e-15 | gate 1e-10, 1e-12 |
 
 - **The debris extent is 21 % above the scaling**, 4 points inside the band of the gate. The table holds the FP64 values. The front speed, the ring mean and the symmetry are the same in the three FP64 runs in all digits, and Δ98 in 12 digits; the other values differ by 4e-5 of their value or less (the plasma ahead of the front: 0.05003 % in all three), and the round-off residual of Gauss's law in the first digit. The run with `precision: mixed` passes the same criteria and has 7 digits or more of the front speed, the ring mean and Δ98 in common with them. So the 21 % are not a difference between runs or between the two precisions. The scaling is a 2-D fit used with D = 3, the cloud here is a shell with the ambient ion mass, and R_m is 8 d_i; these runs do not separate the three. The runs are the first run of the configuration and the gate records (`bench/results/`); the plan lists them.
+- **Records on 17f1b5f** (FP64 and `precision: mixed`). Since that commit the mass of the shell is counted from the centre outwards, which raises its peak density by 5.1e-9 of its value, so these runs do not start from the same bits. Both pass the criteria, and every value of the table is the same at the digits shown. Against the three FP64 runs before, the FP64 run has 9 digits of the front speed and of the ring mean in common, 10 of Δ98 and 6 of the symmetry; the energy values and the rms distances of the debris differ by 3e-5 of their value or less.
 - **The front leaves the debris.** It is 10.5 d_e ahead of Δ98 when it leaves the window (step 660) and at 77.4 d_e = 1.16 R_B at the end, where Δ98 has fallen to 34.3 d_e. The ring mean of B_z falls from 2.6 B₀ (step 352) to 1.5 B₀ at the end: the value of the table is the largest one of the window, not a mean behind a plane shock.
 - **Magnetic cavity** (B_z < 0.5 B₀): its largest radius is 33.3 d_e = 0.50 R_B = 1.04 R_m, constant over the last 350 steps; the static field of the dipole alone gives 8.1 d_e.
 - **Along B₀ the debris spreads further**: at the end the rms distance of the debris ions from the centre is 36.8 d_e along B₀ and 14.8 d_e per direction across it.
 - **Energy** is monitored only (explicit scheme). The debris ions keep 20 % of their kinetic energy and the ambient ions gain 41 % of the kinetic energy of the debris. The budget with the outflow and the absorbed particles changes by +1.95 % of the energy at step 0, which is 10.9 % of the kinetic energy of the debris; the ambient plasma alone (null test N1 of the plan) gains 2.2 % of its energy over the same number of steps.
-- **The body** absorbs 106,480 particles and holds the charge +22.5 at the end (largest value 32.9; units of e n₀ d_e³). Its potential against the plasma at two dipole radii is 4.9 T_e / e in the plane across B₀ and 1.3 T_e / e in the plane along it. These are reported without a limit: the null test with the body alone did not show a level of the charge.
+- **The body** absorbs 106,480 particles and holds the charge +22.5 at the end (largest value 32.9; units of e n₀ d_e³). Its potential against the plasma at two dipole radii is 4.9 T_e / e in the plane across B₀ and 1.3 T_e / e in the plane along it. These are reported without a limit: the null test with the body alone did not show a level of the charge. In the FP64 run on 17f1b5f they are 106,400 particles, +22.4, 5.0 and 1.2 T_e / e: the charge at the end and the potential move by 0.3 % and 2 % for a change of 5e-9 in the density of the shell.
 - **Not shown**: whether the 21 % hold at another R_m / d_i, with another shell shape or another seed (the production configuration below has another mass ratio and gives 22 %); a level of the body charge.
 - **Cost**: 93 ms per step (0.80 ns per particle and step, times 8 GPUs), 164 s for the 1760 steps; 85 ms per step with `precision: mixed`. The planner's memory figure is 21.5 GB per GPU for full particle arrays (66 GB for `full.yaml`); the arrays reach 67 % of their capacity (capacity factor 1.5). The device memory was not measured.
 
 ## Result of the production configuration (8 GPUs, FP64, one run)
 
-`full.yaml`: m_i/m_e = 25, 576³ cells, 3.13e9 particles, 2800 steps. The criteria of the gate are evaluated and reported; they are not a gate here. Record: `bench/results/2026-11-11-3752d3211-example-blast_wave-full-run-ea70ccc5.json`.
+`full.yaml`: m_i/m_e = 25, 576³ cells, 3.13e9 particles, 2800 steps. The criteria of the gate are evaluated and reported; they are not a gate here. Record: `bench/results/2026-11-11-3752d3211-example-blast_wave-full-run-ea70ccc5.json`. The run is older than the change of the shell mass on 17f1b5f (peak density 5.1e-9 higher since then) and was not repeated.
 
 | quantity | measured | reference |
 |---|---|---|
