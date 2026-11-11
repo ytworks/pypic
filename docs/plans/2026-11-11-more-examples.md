@@ -297,3 +297,33 @@ Reported:
 - **Stable case:** the mode energy grows 6.0-fold between 10 % of the run and its end with no
   unstable k (the unstable case would give e^(2 Γ t) with Γ t ≈ 22). The margin to the limit e² is
   small (19 %).
+
+### Stage 2 — `blast_wave/cloud` (2026-11-11): reported, all criteria of the gate hold
+
+The gate configuration without the body and its dipole, the debris a Gaussian ball (shell radius 0)
+of width 0.33 R_m = 10.56 d_e, peak density 20.9 n0. 384³ cells, 8 GPUs, FP64, 1760 steps,
+1.185e9 particles, 109 ms per step (wall 192 s, 0.78 ns per particle and step). Launched from the
+working tree of 23b348e with the PIC-D18 check of `E0` uncommitted (this configuration does not
+reach it), so the run is reported and not recorded.
+
+| Criterion of `blast_wave:gate` | Limit | Measured | |
+|---|---|---|---|
+| Gauss, div B | 1e-10, 1e-12 | 7.4e-15, 8.6e-15 | holds |
+| Front speed between 0.3 and 0.7 R_B | above the fast speed (0.0774 c) | 0.1371 c = 1.77 fast speeds = 0.73 V_d | holds |
+| Largest ring mean of B_z / B0 there | above 1.5 | 2.08 | holds |
+| Front radii, axes against diagonals | 5 % | 0.45 % | holds |
+| Δ98 of the debris ions against Eq. 4 of Le et al. 2021 (D = 3), reached before the end | ± 25 % | 39.0 d_e = 1.22 R_m at step 572 of 1760; Eq. 4: 32.6 d_e; +19.5 % | holds |
+| Ambient n_e, n_i, \|B\| ahead of the front | 5 % | 0.045 % | holds |
+
+Reported: the shell of the gate gives Δ98 = 39.5 d_e (+21 %) with the same R_m, M_A and seed, so
+the excess over Eq. 4 changes by 1.5 points between a shell at 0.33 R_m around a body with a dipole
+and a ball at the centre without them. The front is slower than that of the shell (1.77 against
+2.10 fast speeds) and the ring mean is lower (2.08 against 2.69; perpendicular MHD shock at the
+speed of the front: 1.95): the ball starts 0.33 R_m further in and the 98 % extent of the debris is
+17.5 d_e at step 0. Front at the end at 77.0 d_e = 1.16 R_B (shell: 1.16 R_B); cavity 34.25 d_e =
+0.51 R_B (shell 0.50 R_B); distance between front and debris 10.7 d_e at step 660; debris rms extent
+36.8 d_e along B0 and 14.9 d_e across; the debris ions keep 21.5 % of their energy and the ambient
+ions gain 38.3 % of it; energy monitor +1.9e-2 (budget change with the boundary terms 0.107;
+monitored only); particles 1.185e9 → 1.115e9; largest fill ratio 0.670. 200-step probe before the
+run: 123 ms per step, peak device memory 29.3 GiB = 31.5 GB on the largest GPU against the
+planner's 32.4 GB.
