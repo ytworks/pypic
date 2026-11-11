@@ -69,6 +69,34 @@ Test B1: E_r(r) in the mid-plane of the bunch within 3 % of the field of the Gau
 B_θ = β E_r. An initial field from a Poisson solve is out of scope (reconsidered only if B1 fails
 at the run-up within reach).
 
+Definitions fixed before the first run of B1 (2026-11-11):
+
+- The field of the comparison is the steady field of the rigid Gaussian bunch in vacuum, in its
+  mid-plane: `bunch_field` in `examples/wakefield/theory.py`. The formula was derived here (the
+  potential of a Gaussian at rest in the frame of the bunch); no paper was consulted. It is checked
+  on the CPU against its three limits: a point charge, the Gaussian sphere at rest, the line charge.
+- Run: vacuum, all faces open, 448×192×192 cells, σ_x = σ_r = σ = 8 cells, dt = dx / 2, γ = 10,
+  n_b = 0.05, 8 particles per cell, the bunch and its partner with the mass 1e6 (rigid), the
+  partner at rest, the axis of the bunch on a line of nodes, its centre 8 σ from the x− face at
+  t = 0. The comparison is made after 640 steps (the bunch has travelled 40 σ).
+- E_r at the radii (m + 1/2) dx, m = 4 … 15 (0.56 σ to 1.94 σ): the mean of the four samples of
+  E_y and E_z on the two lines through the axis along y and z, interpolated along x to the centre
+  of the bunch with the parabola through the three nearest nodes. B_θ in the same way from B_z and
+  B_y. Criteria: `|E_r / E_bunch − 1| ≤ 3 %` at every radius, `|B_θ / (β E_r) − 1| ≤ 1 %` at every
+  radius, Gauss ≤ 1e-10, div B ≤ 1e-12.
+- Correction of the run-up stated above. The mode solution of the start on the partner
+  (`bunch_startup`, same file) shows that the part of the start that travels with the bunch loses
+  its phase at the rate `k_perp² / (2 k_x) + k_x / (2 γ²)`: the field is formed after a time of the
+  order 2 γ² σ_x (200 σ at γ = 10), not γ · r_max. Predicted at the 40 σ of the test:
+  E_r is above the steady field by 0.8 % (0.56 σ) to 1.6 % (1.94 σ), and `B_θ / (β E_r) − 1` is
+  0.07 % to 0.15 %; at 20 σ the excess is 0.9 % to 1.3 %. The criterion stays the one above (the
+  steady field, 3 %); the ratio to the mode solution is reported. Other estimates: the charge shape
+  and the grid below 0.3 %, the dispersion of the grid about 0.1 %, the open walls at 12 σ below
+  0.5 % at 2 σ.
+- Stage 3 takes this into account: the criteria of `wakefield:beam_linear` are evaluated with the
+  field the bunch has at the time of the measurement, and the run-up is chosen from the mode
+  solution.
+
 ### Stage 3 — `examples/wakefield`, static box
 
 N1 (cold plasma, no driver): |E_x| on the axis at most 1 % of the predicted wake, density within
