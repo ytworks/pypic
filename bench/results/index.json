@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "file": "2026-11-11-c58f533c5-example-blast_wave-rm12-run-031fb299.json",
+      "type": "example",
+      "date": "2026-11-11",
+      "commit": "c58f533c542127503da70baa42cdbff42fbf2ffe",
+      "dirty": false,
+      "run_id": "031fb299",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "blast_wave",
+      "config": "rm12"
+    },
+    {
       "file": "2026-11-11-17f1b5f10-gpu-gates-mixed.json",
       "date": "2026-11-11",
       "commit": "17f1b5f10d23d7915fe466acf35f251498926e0c",
