@@ -64,7 +64,9 @@ here before the run and implemented as `null_test` in `examples/bow_shock/analyz
   or more from every face) and the slab of two blocks at each of the six faces. References: the
   sample of step 0. "Last crossing": the samples of the last 1920 steps.
 - Density: Σn of the region over its value at step 0. Velocity: Σflux / Σn per component minus the
-  wind velocity, over |v|.
+  wind velocity, over |v|. Both limits apply to the samples of the last crossing (those with a step
+  ≥ N − 1920, as in the upstream check of the gate); the largest velocity deviation over all
+  samples is reported.
 - T: (2/3) (Σekin / Σn − m (γ_u − 1)) with γ_u of the mean velocity |Σflux / Σn|, over its value
   at step 0 (for a drifting Maxwellian this is proportional to T at a fixed drift).
 - Energies: the mean of the scalar-history records `electric` and `magnetic` with a step in
@@ -75,6 +77,10 @@ Definition of the reversal of `south`: the profile of B_z on the subsolar line i
 density profile of the gate (slice z = z_c, band of ±0.1 R_mp, running mean over 0.1 R_mp, mean of
 the outputs of the last half crossing). Its changes of sign are counted between the shock and the
 surface of the body; the criterion needs exactly one, and x_rev is its linear interpolation.
+
+Reported ±z asymmetry: on the line x = x_c of the plane y = y_c (same band, running mean and
+outputs), the distance from the centre of the outermost point with n_i ≥ 1.5 n_0 towards +z and
+towards −z; asymmetry = (plus − minus) / (plus + minus).
 
 The compression of an oblique fast shock goes into `examples/bow_shock/theory.py`; at θ = 90° it
 must reproduce `pypic.setup.mhd.compression`. `analyze.py` gains: the point x_rev on the subsolar

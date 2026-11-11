@@ -122,6 +122,20 @@ def test_bow_shock_planner_gives_a_configuration_the_engine_accepts():
         assert external.check_config(cfg) and injection.check_config(cfg) and body.check_config(cfg, reach)
         assert math.prod(cfg.dims) == 8 and "bow-shock planner" in report
     assert abs(info["r_mp"] - 20.0) < 1e-12  # 5 d_i with m_i / m_e = 16
+    # the configurations of the IMF: which side the dipole field opposes, and where the wind is measured
+    plans = {}
+    for name in ("gate", "south", "oblique"):
+        with open(os.path.join(os.path.dirname(path), name + ".yaml")) as f:
+            plans[name] = P.plan_bow_shock(P.params_from_dict(yaml.safe_load(f)), n_gpus=8)[2]
+    assert [plans[n]["antiparallel"] for n in plans] == [False, True, False]
+    assert plans["gate"]["upstream_z_range"] is None and plans["gate"]["cos2_bn"] == 0.0
+    zc, lz = plans["oblique"]["center"][2], plans["oblique"]["upstream_z_range"]
+    assert lz[0] == pytest.approx(zc + 1.5 * 20.0) and abs(plans["oblique"]["cos2_bn"] - 0.5) < 1e-12
+    assert plans["oblique"]["compression_mhd"] > plans["gate"]["compression_mhd"]
+    # the null test of the wind: no dipole and no body, and the engine's checks still accept it
+    cfg, report, info = P.plan_bow_shock(P.params_from_dict({**params, "planet": False}), n_gpus=8)
+    assert cfg.body is None and not cfg.external_fields.dipoles and not info["planet"]
+    assert external.check_config(cfg) and injection.check_config(cfg) and not body.check_config(cfg, reach)
     # a body so small that the dipole field at its surface cannot be resolved in time is refused
     with pytest.raises(ValueError, match="Omega_ce dt"):
         P.plan_bow_shock(P.params_from_dict({**params, "body_radius": 0.4}))

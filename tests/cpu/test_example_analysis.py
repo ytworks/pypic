@@ -115,6 +115,74 @@ def test_bow_shock_upstream_deviation_is_nan_without_a_measurement():
     assert up["blocks"] == 0 and np.isnan(up["deviation"])
 
 
+def test_bow_shock_upstream_region_follows_the_side_chosen_for_an_oblique_imf():
+    from types import SimpleNamespace
+
+    B = _example("bow_shock")
+    v, n_cells, block = 0.25, (48, 64, 64), 4  # box 24 x 32 x 32, centre of z at 16; blocks of 2
+    shape = tuple(n // block for n in n_cells)
+    z = (np.arange(shape[2]) + 0.5) * 2.0
+    wind = np.ones(shape)
+    disturbed = wind * np.where(z < 16.0, 1.3, 1.0)  # 30 % more density on the side z < z_c only
+    data = {}
+    for it, d in ((0, wind), (100, disturbed), (200, disturbed)):
+        for sp in "ei":
+            data[it, f"n:{sp}"], data[it, f"fluxx:{sp}"] = d, d * v
+    f = SimpleNamespace(iterations=[0, 100, 200], get=lambda it, name: SimpleNamespace(data=data[it, name]))
+    run = SimpleNamespace(fields=lambda name: f, n_cells=n_cells, dx=(0.5, 0.5, 0.5),
+                          config={"output": {"diagnostics": [{"name": "coarse", "coarsen": [block] * 3}]}})
+    info = {"r_mp": 10.0, "v_sw": v, "crossing_steps": 100, "center": [12.0, 16.0, 16.0]}
+    assert B.upstream_state(run, info)["deviation"] == pytest.approx(0.15)  # half of the whole region
+    up = B.upstream_state(run, {**info, "upstream_z_range": (21.0, 32.0)})  # z - z_c >= 0.5 R_mp
+    assert up["blocks"] == 3 * 12 * 3 and up["deviation"] == pytest.approx(0.0, abs=1e-12)
+    assert up["foreshock"]["blocks"] == up["blocks"] and up["foreshock"]["deviation"] == pytest.approx(0.3)
+
+
+def test_bow_shock_field_reversal_is_counted_between_the_shock_and_the_body():
+    B = _example("bow_shock")
+    x = np.linspace(0.0, 50.0, 501)
+    bz = np.interp(x, [0.0, 29.0, 31.0, 50.0], [-1.0, -3.0, 5.0, 8.0])  # crosses zero at 29.75
+    one = B.reversal(x, bz, 20.0, 45.0)
+    assert one["count"] == 1 and one["x"] == pytest.approx(29.75, abs=1e-9)
+    # a second and a third change inside the interval: not a single reversal, no position
+    three = B.reversal(x, bz * np.where((x > 35.0) & (x < 40.0), -1.0, 1.0), 20.0, 45.0)
+    assert three["count"] == 3 and np.isnan(three["x"])
+    # outside the interval they do not count; without a shock (nan) nothing lies between
+    assert B.reversal(x, bz, 20.0, 34.0)["count"] == 1 and B.reversal(x, bz, 31.0, 45.0)["count"] == 0
+    assert B.reversal(x, bz, float("nan"), 45.0)["count"] == 0
+
+
+def test_bow_shock_null_history_measures_density_velocity_and_temperature_per_region():
+    from types import SimpleNamespace
+
+    B = _example("bow_shock")
+    v, t0, m, shape = 0.25, 0.01, 16.0, (8, 6, 6)
+
+    def moments(density, ux, uz, temp):
+        """Moments of a wind with the given density, velocity (ux, 0, uz) and temperature per block."""
+        gu = 1.0 / np.sqrt(1.0 - ux * ux - uz * uz)
+        return {"n": density, "fluxx": density * ux, "fluxy": 0.0 * density, "fluxz": density * uz,
+                "ekin": density * (m * (gu - 1.0) + 1.5 * temp)}
+
+    one = np.ones(shape)
+    late = np.ones(shape)
+    late[:2] = 1.1  # the slab at x-: 10 % more density, a velocity of 0.02 |v| along z, twice the temperature
+    data = {0: moments(one, v * one, 0.0 * one, t0 * one),
+            480: moments(late, v * one, np.where(late > 1.0, 0.02 * v, 0.0), np.where(late > 1.0, 2.0, 1.0) * t0)}
+    f = SimpleNamespace(iterations=[0, 480],
+                        get=lambda it, name: SimpleNamespace(data=data[it][name.split(":")[0]]))
+    run = SimpleNamespace(fields=lambda name: f, species_info={"e": {"mass": m}, "i": {"mass": m}})
+    h = B.null_history(run, {"v_sw": v})
+    assert h["regions"] == ["interior", "x-", "x+", "y-", "y+", "z-", "z+"]
+    k = h["regions"].index("x-")
+    assert h["e"]["density"][k, 1] == pytest.approx(1.1) and h["e"]["density"][0, 1] == pytest.approx(1.0)
+    assert h["e"]["velocity"][k, 1] == pytest.approx(0.02) and h["e"]["velocity"][0, 1] == pytest.approx(0.0, abs=1e-12)
+    assert h["e"]["temperature"][k, 1] == pytest.approx(2.0)  # the drift does not count as heat
+    assert h["i"]["temperature"][0, 1] == pytest.approx(1.0)
+    # the slab at y- crosses the disturbed one: 2 of its 8 planes along x
+    assert h["e"]["density"][h["regions"].index("y-"), 1] == pytest.approx(1.0 + 0.1 * 2 / 8)
+
+
 def test_blast_wave_front_and_debris_extent_are_recovered_from_synthetic_planes():
     from scipy.special import erfinv
 

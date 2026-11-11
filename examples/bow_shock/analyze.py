@@ -6,7 +6,14 @@ distance R_mp): Gauss law <= 1e-10; upstream density and u_x of both species wit
 over the last crossing; ion density compression >= 2 in the sheath; magnetopause (where the density
 falls back to the wind density) within 25 % of R_mp; shock upstream of the magnetopause.
 reported: MHD compression and the stand-off of Spreiter et al. (1966) against the measured ones, the
-magnetopause by magnetic pressure, the charge of the body, absorbed particles per step, largest fill.
+magnetopause by magnetic pressure, the charge of the body, absorbed particles per step, largest fill,
+the distance of the flank shock along +z and -z.
+IMF antiparallel to the dipole field on the day side (``south``): B_z changes sign exactly once between
+the shock and the body, within 25 % of R_mp (gate); the erosion x_rev - x_mp is reported.
+Oblique IMF (``oblique``): the upstream region is the side z - z_c >= upstream_z R_mp (no foreshock);
+the deviation of the mirrored region (the foreshock side) is reported.
+A run without planet (``--set planet=false``) is the null test of the wind (definitions in
+docs/plans/2026-11-11-more-examples.md, limits of M2 of the bow-shock plan).
 """
 from __future__ import annotations
 
@@ -27,6 +34,10 @@ from pypic.analysis.fields import front_position  # noqa: E402
 
 GAUSS_MAX, UPSTREAM_TOL, COMPRESSION_MIN, MAGNETOPAUSE_TOL = 1e-10, 0.05, 2.0, 0.25
 BAND, SMOOTH = 0.1, 0.1  # half width across and running mean along the subsolar line, in R_mp
+SIGNED_BZ = 8.0  # colour range of the signed B_z / |B_imf| of the movie
+FLANK_LEVEL = 1.5  # n_i / n_0 that marks the flank shock on the line x = x_c of the plane y = y_c (reported)
+# null test of the wind: density, velocity over |v|, T_e of the interior at the end, energy ratio; slab in blocks
+NULL_DENSITY, NULL_VELOCITY, NULL_TEMPERATURE, NULL_ENERGY, NULL_SLAB = 0.05, 0.05, 1.5, 1.5, 2
 
 
 def _running_mean(a, w):
@@ -44,6 +55,12 @@ def _fall_to(x, p, i0, level):
     return float(x[i - 1] + (level - p[i - 1]) * (x[i] - x[i - 1]) / (p[i] - p[i - 1]))
 
 
+def sign_changes(x, p) -> list:
+    """Positions where the profile p changes sign (linear interpolation)."""
+    x, p = np.asarray(x, dtype=float), np.asarray(p, dtype=float)
+    return [float(x[k] - p[k] * (x[k + 1] - x[k]) / (p[k + 1] - p[k])) for k in np.nonzero(p[:-1] * p[1:] < 0)[0]]
+
+
 def _mean(a) -> float:
     """Mean of the blocks of a region; nan for a region without a block (nothing was measured)."""
     return float(a.astype(float).mean()) if a.size else float("nan")
@@ -53,24 +70,35 @@ def upstream_state(run, info) -> dict:
     """Largest deviation of the density (against t = 0) and of u_x (against the wind) of each species over the
     outputs of the last crossing, in the blocks of the coarse output that lie inside the upstream region.
     nan where there is no measurement: no block lies inside the region (``blocks`` is 0: the blocks are
-    too large for it) or a value is not finite. A nan deviation fails the gate."""
+    too large for it) or a value is not finite. A nan deviation fails the gate.
+    With an oblique IMF the region is narrowed to the planner's ``upstream_z_range`` and ``foreshock`` is
+    the deviation of its mirror image about z_c (reported)."""
     f = run.fields("coarse")
     its = f.iterations
     c = next(d for d in run.config["output"]["diagnostics"] if d["name"] == "coarse")["coarsen"]
     r_mp, v = info["r_mp"], info["v_sw"]
-    sel = T.upstream_blocks(run.n_cells, c, run.dx, r_mp)
-    region = np.ix_(*sel)
     last = [it for it in its if it >= its[-1] - info["crossing_steps"]]
-    out = {"blocks": int(np.prod([len(s) for s in sel])), "outputs": len(last)}
-    for sp in "ei":
-        n0 = _mean(f.get(its[0], f"n:{sp}").data[region])
-        with np.errstate(divide="ignore", invalid="ignore"):  # an empty region or a zero density gives nan
-            n = np.array([_mean(f.get(it, f"n:{sp}").data[region]) for it in last]) / n0
-            ux = np.array([_mean(f.get(it, f"fluxx:{sp}").data[region]) for it in last]) / (n * n0 * v)
-        # np.max keeps a nan (the builtin max drops it, which reported a missing measurement as no deviation)
-        out[sp] = {"density": float(np.max(np.abs(n - 1.0))), "u_x": float(np.max(np.abs(ux - 1.0))),
-                   "n_end": float(n[-1]), "u_x_end": float(ux[-1])}
-    out["deviation"] = float(np.max([[out[sp]["density"], out[sp]["u_x"]] for sp in "ei"]))
+
+    def state(z_range) -> dict:
+        sel = T.upstream_blocks(run.n_cells, c, run.dx, r_mp, z_range)
+        region = np.ix_(*sel)
+        out = {"blocks": int(np.prod([len(s) for s in sel])), "outputs": len(last)}
+        for sp in "ei":
+            n0 = _mean(f.get(its[0], f"n:{sp}").data[region])
+            with np.errstate(divide="ignore", invalid="ignore"):  # an empty region or a zero density gives nan
+                n = np.array([_mean(f.get(it, f"n:{sp}").data[region]) for it in last]) / n0
+                ux = np.array([_mean(f.get(it, f"fluxx:{sp}").data[region]) for it in last]) / (n * n0 * v)
+            # np.max keeps a nan (the builtin max drops it, which reported a missing measurement as no deviation)
+            out[sp] = {"density": float(np.max(np.abs(n - 1.0))), "u_x": float(np.max(np.abs(ux - 1.0))),
+                       "n_end": float(n[-1]), "u_x_end": float(ux[-1])}
+        out["deviation"] = float(np.max([[out[sp]["density"], out[sp]["u_x"]] for sp in "ei"]))
+        return out
+
+    z_range = info.get("upstream_z_range")
+    out = state(z_range)
+    if z_range is not None:
+        zc = info["center"][2]
+        out["foreshock"] = state((2.0 * zc - z_range[1], 2.0 * zc - z_range[0]))
     return out
 
 
@@ -90,25 +118,55 @@ def subsolar(run, info) -> dict:
     n0 = float(sz.read("n:i", 0)[x <= xc - r_mp].astype(float).mean())
     xs = _running_mean(x, w)
     ni = _running_mean(sz.read("n:i", sel)[:, :, band].astype(float).mean(axis=(0, 2)), w) / n0
-    b2 = np.zeros_like(xs)
+    b = {}
     for comp in ("Bx", "By", "Bz"):  # staggered by half a cell: brought to the positions of the density
         xa, ya = sz.plane_axes(comp)
         bb = np.abs(ya - yc) <= BAND * r_mp + 1e-9
         prof = _running_mean(sz.read(comp, sel)[:, :, bb].astype(float).mean(axis=(0, 2)), w)
-        b2 += np.interp(xs, _running_mean(xa, w), prof) ** 2
-    return {"x": xs, "n_i": ni, "pb": 0.5 * b2 / info["ram_pressure"], "n0": n0, "outputs": len(late),
-            "band_samples": int(band.sum()), "smooth_samples": w, "sel": sel}
+        b[comp] = np.interp(xs, _running_mean(xa, w), prof)
+    b2 = b["Bx"] ** 2 + b["By"] ** 2 + b["Bz"] ** 2
+    return {"x": xs, "n_i": ni, "pb": 0.5 * b2 / info["ram_pressure"], "bz": b["Bz"], "n0": n0,
+            "outputs": len(late), "band_samples": int(band.sum()), "smooth_samples": w, "sel": sel}
+
+
+def reversal(x, bz, x_shock, x_surface) -> dict:
+    """Changes of sign of B_z on the subsolar line between the shock and the surface of the body.
+    ``x`` is the position of the single one; nan when there is none or more than one."""
+    x, bz = np.asarray(x, dtype=float), np.asarray(bz, dtype=float)
+    at = sign_changes(x[(x >= x_shock) & (x < x_surface)], bz[(x >= x_shock) & (x < x_surface)])
+    return {"count": len(at), "x": at[0] if len(at) == 1 else float("nan"), "all": at}
+
+
+def flank(run, info, sel, n0) -> dict:
+    """Distance from the centre, in R_mp, of the outermost point with n_i >= FLANK_LEVEL n_0 on the line
+    x = x_c of the plane y = y_c, towards +z and towards -z (band and running mean of the subsolar line,
+    same outputs); nan where the level is not reached. asymmetry = (plus - minus) / (plus + minus)."""
+    sy = run.series("slice_y")
+    r_mp, (xc, _, zc) = info["r_mp"], info["center"]
+    x, z = sy.plane_axes("n:i")
+    band = np.abs(x - xc) <= BAND * r_mp + 1e-9
+    w = max(1, int(round(SMOOTH * r_mp / (z[1] - z[0]))))
+    zs = _running_mean(z, w)
+    p = _running_mean(sy.read("n:i", sel)[:, band, :].astype(float).mean(axis=(0, 1)), w) / n0
+    plus = (front_position(zs[zs > zc], p[zs > zc], FLANK_LEVEL, from_right=True) - zc) / r_mp
+    minus = (zc - front_position(zs[zs < zc], p[zs < zc], FLANK_LEVEL, from_right=False)) / r_mp
+    return {"plus": float(plus), "minus": float(minus), "asymmetry": float((plus - minus) / (plus + minus))}
 
 
 def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
+    if not info.get("planet", True):
+        raise ValueError("a run without planet is the null test of the wind: use null_test")
     r_mp, xc, r_body = info["r_mp"], info["center"][0], info["body_radius"]
     s = run.scalars
     g = s["gauss"][np.isfinite(s["gauss"])]
     res = {"gauss_max": float(g.max()) if g.size else float("nan"), "r_mp": r_mp}
     up = upstream_state(run, info)
     res.update(upstream_deviation=up["deviation"], upstream={sp: up[sp] for sp in "ei"})
+    if "foreshock" in up:
+        res.update(foreshock_deviation=up["foreshock"]["deviation"],
+                   foreshock={sp: up["foreshock"][sp] for sp in "ei"})
     # subsolar line, upstream of the surface of the body
     line = subsolar(run, info)
     front = line["x"] < xc - r_body
@@ -122,7 +180,8 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
         compression=float(p[i_max]), x_compression=float(x[i_max]), compression_mhd=x_th,
         x_magnetopause=x_mp, magnetopause=(xc - x_mp) / r_mp, x_shock=x_sh, shock=(xc - x_sh) / r_mp,
         shock_spreiter=1.0 + 1.1 / x_th, sheath=(x_mp - x_sh) / (xc - x_mp), sheath_spreiter=1.1 / x_th,
-        magnetopause_magnetic=(xc - x_mp_b) / r_mp, wind_density=line["n0"])
+        magnetopause_magnetic=(xc - x_mp_b) / r_mp, wind_density=line["n0"],
+        flank=flank(run, info, line["sel"], line["n0"]))
     step = s["step"]
     n_abs = s["n_absorbed"].astype(float)
     cross = info["crossing_steps"]
@@ -139,9 +198,98 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
         "magnetopause": bool(np.isfinite(x_mp) and abs(res["magnetopause"] - 1.0) <= MAGNETOPAUSE_TOL),
         "shock_upstream": bool(np.isfinite(x_sh) and np.isfinite(x_mp) and x_sh < x_mp),
     }
+    if info.get("antiparallel"):
+        rev = reversal(line["x"], line["bz"], x_sh, xc - r_body)  # nan shock: nothing between, no pass
+        res.update(reversals=rev["count"], x_reversal=rev["x"], reversal=(xc - rev["x"]) / r_mp,
+                   erosion=(rev["x"] - x_mp) / r_mp)
+        checks["reversal"] = bool(rev["count"] == 1 and abs(res["reversal"] - 1.0) <= MAGNETOPAUSE_TOL)
     res.update(checks=checks, passed=all(checks.values()))
     if show_plot:
         res["plot"] = _figure(run, info, line, res, os.path.join(fig_dir or run_dir, "bow_shock.png"))
+    return res
+
+
+def null_regions(nb) -> dict:
+    """Block indices per axis of the interior (NULL_SLAB blocks or more from every face) and of the slab
+    of NULL_SLAB blocks at each face."""
+    reg = {"interior": tuple(np.arange(NULL_SLAB, n - NULL_SLAB) for n in nb)}
+    for a, ax in enumerate("xyz"):
+        for side in "-+":
+            sel = [np.arange(n) for n in nb]
+            sel[a] = np.arange(NULL_SLAB) if side == "-" else np.arange(nb[a] - NULL_SLAB, nb[a])
+            reg[ax + side] = tuple(sel)
+    return reg
+
+
+def null_history(run, info) -> dict:
+    """Per species, region and 3-D output: density over its value at step 0, largest component of the mean
+    velocity minus the wind velocity over |v|, and T over its value at step 0, with
+    T = (2/3) (sum ekin / sum n - m (gamma_u - 1)), gamma_u of the mean velocity."""
+    f = run.fields("coarse")
+    its = f.iterations
+    reg = {name: np.ix_(*sel) for name, sel in null_regions(f.get(its[0], "n:e").data.shape).items()}
+    wind = np.array([info["v_sw"], 0.0, 0.0])
+    out = {"regions": list(reg), "steps": [int(it) for it in its]}
+    for sp in "ei":
+        m = run.species_info[sp]["mass"]
+        n, vel, t = (np.zeros((len(reg), len(its))) for _ in range(3))
+        for j, it in enumerate(its):
+            d = {q: f.get(it, f"{q}:{sp}").data.astype(float) for q in ("n", "fluxx", "fluxy", "fluxz", "ekin")}
+            for i, ix in enumerate(reg.values()):
+                n[i, j] = d["n"][ix].sum()
+                with np.errstate(divide="ignore", invalid="ignore"):  # an empty region gives nan
+                    u = np.array([d[q][ix].sum() for q in ("fluxx", "fluxy", "fluxz")]) / n[i, j]
+                    vel[i, j] = np.max(np.abs(u - wind)) / info["v_sw"]
+                    t[i, j] = (2.0 / 3.0) * (d["ekin"][ix].sum() / n[i, j] - m * (1.0 / np.sqrt(1.0 - u @ u) - 1.0))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            out[sp] = {"density": n / n[:, :1], "velocity": vel, "temperature": t / t[:, :1]}
+    return out
+
+
+def null_test(run_dir: str) -> dict:
+    """Null test of the wind (a run without planet): the uniform wind must stay as it was loaded."""
+    run = open_run(run_dir)
+    info = run.meta["planner"]
+    if info.get("planet", True):
+        raise ValueError("the null test needs a run without planet (--set planet=false)")
+    h, s, cross = null_history(run, info), run.scalars, info["crossing_steps"]
+    names, steps = h["regions"], np.array(h["steps"])
+    last = steps >= steps[-1] - cross
+
+    def worst(a, cols):  # the largest value over regions and the chosen samples and where it is; a nan wins
+        a = np.where(np.isfinite(a), a, np.inf)[:, cols]
+        i, j = np.unravel_index(int(np.argmax(a)), a.shape)
+        return {"value": float(a[i, j]) if np.isfinite(a[i, j]) else float("nan"), "region": names[i],
+                "step": int(steps[cols][j])}
+
+    g = s["gauss"][np.isfinite(s["gauss"])]
+    step, every = s["step"].astype(float), np.ones(len(steps), dtype=bool)
+    end = step[-1]
+    late, before = (step > end - cross) & (step <= end), (step > end - 2 * cross) & (step <= end - cross)
+    res = {"gauss_max": float(g.max()) if g.size else float("nan"), "samples": len(steps),
+           "samples_last_crossing": int(last.sum()),
+           "density": {sp: worst(np.abs(h[sp]["density"] - 1.0), last) for sp in "ei"},
+           "velocity": {sp: worst(h[sp]["velocity"], last) for sp in "ei"},
+           "velocity_all_samples": {sp: worst(h[sp]["velocity"], every) for sp in "ei"},
+           "temperature_interior_end": {sp: float(h[sp]["temperature"][0, -1]) for sp in "ei"},
+           "temperature_end": {sp: worst(h[sp]["temperature"], steps == steps[-1]) for sp in "ei"},
+           "fill_max": float(np.max(s["fill"])), "particles_start": float(s["n_particles"][0]),
+           "particles_end": float(s["n_particles"][-1])}
+    for key in ("electric", "magnetic"):
+        e = s[key].astype(float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            res[key + "_ratio"] = float(e[late].mean() / e[before].mean()) if before.any() else float("nan")
+    b = s["magnetic"].astype(float)
+    res["magnetic_slope_per_480"] = float(np.polyfit(step[late], b[late], 1)[0] * 480.0 / b[late].mean())
+    checks = {
+        "gauss": bool(res["gauss_max"] <= GAUSS_MAX),  # False for nan: no measurement, no pass
+        "density": bool(max(res["density"][sp]["value"] for sp in "ei") <= NULL_DENSITY),
+        "velocity": bool(max(res["velocity"][sp]["value"] for sp in "ei") <= NULL_VELOCITY),
+        "temperature": bool(res["temperature_interior_end"]["e"] <= NULL_TEMPERATURE),
+        "electric": bool(res["electric_ratio"] <= NULL_ENERGY),
+        "magnetic": bool(res["magnetic_ratio"] <= NULL_ENERGY),
+    }
+    res.update(checks=checks, passed=all(checks.values()))
     return res
 
 
@@ -172,8 +320,10 @@ def _figure(run, info, line, res, path):
     a = ax[2]
     a.plot(x, line["n_i"], color=P.color(0), label="n_i / n_0")
     a.plot(x, line["pb"], color=P.color(2), label="B² / 2 over the ram pressure")
-    a.axhline(res["compression_mhd"], **P.THEORY,
-              label=f"perpendicular MHD shock, n2/n1 = {res['compression_mhd']:.2f}")
+    kind = "oblique" if info.get("cos2_bn") else "perpendicular"
+    a.axhline(res["compression_mhd"], **P.THEORY, label=f"{kind} MHD shock, n2/n1 = {res['compression_mhd']:.2f}")
+    if np.isfinite(res.get("reversal", float("nan"))):
+        a.axvline(res["reversal"], color=P.color(4), lw=1.2, label=f"B_z reversal: {res['reversal']:.2f} R_mp")
     a.axvline(res["shock_spreiter"], color=P.INK["primary"], ls=":", lw=1.0, label="shock (Spreiter et al. 1966)")
     a.axvline(1.0, color=P.INK["primary"], ls="--", lw=0.8, label="magnetopause (pressure balance)")
     for xm, lab, i in ((res["shock"], "shock", 1), (res["magnetopause"], "magnetopause", 3)):
@@ -229,11 +379,15 @@ def movie(run_dir: str, out: str | None = None, fps: int = 12, n_frames: int = 1
     run = open_run(run_dir)
     info = run.meta["planner"]
     m = Movie(run, title="bow shock of a magnetised planet")
-    for diag, comp, scale, label, log in (("slice_z", "n:i", 1.0, "n_i / n_0 (z = centre)", False),
-                                          ("slice_y", "n:i", 1.0, "n_i / n_0 (y = centre)", False),
-                                          ("slice_z", "Bz", 1.0 / info["b_imf"], "B_z / B_imf (z = centre)", True)):
-        m.add(SlicePanel(run, diag, comp, signed=False, log=log, label=label, scale=scale,
-                         blank=(info["center"], info["body_radius"])))
+    blank = (info["center"], info["body_radius"])
+    for diag in ("slice_z", "slice_y"):
+        m.add(SlicePanel(run, diag, "n:i", signed=False, label=f"n_i / n_0 ({diag[-1]} = centre)", blank=blank))
+    if info.get("antiparallel") or info.get("cos2_bn"):  # the sign of B_z carries the result: linear, signed
+        m.add(SlicePanel(run, "slice_y", "Bz", signed=True, label="B_z / |B_imf| (y = centre)",
+                         scale=1.0 / info["b_imf"], blank=blank, vlim=(-SIGNED_BZ, SIGNED_BZ)))
+    else:
+        m.add(SlicePanel(run, "slice_z", "Bz", signed=False, log=True, label="B_z / B_imf (z = centre)",
+                         scale=1.0 / info["b_imf"], blank=blank))
     return m.save(out or os.path.join(run_dir, "bow_shock.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 
@@ -242,7 +396,10 @@ if __name__ == "__main__":
     ap.add_argument("run_dir")
     ap.add_argument("--movie", action="store_true")
     a = ap.parse_args()
-    r = analyze(a.run_dir)
-    if a.movie:
-        r["movie"] = movie(a.run_dir)
+    if not open_run(a.run_dir).meta["planner"].get("planet", True):
+        r = null_test(a.run_dir)
+    else:
+        r = analyze(a.run_dir)
+        if a.movie:
+            r["movie"] = movie(a.run_dir)
     print(json.dumps(r, indent=2, default=float))
