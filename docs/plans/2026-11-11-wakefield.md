@@ -108,6 +108,36 @@ the Yee grid are in `examples/wakefield/theory.py`):
 | `wakefield:laser_linear` | a0 = 0.1, k_p L = √2, k_p w = 4, ω0 / ω_p = 10; 3200×128², 8.4e8 particles, about 4 min | amplitude of E_x on the axis 5 %, wavelength 2 %, E_r / E_x at r = w / 2 10 % |
 | `wakefield:beam_linear` | n_b / n_0 = 0.05, k_p σ_x = k_p σ_r = 1, rigid bunch with γ ≈ 10; 900×192², about 2 min | amplitude 5 %, wavelength 2 %, R(σ_r) / R(0) 10 % |
 
+Formulas fixed before the first run of the gates (2026-11-11; `examples/wakefield/theory.py`, the
+limits are CPU tests in `tests/cpu/test_wakefield.py`):
+
+- Pulse (`laser_wake`): `phi'' + phi = a_env² / 4` point by point, so behind a pulse with the field
+  envelope `a0 exp(-(t / tau)²) exp(-r² / w²)` the amplitude of E_x is
+  `a0² (tau / 4) sqrt(pi / 2) exp(-tau² / 8) exp(-2 r² / w²)` and E_r / E_x is `4 r v_g / w²`.
+  Compared with Schroeder, Benedetti, Esarey and Leemans, "Nonlinear pulse propagation and phase
+  velocity of laser-driven plasma waves" (2011, OSTI 1013067): their Eq. (6),
+  `x'' = (gamma_perp² / x² - 1) / 2` with `gamma_perp² = 1 + a² / 2`, is this equation for
+  `x = 1 + phi` to first order, and their resonant Gaussian pulse, `k_p L = 1` with
+  `a = a0 exp(-zeta² / (4 L²))`, is `tau = 2`, where `laser_wake` is largest. The `k_p L = sqrt(2)`
+  of the table is the same pulse written as `a ~ exp(-zeta² / (2 L²))`: the antenna gets
+  `duration = 2`. The radial field (the same equation at every radius, `E_r = -d phi / dr`) is
+  derived here and was not compared with a paper.
+- Bunch (`beam_wake`): `E_x = -q n_b sqrt(2 pi) sigma_x exp(-k_w² sigma_x² / 2) R(r) cos(k_w xi)`
+  with `R(r) = k_w² int r' n_perp(r') I_0(k_w r_<) K_0(k_w r_>) dr'`. Compared with Muggli,
+  "Beam-Driven Systems, Plasma Wakefield Acceleration" (CERN Accelerator School 2019,
+  arXiv:2007.05226), Eqs. (1) and (3): the same field and the same R(r) for beta = 1. Here
+  `k_w = 1 / beta` in the cosine and in R (derived here from the pole of 1 / eps): 0.5 % in k at
+  gamma = 10.
+- Predicted for the parameters of the gates: pulse, E_x on the axis at the focus 3.801e-3, E_r / E_x
+  at r = w / 2 `0.5 v_g`; bunch, E_x on the axis 0.03505, `R(sigma_r) / R(0)` = 0.7516,
+  `k_w` = 1.00504. Wavelengths `2 pi v_g` and `2 pi beta`.
+- New fact for the pulse gate, diffraction: with `k_p w = 4` and `omega0 / omega_p = 10` the Rayleigh
+  length is 80 c/omega_p and the box is 63 c/omega_p long, so `a0²` on the axis changes by up to
+  13 % along the box. The wake follows the local `a0(x)²` and `w(x)` (`beam_at`), and the gate
+  compares with the theory at the place of the measurement. The limits of the table stay.
+- Group velocity on the grid (`yee_group_velocity`): for `dx = lambda0 / 32`, `dt = dx / 2` it is
+  0.99142 (0.99499 without the grid), 0.86 % below c against the 2 % of the wavelength criterion.
+
 ### Stage 4 — moving window (PIC-D22, OUT-D5)
 
 `window: {start, margin}`. Positions stay in the laboratory frame. Under `#ifdef MOVING_WINDOW`
