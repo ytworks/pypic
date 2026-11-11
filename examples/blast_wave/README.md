@@ -56,5 +56,25 @@ python examples/blast_wave/analyze.py output/blast_wave/gate
 - **Along B₀ the debris spreads further**: at the end the rms distance of the debris ions from the centre is 36.8 d_e along B₀ and 14.8 d_e per direction across it.
 - **Energy** is monitored only (explicit scheme). The debris ions keep 20 % of their kinetic energy and the ambient ions gain 41 % of the kinetic energy of the debris. The budget with the outflow and the absorbed particles changes by +1.95 % of the energy at step 0, which is 10.9 % of the kinetic energy of the debris; the ambient plasma alone (null test N1 of the plan) gains 2.2 % of its energy over the same number of steps.
 - **The body** absorbs 106,480 particles and holds the charge +22.5 at the end (largest value 32.9; units of e n₀ d_e³). Its potential against the plasma at two dipole radii is 4.9 T_e / e in the plane across B₀ and 1.3 T_e / e in the plane along it. These are reported without a limit: the null test with the body alone did not show a level of the charge.
-- **Not shown**: whether the 21 % hold in another configuration (another R_m / d_i, mass ratio, shell shape, seed); a level of the body charge.
+- **Not shown**: whether the 21 % hold at another R_m / d_i, with another shell shape or another seed (the production configuration below has another mass ratio and gives 22 %); a level of the body charge.
 - **Cost**: 93 ms per step (0.80 ns per particle and step, times 8 GPUs), 164 s for the 1760 steps; 85 ms per step with `precision: mixed`. The planner's memory figure is 21.5 GB per GPU for full particle arrays (66 GB for `full.yaml`); the arrays reach 67 % of their capacity (capacity factor 1.5). The device memory was not measured.
+
+## Result of the production configuration (8 GPUs, FP64, one run)
+
+`full.yaml`: m_i/m_e = 25, 576³ cells, 3.13e9 particles, 2800 steps. The criteria of the gate are evaluated and reported; they are not a gate here. Record: `bench/results/2026-11-11-3752d3211-example-blast_wave-full-run-ea70ccc5.json`.
+
+| quantity | measured | reference |
+|---|---|---|
+| speed of the front between 0.3 and 0.7 R_B | 0.1300 c = 2.10 fast speeds = 0.87 V_d | fast speed 0.0619 c |
+| largest ring mean of B_z / B₀ there | 2.69 | perpendicular MHD shock at the speed of the front: 2.26 |
+| front radii, axes against diagonals | within 0.38 % | |
+| largest extent of the debris ions Δ98 | 49.7 d_e = 1.24 R_m, at step 980 of 2800 | 40.8 d_e = 1.02 R_m (Eq. 4 of Le et al. 2021 with D = 3) |
+| ambient n_e, n_i and \|B\| ahead of the front | within 0.04 % of step 0 | |
+| Gauss's law, div B | 8e-15, 1.3e-14 | contracts 1e-10, 1e-12 |
+
+- **In units of R_m, R_B and the fast speed the result is that of the gate configuration.** Front: 2.10 fast speeds (gate 2.10); ring mean 2.69 (2.69); Δ98 22 % above the scaling (21 %); cavity 41.75 d_e = 0.50 R_B = 1.04 R_m (0.50 R_B); front at the end at 98.2 d_e = 1.18 R_B (1.16 R_B). The two configurations share M_A, R_m / d_i, ρ_d / R_m, the shape of the shell in units of R_m and the seed; they differ in the mass ratio (25 against 16), in V_d / c and in the half-width of the box (1.73 against 1.44 R_B). So the excess over Eq. 4 is the same at both mass ratios and box widths. Another R_m / d_i, shell shape or seed was not run.
+- **The front leaves the debris**: it is 13.6 d_e ahead of Δ98 when it leaves the window (step 1050); at the end Δ98 has fallen to 42.9 d_e and the ring mean of B_z to 1.5 B₀.
+- **Along B₀**: at the end the rms distance of the debris ions from the centre is 49.2 d_e along B₀ and 18.3 d_e per direction across it.
+- **Energy** (monitored only): the debris ions keep 23 % of their kinetic energy and the ambient ions gain 40 % of the kinetic energy of the debris. The budget changes by +2.82 % of the energy at step 0, which is 25.9 % of the kinetic energy of the debris (gate: 10.9 %). The energy at step 0 is 9.2 times the kinetic energy of the debris here (gate: 5.6 times) and the run has 1.6 times the steps; no run without debris was made at this size, so the numerical heating of the ambient plasma is not separated from the two energy fractions above.
+- **The body** absorbs 248,006 particles and holds the charge +25.8 at the end (largest value 53.9). Its potential at two dipole radii is 6.1 T_e / e in the plane across B₀ and 1.1 T_e / e in the plane along it.
+- **Cost**: 281.5 ms per step (0.72 ns per particle and step, times 8 GPUs), 788 s for the 2800 steps. The particle arrays reach 67 % of their capacity; the planner's memory figure is 66.2 GB per GPU for full arrays. The device memory was not measured.

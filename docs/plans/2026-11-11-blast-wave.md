@@ -1,5 +1,5 @@
 # Blast wave around a magnetised body (`examples/blast_wave`) and radial beams (PIC-D17)
-Status: In progress — Phase 4 (production run, wiki page). Phase 3 done: the gate records passed on 9bfa1a5 in FP64 and with `precision: mixed` (Phase 3, Result of the records on 9bfa1a5). The FP64 gate record passed on ae4bb69 with `blast_wave:gate` in it (Phase 3, Result of the gate record) and PIC-D17 is Accepted. The first run of the gate configuration passed all seven criteria (Phase 3, Result of the first run). Phase 2 done: the example with planner, analysis and CPU tests. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
+Status: Done (2026-11-11). Phase 4 done: the production run is recorded and the wiki page is built locally; the wiki and the branch are not pushed (Phase 4, Result). Phase 3 done: the gate records passed on 9bfa1a5 in FP64 and with `precision: mixed` (Phase 3, Result of the records on 9bfa1a5). The FP64 gate record passed on ae4bb69 with `blast_wave:gate` in it (Phase 3, Result of the gate record) and PIC-D17 is Accepted. The first run of the gate configuration passed all seven criteria (Phase 3, Result of the first run). Phase 2 done: the example with planner, analysis and CPU tests. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
 Refs: roadmap R6; PIC-D12..D16 (used as they are), PIC-D17 (new, Phase 1)
 
 ## Context
@@ -464,6 +464,46 @@ gates). `blast_wave:gate`, same seed as before:
 
 `full.yaml` once, recorded with `scripts/record_example.py` (reported, not gated). README with the
 citations and the differences to them; wiki page; `docs/roadmap.md` (R6); `PROGRESS.md`.
+
+### Result (2026-11-11; 3752d32, clean tree, 8 GPUs, FP64, one run)
+
+Record: `bench/results/2026-11-11-3752d3211-example-blast_wave-full-run-ea70ccc5.json`. m_i/m_e = 25,
+576³, 3,130,149,797 particles at step 0, 2800 steps, 788 s (281.5 ms per step), fill 0.668.
+
+| quantity | production | gate configuration (FP64) |
+|---|---|---|
+| front speed in the window | 0.13001 c = 2.100 fast speeds | 0.16275 c = 2.103 |
+| largest ring mean of B_z / B0 | 2.685 | 2.687 |
+| axes against diagonals | 0.38 % | 0.21 % |
+| largest ∆98 | 49.74 d_e = 1.243 R_m at step 980; 1.220 × Eq. 4 | 39.55 d_e = 1.236 R_m at step 616; 1.212 × Eq. 4 |
+| ambient ahead of the front | 0.045 % | 0.050 % |
+| Gauss, div B | 8.0e-15, 1.3e-14 | 6e-15 to 8e-15, 9e-15 |
+| cavity, largest radius | 41.75 d_e = 0.502 R_B | 33.25 d_e = 0.500 R_B |
+| front at the end | 98.2 d_e = 1.18 R_B | 77.4 d_e = 1.16 R_B |
+| front ahead of ∆98 at the end of the window | 13.6 d_e (step 1050) | 10.5 d_e (step 660) |
+| debris rms along / across B0 at the end | 49.2 / 18.3 d_e | 36.8 / 14.8 d_e |
+| debris ions keep / ambient ions gain (of the debris energy) | 22.7 % / 39.6 % | 20.4 % / 40.9 % |
+| budget change, of the debris energy | 25.9 % (2.82 % of the energy at step 0) | 10.9 % (1.95 %) |
+| body: absorbed, charge at the end (largest) | 248,006, +25.8 (53.9) | 106,480, +22.5 (32.9) |
+| body potential, across / along B0 | 6.1 / 1.1 T_e / e | 4.9 / 1.3 T_e / e |
+
+- All seven criteria of the gate hold; they are reported here, not gated.
+- Risk "the shock does not leave the debris" (table below), judged here as the plan says: the front
+  leaves the debris. At the end it is at 98.2 d_e while ∆98 has fallen to 42.9 d_e; the ring mean of
+  B_z has fallen to 1.5 B0 by then.
+- The excess of ∆98 over Eq. 4 is 22 % (gate 21 %). The configurations differ in mass ratio, V_d / c
+  and box width and share R_m / d_i, the shell shape and the seed. Not shown: the excess at another
+  R_m / d_i, shell shape or seed.
+- The budget change is a larger fraction of the debris energy than at the gate. The energy at step 0
+  is 9.2 times the debris energy (gate 5.6) and the run has 1.6 times the steps. No run without
+  debris was made at this size, so the numerical heating of the ambient plasma is not separated.
+- Wiki: `docs/wiki/{en,ja}/Blast-Wave.md` and the Home rows; data and images from a fourth FP64 run
+  of the gate configuration (3752d32, run 4f8a4615): front speed, ring mean and symmetry equal to
+  the gate records in all digits, ∆98 equal to the ae4bb69 record in all digits, other values within
+  4e-5. Rendered into the local wiki checkout; not published.
+- The count "943,087,492 particles at the start" of the first-run result (Phase 3) is the number on
+  the launcher's start line. It is not the first history value (gate: 943,088,238; production:
+  3,130,150,010 on the start line, 3,130,149,797 in the history); the differences were not traced.
 
 ## Risks and the measurement that decides each
 
