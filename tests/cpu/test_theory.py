@@ -5,6 +5,7 @@ import math
 
 import numpy as np
 
+from pypic.setup import mhd
 from pypic.theory import streaming as S
 from pypic.theory import waves as W
 
@@ -73,7 +74,7 @@ def test_mora_relations():
 
 def test_bow_shock_scales():
     T = _example_theory("bow_shock")
-    g = T.GAMMA
+    g = mhd.GAMMA
     # the compression comes from the mass, momentum and induction equations; the energy flux
     # rho v^3 / 2 + gamma / (gamma - 1) p v + B^2 v is the equation they leave over
     for ma, beta in ((1.5, 0.1), (4.0, 0.64), (5.0, 0.64), (20.0, 3.0)):
@@ -85,14 +86,28 @@ def test_bow_shock_scales():
     # no shock at the fast magnetosonic Mach number 1, (gamma + 1) / (gamma - 1) for a strong shock
     beta = 0.64
     ma1 = math.sqrt(1.0 + 0.5 * g * beta)
-    assert abs(T.fast_mach(ma1, beta) - 1.0) < 1e-14 and abs(T.compression(ma1, beta) - 1.0) < 1e-12
-    assert T.compression(0.5 * ma1, beta) == 1.0
-    assert abs(T.compression(1e4, beta) - 4.0) < 1e-6
+    assert abs(mhd.fast_mach(ma1, beta) - 1.0) < 1e-14 and abs(mhd.compression(ma1, beta) - 1.0) < 1e-12
+    assert mhd.compression(0.5 * ma1, beta) == 1.0
+    assert abs(mhd.compression(1e4, beta) - 4.0) < 1e-6
     # magnetopause: the doubled dipole field of the planner's moment balances the ram pressure at R_mp
     r, v, mi = 20.0, 0.25, 16.0
     m = T.dipole_moment(r, v, mi)
     assert abs(0.5 * (2.0 * m / r ** 3) ** 2 / (mi * v * v) - 1.0) < 1e-14
     assert abs(T.standoff_distance(m, v, mi) / r - 1.0) < 1e-14
+
+
+def test_blast_wave_scales():
+    T = _example_theory("blast_wave")
+    # Eq. 4 of Le et al. 2021 at M_A = 3: 1.09 / (11 / 9)^(1 / D)
+    assert abs(T.debris_extent(1.0, 3.0, dim=2) - 0.98594) < 1e-5
+    assert abs(T.debris_extent(1.0, 3.0) - 1.019475) < 1e-6
+    # the part of a Gaussian shell inside a radius, against a quadrature of r^2 exp(-((r - r_s) / w)^2)
+    r_s, w = 10.56, 3.2
+    r = np.linspace(0.0, r_s + 12.0 * w, 400001)
+    f = r * r * np.exp(-((r - r_s) / w) ** 2)
+    for radius in (4.0, 8.0, r_s, 16.0):
+        assert abs(T.shell_fraction_inside(r_s, w, radius) - f[r <= radius].sum() / f.sum()) < 1e-4
+    assert T.shell_fraction_inside(r_s, w, 0.0) == 0.0 and abs(T.shell_fraction_inside(r_s, w, 1e3) - 1.0) < 1e-12
 
 
 def test_profiles():

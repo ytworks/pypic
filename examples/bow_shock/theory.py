@@ -16,14 +16,10 @@ The planner turns this around: it takes the distance R_mp and sets the moment M 
 R depends on f^2 / kappa only as its 1/6 power.
 
 Bow shock. On the subsolar line the IMF is perpendicular to the flow, and the Rankine-Hugoniot
-conditions of a perpendicular MHD shock give the density compression X = n2 / n1 as the positive
-root of (e.g. Priest 1982; written here with the Alfven Mach number)
-
-    (2 - gamma) X^2 + [gamma (beta + 1) + (gamma - 1) M_A^2] X - (gamma + 1) M_A^2 = 0,
-
-beta = 2 n (T_e + T_i) / B^2. X = 1 at the fast magnetosonic Mach number 1 and X -> (gamma + 1) /
-(gamma - 1) = 4 for a strong shock. The shock stands off the obstacle by the thickness of the
-sheath, which gas-dynamic models tie to the compression (Spreiter et al. 1966):
+conditions of a perpendicular MHD shock give the density compression X = n2 / n1
+(``pypic.setup.mhd.compression``): X = 1 at the fast magnetosonic Mach number 1 and X -> 4 for a
+strong shock. The shock stands off the obstacle by the thickness of the sheath, which gas-dynamic
+models tie to the compression (Spreiter et al. 1966):
 
     (R_bs - R_mp) / R_mp = 1.1 / X.
 
@@ -35,21 +31,7 @@ from __future__ import annotations
 
 import math
 
-GAMMA = 5.0 / 3.0
-
-
-def alfven_speed(b: float, mass_ratio: float, n: float = 1.0) -> float:
-    return b / math.sqrt(n * mass_ratio)
-
-
-def plasma_beta(vte: float, ti_te: float, b: float, n: float = 1.0) -> float:
-    """beta of electrons and ions together; vte = sqrt(T_e / m_e c^2)."""
-    return 2.0 * n * vte * vte * (1.0 + ti_te) / (b * b)
-
-
-def fast_mach(mach_alfven: float, beta: float, gamma: float = GAMMA) -> float:
-    """Fast magnetosonic Mach number of a flow perpendicular to the field."""
-    return mach_alfven / math.sqrt(1.0 + 0.5 * gamma * beta)
+from pypic.setup.mhd import GAMMA, compression
 
 
 def standoff_field(v: float, mass_ratio: float, n: float = 1.0, f: float = 2.0, kappa: float = 1.0) -> float:
@@ -64,15 +46,6 @@ def dipole_moment(r_mp: float, v: float, mass_ratio: float, **kw) -> float:
 
 def standoff_distance(moment: float, v: float, mass_ratio: float, **kw) -> float:
     return (moment / standoff_field(v, mass_ratio, **kw)) ** (1.0 / 3.0)
-
-
-def compression(mach_alfven: float, beta: float, gamma: float = GAMMA) -> float:
-    """Density compression n2 / n1 of a perpendicular MHD shock (1 if the flow is sub-magnetosonic)."""
-    m2 = mach_alfven * mach_alfven
-    a = 2.0 - gamma
-    b = gamma * (beta + 1.0) + (gamma - 1.0) * m2
-    x = (-b + math.sqrt(b * b + 4.0 * a * (gamma + 1.0) * m2)) / (2.0 * a)
-    return max(x, 1.0)
 
 
 def downstream(mach_alfven: float, beta: float, gamma: float = GAMMA) -> dict:

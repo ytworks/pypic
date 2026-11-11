@@ -1,5 +1,5 @@
 # Blast wave around a magnetised body (`examples/blast_wave`) and radial beams (PIC-D17)
-Status: In progress — Phase 2 (the example). Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
+Status: In progress — Phase 3 (the gate). Phase 2 done: the example with planner, analysis and CPU tests; the gate configuration has not run yet. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
 Refs: roadmap R6; PIC-D12..D16 (used as they are), PIC-D17 (new, Phase 1)
 
 ## Context
@@ -234,6 +234,47 @@ existing paths unchanged, the radial path is covered by the tests above and by t
 - CPU tests: the engine accepts the planner's configuration; each rejection; the cavity radius of
   synthetic data is recovered; nan fails the gate.
 
+### Changes while building (2026-11-11)
+
+- `fast_speed` moves to `pypic/setup/mhd.py` with the four functions named above (the front
+  criterion needs it). The planner report of the bow shock is the same before and after the move,
+  for `gate.yaml` and `full.yaml`.
+- `MAX_CAPACITY` (2³¹ − 1 particle slots) moves from `pypic/particles.py` to `pypic/config.py`: the
+  planner compares against the engine's constant instead of a copy, and `pypic/particles.py` needs
+  CuPy.
+- The synthetic test recovers the front and the debris extent (the gated quantities); the cavity
+  radius is a reported value since the amendment of Phase 3 and has no test of its own.
+- Planner figures for 8 GPUs: gate 21.5 GB per GPU, production 66.2 GB per GPU and 2800 steps (the
+  table of the approach estimated 20 and 58 GB from the bow-shock records).
+
+### Trial of the beams per debris species (2026-11-11; working tree on b4e2c7c, 8 GPUs, FP64, one run each)
+
+`gate.yaml` with `rm=4 body=false half_width=1.3` (R_m = 16 d_e = 4 d_i, R_B = 33.3 d_e, 176³
+cells, 880 steps; the risk table said 128³, the planner's smallest box for these scales is 176³),
+`debris=false`, `debris_beams=1` and `debris_beams=4`. With the uniform external field only, the
+energy budget has no source term, so its change is numerical.
+
+| | no debris | K = 1 | K = 4 |
+|---|---|---|---|
+| change of the budget over the run | 289.7 | 372.1 | 315.1 |
+| excess over the run without debris / kinetic energy of the debris at step 0 (5808) | — | 1.42 % | 0.44 % |
+| electric field energy at the end | 34.3 | 49.3 | 44.0 |
+| Gauss's law, largest | — | 2.7e-15 | 5.8e-15 |
+
+K = 4 stays (the value of the approach): it lowers the numerical energy gain that comes with the
+debris by a factor 3.2 and costs 4 % more particles.
+
+The gate analysis ran on both runs as a first exercise on real data. It is not a gate: the
+configuration has ρ_d = 0.75 R_m (the gate 0.375 R_m). Values of K = 4, with those of K = 1 in
+brackets where they differ: front speed 0.166 c (fast speed 0.077 c), largest ring mean of B_z
+2.19 B0, axes against diagonals 0.8 % (0.5 %), ambient plasma ahead of the front within 0.4 %. The
+largest ∆98 of the debris ions is 34.1 d_e (33.9) = 2.13 R_m at step 682, against 16.3 d_e from
+Eq. 4: this criterion fails in the trial.
+∆98 follows the free expansion at V_d up to t ≈ 100 and is larger than the mean front radius
+between t ≈ 50 and 185, so the debris ions are not held behind the front there. The free gyration
+of a debris ion in B0 carries it 2 ρ_d = 1.5 R_m outwards in the trial and 0.75 R_m at the gate.
+The criterion of the gate stays as fixed; the trial does not show what the gate configuration gives.
+
 ## Phase 3 — gate (criteria fixed here before the first run of the gate configuration)
 
 Measured in the plane z = centre (perpendicular to B0), B_z of the total field.
@@ -254,6 +295,58 @@ which the ring mean of B_z / B0 is below 0.5.
 
 `("blast_wave", "gate")` joins `scripts/gpu_gates.py`; the gates run on a clean commit with 8 GPUs,
 FP64 and `--precision mixed`, and are recorded in `bench/results/`.
+
+### Amendment before the first run with debris (2026-11-11)
+
+The formula of Le et al. 2021 (arXiv:2109.00583) was copied from the paper, as the criterion on
+the cavity asked:
+
+- Eq. 3, the extent of the debris at a time: `∫_0^∆98 n_d dz = 0.98 ∫_0^∞ n_d dz`, n_d the density
+  of the debris ions on the cut through the centre perpendicular to the background field; "a metric
+  that is based on the debris density rather than the magnetic field profile". `∆max` is the
+  largest ∆98 over time.
+- Eq. 4: `∆max / R_m ∼ (1 + c0 M_A) / (1 + c1 / M_A²)^(1/D)`, D the number of dimensions, with
+  `c0 = 0.03`, `c1 = 2` fitted to 2-D hybrid runs (D = 2, m_d / m_b = 3, Z_d / Z_b = 1, Gaussian
+  cloud of the size 0.1 R_m); it "only applies for systems with ρ_d < R_m". For 3-D the paper gives
+  no fit; it expects coefficients "of similar magnitude in 2D and 3D" (Section 7).
+
+Three facts change the criterion "largest cavity radius 0.5 to 1.1 R_B":
+
+1. ∆max is defined by the density of the debris ions, not by the field. A limit taken from Eq. 4
+   has to be compared with that quantity.
+2. The coefficients are a 2-D fit for another mass ratio and cloud; in 3-D only the form is given.
+   The band of ± 25 % stays as fixed; the comparison is a check against an extrapolated fit, which
+   the README has to say.
+3. Eq. 4 with D = 3 gives 1.02 R_m = 32.6 d_e = 0.49 R_B at the gate (M_A = 3, R_m = 32 d_e): the
+   placeholder 0.5 to 1.1 R_B began where the formula puts the value.
+
+Replaced criterion (gate): the largest ∆98 of the debris ions over the slice samples lies within
+25 % of Eq. 4 with D = 3, c0 = 0.03, c1 = 2 (24.5 to 40.8 d_e at the gate), and it is not the value
+of the last sample (then the run did not show a maximum). ∆98 is taken in the plane z = centre from
+the ring mean of the debris-ion density, as the line integral of Eq. 3 from the centre to the edge
+of the plane (the ring mean replaces the single cut of the 2-D runs; the shell at step 0 gives
+15 d_e). The magnetic cavity radius r_c (definition above, unchanged) becomes a reported value;
+with the dipole along B0 the static field alone is below 0.5 B0 on the equator inside
+2^(1/3) r_dip = 8.1 d_e, which is reported with it.
+
+Definitions fixed while building the analysis, before the first run with debris:
+
+- Rays start at the surface of the body (at the centre without a body) and end at the largest
+  radius the plane holds on the axes; samples every dx, bilinear in the slice; the running mean is
+  over round(d_i / dx) samples. A ray without a front counts r_f = 0, so a missing front fails the
+  symmetry criterion once the window has begun.
+- The speed of the front needs two samples in the window; an empty window fails the speed, the
+  compression and the symmetry criterion (nan). The ring means of B_z start at the surface of the body.
+- "Outside the flux tube of the body": distance from the axis through the centre along B0 of
+  2 r_dip or more (the exclusion of the null test N2). |B| is the magnitude of the block mean of the
+  total field. The densities and |B| are compared as sums over the blocks ahead of the front,
+  against the sums over the same blocks at step 0. "Largest r_f" at a 3-D output is the largest over
+  the rays and over the slice samples up to that output: where the front has passed, the plasma does
+  not count as undisturbed again when the front is lost later.
+- Planner rejections (Phase 2): "capacity" is the particle slots of one species on one rank against
+  the kernels' limit 2³¹ − 1, with the engine's formula (PIC-D17); "a shell that overlaps the body"
+  is more than 1 % of the shell's particles inside the body radius (0.03 % at the gate); ω_pe at the
+  peak of the shell is √(1 + n_pk) (ambient and debris electrons).
 
 ## Phase 4 — production run and documents
 

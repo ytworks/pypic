@@ -5,13 +5,9 @@ import cupy as cp
 import numpy as np
 
 from .backend import launch
-from .config import Beam  # noqa: F401  (re-exported for backwards compatibility)
+from .config import MAX_CAPACITY, Beam  # noqa: F401  (Beam re-exported for backwards compatibility)
 
 NROW = 8  # x y z ux uy uz w id   (id: integer-valued float64, PIC-D8)
-
-
-# The kernels index particles with int (thread index, n); row offsets row * cap are 64-bit.
-MAX_CAPACITY = 2**31 - 1
 
 
 def check_capacity(cap: int) -> int:

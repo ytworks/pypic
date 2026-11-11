@@ -62,7 +62,12 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   wiki page `Bow-Shock` (EN + JA) published with the merge.
 - Blast wave around a magnetised body (R6; `docs/plans/2026-11-11-blast-wave.md`): Phase 1 done in
   the code (radial beams, PIC-D17 Proposed: a shell with a radial drift, loaded into the cells its
-  shape reaches; gated on 574c904 in FP64, existing gates unchanged; mixed with the example gate, Phase 3); Phase 2 (the example) next.
+  shape reaches; gated on 574c904 in FP64, existing gates unchanged; mixed with the example gate, Phase 3). Phase 2 done:
+  the example (debris shell in 4 beams per species, planner rejections, gate analysis, `full.yaml`, README, CPU tests;
+  MHD scales shared with the bow shock in `pypic/setup/mhd.py`). The gate configuration has not run with debris
+  (Phase 3, criteria fixed in the plan); `pypic/` changed (two moves), gates not rerun yet. A trial at R_m = 4 d_i
+  (176³): 4 beams lower the numerical energy gain of the debris from 1.4 % to 0.4 % of its kinetic energy; the
+  debris extent there is 2.1 R_m against 1.0 R_m of Le et al. 2021 (Eq. 4) — another regime than the gate (ρ_d = 0.75 R_m).
   Phase 0: planner skeleton and null-test analysis in `examples/blast_wave` (no debris yet). N1 (plasma at rest, six `flux` faces, 384³, 1760 steps) passed; N2 (with body and
   dipole) failed one of seven criteria fixed before the run: the body charge does not level (still
   rising at 3× the length), while its potential stays within 1.2 T_e / e and the plasma outside
@@ -77,6 +82,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [progress] Blast-wave example built (Phase 2); the gate configuration has not run yet
+- What: `examples/blast_wave`: the planner loads the debris (shell of Gaussian shape in r, radial drift, 4 beams per species) and refuses ω_pe dt > 1.2 at its peak, a shell inside the body, slots beyond 2³¹ − 1; gate analysis (front on eight rays, ring means, debris extent ∆98, plasma ahead of the front), figure, `full.yaml` (576³, 66 GB per GPU by the planner), README. `pypic/setup/mhd.py` holds the MHD scales of both examples (bow-shock planner reports identical); `MAX_CAPACITY` moved to `pypic/config.py`. Gate criterion on the cavity replaced before the first run with debris: the debris extent of Le et al. 2021 (Eq. 3, Eq. 4 with D = 3, ± 25 %). Trial at R_m = 4 d_i (176³, 880 steps, 8 GPUs): budget gain over a run without debris 1.42 % (1 beam) and 0.44 % (4 beams) of the debris energy; ∆98 = 2.13 R_m against 1.02 R_m of Eq. 4.
+- Why: Phase 2 of the plan. The formula was copied from the paper: it is defined by the debris density, not the field, and is a 2-D fit, so the cavity radius became a reported value. The trial is not the gate (ρ_d = 0.75 R_m, gate 0.375); the criterion stays as fixed.
+- Refs: plan Phase 2 (Changes while building, Trial), Phase 3 (Amendment before the first run with debris); `examples/blast_wave/`, `pypic/setup/mhd.py`, `pypic/config.py`; `tests/cpu/test_setup.py`, `test_theory.py`, `test_example_analysis.py`. Gates not yet run on this commit (Phase 3).
 ### 2026-11-11 — [progress] Radial beams gated: ALL PASSED on 574c904 (FP64)
 - What: gates on the commit of PIC-D17, 8 GPUs: 93 GPU tests, five two-stream gates with the growth rates of 9b901c1 bit for bit (+3.0 / −1.7 / −2.3 / +3.5 / −4.7 %), Gauss max 7.6e-12, implicit energy 1.9e-10, 16 example gates. `bow_shock:gate`: magnetopause 0.922, shock 1.381, upstream within 0.11 %, body charge +737 (within the run-to-run spread recorded for 39acb7f / 9b901c1).
 - Why: the change gate of `pypic/` (loader, capacity, zero-weight removal) on one clean commit; no gated example uses a radial beam yet, so this shows the existing paths unchanged. PIC-D17 stays Proposed until the blast-wave gate; `precision: mixed` not rerun on this commit (plan Phase 3 runs both).

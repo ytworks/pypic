@@ -180,6 +180,9 @@ class Body:
 
 FACES = ("x-", "x+", "y-", "y+", "z-", "z+")  # face index = 2 * axis + side
 ID_LIMIT = 2 ** 53  # particle ids (PIC-D8): float64 represents every integer below this exactly
+# Particle slots of one species on one GPU: the kernels index particles with int (thread index, n);
+# row offsets row * cap are 64-bit.
+MAX_CAPACITY = 2 ** 31 - 1
 
 
 @dataclass

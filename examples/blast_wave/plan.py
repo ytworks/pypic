@@ -22,6 +22,7 @@ from dataclasses import asdict, dataclass, field
 
 from pypic.config import (
     ID_LIMIT,
+    MAX_CAPACITY,
     Beam,
     Body,
     CurrentFilter,
@@ -34,12 +35,16 @@ from pypic.config import (
 )
 from pypic.injection import ids_per_step
 from pypic.parallel.decomp import auto_dims
+from pypic.profiles import support
+from pypic.setup import mhd
 from pypic.setup.planner import apply_overrides
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import theory as T  # noqa: E402
 
 WCE_DT_MAX = 2.0  # largest Omega_ce dt at the surface of the body the planner accepts
+WPE_DT_MAX = 1.2  # largest omega_pe dt at the peak of the shell (ambient and debris electrons)
+OVERLAP_MAX = 0.01  # largest fraction of the shell's particles inside the body
 HALF_WIDTH_MIN = 1.3  # smallest half-width of the box in R_B: room for the front at the end of the run
 BODY_CELLS_MIN = 6.0  # smallest radius of the body in cells
 GHOST = 2  # ghost layers of the grid (pypic.grid.Grid)
@@ -100,11 +105,22 @@ def _cells(length: float, dx: float) -> int:
     return max(8, int(round(length / dx / 8)) * 8)
 
 
+def _block_cells(center, r_support, cfg) -> tuple:
+    """Cells of the block a radial beam loads (``Simulation._beam_block``): in the box, and on the rank
+    that holds the most of it (the box is split evenly along each axis)."""
+    total, most = 1, 1
+    for o, n, dx, d in zip(center, cfg.n_cells, cfg.dx, cfg.dims or (1, 1, 1)):
+        lo = min(max(int(math.floor((o - r_support) / dx)), 0), n)
+        hi = max(min(int(math.ceil((o + r_support) / dx)), n), lo)
+        m = n // d
+        total *= hi - lo
+        most *= max(max(min(hi, (c + 1) * m) - max(lo, c * m), 0) for c in range(d))
+    return total, most
+
+
 def plan_blast_wave(p: BlastWaveParams, n_gpus: int = 1):
-    if p.debris:
-        raise ValueError("the debris shell needs radial beams (PIC-D17): run with debris=false until they exist")
     b0 = 1.0 / p.wpe_wce
-    v_a = b0 / math.sqrt(p.mass_ratio)
+    v_a = mhd.alfven_speed(b0, p.mass_ratio)
     v_d = p.mach_alfven * v_a
     if not 0.0 < v_d < 1.0:
         raise ValueError(f"debris speed {v_d:g} c: lower mach_alfven or raise wpe_wce or mass_ratio")
@@ -144,6 +160,28 @@ def plan_blast_wave(p: BlastWaveParams, n_gpus: int = 1):
     species = [SpeciesConfig("e", -1.0, 1.0, [Beam(1.0, (0.0, 0.0, 0.0), theta_e)]),
                SpeciesConfig("i", 1.0, p.mass_ratio, [Beam(1.0, (0.0, 0.0, 0.0), theta_i)])]
     ambient = ["e", "i"]
+    r_s, w = p.shell_radius * r_m, p.shell_width * r_m
+    n_pk = T.shell_peak_density(r_m, r_s, w)
+    k_beams = int(p.debris_beams)
+    shape = {"axis": "r", "shape": "gauss", "center": r_s, "width": w}
+    wpe_dt = math.sqrt(1.0 + (n_pk if p.debris else 0.0)) * dt
+    inside = T.shell_fraction_inside(r_s, w, radius) if p.debris and p.body else 0.0
+    if p.debris:
+        if k_beams < 1:
+            raise ValueError("debris_beams must be 1 or more")
+        if wpe_dt > WPE_DT_MAX:
+            raise ValueError(f"omega_pe dt = {wpe_dt:.2f} at the peak of the shell (density {n_pk:.1f}, limit "
+                             f"{WPE_DT_MAX:g}): widen the shell or raise cells_per_de")
+        if inside > OVERLAP_MAX:
+            raise ValueError(f"the shell overlaps the body: {100 * inside:.1f} % of its particles lie inside the "
+                             f"body radius (limit {100 * OVERLAP_MAX:g} %): raise shell_radius or lower shell_width")
+        # the same shape and positions for all beams of both species: neutral cell by cell; each beam
+        # draws its own momenta, so debris_beams beams carry particles of 1 / debris_beams the weight
+        u_d = v_d / math.sqrt(1.0 - v_d * v_d)
+        for name, q, m, theta in (("de", -1.0, 1.0, theta_e), ("di", 1.0, p.mass_ratio, theta_i)):
+            species.append(SpeciesConfig(name, q, m, [
+                Beam(n_pk / k_beams, theta=theta, profile=dict(shape), origin=center, drift_radial=u_d)
+                for _ in range(k_beams)]))
     names = [s.name for s in species]
     c3 = max(1, int(round(p.coarse * r_m / dx)))
     cs = int(p.slice_coarsen)
@@ -181,23 +219,41 @@ def plan_blast_wave(p: BlastWaveParams, n_gpus: int = 1):
     if ids >= ID_LIMIT:
         raise ValueError(f"the run needs {ids:.3g} particle ids, the limit is 2^53: fewer steps, cells or ppc")
     gpus = max(n_gpus, 1)
+    # Particle slots of one species on a rank, as the engine sizes them (PIC-D17): the cells the
+    # species loads there times ppc and the capacity factor; of the block of the shell a rank counts
+    # at least its even share. The debris numbers are those of the rank that holds the most of it.
+    slots_a = cfg.capacity_factor * n_cell / gpus * cfg.ppc
+    slots_d, n_debris, block = 0.0, 0, 0
+    if p.debris:
+        r_sup = support(shape, math.sqrt(sum(max(abs(o), abs(m * d - o)) ** 2
+                                             for o, m, d in zip(center, cfg.n_cells, cfg.dx))))
+        block, most = _block_cells(center, r_sup, cfg)
+        cells = n_cell / gpus if block == n_cell else max(most, -(-block // gpus))
+        slots_d = cfg.capacity_factor * k_beams * cells * cfg.ppc
+        # particles kept after the cut of the shape: the cells of the ball of the support
+        n_debris = int(2 * k_beams * cfg.ppc * min(block, 4.0 / 3.0 * math.pi * r_sup ** 3 / math.prod(cfg.dx)))
+    if max(slots_a, slots_d) + 4096 > MAX_CAPACITY:
+        raise ValueError(f"{max(slots_a, slots_d):.3g} particle slots per species and GPU exceed 2^31 - 1 "
+                         f"(the kernels' particle index): more GPUs, fewer cells or a lower ppc")
     # Device memory of a rank whose particle arrays are full (terms measured at the bow-shock gate): 8
     # rows of float64 per particle slot; 40 bytes per particle of one species during its sort; 31
     # arrays of the grid and the arrays an output step holds (one per component of the 3-D output),
     # each with the ghost and absorbing layers; 1 GB of CUDA context, kernels and NCCL buffers.
-    slots = n_part * cfg.capacity_factor / gpus
+    slots = len(ambient) * slots_a + 2 * slots_d
     padded = math.prod(m / d + (2 if d == 1 else 1) * cfg.npml + 2 * GHOST
                        for m, d in zip(cfg.n_cells, cfg.dims or (1, 1, 1)))
     n_out = sum(3 if m.split(":")[0] in ("flux", "E", "B") else 1 for m in moments)
-    mem = (slots * 64 + slots / len(ambient) * 40 + padded * 8 * (31 + n_out)) / 1e9 + 1.0
-    beta = 2.0 * p.vte ** 2 * (1.0 + p.ti_te) / (b0 * b0)
-    v_fast = T.fast_speed(v_a, beta)
-    r_s, w = p.shell_radius * r_m, p.shell_width * r_m
+    mem = (slots * 64 + max(slots_a, slots_d) * 40 + padded * 8 * (31 + n_out)) / 1e9 + 1.0
+    beta = mhd.plasma_beta(p.vte, p.ti_te, b0)
+    v_fast = mhd.fast_speed(v_a, beta)
     info = {
         "debris": p.debris, "body": p.body, "d_i": d_i, "r_m": r_m, "r_b": r_b, "center": list(center),
         "b0": b0, "v_a": v_a, "v_d": v_d, "v_fast": v_fast, "beta": beta, "mach_alfven": p.mach_alfven,
         "mach_fast": v_d / v_fast, "debris_gyroradius": p.mach_alfven * d_i,
-        "shell_radius": r_s, "shell_width": w, "shell_peak_density": T.shell_peak_density(r_m, r_s, w),
+        "shell_radius": r_s, "shell_width": w, "shell_peak_density": n_pk, "debris_beams": k_beams,
+        "debris_extent_le": T.debris_extent(r_m, p.mach_alfven), "shell_inside_body": inside,
+        "wpe_dt_peak": wpe_dt, "debris_particles": n_debris, "debris_block_cells": block,
+        "debris_slots": slots_d, "ambient_slots": slots_a,
         "dipole_radius": r_dip, "body_radius": radius, "core": core, "moment": moment, "dipole": list(m_dir),
         "t_b": t_b, "t_b_steps": t_b / dt, "omega_ci_t_end": omega_ci * cfg.n_steps * cfg.dt,
         "wce_dt_surface": wce_dt, "debye_cells": p.vte / dx, "particles": n_part, "memory_per_gpu_GB": mem,
@@ -209,14 +265,16 @@ def plan_blast_wave(p: BlastWaveParams, n_gpus: int = 1):
         f"(Debye length {p.vte / dx:.2f} dx), v_A={v_a:.4f} c, fast speed {v_fast:.4f} c",
         f"debris ({'on' if p.debris else 'OFF'}): M_A={p.mach_alfven:g} (fast Mach {v_d / v_fast:.2f}), "
         f"V_d={v_d:.4f} c, R_m={r_m:g} d_e = {p.rm:g} d_i, R_B={r_b:.1f} d_e, gyroradius {p.mach_alfven * d_i:g} "
-        f"({p.mach_alfven / p.rm:.3f} R_m); shell at {r_s:.2f}, width {w:.2f}, peak density "
-        f"{info['shell_peak_density']:.1f}",
+        f"({p.mach_alfven / p.rm:.3f} R_m); shell at {r_s:.2f}, width {w:.2f}, peak density {n_pk:.1f} in "
+        f"{k_beams} beam(s) per species (omega_pe dt <= {wpe_dt:.2f}, {100 * inside:.2f} % inside the body); "
+        f"extent after Le et al. 2021, Eq. 4 with D = 3: {info['debris_extent_le']:.1f} d_e",
         (f"body: radius {radius:.2f} ({radius / dx:.1f} cells) at the centre ({center[0]:g}); dipole moment "
          f"{moment:.1f} along {tuple(round(c, 3) for c in m_dir)}, field B0 at {r_dip:g}, core {core:g}; "
          f"Omega_ce dt <= {wce_dt:.2f} at the surface") if p.body else "body: OFF (no sphere, no dipole)",
         f"grid {cfg.n_cells}, dx={dx:g}, L={L:g} d_e (half-width {0.5 * L / r_b:.2f} R_B), dt={cfg.dt:g}, "
         f"{cfg.n_steps} steps = {cfg.n_steps * cfg.dt / t_b:.2f} R_B/V_d = {info['omega_ci_t_end']:.1f} / Omega_ci",
-        f"{n_part:,} ambient particles ({cfg.ppc} per cell and species), capacity factor {cfg.capacity_factor:g}; "
+        f"{n_part:,} ambient particles ({cfg.ppc} per cell and species), about {n_debris:,} of the debris "
+        f"(block of {block:,} cells), capacity factor {cfg.capacity_factor:g}; "
         f"memory up to {mem:.1f} GB/GPU on {gpus} GPU(s), rank grid {cfg.dims}; ids {info['id_fraction']:.1e} of 2^53",
         f"faces: six open faces with flux injection of the ambient species; filter {p.filter_passes}+comp, "
         f"Marder zone {cfg.marder_zone:g}, npml {cfg.npml}",
