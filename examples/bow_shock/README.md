@@ -69,6 +69,27 @@ python examples/bow_shock/analyze.py output/bow_shock/gate --movie
 - **Oblique IMF: the flank is not symmetric.** On the side z > z_c (quasi-perpendicular) the shock is at 2.38 R_mp, on the side z < z_c (quasi-parallel) at 1.57 R_mp. The moments ahead of the quasi-parallel side deviate from the wind by 0.09 %: no foreshock is seen in density and mean velocity at this size and length (22.5 / Ω_ci). The compression is 2.4 % above the oblique MHD jump.
 - **Cost**: as the gate (46 to 47 ms per step, 264 to 269 s).
 
+## Result at R_mp = 10 d_i (8 GPUs, one run)
+
+`dp10.yaml`: the gate wind with the magnetopause at 10 d_i = 80 cells; 480 × 640 × 640 cells, 3.1e9 particles at the start, 11520 steps (45 / Ω_ci). One recorded run (`bench/results/2026-11-11-4d55109b5-example-bow_shock-dp10-run-4b073ac2.json`); the criteria of the gate are evaluated and all hold.
+
+| quantity | measured | reference | gate configuration (5 d_i) |
+|---|---|---|---|
+| magnetopause distance | 0.94 R_mp | 1 (pressure balance) | 0.92 to 0.93 |
+| shock distance | 1.44 R_mp | 1.37 (Spreiter et al. 1966, with the MHD compression) | 1.38 |
+| largest density on the subsolar line | 3.8 n₀ | 2.97 (perpendicular MHD shock) | 3.8 |
+| sheath thickness / magnetopause distance | 0.53 | 0.37 (Spreiter et al. 1966) | 0.49 to 0.50 |
+| shock on the flank, +z and −z | 2.35 and 2.34 R_mp | — | — |
+| upstream density and u_x, last crossing | within 0.054 % of the wind | gate 5 % | 0.11 % |
+| Gauss's law | 5e-14 | gate 1e-10 | 4e-14 |
+
+- **The sheath is 20 d_e = 5 d_i thick** (gate: 9 d_e ≈ 2 d_i), and the largest density is the same 3.8 n₀: the maximum does not come down to the MHD compression when the sheath is 2.2 times thicker in d_i. Whether a plateau follows the maximum was not analysed; one run.
+- **The shock stands 5 % farther out than the gas-dynamic value** (the gate is within 1 %), with the magnetopause at 0.94 R_mp.
+- **Not stationary at the end**: the particle number grows by 10.5 % over the run and still by 0.4 % over the last 2400 steps; the body holds the charge +1670 and absorbs 5750, 2290 and 930 particles per step in the three crossings.
+- **Fill**: the particle arrays reach 57 % of their capacity (capacity factor 2), with no reallocation.
+- **Energy** (monitored): the total changes by +2.3 %; the budget with the outflow and the absorbed particles by +3.3 %.
+- **Cost**: 1.0 hour; 313 ms per step at the end (293 at the start), 0.72 ns per particle and step, times 8 GPUs. Device memory: 78.7 GB on the fullest GPU at the most, 0.1 % above the planner's figure for full particle arrays (78.6 GB) with the arrays 57 % full — the planner's figure is not a bound (the value includes the blocks held by the memory pool).
+
 ## Result of the production configuration (8 GPUs, one run)
 
 `full.yaml`: 600³ cells, 3.4e9 particles at the start, 28800 steps (18 / Ω_ci). One recorded run (`bench/results/2026-11-11-9ba2a6518-example-bow_shock-full-run-b3d1c288.json`); the numbers are reported, not gated.

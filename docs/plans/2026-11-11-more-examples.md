@@ -389,6 +389,46 @@ Reported:
   arrays: 14 % above it, with the arrays 67 % full. A 200-step probe therefore does not bound the
   memory of a run; `dp10` below is judged with this in mind.
 
+### Stage 1 — `bow_shock/dp10` (2026-11-11): recorded, all criteria of the gate hold; no fallback to Dp = 8
+
+The gate wind with R_mp = 10 d_i = 40 d_e = 80 cells (gate: 5 d_i). 480×640×640 cells, 8 GPUs,
+FP64, 11,520 steps (3 crossings = 45 / Ω_ci), 3.136e9 particles at the start, 313 ms per step at
+the end (293 at the start; wall 3607 s, 0.72 ns per particle and step). Launched from the clean
+tree of 4d55109. Record:
+`bench/results/2026-11-11-4d55109b5-example-bow_shock-dp10-run-4b073ac2.json`.
+
+| Criterion of `bow_shock:gate` | Limit | Measured | |
+|---|---|---|---|
+| Gauss (div B, limit 1e-12) | 1e-10 | 4.7e-14 (1.4e-13) | holds |
+| Upstream n and u_x of both species, last crossing | 5 % | 0.054 % | holds |
+| Ion density compression in the sheath on the subsolar line | ≥ 2 | 3.77 | holds |
+| Magnetopause by density | within 25 % of R_mp | 0.940 R_mp | holds |
+| Shock upstream of the magnetopause | holds | shock at 1.439 R_mp | holds |
+
+Reported:
+- **Fallback rule of the table above**: the 200-step probe (295 ms per step, fill 0.50) reached
+  69,457 MiB = 72.8 GB on the fullest GPU, below the planner's 78.6 GB, so the run stayed at
+  Dp = 10. **During the run the fullest GPU reached 75,017 MiB = 78.66 GB: 0.08 % above the
+  planner's figure for full particle arrays, with the arrays 57 % full** (the value of
+  `nvidia-smi`, which includes the blocks that the memory pool holds; the live part was not
+  measured). As for `rm12`, the planner's figure is not a bound on the device memory of a run;
+  24 GB of the 102.6 GB (97,887 MiB) of a device were left.
+- Shock at 1.439 R_mp against 1.371 of Spreiter et al. (1966) with the MHD compression: +4.9 %
+  (gate: 1.38 against 1.37). Magnetopause by magnetic pressure 0.973 R_mp. Sheath thickness over
+  magnetopause distance 0.530 (Spreiter 0.371; gate 0.49 to 0.50): 19.9 d_e = 5.0 d_i, against
+  9 d_e ≈ 2 d_i in the gate.
+- Largest density on the subsolar line 3.77 n0 (MHD 2.97; gate 3.8): the maximum does not come
+  down to the MHD value with a sheath of 5 d_i. One run; whether a plateau follows the maximum
+  was not analysed.
+- Flank (line x = x_c, plane y = y_c): shock at 2.354 R_mp on +z and 2.341 R_mp on −z, 0.26 %
+  apart (northward field, symmetric as expected).
+- **Not stationary at the end**: the particle number grows by 10.5 % over the run (3.136e9 →
+  3.465e9), by 0.43 % over the last 2400 steps and by 0.13 % over the last 960. The body absorbs
+  5752, 2294 and 926 particles per step in the three crossings (3.44e7 in all); its charge is
+  +1668 at the end (largest +2739 at t = 1160, smallest −478).
+- Largest fill ratio 0.567, no reallocation. Energy (monitored only): total +2.3 %, budget with
+  the boundary terms +3.3 %.
+
 ### Stage 4 — PIC-D18 and `relativistic_shock/pair_2d_sigma` (2026-11-11): gate criteria passed
 
 The wall test of PIC-D18 (`test_exb_drifting_plasma_between_reflecting_walls_keeps_its_drift`)
