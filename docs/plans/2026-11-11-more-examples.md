@@ -224,9 +224,33 @@ Reported: the reversal lies 0.094 R_mp (1.9 d_e) upstream of the magnetopause by
 (erosion x_rev − x_mp = −0.094 R_mp: the density falls back to the wind value inside the field
 reversal, not outside it). Against the northward gate of the same wind (README: magnetopause
 0.92 to 0.93 R_mp, shock 1.38 R_mp, largest density 3.8 n0, sheath over magnetopause distance
-0.49 to 0.50): the magnetopause is at the same place, the shock is 0.20 R_mp closer (Spreiter
+0.49 to 0.50): the magnetopause is 0.01 to 0.02 R_mp closer, the shock is 0.20 R_mp closer (Spreiter
 1.371 R_mp), the largest density is 2.48 n0 and the sheath is 0.295 of the magnetopause distance
 (Spreiter 0.371). Magnetopause by magnetic pressure 0.883 R_mp. Flank (line x = x_c, plane
 y = y_c): +z 2.236 R_mp, −z 2.300 R_mp, asymmetry −0.014. Body charge +432; absorbed particles
 per step 1138, 403, 311 in the three crossings; particles 3.919e8 → 4.300e8; largest fill ratio
 0.57; energy monitor +2.7e-2 (monitored only).
+
+### Stage 1 — `bow_shock/oblique` (2026-11-11): gate passed
+
+8 GPUs, FP64, 5760 steps (three crossings), 3.92e8 particles at the start, 47 ms per step
+(wall 269 s). IMF along (1, 0, 1) / √2 (θ_Bn = 45° on the subsolar line); the upstream region of
+the gate is z − z_c ≥ 1.5 R_mp.
+
+| Criterion | Limit | Measured | |
+|---|---|---|---|
+| Gauss, every check | 1e-10 | 3.2e-14 | pass |
+| Upstream density and u_x (z − z_c ≥ 1.5 R_mp), last crossing | 5 % | n: e 0.11 %, i 0.12 %; u_x: e 0.09 %, i 0.02 % | pass |
+| Sheath compression on the subsolar line | ≥ 2 | 3.26 (at 28.25 d_e) | pass |
+| Magnetopause by density | within 25 % of R_mp | 0.960 R_mp | pass |
+| Shock upstream of the magnetopause | holds | shock at 1.251 R_mp | pass |
+
+Reported: the compression is 2.4 % above the oblique MHD jump (3.19); the shock stands at
+1.251 R_mp against 1.345 R_mp of Spreiter (sheath over magnetopause distance 0.303 against 0.345).
+The mirrored region (z − z_c ≤ −1.5 R_mp, the side the field lines of the shock reach upstream)
+deviates from the wind by 0.09 % in density and 0.08 % in u_x: no foreshock is seen in the moments
+at this size and length (22.5 / Ω_ci). The flank is not symmetric: the shock on the line x = x_c of
+the plane y = y_c is at +z 2.382 R_mp and −z 1.574 R_mp (asymmetry +0.204; `south` −0.014).
+Magnetopause by magnetic pressure 0.958 R_mp. Body charge +522; absorbed particles per step 1529,
+491, 357 in the three crossings; particles 3.919e8 → 4.200e8; largest fill ratio 0.59; energy
+monitor +1.4e-2 (monitored only).
