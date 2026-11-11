@@ -128,6 +128,58 @@ class Dipole:
 
 
 @dataclass
+class Laser:
+    """Laser antenna (PIC-D20): a magnetisation on the cell layer that holds ``plane_x`` whose
+    current, a discrete curl, emits the same pulse towards +x and towards -x. The pulse towards +x
+    is a Gaussian beam with the waist ``waist`` at ``focus_x`` (``waist: None``: a plane wave), with
+    E along ``polarization`` and the peak amplitude E = a0 * omega at the focus. Explicit solver only.
+
+    ``envelope``: ``{"shape": "gaussian", "duration": tau, "t_peak": t0}`` is exp(-(t - t0)^2 /
+    tau^2) for the field at the plane, from t = 0 on (choose t0 of several tau); ``{"shape":
+    "flat", "ramp": T}`` rises as sin^2 over T and stays at 1. ``center``: (y, z) of the axis,
+    default the middle of the box. ``phase``: the carrier is cos(omega (t - x / v) + phase) on the
+    axis at the focus, t counted like the envelope at the plane."""
+
+    plane_x: float
+    a0: float
+    omega: float
+    envelope: dict
+    polarization: str = "y"
+    waist: float | None = None
+    focus_x: float | None = None
+    center: tuple | None = None
+    phase: float = 0.0
+
+    def __post_init__(self):
+        self.plane_x, self.a0, self.omega, self.phase = (
+            float(self.plane_x), float(self.a0), float(self.omega), float(self.phase))
+        if self.polarization not in ("y", "z"):
+            raise ValueError("laser polarization must be 'y' or 'z'")
+        if not self.omega > 0.0:
+            raise ValueError("laser omega must be > 0")
+        if self.waist is not None:
+            self.waist = float(self.waist)
+            if not self.waist > 0.0:
+                raise ValueError("laser waist must be > 0 (None: a plane wave)")
+        self.focus_x = self.plane_x if self.focus_x is None else float(self.focus_x)
+        if self.center is not None:
+            self.center = tuple(float(v) for v in self.center)
+            if len(self.center) != 2:
+                raise ValueError("laser center is (y, z)")
+        env = dict(self.envelope)
+        shape = env.pop("shape", None)
+        need = {"gaussian": ("duration", "t_peak"), "flat": ("ramp",)}
+        if shape not in need:
+            raise ValueError("laser envelope shape must be 'gaussian' or 'flat'")
+        if set(env) != set(need[shape]):
+            raise ValueError(f"laser envelope '{shape}' takes exactly {need[shape]}")
+        env = {k: float(v) for k, v in env.items()}
+        if not env[need[shape][0]] > 0.0:
+            raise ValueError(f"laser envelope {need[shape][0]} must be > 0")
+        self.envelope = {"shape": shape, **env}
+
+
+@dataclass
 class ExternalFields:
     """Static fields the particles feel in addition to the Yee fields (PIC-D12): a uniform E, a
     uniform B and dipoles. The Yee fields are then the difference to them, so an external field
@@ -385,6 +437,7 @@ class SimConfig:
     external_fields: ExternalFields = field(default_factory=ExternalFields)
     injection: Injection = field(default_factory=Injection)  # plasma entering through open faces (PIC-D13)
     body: Body | None = None  # absorbing sphere (PIC-D14)
+    lasers: list = field(default_factory=list)  # list[Laser]: laser antennas (PIC-D20)
     # Marder number (0 < nu <= 1/6; 0 = off) of the zone at the open faces (PIC-D16): every step
     # div E - rho diffuses in the absorbing layer and the first nodes inside, where the removed and
     # the entering particles leave charge that no deposit balances. Explicit solver only.
@@ -424,10 +477,11 @@ class SimConfig:
         inj = inj if isinstance(inj, Injection) else Injection(**inj)
         body = d.pop("body", None)
         body = body if body is None or isinstance(body, Body) else Body(**body)
+        lasers = [v if isinstance(v, Laser) else Laser(**v) for v in d.pop("lasers", [])]
         for k in ("n_cells", "dx", "B0", "E0", "dims"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:
             d["boundaries"] = tuple(tuple(b) for b in d["boundaries"])
         return cls(species=sp, implicit=imp, output=out, current_filter=flt, external_fields=ext,
-                   injection=inj, body=body, **d)
+                   injection=inj, body=body, lasers=lasers, **d)
