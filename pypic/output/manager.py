@@ -24,7 +24,7 @@ from .schedule import resolve
 
 SCALAR_KEYS = ("kinetic", "electric", "magnetic", "total", "lost_kinetic", "lost_charge", "injected_kinetic",
                "injected_charge", "n_injected", "absorbed_kinetic", "absorbed_charge", "n_absorbed",
-               "boundary_flux", "dissipated", "antenna", "budget",
+               "boundary_flux", "dissipated", "antenna", "window_out", "budget",
                "px", "py", "pz", "gauss", "divB", "picard", "n_particles", "fill")
 
 

@@ -2,6 +2,7 @@
 (Crank-Nicolson + implicit midpoint, energy and charge conserving) schemes."""
 from __future__ import annotations
 
+import itertools
 import math
 import time
 
@@ -20,6 +21,9 @@ from .particles import MIGRATE_KERNELS, Species, migrate
 from .profiles import CUT, evaluate, invert_cos_density, support, support_interval
 
 NDIAG = 12  # entries of the diagnostics buffer of a species (Simulation.sdiag)
+# The shift of a moving window (PIC-D22) is a device global of the particle module: every
+# simulation with a window compiles a module of its own (the number goes into the source).
+_WINDOW_MODULES = itertools.count(1)
 
 
 class ImplicitStepError(RuntimeError):
@@ -68,8 +72,6 @@ class Simulation:
         self.body = body.check_config(cfg, reach)
         antenna.check_config(cfg, self.gauss_retreat, reach)
         self.window = window.check_config(cfg, self.gauss_retreat, reach)
-        if self.window:  # the configuration is checked; the step does not shift the box yet
-            raise NotImplementedError("the moving window (PIC-D22) is not in the engine yet")
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
         if cfg.precision not in ("fp64", "mixed"):
@@ -80,7 +82,7 @@ class Simulation:
         self.injection = injection.check_config(cfg)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
             self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body,
-            lattice=cfg.lattice))
+            window=next(_WINDOW_MODULES) if self.window else 0, lattice=cfg.lattice))
         self.k_push = self.pmod.get_function("push_deposit")
         self.k_rho = self.pmod.get_function("deposit_rho")
         self.k_kin = self.pmod.get_function("kinetic")
@@ -101,6 +103,19 @@ class Simulation:
         # per species: [s] particles flagged for removal or migration, [S + s] particles injected
         self.flag = cp.zeros(2 * max(1, len(cfg.species)), dtype=cp.int32)
         self.err = cp.zeros(2, dtype=cp.int32)
+        self.window_shift = 0  # cells that the moving window has gone (PIC-D22)
+        if self.window:
+            self.k_wset, self.k_wdrop, self.k_wmove = (
+                self.pmod.get_function(name) for name in ("window_set", "window_drop", "window_move"))
+            self._window_set()  # before any kernel that takes a position
+            self._window_end = window.shift_after(cfg, cfg.n_steps)
+            self._antenna_off = [window.antenna_off_shift(cfg, laser, self.gauss_retreat) for laser in cfg.lasers]
+            # field energy that the shifts took out of this rank's physical cells (only the sum
+            # over the ranks means something); per species, cumulative: [0] kinetic energy,
+            # [1] charge and [2] number dropped at x-, [3] charged particles found next to the
+            # x+ wall, [4] kinetic energy of the planes loaded
+            self._window_fe = cp.zeros(1)
+            self._wd = [cp.zeros(5) for _ in cfg.species]
 
         self.species: list[Species] = []
         self.sdiag = []
@@ -152,7 +167,7 @@ class Simulation:
         self.history = {k: [] for k in (
             "step", "t", "kinetic", "electric", "magnetic", "total", "lost_kinetic", "lost_charge",
             "injected_kinetic", "injected_charge", "n_injected", "absorbed_kinetic", "absorbed_charge",
-            "n_absorbed", "boundary_flux", "dissipated", "antenna", "budget",
+            "n_absorbed", "boundary_flux", "dissipated", "antenna", "window_out", "budget",
             "px", "py", "pz", "gauss", "divB", "picard", "n_particles", "fill")}
         self.kinetic_species = {s.name: [] for s in self.species}
         self.flux_out = 0.0
@@ -176,7 +191,15 @@ class Simulation:
     def _beam_block(self, b):
         """Global cells ``(lo, hi)`` per axis that a beam loads: the box; for a radial profile the
         cells the ball of its support reaches (PIC-D17); for a list of profiles the cells in which
-        every shape reaches the cut (PIC-D21). The same on every rank."""
+        every shape reaches the cut (PIC-D21). With a moving window the cells of the first load
+        (PIC-D22). The same on every rank."""
+        blk = self._box_block(b)
+        if self.window:  # along x: what the first load takes of the cells that the beam loads during the run
+            front = window.front_cell(self.cfg)
+            blk = (tuple(min(v, front) for v in window.beam_cells(self.cfg, b)),) + blk[1:]
+        return blk
+
+    def _box_block(self, b):
         n = self.cfg.n_cells
         L, dx = self.grid.L, self.grid.dx
         if isinstance(b.profile, list):
@@ -217,6 +240,16 @@ class Simulation:
             raise ValueError("too many particles for exact float64 particle ids (n_beams * cells * ppc >= 2^53)")
         cells_local = int(np.prod([a.n_phys for a in self.decomp.axes]))
         box = tuple((0, n) for n in cfg.n_cells)
+        front = None
+        if self.window:  # the first load ends at the front; the planes behind it get ids of their own
+            front = window.front_cell(cfg)
+            box = ((0, front),) + box[1:]
+            self._window_cells = {(si, bi): window.beam_cells(cfg, b)
+                                  for si, sc in enumerate(cfg.species) for bi, b in enumerate(sc.beams)}
+            planes = self._window_end * n_beams * cfg.n_cells[1] * cfg.n_cells[2] * cfg.ppc
+            if self._n_ids + planes >= ID_LIMIT:
+                raise ValueError("too many particles for exact float64 particle ids with the planes that the "
+                                 "moving window loads (>= 2^53)")
         order = [i for i, sc in enumerate(cfg.species) if not sc.test] + \
                 [i for i, sc in enumerate(cfg.species) if sc.test]
         streams, stream = {}, 1
@@ -226,18 +259,19 @@ class Simulation:
                 stream += 1
         self._streams = streams
         self._beam_ranges = {}
-        blocks = {}
+        blocks = self._blocks = {}
         list_id = float(n_beams * n_glob * cfg.ppc)  # explicit-list ids follow all beam ids
         for si, sc in enumerate(cfg.species):
             # room for what the beams load; of a block smaller than the box a rank holds at least
             # its even share, since the particles spread from the ranks that load them. A bunch (a
-            # list of profiles) can pass through a rank as a whole: room for all of it there
+            # list of profiles) can pass through a rank as a whole: room for all of it there. A beam
+            # that a moving window goes on loading fills the rank in the end
             cells = 0 if sc.beams else cells_local
             for bi, b in enumerate(sc.beams):
                 blk = blocks[(si, bi)] = self._beam_block(b)
                 mine = math.prod(self._local_block(blk)[1])
                 whole = math.prod(hi - lo for lo, hi in blk)
-                if blk == box:
+                if blk == box or (front is not None and self._window_cells[(si, bi)][1] > front):
                     cells += cells_local
                 elif isinstance(b.profile, list):
                     cells += max(mine, min(whole, cells_local))
@@ -252,19 +286,8 @@ class Simulation:
                 sp.load(self.grid, self.k_load, b, cfg.ppc, cfg.seed, streams[(si, bi)],
                         self._local_block(blocks[(si, bi)]))
                 self._beam_ranges[(si, bi)] = (lo, sp.n)
-                for p in b.profile if isinstance(b.profile, list) else [b.profile] if b.profile else []:
-                    axis = p.get("axis", "x")
-                    if axis == "r":
-                        x = cp.sqrt(sum((sp.P[a, lo:sp.n] - o) ** 2 for a, o in enumerate(b.origin)))
-                    else:
-                        x = sp.P["xyz".index(axis), lo:sp.n]
-                    f = evaluate(p, x, xp=cp)
-                    if bool(cp.any(f < 0)):
-                        raise ValueError(f"species {sc.name}: density profile is negative somewhere")
-                    # negligible tails (sech^2, gauss) are cut: those particles get weight 0 and are
-                    # removed; a fixed threshold keeps this decomposition independent and, for equal
-                    # profiles, neutral. In a product each shape is cut by itself
-                    sp.P[6, lo:sp.n] *= cp.where(f < CUT, 0.0, f)
+                if b.profile and bool(self._shape_weights(sp, b, lo)):
+                    raise ValueError(f"species {sc.name}: density profile is negative somewhere")
             if sc.particles:
                 self._load_list(sp, sc.particles, list_id)
             list_id += len(sc.particles)
@@ -304,6 +327,25 @@ class Simulation:
                                      "(PIC-D17)")
                 if self.verbose:
                     print("[pypic] WARNING: the plasma is not charge neutral (net charge density != 0)", flush=True)
+
+    @staticmethod
+    def _shape_weights(sp, b, lo):
+        """Multiply the weights of the particles [lo, sp.n) of ``sp`` by the density profiles of the
+        beam ``b``. Returns a device flag: a profile is negative somewhere."""
+        bad = cp.zeros((), dtype=bool)
+        for p in b.profile if isinstance(b.profile, list) else [b.profile] if b.profile else []:
+            axis = p.get("axis", "x")
+            if axis == "r":
+                x = cp.sqrt(sum((sp.P[a, lo:sp.n] - o) ** 2 for a, o in enumerate(b.origin)))
+            else:
+                x = sp.P["xyz".index(axis), lo:sp.n]
+            f = evaluate(p, x, xp=cp)
+            bad = bad | cp.any(f < 0)
+            # negligible tails (sech^2, gauss) are cut: those particles get weight 0 and are
+            # removed; a fixed threshold keeps this decomposition independent and, for equal
+            # profiles, neutral. In a product each shape is cut by itself
+            sp.P[6, lo:sp.n] *= cp.where(f < CUT, 0.0, f)
+        return bad
 
     def _load_list(self, sp, particles, id0: float):
         """Test particles given one by one: each rank keeps those inside its physical sub-domain."""
@@ -699,7 +741,137 @@ class Simulation:
             J[o] -= m
 
     def _migrate(self):
-        migrate(self.species, self.grid, self.comm, self.flag, self.k_migrate)
+        migrate(self.species, self.grid, self.comm, self.flag, self.k_migrate, self.window_shift)
+
+    # ---------------------------------------------------------- moving window
+    _WALL_ERROR = ("a charged particle came next to the x+ wall of the moving window, where the field of the cell "
+                   "that enters is set for a vacuum: raise window.margin (PIC-D22)")
+
+    def _window_set(self):
+        """Hand the shift, the faces of the window along x and this rank's bounds along x to the
+        kernels: the same doubles as migrate() computes."""
+        s, n = self.window_shift, self.cfg.n_cells[0]
+        ax, dx = self.decomp.axes[0], self.cfg.dx[0]
+        launch(self.k_wset, 1, (np.float64(s), np.float64(s * dx), np.float64((s + n) * dx),
+                                np.float64((ax.phys_lo + s) * dx), np.float64((ax.phys_lo + ax.n_phys + s) * dx)))
+
+    def _window_advance(self, s: int):
+        """Shift the window to ``s`` cells, one more than before (PIC-D22), after a step: the
+        fields go one plane down; the particles below the new x- face are dropped; the laboratory
+        plane that enters behind the vacuum margin is loaded as it was at the shift before and
+        moved to the present in rounds of less than a cell, each followed by a migration, with the
+        current of the move taken out of E (div E = rho stays exact). The energy that leaves and
+        enters is kept for the record. Every rank makes the same collective calls."""
+        cfg, g = self.cfg, self.grid
+        if s > self._window_end:
+            raise RuntimeError(f"the moving window was set up for n_steps = {cfg.n_steps} steps: no plane to load "
+                               "beyond them (PIC-D22)")
+        fe0 = g.field_energy_local()
+        g.shift_x()
+        self.window_shift = s
+        self._window_set()
+        for a, off in zip(self.antennas, self._antenna_off):
+            a.set_shift(s, s < off)
+        dx = cfg.dx[0]
+        xnear = (s + cfg.n_cells[0] - self.zone_depth) * dx  # one cell plus the reach of the filter from the wall
+        self.flag.fill(0)
+        for i, sp in enumerate(self.species):
+            lst = sp.flag_list()
+            launch(self.k_wdrop, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.m), np.float64(sp.qdep),
+                                        np.float64(xnear), self._wd[i], self.flag[i:i + 1], lst, np.int32(lst.size)))
+        self._migrate()
+        n0 = [sp.n for sp in self.species]
+        hot = self._window_load(s)
+        if hot is not None:
+            # the plane was the front for the time T: thermal particles have left it downwards
+            T = window.steps_since_shift(cfg, self.step_count + 1) * cfg.dt
+            rounds = (math.floor(T / min(cfg.dx)) + 1) if any(hot) else 1
+            xw = (window.front_cell(cfg) + s) * dx
+            if any(hot):
+                g.zero_J()
+            for r in range(rounds):
+                self.flag.fill(0)
+                for i, sp in enumerate(self.species):
+                    if r and not hot[i]:
+                        continue
+                    k = sp.n - n0[i]
+                    if k > sp.flag_list().size:  # the list holds every particle of the plane: no particle
+                        sp.ensure_capacity(8 * k)  # that was there before is taken out with them
+                    lst = sp.flag_list()
+                    launch(self.k_wmove, k, (
+                        sp.P, np.int32(n0[i]), np.int32(sp.n), np.int64(sp.cap),
+                        np.float64(T / rounds if hot[i] else 0.0), np.float64(xw), g.Jx, g.Jy, g.Jz,
+                        np.float64(sp.m), np.float64(sp.qdep), np.int32(r == 0), self._wd[i], self.sdiag[i],
+                        self.flag[i:i + 1], lst, np.int32(lst.size)))
+                self._migrate()
+            if any(hot):
+                g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
+                self._filter_J()
+                g.apply_bc_J()
+                o = g.owned_slice()
+                for E, J in zip((g.Ex, g.Ey, g.Ez), (g.Jx, g.Jy, g.Jz)):
+                    E[o] -= cfg.dt * J[o]
+                g.zero_J()
+        g.apply_bc_E()
+        g.fill_ghosts((g.Ex, g.Ey, g.Ez))
+        self._window_fe += cp.sum(fe0 - g.field_energy_local())
+
+    def _window_load(self, s: int):
+        """Load the laboratory plane that the shift to ``s`` brings into the window, on the rank
+        that holds its cells, with the loader of the first load: the particles depend on (seed,
+        laboratory cell, slot) only, and their ids follow those of the first load plane by plane.
+        The beams of the plane must be neutral together (one reduction; every rank raises).
+        Returns per species whether its part of the plane moves (a temperature or a drift), or
+        None if no beam reaches the plane."""
+        cfg = self.cfg
+        front = window.front_cell(cfg)
+        p = front + s - 1
+        ax = self.decomp.axes[0]
+        mine = ax.phys_lo <= front - 1 < ax.phys_lo + ax.n_phys
+        per_plane = cfg.n_cells[1] * cfg.n_cells[2] * cfg.ppc
+        hot = [False] * len(self.species)
+        groups, bad, found = {}, cp.zeros((), dtype=bool), False
+        for si, sc in enumerate(cfg.species):
+            sp = self.species[si]
+            for bi, b in enumerate(sc.beams):
+                lo, hi = self._window_cells[(si, bi)]
+                if not lo <= p < hi:
+                    continue
+                found = True
+                hot[si] = hot[si] or b.theta != 0.0 or any(b.drift)
+                a0 = sp.n
+                blk = self._blocks[(si, bi)]
+                if mine:
+                    g0, nl = self._local_block(((front - 1, front),) + blk[1:])
+                    stream = self._streams[(si, bi)]
+                    # the loader adds (global cell * ppc + slot), which holds p * per_plane
+                    base = self._n_ids + ((p - front) * len(self._streams) + stream - 1 - p) * per_plane
+                    sp.load(self.grid, self.k_load, b, cfg.ppc, cfg.seed, stream, ([p] + g0[1:], nl), id_base=base)
+                    bad = bad | self._shape_weights(sp, b, a0)
+                if not sc.test:
+                    groups.setdefault(blk[1:], []).append((si, a0, sp.n))
+        if not found:
+            return None
+        groups = sorted(groups.items())
+        loc = cp.zeros(2 * len(groups) + 1)  # per group [largest |net|, largest weight]; a negative profile
+        loc[-1] = bad
+        for gi, (_, beams) in enumerate(groups):
+            net = None
+            for si, a0, a1 in beams:
+                if a1 > a0:
+                    w = self.species[si].P[6, a0:a1]
+                    net = self.species[si].q * w if net is None else net + self.species[si].q * w
+                    loc[2 * gi + 1] = cp.maximum(loc[2 * gi + 1], cp.max(w))
+            if net is not None:
+                loc[2 * gi] = cp.max(cp.abs(net))
+        glob = cp.asnumpy(self.comm.allreduce(loc, "max"))
+        if glob[-1]:
+            raise ValueError(f"a density profile is negative in the plane {p} that the moving window loads")
+        for gi in range(len(groups)):
+            if glob[2 * gi] > 1e-12 * max(glob[2 * gi + 1], 1e-300):
+                raise ValueError(f"the beams loaded into the plane {p} of the moving window are not charge neutral "
+                                 "together (PIC-D22)")
+        return hot
 
     @property
     def _has_open(self):
@@ -974,7 +1146,7 @@ class Simulation:
         fill = np.zeros(self.comm.size)
         fill[self.rank] = max((sp.n / sp.cap for sp in self.species), default=0.0)
         vec = cp.concatenate([*self.sdiag, cp.asarray([float(sp.n) for sp in self.species]), cp.asarray(fill),
-                              fe_local, self._antenna_rec])
+                              fe_local, self._antenna_rec, *((self._window_fe, *self._wd) if self.window else ())])
         if self.comm.size > 1:
             vec = self.comm.allreduce(vec)
         hv = cp.asnumpy(vec)
@@ -992,6 +1164,10 @@ class Simulation:
         for sp, k in zip(self.species, kin):
             self.kinetic_species[sp.name].append(float(k[0]))
         tot = ke + float(fe[0]) + float(fe[1])
+        # moving window: (field + kinetic energy) before - after its shifts, up to t^n
+        wd = fe[4:].reshape(S, 5) if self.window else np.zeros((S, 5))
+        window_out = float(fe[3]) if self.window else 0.0
+        window_out += sum(float(w[0] - w[4]) for w, sp in zip(wd, self.species) if not sp.test)
         h["step"].append(self.step_count)
         h["t"].append(self.time)
         h["kinetic"].append(ke)
@@ -1009,7 +1185,9 @@ class Simulation:
         h["boundary_flux"].append(self.flux_out)
         h["dissipated"].append(self.dissipated)
         h["antenna"].append(float(fe[2]))  # work of the laser antennas on the field up to t^n
-        h["budget"].append(tot + lost + absorbed - injected + self.flux_out + self.dissipated - float(fe[2]))
+        h["window_out"].append(window_out)
+        h["budget"].append(tot + lost + absorbed - injected + self.flux_out + self.dissipated - float(fe[2])
+                           + window_out)
         h["px"].append(mom[0])
         h["py"].append(mom[1])
         h["pz"].append(mom[2])
@@ -1022,6 +1200,8 @@ class Simulation:
             ge, gb = float("nan"), float("nan")
         h["gauss"].append(ge)
         h["divB"].append(gb)
+        if float(np.sum(wd[:, 3])) > 0.0:  # the reduced count: every rank raises
+            raise RuntimeError(self._WALL_ERROR)
 
     # ------------------------------------------------------------------ run
     def step(self):
@@ -1044,6 +1224,10 @@ class Simulation:
             if do_diag:
                 # kinetic energy centred at t^n (from the push), fields at t^n
                 self._record(self._fe)
+            if self.window:
+                s = window.shift_after(cfg, self.step_count + 1)
+                if s > self.window_shift:
+                    self._window_advance(s)
         self.step_count += 1
         self.time += cfg.dt
 
@@ -1071,6 +1255,10 @@ class Simulation:
         self._run_steps = n
         # collective: every rank must reach this point (push_rate() itself is then local)
         self._n_total_end = self.total_particles()
+        if self.window:  # collective, as above
+            near = self.comm.allreduce(cp.stack([w[3] for w in self._wd]))
+            if float(cp.sum(near)) > 0.0:
+                raise RuntimeError(self._WALL_ERROR)
         return self.history
 
     def push_rate(self) -> float:

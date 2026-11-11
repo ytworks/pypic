@@ -413,7 +413,12 @@ class YeeGrid:
         caller ends with ``apply_bc_E()`` and ``fill_ghosts`` of E, after it has taken the current
         of the plane it loads out of E."""
         ax = self.d.axes[0]
-        if self.use_pml:  # psiE is updated on the owned range only: its plane above comes from the neighbour
+        # The psi of a layer across the window lies in every rank of a row along x, and the plane
+        # above comes from the neighbour (psiE is updated on the owned range only). The psi of the
+        # layer at x- is zero above that layer: nothing to fetch, and the neighbour may have no
+        # layer at all (the two sides of a face must make the same exchange)
+        psi_x = self.use_pml and any(a.pml_lo or a.pml_hi for a in self.d.axes[1:])
+        if psi_x:
             self.fill_ghosts(self.psiE, axes=(0,))
         if getattr(self, "_shift_tmp", None) is None:
             self._shift_tmp = cp.empty(self.shape)
@@ -436,7 +441,7 @@ class YeeGrid:
         # the outermost ghost plane of B and of psiB is not kept up to date by push_B
         self.apply_bc_B()
         self.fill_ghosts((self.Bx, self.By, self.Bz), axes=(0,))
-        if self.use_pml:
+        if psi_x:
             self.fill_ghosts(self.psiB, axes=(0,))
 
     def zero_J(self):
