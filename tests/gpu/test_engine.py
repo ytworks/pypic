@@ -14,7 +14,7 @@ import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
 from pypic.body import relax_edges
-from pypic.config import Body, CurrentFilter, ExternalFields, Injection
+from pypic.config import Body, CurrentFilter, ExternalFields, Injection, Laser
 from pypic.parallel.comm import SelfComm
 from pypic.simulation import Simulation
 
@@ -782,6 +782,85 @@ def test_cpml_absorbs_pulse():
     sim.run(400)  # pulse travels 20 c/omega_pe >> half box
     e1 = sum(g.field_energy())
     assert e1 / e0 < 1e-4, e1 / e0
+
+
+@pytest.mark.parametrize("pol", ["y", "z"])
+def test_laser_antenna_emits_the_paraxial_beam(pol):
+    """A steady beam from the antenna in vacuum (PIC-D20), emitted one Rayleigh length before its
+    focus: amplitude and width at the focus and one Rayleigh length behind it follow the paraxial
+    beam of the grid, the antenna sends the same power forwards and backwards, its work is the
+    power through the two planes and closes the energy budget, and it leaves no charge."""
+    from pypic.antenna import diffraction_wavenumber, wavenumber
+
+    lam, per = 2.0 * math.pi, 16  # omega = 1; steps per period
+    n, dx, dt = (336, 96, 96), (lam / 12, lam / 6, lam / 6), lam / per
+    ia, focus, far, w0 = 12, 164, 316, 2.0 * lam
+    cfg = SimConfig(n_cells=n, dx=dx, dt=dt, species=[], npml=10, boundaries=(("open", "open"),) * 3,
+                    lasers=[Laser(plane_x=(ia + 0.5) * dx[0], a0=1.0, omega=1.0, polarization=pol, waist=w0,
+                                  focus_x=focus * dx[0], envelope={"shape": "flat", "ramp": 4.0 * lam})],
+                    diag_interval=per, gauss_interval=per)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    g = sim.grid
+    sx, sy, sz = g.physical_slice()
+    c = 1 if pol == "y" else 2
+    E, B = (g.Ex, g.Ey, g.Ez), (g.Bx, g.By, g.Bz)
+
+    def power(i):
+        """Power through the node plane i towards +x, B averaged across the plane."""
+        i += sx.start
+        s0, s1 = (i, sy, sz), (i - 1, sy, sz)
+        return float(cp.sum(E[1][s0] * (B[2][s0] + B[2][s1]) - E[2][s0] * (B[1][s0] + B[1][s1]))) * 0.5 * dx[1] * dx[2]
+
+    sim.run(34 * per)  # the ramp and the way to the far plane take 30 periods
+    e2 = {i: cp.zeros((n[1], n[2])) for i in (focus, far)}
+    fwd = bwd = 0.0
+    for _ in range(per):
+        sim.step()
+        for i, acc in e2.items():
+            acc += E[c][i + sx.start, sy, sz] ** 2
+        fwd += power(ia + 1 + 8) / per  # the planes mirror each other about the antenna
+        bwd -= power(ia - 8) / per
+    sim.step()  # records the step after the period
+    h = sim.history
+
+    k = wavenumber(1.0, dx[0], dt)
+    zr = 0.5 * diffraction_wavenumber(k, dx[0]) * w0 ** 2
+    pos = [(np.arange(n[a]) + (0.5 if a == c else 0.0)) * dx[a] - 0.5 * n[a] * dx[a] for a in (1, 2)]
+    r2 = pos[0][:, None] ** 2 + pos[1][None, :] ** 2
+    for i, acc in e2.items():
+        w = w0 * math.sqrt(1.0 + (((i - focus) * dx[0]) / zr) ** 2)
+        amp2 = cp.asnumpy(acc) * 2.0 / per  # squared amplitude: twice the mean square over a period
+        sel = r2 < w * w
+        slope, const = np.polyfit(r2[sel], np.log(amp2[sel]), 1)  # ln A^2 = ln A0^2 - 2 r^2 / w^2
+        assert abs(math.sqrt(-2.0 / slope) / w - 1.0) < 0.02, (i, math.sqrt(-2.0 / slope), w)
+        assert abs(math.exp(0.5 * const) / (w0 / w) - 1.0) < 0.02, (i, math.exp(0.5 * const), w0 / w)
+    assert abs(fwd / bwd - 1.0) < 0.01, (fwd, bwd)
+    work = (h["antenna"][-1] - h["antenna"][-2]) / (per * dt)
+    assert abs(work / (fwd + bwd) - 1.0) < 0.01, (work, fwd, bwd)
+    assert abs(h["budget"][-1]) < 0.01 * h["antenna"][-1], (h["budget"][-1], h["antenna"][-1])
+    assert np.nanmax(h["gauss"]) < 1e-10 and np.nanmax(h["divB"]) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+@pytest.mark.parametrize("pol,dims", [("y", "2,2,1"), ("z", "2,1,2")])
+def test_laser_antenna_is_decomposition_independent(pol, dims):
+    """A focused pulse from an antenna whose two node planes lie on either side of a rank face, the
+    axis of the beam on the rank faces across it (PIC-D20): 1 GPU and 4 GPUs give the same history of
+    the field energy, of the work of the antenna and of the flux through the open faces."""
+    script = os.path.join(HERE, "mgpu_antenna.py")
+    outs = {}
+    for n, d in ((1, "1,1,1"), (4, dims)):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, d, pol],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    ref, o = outs[1], outs[4]
+    assert ref["antenna"][-1] > 0.0 and ref["boundary_flux"][-1] > 0.5 * ref["antenna"][-1]
+    for k in ("electric", "magnetic", "antenna", "boundary_flux"):
+        a, b = np.asarray(ref[k]), np.asarray(o[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
 
 
 def test_two_stream_growth_matches_theory(tmp_path):
