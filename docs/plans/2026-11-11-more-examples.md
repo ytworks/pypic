@@ -481,3 +481,85 @@ and are not gates here):
   (σ = 1) against 6.8, 4.3, 7.1, 6.4 of the jump; the gate without a field gives 4.2 against 7.4
   with the same fit, so the fit of the quasi-2-D runs is low by the same factor with and without
   the field and is not a statement about the heating.
+
+### Stage 5 — long runs (2026-11-11): three runs recorded; the shock tail does not develop by t = 8000
+
+All three on 8 GPUs, FP64, launched from the clean tree of 2945145, one run each. Each started
+with the 200-step probe; no estimate came near the three-hour limit.
+
+| Run | Cells | Particles | Probe: ms / step, fill, estimate | Run: steps, wall, ms / step at the end | Energy budget | Gauss |
+|---|---|---|---|---|---|---|
+| `reconnection/pair_sigma10_xl` | 3200×1600×4 | 3.68e8 | 70.4, 0.29, 38 min | 32,000, 1314 s, 41.1 | −0.34 % | 2.8e-12 |
+| `relativistic_shock/pair_2d_t4000` | 16256×160×4 | 1.66e8 | 37.5, 0.80, 13 min | 20,656, 628 s, 30.2 | +0.29 % (step 20,000) | 4.8e-15 |
+| `relativistic_shock/pair_2d_tail` | 32512×160×4 | 3.33e8 | 71.1, 0.78, 49 min | 41,312, 2466 s, 59.4 | +0.56 % (step 40,000) | 8.9e-15 |
+
+Records: `bench/results/2026-11-11-29451458d-example-reconnection-pair_sigma10_xl-run-0e8c5abd.json`,
+`…-relativistic_shock-pair_2d_t4000-run-014c11db.json`, `…-relativistic_shock-pair_2d_tail-run-b012ba98.json`.
+The gate criteria of the two examples hold in the three runs (`passed: true`).
+
+Device memory of the fullest GPU (`nvidia-smi`, blocks held by the memory pool included): 23,129,
+20,107 and 39,631 MiB in the probes (sampled every 2 s), 16,235, 9,839 and 18,665 MiB in the runs
+(sampled every 10 s). The probes are higher because the largest use is a transient during the
+load, which the coarser sampling of the runs missed; the probe values are the ones to plan with.
+
+Reported — reconnection, the cut-off against the box size (`large` is 400 × 200 c/ω_pe to
+t = 2000 with two recorded runs, `xl` is 800 × 400 to t = 4000):
+
+| | `large`, t = 2000 | `xl`, t = 1000 | `xl`, t = 2000 | `xl`, t = 3000 | `xl`, t = 4000 |
+|---|---|---|---|---|---|
+| index p over 5 ≤ γ−1 ≤ 50 | 2.101 ± 0.027, 2.104 ± 0.026 | 2.050 ± 0.029 | 2.048 ± 0.021 | 2.036 ± 0.018 | 2.044 ± 0.017 |
+| γ−1 that 10⁻³ of the particles exceed | 90.4, 86.9 | 77.1 | 90.4 | 97.9 | 97.9 |
+| the same for 10⁻⁴ | 140.1, 157.8 | 129.4 | 157.8 | 184.9 | 184.9 |
+| the same for 10⁻⁵ | 225.5, 285.9 | 200.2 | 264.2 | 274.8 | 285.9 |
+
+- The index is converged in time in the `xl` box from t = 1000 on and is 2.04 at the end, −3.7 %
+  from 1.9 + 0.7/√σ = 2.12 (Werner et al. 2016); the half-size box gives 2.10 in both runs. The
+  difference of 0.06 is 1.8 times the combined fit error of one run of each box.
+- The energy that 10⁻⁴ of the particles exceed is 17 to 32 % higher with twice the box and twice
+  the time, not twice as high; at equal time the boxes agree within the spread of the two `large`
+  runs; between t = 3000 and 4000 the 10⁻³ and 10⁻⁴ values do not move. The spectrum has 160
+  logarithmic bins (steps of 4 %), which is why equal values recur. No cut-off form was fitted and
+  there is one `xl` run, so a scaling law with the box is not claimed. These energies were read
+  with `pypic.analysis.particles.energy_cutoff` from the `spectrum` output and are not in the
+  records.
+- Rate: 0.066 v_A on average over the active phase, peak 0.168 (`large`: 0.064 and 0.074, peak
+  0.19). Magnetic energy converted 77.7 %. E∥ share of the 1 % most energetic tracked electrons
+  −0.004.
+
+Reported — shock tail (`long` is t = 2000 with two recorded runs; the box doubles with the time):
+
+| | `long` (two runs) | `t4000` | `tail` |
+|---|---|---|---|
+| β_sh against the 2-D jump | −5.9 %, −7.6 % | −7.5 % | −7.0 % |
+| n2 / n1 | +6.9 %, +8.1 % | +5.1 % | +3.6 % |
+| spectrum taken at t | 1995 | 3919 | 7838 |
+| tail index, automatic range | 3.95 on γ 27–93 (first run) | 4.04 ± 0.04 on γ 32–126 | none found (NaN) |
+| tail index, window 3 × peak to 0.7 × cut-off | 3.91, 3.85 on γ 40–101 | 4.00 ± 0.06 on γ 40–121 | 3.86 ± 0.10 on γ 43–136 |
+| non-thermal fraction | 15–16 % | 16.3 % | 18.3 % |
+| γ that 10⁻⁴ of the downstream particles exceed, at the end | 144 | 172 | 195 |
+| exponent of its growth over the second half | 0.36, 0.41 | 0.21 | 0.10 |
+| magnetic energy at the end over the initial kinetic energy | 0.0079, 0.0067 | 0.0040 | 0.0021 |
+
+- **The tail of the literature is not reached.** t = 8000 ω_pe⁻¹ is 2070 relativistic plasma
+  times, near the 2250 at which Spitkovsky (2008b) measured p ≈ 2.4. Here the slope above the
+  thermal peak stays at 3.9 to 4.0 from t = 2000 to 8000, and the cut-off rises by 13 % from
+  t = 4000 to 8000 (172 for t = 3360–4320, 183 for t = 4480–7520, 195 from t = 7680 in `tail`;
+  `t4000` also gives 172 at its end), where t^1/2 gives 41 %. The histogram has 120 logarithmic
+  bins up to γ = 1500 (steps of 6.3 %), so it does not cap the values.
+- The magnetic energy in the box does not grow with the shocked volume: in units of the kinetic
+  energy of the `long` box it is 0.0079 and 0.0067 at t = 2000, 0.0081 at t = 4000 and 0.0085 at
+  t = 8000.
+- **What this changes**: the README of the example said that a converged index needs
+  t ≳ 8000 ω_pe⁻¹ and about 10⁹ particles. The time was reached with 3.3e8 particles
+  (L = 1.57 c t) and neither the index nor the cut-off approaches the published values, so time
+  alone is not what is missing in this set-up. Not varied, and therefore not separated: the
+  transverse size (62 c/ω_pe = 16 relativistic skin depths in all runs), 8 particles per cell,
+  the 4-pass current filter, the 4 cells along z, and the region of the spectrum (0.3 to 0.8 of
+  the shock position). Roadmap R11 (the converged tail) should start from a scan of the
+  transverse size at t = 4000, which costs 10 min per run at the present width, before a larger
+  particle number is spent on a longer run.
+- These are reported values; no criterion was fixed for them, so none failed.
+
+Gate runs of this pull request: the full gates (`pytest tests/gpu`, `scripts/gpu_gates.py --gpus 8`
+in FP64 and mixed) are taken once, on its final head (owner instruction of 2026-11-11); the stages
+above were verified with targeted runs.
