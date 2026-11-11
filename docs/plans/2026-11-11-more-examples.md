@@ -98,6 +98,14 @@ region by z.
 `dp10` is run once and recorded (ANA-D3) with the criteria of `bow_shock:gate` evaluated and
 reported.
 
+Check of the oblique jump (2026-11-11): no text of Priest (1982) is at hand, so the relation was not
+compared with the printed formula. It was derived from the conservation of mass, of both momentum
+components, of the tangential electric field and of the energy across a plane shock, and
+`tests/cpu/test_theory.py` checks it with the equation the derivation of the downstream state
+leaves over (the energy flux, to 1e-9, four winds and five angles) and with its limits: θ = 90°
+gives `pypic.setup.mhd.compression` exactly, θ = 0 the gas-dynamic shock of the sonic Mach number
+or the switch-on shock X = M_A².
+
 ### Stage 2 — blast wave: `cloud`, `rm12`
 
 Both are run once; the criteria of `blast_wave:gate` are evaluated and reported. The result is
@@ -165,6 +173,14 @@ of Kennel & Coroniti 1984).
 | Downstream ⟨B_z⟩ / B1 against r | 10 % | gate |
 | Gauss | 1e-10 | gate |
 | Precursor, in-plane field, σ = 0.1 and 1 | — | reported |
+
+Check of the magnetised jump (2026-11-11): no text of Kennel & Coroniti (1984) is at hand, so the
+relation was not compared with the printed formula. The two conservation equations of `theory.py`
+were derived in the downstream frame (particle flux, momentum flux with the Maxwell stress, energy
+flux with the Poynting flux, flux freezing). `tests/cpu/test_theory.py` checks σ → 0 against
+`jump_conditions` and γ0 → ∞ in 3-D against the Kennel–Coroniti expression for the downstream
+four-velocity in the shock frame as remembered (agreement to 4e-7 at γ0 = 1e3); a misremembered
+coefficient there would fail that test, an error common to both would not be seen.
 
 ### Stage 5 — long runs
 

@@ -52,7 +52,7 @@ python examples/bow_shock/analyze.py output/bow_shock/gate --movie
 - **Energy** is monitored only (explicit scheme, energy of the difference fields without the work of the external field): the total changes by +2.5 % over the run.
 - **Cost**: 46 ms per step (0.85 ns per particle and step, times 8 GPUs), 264 s; 10.1 GB of device memory per GPU at the most. The planner's figure (11.0 GB) is for full particle arrays; for `full.yaml` it is 86 GB per GPU on 8 GPUs.
 
-## Southward and oblique IMF (8 GPUs, one targeted run each, then the gate records)
+## Southward and oblique IMF (8 GPUs, one run each)
 
 | quantity | `south` | `oblique` | northward gate |
 |---|---|---|---|
