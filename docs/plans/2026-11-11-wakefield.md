@@ -625,6 +625,35 @@ the same difference between two working directories of the compiling process, so
 that case is not a reproducible null test; the preprocessed text is (this also qualifies the
 "byte for byte" of W0 below: it held for the runs that were compared).
 
+The four runs with the lattice places (2026-11-12, commit 68a3a29, 8 GPUs, FP64, 2×2×2 places per
+cell through `lattice: [2, 2, 2]` in the two gate configurations; everything else as fixed in the
+table of the stage): **all four pass.**
+
+| Run | Criterion | Limit | Measured | |
+|---|---|---|---|---|
+| N1 (`beam_linear`, `drive=false`) | max \|E_x\| on the axis / predicted; mean plateau density | 1 %; 1 % | 0.0; 0.0 | passed |
+| N2 (`laser_linear`, `drive=false`) | the same | 1 %; 1 % | 0.0; 0.0 | passed |
+| `beam_linear` | amplitude `c − 1` | 5 % | +0.51 % | passed |
+| | wavelength `k beta − 1` | 2 % | −0.25 % | |
+| | `R(sigma_r) / R(0)` against 0.7516 | 10 % | −0.77 % | |
+| `laser_linear` | amplitude `c − 1` | 5 % | −1.91 % | passed |
+| | wavelength `k v_g − 1` | 2 % | +0.07 % | |
+| | `E_r / E_x` at r = w / 2, `c_r / c_x − 1` | 10 % | +0.04 % | |
+
+Reported: Gauss 5.2e-15 (`beam_linear`), 1.1e-13 (`laser_linear`), 2.5e-16 and 2.3e-15 (null
+runs); rms residual of the fit 0.042 and 0.023 of the amplitude; amplitude at the output before
+the last +0.42 % (`beam_linear`, t = 77.4) and −2.13 % (`laser_linear`, t = 52.9); the centre of
+the pulse is measured at x = 53.98 against 54.04 of the group velocity of the grid, the bunch at
+100.056 (measured and predicted). Wall time 66 s and 307 s (null runs 52 s and 264 s); peak
+device memory 10.9 and 12.4 GB per GPU. The `beam_linear` figures repeat those of the lattice
+test above (the uncommitted patch on 3823577) in all digits shown. One run each; the spread
+between runs of one seed was not measured here.
+
+Not shown by these runs: the amplitude far behind the bunch (the fall of 8 to 16 % in the
+wavelengths 9 to 12 found in the lattice test stays unexplained; it lies outside the gate
+window), and the same gates in a gate record — they enter `scripts/gpu_gates.py` with the stage
+that closes the track, and the record is taken once at the final head.
+
 ### Stage 4 — moving window
 
 W0, the compiled kernels (2026-11-12, the commit that adds the `#ifdef MOVING_WINDOW` macros

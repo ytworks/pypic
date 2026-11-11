@@ -83,6 +83,9 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   rising at 3× the length), while its potential stays within 1.2 T_e / e and the plasma outside
   2 r_dip is as in N1. The owner made the charge a reported value (amendment). Not shown: a level of
   the body charge; charge and potential of the body under the debris.
+- Wakefield (R8; `docs/plans/2026-11-11-wakefield.md`, PR #42, not merged): laser antenna (PIC-D20), bunch driver (PIC-D21)
+  and `examples/wakefield` exist; the two linear gates and their null runs pass in the static box with lattice places
+  (PIC-D23) and failed on the amplitude with random places. Not done: the moving window (PIC-D22), the gate record.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -91,6 +94,11 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-12 — [progress] R8 Stage 3: the four static-box wakefield runs pass with lattice places (PIC-D23)
+- What: on 68a3a29 (8 GPUs, FP64, 2 × 2 × 2 places per cell, limits and measurements as first fixed): `beam_linear` amplitude +0.51 % (limit 5 %), wavelength −0.25 % (2 %), radial ratio −0.77 % (10 %); `laser_linear` −1.91 %, +0.07 %, +0.04 %; both runs without a driver have E_x = 0 on the axis and the density of the load. Gauss ≤ 1.1e-13. The failure with random places (entry below) stays recorded.
+- Why: outcome of the amendment of the entry below; PIC-D23 stays Proposed (the owner can veto it).
+- Refs: `docs/plans/2026-11-11-wakefield.md` (Results, Stage 3); `examples/wakefield/configs/{beam,laser}_linear.yaml`; PR #42. No gate record yet (one full gate run at the final head). Not shown: the amplitude beyond the gate window (8 to 16 % low at the wavelengths 9 to 12, unexplained).
 
 ### 2026-11-12 — [amendment] R8 Stage 3: both linear wakefield gates failed with random places; PIC-D23 lattice places (Proposed)
 - What: `beam_linear` and `laser_linear` failed on the amplitude with 8 random places per cell (−6.90 % and −8.28 %, limit 5 %); wavelength, radial ratio and both null runs passed. Test fixed before its run: the same bunch run on a 2 × 2 × 2 lattice (8 per cell, same cost) gives +0.51 %, the run without a driver has E = 0. Amendment: the four Stage 3 runs use lattice places through a new option `lattice: [a, b, c]` (PIC-D23); limits and measurements unchanged. Both gates stay recorded as failed in the configuration first fixed. The lattice runs of `laser_linear` and of the null runs are not done yet.
