@@ -8,7 +8,7 @@ import time
 import cupy as cp
 import numpy as np
 
-from . import antenna, body, injection
+from . import antenna, body, injection, window
 from .backend import compile_module, launch
 from .config import FACES, ID_LIMIT, SimConfig
 from .external import check_config, dipoles_B
@@ -67,6 +67,9 @@ class Simulation:
         self.gauss_retreat = (reach + (1 if self.marder else 0)) if has_open else 0
         self.body = body.check_config(cfg, reach)
         antenna.check_config(cfg, self.gauss_retreat, reach)
+        self.window = window.check_config(cfg, self.gauss_retreat, reach)
+        if self.window:  # the configuration is checked; the step does not shift the box yet
+            raise NotImplementedError("the moving window (PIC-D22) is not in the engine yet")
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
         if cfg.precision not in ("fp64", "mixed"):
