@@ -765,6 +765,13 @@ def test_vacuum_wave_dispersion():
     assert abs((phase - expected + math.pi) % (2 * math.pi) - math.pi) < 0.05
 
 
+def test_progress_line_of_a_run_that_starts_without_energy(capsys):
+    """Without an initial energy there is no E0 to divide by: the line gives the absolute change."""
+    cfg = SimConfig(n_cells=(8, 4, 4), dx=(0.1,) * 3, dt=0.05, species=[], diag_interval=1, gauss_interval=0)
+    Simulation(cfg, comm=SelfComm(), verbose=True).run(2, progress=1)
+    assert " dE=+0.000e+00" in capsys.readouterr().out
+
+
 def test_cpml_absorbs_pulse():
     N, dx = 96, 0.1
     cfg = SimConfig(n_cells=(N, 4, 4), dx=(dx,) * 3, dt=0.05, species=[], npml=12,

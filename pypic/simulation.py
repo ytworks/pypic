@@ -1056,7 +1056,9 @@ class Simulation:
                 msg = (f"step {self.step_count:7d} t={self.time:9.3f} "
                        f"{el / (i + 1) * 1e3:7.2f} ms/step")
                 if h["budget"]:
-                    msg += f" dE/E0={(h['budget'][-1] - e0) / e0:+.3e}"
+                    de = h["budget"][-1] - e0
+                    # a run that starts without energy (cold plasma at rest, no field) has no E0
+                    msg += f" dE/E0={de / e0:+.3e}" if e0 else f" dE={de:+.3e}"
                 print(msg, flush=True)
         self.output.on_step()  # outputs due at the final time level
         self.output.flush()
