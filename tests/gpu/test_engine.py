@@ -1035,6 +1035,86 @@ def test_radial_shell_is_decomposition_independent():
     assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
 
 
+def _wakefield_theory():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "wakefield_theory", os.path.join(HERE, "..", "..", "examples", "wakefield", "theory.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_bunch_on_its_partner_builds_the_field_of_the_gaussian_bunch():
+    """A rigid Gaussian bunch with gamma = 10 that starts on a partner of the opposite charge at
+    rest, in vacuum (PIC-D21), sigma = 8 cells. After 40 sigma the fields in its mid-plane are those
+    of the steady bunch: E_r within 3 % between 0.56 and 1.94 sigma (the start on the partner
+    leaves 0.8 % to 1.6 % there), B_theta = beta E_r within 1 %. No charge is left anywhere."""
+    T = _wakefield_theory()
+    cells, gamma, nb, n, steps = 8, 10.0, 0.05, (448, 192, 192), 640  # lengths in sigma
+    dx, beta = 1.0 / cells, math.sqrt(1.0 - 1.0 / gamma ** 2)
+    x0, j0 = 8.0, n[1] // 2  # the axis lies on the nodes j0, j0 across the box
+
+    def bunch(u):
+        shape = {"shape": "gauss", "width": math.sqrt(2.0)}
+        return [Beam(nb, drift=(u, 0.0, 0.0),
+                     profile=[{**shape, "axis": a, "center": c} for a, c in zip("xyz", (x0, j0 * dx, j0 * dx))])]
+
+    cfg = SimConfig(n_cells=n, dx=(dx,) * 3, dt=0.5 * dx, ppc=8, npml=10, boundaries=(("open", "open"),) * 3,
+                    species=[SpeciesConfig("b", -1, 1e6, bunch(gamma * beta)), SpeciesConfig("p", 1, 1e6, bunch(0.0))],
+                    diag_interval=64, gauss_interval=64)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    assert sim.gauss_error()[0] < 1e-10
+    sim.run(steps)
+    g = sim.grid
+    sx, sy, sz = g.physical_slice()
+    xc = (x0 + beta * steps * cfg.dt) / dx  # centre of the bunch in cells
+    m = np.arange(4, 16)
+
+    def radial(F, across, stagger):
+        """F on the line through the axis along the axis ``across``, at the distances +-(m + 1/2) dx,
+        at the centre of the bunch: the parabola through the three nearest samples along x."""
+        ic = round(xc - stagger)
+        s = xc - stagger - ic
+        rows = slice(sx.start + ic - 1, sx.start + ic + 2)
+        a, b = sy.start + j0, sz.start + j0
+        line = F[rows, a - 16:a + 16, b] if across == 1 else F[rows, a, b - 16:b + 16]
+        lo, mid, hi = cp.asnumpy(line)
+        v = mid + 0.5 * s * (hi - lo) + 0.5 * s * s * (hi - 2.0 * mid + lo)
+        return 0.5 * (v[16 + m] - v[15 - m])
+
+    e_r = 0.5 * (radial(g.Ey, 1, 0.0) + radial(g.Ez, 2, 0.0))
+    b_th = 0.5 * (radial(g.Bz, 1, 0.5) - radial(g.By, 2, 0.5))
+    steady = -T.bunch_field((m + 0.5) * dx, 1.0, 1.0, gamma, T.bunch_charge(nb, 1.0, 1.0))
+    assert np.max(np.abs(e_r / steady - 1.0)) <= 0.03, e_r / steady
+    assert np.max(np.abs(b_th / (beta * e_r) - 1.0)) <= 0.01, b_th / (beta * e_r)
+    sim.step()  # records the step of the comparison
+    assert np.nanmax(sim.history["gauss"]) < 1e-10 and np.nanmax(sim.history["divB"]) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_bunch_is_decomposition_independent():
+    """A bunch on its partner (PIC-D21), loaded into a block of cells in the low half of x: the two
+    ranks of the high half of x of the 2x2 rank grid load no particle and later hold the whole
+    bunch. 1 GPU and the 2x2 grid give the same run and the same particles, and Gauss's law holds."""
+    script = os.path.join(HERE, "mgpu_bunch.py")
+    outs = {}
+    for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    ref, o = outs[1], outs[4]
+    for k in ("ids", "n_particles", "far", "bunch"):
+        assert o[k] == ref[k], k
+    assert ref["bunch"] > 0 and ref["far"] == ref["bunch"]
+    for k in ("kinetic", "electric", "magnetic"):
+        a, b = np.asarray(ref[k]), np.asarray(o[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
+
+
 def test_mixed_precision_is_explicit_only():
     with pytest.raises(ValueError, match="explicit"):
         plasma("implicit", precision="mixed")
