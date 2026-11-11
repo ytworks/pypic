@@ -363,8 +363,8 @@ Launched from the clean tree of c58f533. Record:
 
 Reported:
 - **The excess over Eq. 4 is 15 % at R_m = 12 d_i, against 21 % at 8 d_i** (same M_A, m_i/m_e,
-  shell shape in units of R_m and seed). One run each: the 6 points are not separated from the
-  difference between realizations, which the gate runs give only for the same bits at step 0.
+  shell shape in units of R_m and seed). One run each with one seed; repeated runs of the gate
+  with that seed agree in Δ98 to 10 digits or more, another seed was not run.
 - **The time history of Δ98 is not that of the gate.** Δ98 (41 samples, every 66 steps) has a
   first maximum of 44.4 d_e = 0.93 R_m at step 528 (9 % *below* Eq. 4), falls to 44.1 d_e at
   step 594 and then rises without a further dip to 56.4 d_e at step 2376; the last four samples
