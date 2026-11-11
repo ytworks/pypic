@@ -124,6 +124,17 @@ from the energy of the modes (the total magnetic energy contains B0).
 
 Ω_c is the field of marginal stability, Ω_c² = A.
 
+Definitions fixed before the runs (2026-11-11): `pair_b0_stable` has no growth time of its own and
+runs as long as `pair` (25 / Γ_max of the case without the field, 1128 steps); its criterion takes
+Σ|B_m|² at the last output over that at the first output from 10 % of the run. The fits of
+`pair_b0` use the modes from `gate_m_min: 4` (m = 1 is stable there and m = 2 marginal, Γ = 0.055).
+
+Check of the relation (2026-11-11): no paper text is at hand, so it was not compared with a
+printed formula. It was derived from the cold relativistic fluid equations and is compared in
+`tests/cpu/test_theory.py` with the largest eigenvalue of the linearised fluid + Maxwell system
+(pair and electron–ion beams, Ω / Ω_c = 0, 0.5, 0.9, 1.5, three k each): agreement to 1e-7. The
+field of marginal stability, ω_ce = β √γ ω_p, is the known one (Godfrey et al. 1975; Bret et al.).
+
 ### Stage 4 — PIC-D18 and the magnetised shock
 
 PIC-D18: an initial field `E0` tangential to a *reflecting* face is allowed (explicit solver; an

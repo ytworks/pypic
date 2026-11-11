@@ -294,3 +294,13 @@ def test_blast_wave_gate_fails_without_a_measurement():
     # a front so far out that no block lies ahead of it: nothing was measured
     out = ahead({0: 0.0, 50: 60.0, 100: 60.0}, {0: 1.0, 100: 1.0})
     assert out["blocks"][1] == 0 and np.isnan(out["deviation"])
+
+
+def test_filamentation_stable_ratio_compares_the_modes_2_to_10_from_a_tenth_of_the_run():
+    spec = importlib.util.spec_from_file_location("filamentation_analyze", ROOT / "examples/filamentation/analyze.py")
+    F = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(F)
+    t = np.linspace(0.0, 100.0, 101)
+    gated = np.where(t < 10.0, 5.0, np.exp(0.5 * (t - 10.0) / 90.0))  # amplitude e^0.5 from t = 10 to the end
+    amps = [np.exp(t)] + [gated] * 9 + [np.exp(t)] * 6  # modes 1 and 11..16 are not part of the criterion
+    assert F.stable_ratio(t, amps, 100.0) == pytest.approx(np.e)

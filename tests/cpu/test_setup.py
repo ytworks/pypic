@@ -192,3 +192,18 @@ def test_blast_wave_planner_gives_a_configuration_the_engine_accepts():
             ("Omega_ce dt", 8, {"body_radius": 0.3, "dipole_radius": 0.5})):
         with pytest.raises(ValueError, match=match):
             plan(n_gpus, **over)
+
+
+def test_filamentation_planner_takes_the_field_along_the_drift_from_the_marginal_one():
+    F = _example_planner("filamentation")
+    free_cfg, _, free = F.plan_filamentation(F.FilamentationParams())
+    assert tuple(free_cfg.B0) == (0.0, 0.0, 0.0) and not free["stable"]
+    g = math.sqrt(1.25)
+    marginal = (0.5 / g) * math.sqrt(2.0 / g)  # beta omega_p,tot / sqrt(gamma), omega_p,tot^2 = 2
+    cfg, _, info = F.plan_filamentation(F.FilamentationParams(b0=0.5, gate_m_min=4))
+    assert tuple(cfg.B0) == pytest.approx((0.5 * marginal * g, 0.0, 0.0))  # B0 = Omega gamma m / |q|
+    assert info["gamma_theory"][0] == 0.0 and 0.0 < info["gamma_max"] < free["gamma_max"]
+    assert info["gate_modes"] == [4, 10] and not info["stable"]
+    stable_cfg, _, stable = F.plan_filamentation(F.FilamentationParams(b0=1.5))
+    assert stable["stable"] and max(stable["gamma_theory"]) == 0.0
+    assert stable_cfg.n_steps == free_cfg.n_steps  # no growth time of its own: the length of the free case

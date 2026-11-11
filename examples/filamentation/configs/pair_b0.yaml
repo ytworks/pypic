@@ -1,0 +1,13 @@
+# The pair case in a magnetic field along the drift, half the field of marginal stability
+# (Omega = 0.5 Omega_c, Omega_c = beta omega_p,tot / sqrt(gamma)): the long wavelengths are stable
+# (m <= 1 here, m = 2 marginal) and the short ones grow more slowly, Gamma -> 0.52 omega_pe.
+mixture: e-p
+u0: 0.5
+theta: 1.0e-4
+L_perp_wavelengths: 4
+cells_per_skin_depth: 10
+nx: 4
+ppc: 16
+growth_times: 25
+b0: 0.5
+gate_m_min: 4

@@ -1,0 +1,11 @@
+# The pair case above the field of marginal stability (Omega = 1.5 Omega_c): no transverse mode
+# grows. It runs as long as the case without the field, in which the modes grow by 25 e-folds.
+mixture: e-p
+u0: 0.5
+theta: 1.0e-4
+L_perp_wavelengths: 4
+cells_per_skin_depth: 10
+nx: 4
+ppc: 16
+growth_times: 25
+b0: 1.5
