@@ -1,7 +1,8 @@
 # Engine design
 
 Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12..D16 2026-11-11, bow-shock plan;
-PIC-D17 2026-11-11, blast-wave plan); PIC-D11 **Proposed** (2026-11-10, #10).
+PIC-D17 2026-11-11, blast-wave plan); PIC-D11 **Proposed** (2026-11-10, #10); PIC-D20, PIC-D21
+**Proposed** (2026-11-11, wakefield plan).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -283,6 +284,19 @@ Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 1). Explicit solver only.
 Why: a laser driver needs a field source, and the engine has none. A current that is a discrete curl keeps charge conservation with the deposition alone (no Poisson correction), needs no kernel change and no total-field / scattered-field bookkeeping at rank faces, and its amplitude on the Yee grid is known in closed form. The price is the backward wave of the same power, which leaves through the open face behind the plane.
 
 Not established: nothing is run yet with the implicit solver (refused). The beam is paraxial: the terms of order `1 / (k w0)²` are not emitted. The curved front is an advance in time of the whole pulse, exact for the carrier and first order for the envelope.
+
+### PIC-D21 — Bunch driver: a product of 1-D shapes, loaded on a partner of the opposite charge (2026-11-11) — Status: Proposed
+Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 2). Extends PIC-D17 (block, capacity, neutrality). Both solvers load this way; only the explicit one is run.
+- **Profile:** `Beam.profile` may be a list of 1-D profiles with different axes among x, y, z (not `"r"`): the density is `density · Π shape_a`. Each shape is cut by itself: a particle has the weight 0 where one of the shapes is below the cut 1e-10 (`profiles.CUT`), so the particles that are kept are exactly those of the product of the intervals the shapes reach. A single profile (a dict) along x, y or z loads the whole box as before, and its runs do not change.
+- **Block:** a beam with a list is loaded only into the global cells `[floor(lo_a / dx_a), ceil(hi_a / dx_a))` on each axis that has a shape, the whole box on the other axes; `(lo, hi) = profiles.support_interval(shape, L_a)`: the shape is sampled at `L_a / 2^16` and each bound is one sample beyond the outermost one that reaches the cut (`profiles.support` of PIC-D17 is its upper bound). A part of a shape narrower than a sample can be missed. The id of a particle is the one a load of the whole box gives it.
+- **Capacity:** a bunch can be on one rank as a whole. For a list the rank counts the whole block, at most its own cells: `max(cells of the block on the rank, min(block cells, cells of the rank))`. A radial block keeps the even share of PIC-D17. The arrays still grow at migration.
+- **Neutrality and the driver:** the rule of PIC-D17 holds: the beams of one block share positions and must cancel position by position, a block smaller than the box that does not cancel is an error. The driver is therefore two species with the same list: the bunch with its drift, and a partner of the opposite charge and a very large mass at rest. The initial E = B = 0 is then consistent, Gauss's law holds at round-off from the load on, and no Poisson solve is added. The bunch moves from t = 0 on and its field builds up while it leaves the partner, which stays where the bunch started.
+- **Start:** mode by mode the field of a bunch that starts on its partner is known in closed form (`examples/wakefield/theory.py`, `bunch_startup`). The part of the start that travels with the bunch loses its phase at the rate `k_perp² / (2 k_x) + k_x / (2 γ²)`: the field is formed after a time of the order `2 γ² σ_x`. Before that the field in the mid-plane is above the steady one (γ = 10, σ_x = σ_r = σ, after 40 σ: 0.8 % at 0.56 σ to 1.6 % at 1.94 σ). A run that needs the steady field to better than this starts the bunch earlier or compares with the field at the time of the measurement.
+- **Rejected at construction:** an empty list; two shapes on one axis; the axis `"r"` in a list. As before: a profile on an injected species (PIC-D13).
+
+Why: a beam driver is a charge that is not neutral, and the engine holds no field for it at t = 0 (no Poisson solver; charge conservation comes from the deposition only). A partner at the same positions makes the load neutral at every particle, with the loader and the neutrality check of PIC-D17 unchanged. A bunch is small against the box: loaded into its block it costs the particles of the block, not of the box, and a product of shapes cut one by one makes the block exact.
+
+Not established: no run with the implicit solver. The partner stays in the box as a charge at rest where the bunch started (a run measures away from it, or lets it leave with a moving window, PIC-D22). The start was solved for vacuum only: in a plasma the field of the start is screened and the time to form was not derived.
 
 ## Review amendments
 

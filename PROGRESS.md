@@ -19,7 +19,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11 Proposed),
+Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11, D20, D21 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
@@ -91,6 +91,11 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-11 — [design] PIC-D20 laser antenna, PIC-D21 bunch driver (Proposed; R8, Stages 1 and 2)
+- What: PIC-D20: `lasers:` add the current of a magnetisation on one layer of cells, `J = curl M` (no charge, no kernel change), amplitude exact on the Yee grid, Gaussian beam = paraxial beam of the grid (`k_d = sin(k dx)/dx`), work term `antenna` in the energy budget. PIC-D21: `Beam.profile` takes a list (a product of 1-D shapes, each cut by itself) loaded into the block of cells the shapes reach; the driver is the bunch plus a partner of the opposite charge at rest (neutral at every particle, initial E = B = 0). CPU tests pass; the GPU tests A1 and B1 (criteria fixed in the plan) are written and not yet run.
+- Why: R8 needs field sources and the engine has none; both keep charge conservation with the deposition alone (no Poisson solve). New fact for the plan: the field of a bunch started on its partner forms over `2 γ² σ_x`, not `γ · r_max` (mode solution; +0.8 % to +1.6 % predicted at the 40 σ of B1).
+- Refs: PIC-D20, PIC-D21 (`docs/design/engine.md`); `docs/plans/2026-11-11-wakefield.md` (Stages 1, 2); `pypic/antenna.py`, `pypic/profiles.py`, `examples/wakefield/theory.py`; PR #42.
 
 ### 2026-11-11 — [progress] Blast wave, review of PR #40: shell mass from the centre, rings at the slice spacing; gates recorded on 17f1b5f
 - What: 17f1b5f: `theory.shell_peak_density` integrates the Gaussian shell over r ≥ 0 (it included r < 0: a shell with r_s = 0.1 R_m, w = 0.3 R_m held 18 % too few particles; gate and production shells: peak density +5.1e-9); `plane_history` and `body_potential` use rings as wide as the slice samples are apart (with `slice_coarsen` 3 or 4 the debris extent was nan, with 4 the body potential). Gates on 17f1b5f, 8 GPUs, ALL PASSED: FP64 (93 GPU tests, five two-stream gates, 17 example gates) and mixed (four, 17). `blast_wave:gate`, FP64 against 9bfa1a5: front speed and ring mean equal in 9 digits, ∆98 in 10; body charge +22.42 (was +22.49), potential 5.02 / 1.24 T_e/e (4.94 / 1.26).
