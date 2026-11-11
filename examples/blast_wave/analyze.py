@@ -113,18 +113,26 @@ def region_history(run, info) -> dict:
     return out
 
 
+def _sample_spacing(a, dx) -> float:
+    """Distance between the samples a of a slice along one axis: a whole number of cells of the width
+    dx (the block size the slice was written with). A ring this wide around any point of the plane
+    holds a sample; a narrower one can be empty."""
+    return max(1, int(round((a[1] - a[0]) / dx))) * dx
+
+
 def body_potential(run, info, name) -> float:
     """Potential of the body against the plasma at two dipole radii, in T_e / e, from the slice ``name``:
     the integral of the ring mean of E_r from the surface of the body outwards, E the mean of the
     slice samples of the last third of the run. Each in-plane component is projected at its own
-    sample positions. nan when a ring holds no sample."""
+    sample positions. The rings are at least as wide as the samples are apart."""
     s = run.series(name)
     a, b = (i for i in range(3) if "xyz"[i] != s.layout["axis"])
     ca, cb = info["center"][a], info["center"][b]
     step = s.step
     sel = slice(int(np.nonzero(step >= LAST * step[-1])[0][0]), None)
     r0, r1 = info["body_radius"], EXCLUDE * info["dipole_radius"]
-    edges = np.linspace(r0, r1, max(1, int(round((r1 - r0) / run.dx[a]))) + 1)
+    dr = _sample_spacing(s.plane_axes("E" + "xyz"[a])[0], run.dx[a])
+    edges = np.linspace(r0, r1, max(1, int((r1 - r0) / dr)) + 1)
     e_r = np.zeros(len(edges) - 1)
     for k, ax in enumerate((a, b)):
         comp = "E" + "xyz"[ax]
@@ -245,13 +253,15 @@ def extent(r, profile, fraction=EXTENT_FRACTION) -> float:
 
 
 def plane_history(run, info) -> dict:
-    """Front, compression, cavity and debris extent at every sample of the slice z = centre."""
+    """Front, compression, cavity and debris extent at every sample of the slice z = centre. The rings
+    and the samples on the rays are as far apart as the samples of the slice."""
     sz = run.series("slice_z")
-    c, b0, dr = info["center"][:2], info["b0"], run.dx[0]
+    c, b0 = info["center"][:2], info["b0"]
     r0 = info["body_radius"] if info["body"] else 0.0
-    w = max(1, int(round(info["d_i"] / dr)))
     a, b = sz.plane_axes("Bz")
     na, nb = sz.plane_axes("n:di")
+    dr = _sample_spacing(a, run.dx[0])
+    w = max(1, int(round(info["d_i"] / dr)))
     step = np.asarray(sz.step)
     fronts = np.zeros((len(step), len(ANGLES)))
     peak, cavity, d98, edge = (np.full(len(step), np.nan) for _ in range(4))

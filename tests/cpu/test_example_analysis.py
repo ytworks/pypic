@@ -149,6 +149,46 @@ def test_blast_wave_front_and_debris_extent_are_recovered_from_synthetic_planes(
     assert np.isnan(A.extent(r, np.zeros_like(r))) and np.isnan(A.extent(r, np.where(r < 1.0, np.nan, ring)))
 
 
+def _blast_wave_slices(cs, n_cells=384, dx=0.5):
+    """A run with the slice z = centre written as means over blocks of cs cells: B_z with a cavity inside
+    the radius 10 and a ramp from 2 to 1 between 20 and 40, debris ions in a Gaussian shell (radius 20,
+    width 5), E_r = 1 / r. The centre is at 96."""
+    from types import SimpleNamespace
+
+    stagger = {"Bz": (0.5, 0.5), "n:di": (0.0, 0.0), "Ex": (0.5, 0.0), "Ey": (0.0, 0.5)}
+
+    def read(comp, j):
+        x, y = np.meshgrid(*((np.arange(n_cells) + s) * dx - 96.0 for s in stagger[comp]), indexing="ij")
+        r = np.maximum(np.hypot(x, y), 1e-12)
+        plane = {"Bz": np.where(r < 10.0, 0.0, np.clip(2.0 - (r - 20.0) / 20.0, 1.0, 2.0)),
+                 "n:di": np.exp(-((r - 20.0) / 5.0) ** 2), "Ex": x / r ** 2, "Ey": y / r ** 2}[comp]
+        plane = plane.reshape(n_cells // cs, cs, n_cells // cs, cs).mean(axis=(1, 3))
+        return plane if isinstance(j, int) else np.stack([plane] * 2)
+
+    def plane_axes(comp):
+        return tuple((np.arange(n_cells // cs) + ((cs - 1) / 2 + s) / cs) * dx * cs for s in stagger[comp])
+
+    series = SimpleNamespace(layout={"axis": "z"}, step=np.array([0, 10, 20]), read=read, plane_axes=plane_axes)
+    return SimpleNamespace(dx=(dx, dx, dx), dt=0.25, series=lambda name: series)
+
+
+def test_blast_wave_analysis_follows_the_resolution_of_the_slices():
+    """The rings are as wide as the samples of the slice are apart, so that every ring holds a sample.
+    Rings of the cell width gave nan for slices written as means over blocks of 3 or 4 cells."""
+    from scipy.special import erfinv
+
+    A = _example("blast_wave")
+    info = {"center": (96.0, 96.0, 96.0), "b0": 1.0, "body": True, "body_radius": 64.0 / 15.0,
+            "dipole_radius": 6.4, "d_i": 4.0, "params": {"vte": 0.1}}
+    for cs in (1, 3, 4):
+        run = _blast_wave_slices(cs)
+        h = A.plane_history(run, info)
+        assert h["front"] == pytest.approx(35.0, abs=0.5 * cs), cs  # B_z = 1.25 on the ramp; one sample
+        assert h["extent"] == pytest.approx(20.0 + 5.0 * erfinv(0.96), abs=0.5 * cs), cs  # Eq. 3 on the shell
+        # E_r = 1 / r from the body radius to two dipole radii, three times as far out
+        assert A.body_potential(run, info, "slice_z") * 0.1 ** 2 == pytest.approx(np.log(3.0), rel=0.05), cs
+
+
 def test_blast_wave_gate_fails_without_a_measurement():
     from types import SimpleNamespace
 

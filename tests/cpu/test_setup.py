@@ -151,17 +151,19 @@ def test_blast_wave_planner_gives_a_configuration_the_engine_accepts():
     assert external.check_config(cfg) and injection.check_config(cfg) and body.check_config(cfg, reach)
     assert math.prod(cfg.dims) == 8 and "blast-wave planner" in report
     # the debris: as many ions as the ambient plasma holds inside R_m, electrons with the same shape
-    # (neutral), every beam with the radial speed V_d = M_A v_A around the centre of the body
-    sp = {s.name: s for s in cfg.species}
+    # (neutral), every beam with the radial speed V_d = M_A v_A around the centre of the body; the
+    # same number for a shell wider than its radius, of which the Gaussian is cut off at the centre
     r = np.linspace(0.0, 4.0 * info["r_m"], 400001)
-    for name in ("de", "di"):
-        number = 0.0
-        for b in sp[name].beams:
-            assert b.origin == tuple(info["center"]) and b.profile["axis"] == "r"
-            assert b.drift_radial / math.sqrt(1.0 + b.drift_radial ** 2) == pytest.approx(info["v_d"], rel=1e-12)
-            shape = np.exp(-((r - b.profile["center"]) / b.profile["width"]) ** 2)
-            number += b.density * float(np.sum(4.0 * math.pi * r * r * shape) * (r[1] - r[0]))
-        assert number == pytest.approx(4.0 / 3.0 * math.pi * info["r_m"] ** 3, rel=1e-6), name
+    for c in (cfg, plan(body=False, shell_radius=0.1, shell_width=0.3)[0]):
+        sp = {s.name: s for s in c.species}
+        for name in ("de", "di"):
+            number = 0.0
+            for b in sp[name].beams:
+                assert b.origin == tuple(info["center"]) and b.profile["axis"] == "r"
+                assert b.drift_radial / math.sqrt(1.0 + b.drift_radial ** 2) == pytest.approx(info["v_d"], rel=1e-12)
+                shape = np.exp(-((r - b.profile["center"]) / b.profile["width"]) ** 2)
+                number += b.density * float(np.sum(4.0 * math.pi * r * r * shape) * (r[1] - r[0]))
+            assert number == pytest.approx(4.0 / 3.0 * math.pi * info["r_m"] ** 3, rel=1e-6), name
     assert sorted(cfg.injection.species) == ["e", "i"]  # the debris does not enter through the faces
     # without the shell and the body: the null tests
     cfg0, _, _ = plan(debris=False, body=False)

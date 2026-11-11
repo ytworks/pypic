@@ -25,8 +25,9 @@ field and the swept-up plasma inside the radius), the numerator a correction for
 decouple. c0 and c1 were fitted to 2-D hybrid runs (D = 2) with m_d / m_b = 3, Z_d / Z_b = 1 and a
 Gaussian cloud; for 3-D the paper gives no fit and expects coefficients of similar magnitude.
 
-The cloud of this example is a shell, n(r) = n_pk exp(-((r - r_s) / w)^2). Its particle number is
-4 pi n_pk sqrt(pi) w (r_s^2 + w^2 / 2) for w << r_s (the part of the Gaussian at r < 0 is dropped).
+The cloud of this example is a shell, n(r) = n_pk exp(-((r - r_s) / w)^2) at r >= 0. Its particle
+number is 4 pi n_pk w I, with I the integral of exp(-u^2) (r_s + w u)^2 over u = (r - r_s) / w from
+-r_s / w (the centre) to infinity; I tends to sqrt(pi) (r_s^2 + w^2 / 2) for w << r_s.
 """
 from __future__ import annotations
 
@@ -42,7 +43,7 @@ def stopping_radius(r_m: float, mach_alfven: float) -> float:
 
 def shell_peak_density(r_m: float, r_s: float, w: float) -> float:
     """Peak density of a Gaussian shell (radius r_s, width w) that holds the ambient mass of R_m."""
-    return r_m ** 3 / (3.0 * math.sqrt(math.pi) * w * (r_s * r_s + 0.5 * w * w))
+    return r_m ** 3 / (3.0 * w * _shell_integral(r_s, w, math.inf))
 
 
 def debris_extent(r_m: float, mach_alfven: float, dim: int = 3, c0: float = LE_C0, c1: float = LE_C1) -> float:
@@ -51,12 +52,20 @@ def debris_extent(r_m: float, mach_alfven: float, dim: int = 3, c0: float = LE_C
     return r_m * (1.0 + c0 * mach_alfven) / (1.0 + c1 / mach_alfven ** 2) ** (1.0 / dim)
 
 
+def _shell_integral(r_s: float, w: float, radius: float) -> float:
+    """Integral of exp(-u^2) (r_s + w u)^2 over u = (r - r_s) / w from the centre (r = 0) to ``radius``
+    (math.inf for the whole shell), in closed form."""
+    total = (r_s * r_s + 0.5 * w * w) * 0.5 * math.sqrt(math.pi)  # the antiderivative for u -> inf
+
+    def part(u):
+        if math.isinf(u):
+            return math.copysign(total, u)
+        return total * math.erf(u) - (r_s * w + 0.5 * w * w * u) * math.exp(-u * u)
+
+    return part((radius - r_s) / w) - part(-r_s / w)
+
+
 def shell_fraction_inside(r_s: float, w: float, radius: float) -> float:
     """Fraction of the particles of the Gaussian shell (radius r_s, width w) closer to its centre than
-    ``radius``: the integral of exp(-u^2) (r_s + w u)^2 over u = (r - r_s) / w, in closed form."""
-    def part(u):  # antiderivative; it tends to (r_s^2 + w^2 / 2) sqrt(pi) / 2 for u -> inf
-        e = math.exp(-u * u)
-        return (r_s * r_s + 0.5 * w * w) * 0.5 * math.sqrt(math.pi) * math.erf(u) - (r_s * w + 0.5 * w * w * u) * e
-
-    lo, total = part(-r_s / w), (r_s * r_s + 0.5 * w * w) * 0.5 * math.sqrt(math.pi)
-    return (part((radius - r_s) / w) - lo) / (total - lo)
+    ``radius``."""
+    return _shell_integral(r_s, w, radius) / _shell_integral(r_s, w, math.inf)
