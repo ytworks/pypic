@@ -1,5 +1,5 @@
 # Blast wave around a magnetised body (`examples/blast_wave`) and radial beams (PIC-D17)
-Status: In progress — Phase 3 (the gate). The FP64 gate record passed on ae4bb69 with `blast_wave:gate` in it (Phase 3, Result of the gate record) and PIC-D17 is Accepted; the record with `precision: mixed` and Phase 4 (production run, wiki page) are next. The first run of the gate configuration passed all seven criteria (Phase 3, Result of the first run). Phase 2 done: the example with planner, analysis and CPU tests. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
+Status: In progress — Phase 4 (production run, wiki page). Phase 3 done: the gate records passed on 9bfa1a5 in FP64 and with `precision: mixed` (Phase 3, Result of the records on 9bfa1a5). The FP64 gate record passed on ae4bb69 with `blast_wave:gate` in it (Phase 3, Result of the gate record) and PIC-D17 is Accepted. The first run of the gate configuration passed all seven criteria (Phase 3, Result of the first run). Phase 2 done: the example with planner, analysis and CPU tests. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
 Refs: roadmap R6; PIC-D12..D16 (used as they are), PIC-D17 (new, Phase 1)
 
 ## Context
@@ -431,6 +431,34 @@ the code of the run is the same, ae4bb69 only registers the gate). Against the f
 - The count "943,087,492 particles at the start" of the first-run result is not the history value
   at step 0, which is 943,088,238 in both runs (175,432 injected and 175 absorbed by then); where
   the first number came from was not traced.
+
+### Result of the records on 9bfa1a5 (2026-11-11; clean tree, 8 GPUs, FP64 and then mixed)
+
+9bfa1a5 adds the movie of the example and two reported ratios; `pypic/analysis/animate.py` changed,
+no code of the step. The runbook runs the mixed gates after the FP64 gates on the same commit, so
+both were run: ALL PASSED (`bench/results/2026-11-11-9bfa1a537-gpu-gates.json`: 93 GPU tests, five
+two-stream gates, 17 example gates; `…-gpu-gates-mixed.json`: four two-stream gates, 17 example
+gates). `blast_wave:gate`, same seed as before:
+
+| Quantity | FP64 (ae4bb69) | FP64 (9bfa1a5) | mixed (9bfa1a5) |
+|---|---|---|---|
+| Speed of the front | 0.16274968378855556 c | the same | 0.16274967880523641 c |
+| Largest ring mean of B_z / B0 | 2.6865894164931907 | the same | 2.6865894211811967 |
+| Axes against diagonals | 0.21272968616 % | the same | 0.21272970359 % |
+| Largest ∆98, its step | 39.5455585300089 d_e, 616 | 39.54555853000368 d_e, 616 | 39.54555829703839 d_e, 616 |
+| Ambient plasma ahead of the front | 0.0500287 % | 0.0500293 % | 0.0500666 % |
+| Gauss, div B | 7.9e-15, 9.0e-15 | 6.2e-15, 8.8e-15 | 6.9e-15, 8.6e-15 |
+| Energy budget change / debris kinetic energy | 10.899889 % | 10.899890 % | 10.897725 % |
+| Body charge at the end, particles absorbed | +22.4937968, 106,480 | +22.4937968, 106,480 | +21.7170596, 106,358 |
+| Largest `fill` | 0.6701040 | 0.6701040 | 0.6701177 |
+| Time per step | 93.2 ms | 93.2 ms | 84.8 ms |
+
+- Three FP64 runs with the same seed: the front criteria are equal in all digits, ∆98 in 12 digits.
+  This replaces "the same in all 16 digits" of the two-run comparison above for ∆98.
+- `precision: mixed` passes the seven criteria; the front speed, the ring mean and ∆98 have 7 digits
+  or more in common with FP64. The 21 % above Eq. 4 are in both precisions. Not shown: another seed.
+- `bow_shock:gate` in these records: magnetopause 0.923 (FP64) and 0.915 (mixed), shock 1.381 and
+  1.382; the ae4bb69 record had 0.916 and 1.381 in FP64.
 
 ## Phase 4 — production run and documents
 
