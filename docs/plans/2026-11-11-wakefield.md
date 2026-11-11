@@ -391,3 +391,93 @@ within ±0.23 % at the others (limit 1 %); Gauss 1.6e-15, div B 5.6e-16. Passed.
 Not shown: the 0.79 % of B at the smallest radius is not the start-up (0.07 %) and differs from
 seed to seed (0.37 to 0.79 % with 64 particles per cell); it was not followed further. An initial
 field from a Poisson solve stays out of scope (B1 does not fail at the run-up within reach).
+
+### Stage 3 — static-box gates (2026-11-11/12): N1 and N2 pass; both linear gates fail on the amplitude
+
+First runs of the configurations as fixed above (8 GPUs, FP64, 8 particles per cell; commit
+848517e for `beam_linear`, 3823577 for the others — the two differ only in the progress line of
+`Simulation.run`).
+
+| Run | Criterion | Limit | Measured | |
+|---|---|---|---|---|
+| N1 (`beam_linear`, `drive=false`) | max \|E_x\| on the axis / predicted; mean plateau density | 1 %; 1 % | 0.0; +0.013 % | passed |
+| N2 (`laser_linear`, `drive=false`) | the same | 1 %; 1 % | 0.0; +0.006 % | passed |
+| `beam_linear` | amplitude `c − 1` | 5 % | **−6.90 %** | **failed** |
+| | wavelength `k beta − 1` | 2 % | +0.59 % | |
+| | `R(sigma_r) / R(0)` against 0.7516 | 10 % | −0.44 % | |
+| `laser_linear` | amplitude `c − 1` | 5 % | **−8.28 %** | **failed** |
+| | wavelength `k v_g − 1` | 2 % | +1.15 % | |
+| | `E_r / E_x` at r = w / 2, `c_r / c_x − 1` | 10 % | −0.22 % | |
+
+Gauss: 7.8e-15 (`beam_linear`), 8.5e-13 (`laser_linear`), 2.6e-15 (both null runs). Sizes:
+`beam_linear` 900×192², 5.3e8 particles, 1,416 steps, 52 s, 11.4 GB per GPU at the peak;
+`laser_linear` 3200×128², 7.6e8 particles, 6,160 steps, 297 s, 15.0 GB per GPU. The driver is
+where the plan puts it (bunch centre 100.02 against 100.06, pulse centre 53.98 against 54.04).
+Both gates stay failed; no limit and no definition is changed here.
+
+What fails: the wake is right behind the driver and loses amplitude with the distance behind
+it. Fits as in the gate, but over one wavelength each (`amp / theory`; `beam_linear` at
+t = 88.5, wavelengths counted from `x_b − 5 sigma_x`; the gate window is the first five):
+
+| Wavelength behind the driver | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `beam_linear` (8 per cell, dx = 0.125, width 24) | 0.986 | 0.967 | 0.934 | 0.904 | 0.855 | 0.830 | 0.807 | 0.793 | 0.758 | 0.760 | 0.713 | 0.712 |
+| 32 per cell (`ppc=32`) | 1.007 | 0.999 | 0.981 | 0.957 | 0.914 | 0.887 | 0.855 | 0.863 | 0.817 | 0.825 | 0.784 | 0.774 |
+| width 48 (`width=48 n_perp=384`) | 0.987 | 0.965 | 0.941 | 0.888 | 0.866 | 0.830 | 0.817 | 0.768 | 0.759 | 0.751 | 0.715 | 0.717 |
+| dx = 0.25, 256 per cell (`dx=0.25 nx=450 n_perp=96 ppc=256`, t = 89.0) | 1.000 | 0.997 | 0.991 | 0.976 | 0.967 | 0.940 | 0.933 | 0.896 | 0.813 | 0.789 | 0.728 | 0.692 |
+
+`laser_linear` at t = 60.5 (one wavelength each, the delay behind the pulse centre in 1 / omega_p):
+0.962 at 9.2, 0.957 at 15.5, 0.939 at 21.8, 0.919 at 28.0, 0.898 at 34.3, 0.872 at 40.6.
+
+Diagnostic runs (not gates; each one changes the `--set` values named in the table, 8 GPUs):
+
+| Run | Particles | Gate fit: amplitude, `k beta`, `R` ratio, rms residual | Gauss | Wall, peak per GPU |
+|---|---|---|---|---|
+| `beam_linear` | 5.3e8 | 0.9310, 1.0059, 0.7483, 0.224 | 7.8e-15 | 52 s, 11.4 GB |
+| 32 per cell | 2.12e9 | 0.9722, 1.0016, 0.7491, 0.191 | 2.9e-14 | 197 s, 42.4 GB |
+| width 48 | 2.06e9 | 0.9310, 1.0058, 0.7493, 0.223 | 9.1e-15 | 191 s, 38.4 GB |
+| dx = 0.25, 256 per cell | 2.12e9 | 0.9824, 0.9912, 0.7564, 0.069 | 2.2e-14 | 139 s, 53.0 GB |
+
+What the runs show:
+
+- The loss follows the age of the oscillation, not the place or the time: in `beam_linear` the
+  first wavelength behind the bunch has 0.986, 0.981, 0.986 and the fifth 0.865, 0.843, 0.855 at
+  t = 66.4, 77.4, 88.5, although these are different places of the box.
+- It is not the transverse walls: twice the width gives the same table within the scatter and
+  the same gate value (0.93104 against 0.93101).
+- It is not the dispersion of the grid (an error of order dx²): with the same number of particles
+  per volume the cell of twice the size loses less (0.967 against 0.914 at the fifth wavelength).
+- It becomes smaller with the particles per cell: `−ln(amp / theory)` at the fifth wavelength is
+  0.157 with 8, 0.090 with 32 (both dx = 0.125) and 0.034 with 256 (dx = 0.25). It is not
+  proportional to 1 / (particles per cell) (8 → 32: a factor 1.7, not 4).
+- The last four columns of the dx = 0.25 run (x < 45) lie where the bunch field was still
+  building up (start at x = 12, see B1); their residuals are 0.34 to 0.82 of the amplitude, and
+  they are not used.
+- The null runs have no field at all: the two species are loaded on the same places, so the
+  shot noise of the load has no charge until a driver displaces the electrons.
+
+Not shown — the cause. Working explanation: the load is random (`urand` positions in each cell),
+so the electron density that the wake displaces varies from cell to cell by about
+1 / sqrt(particles per cell); the oscillation then does not have one frequency, and the wave
+loses its phase coherence with its age. This fits the dependence on the particles per cell and
+the null runs, and it was not tested directly. Other causes that depend on the particles per
+cell are not excluded by the runs above.
+
+Next test, fixed before it is run: `beam_linear` unchanged (8 per cell, the same grid, seed and
+measurement) with the particles of each cell on the same lattice of 2×2×2 places instead of
+random places, as a patch that is not committed. If the load is the cause, the amplitude of the
+table above stays at the value of the first wavelength for all wavelengths (within the 2 % that
+the 256-per-cell run reaches), and the gate value is within the 5 %. The outcome is recorded
+here before anything is changed in the engine or in a gate definition.
+
+Found on the way:
+
+- The E_x map of the analysis figure was drawn transposed (822bc9a); no number depended on it.
+- A run that starts without energy (a null run) raised `ZeroDivisionError` in the progress line
+  (3823577, with a regression test).
+- `pypic.launch` does not notice a rank that raises and then hangs in the interpreter shutdown:
+  after the error above the launcher waited without end (the chain used `timeout`). Not fixed
+  here.
+- The budget of `laser_linear` has a constant offset of 0.039 on a work of the antenna of 62.75
+  (0.06 %): the `tan²(omega dt / 2)` = 0.24 % of the magnetic energy 15.5 that the record takes
+  at t^n (see A1).
