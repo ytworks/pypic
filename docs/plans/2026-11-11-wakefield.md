@@ -108,6 +108,37 @@ the Yee grid are in `examples/wakefield/theory.py`):
 | `wakefield:laser_linear` | a0 = 0.1, k_p L = √2, k_p w = 4, ω0 / ω_p = 10; 3200×128², 8.4e8 particles, about 4 min | amplitude of E_x on the axis 5 %, wavelength 2 %, E_r / E_x at r = w / 2 10 % |
 | `wakefield:beam_linear` | n_b / n_0 = 0.05, k_p σ_x = k_p σ_r = 1, rigid bunch with γ ≈ 10; 900×192², about 2 min | amplitude 5 %, wavelength 2 %, R(σ_r) / R(0) 10 % |
 
+Amendment (2026-11-12) — the particle places of the gate runs. New fact: with the configuration
+as fixed above both linear gates fail on the amplitude (−6.90 % and −8.28 % against 5 %), and the
+test fixed in the Results (the same `beam_linear` with the particles of a cell on 2×2×2 lattice
+places instead of random places, same number of particles, same cost) gives +0.51 %: the random
+places of the load are the cause of the loss inside the gate window. What changes: the four runs
+of this stage (`laser_linear`, `beam_linear`, N1, N2) load their particles on a lattice of 2×2×2
+places per cell. What does not change: every limit, every measurement and every other parameter
+of the table. The alternative that needs no new code, 32 particles per cell with random places,
+gives −2.78 % at four times the memory and time (2.1e9 particles for `beam_linear`), and the laser
+gate would need 3.0e9; it is not taken.
+
+This needs an engine option, which is a design decision of its own: **PIC-D23** (Proposed; the
+owner can veto it, the gates then stay failed or go to 32 per cell):
+
+- `SimConfig.lattice: [a, b, c]` (default: none = the random places of today, bit for bit).
+  `a b c` must equal `ppc`. The slot `s` of a cell sits at `((s mod a) + 0.5) / a`,
+  `(((s / a) mod b) + 0.5) / b`, `((s / (a b)) + 0.5) / c` of the cell. Momenta are drawn as
+  today (seed, stream, global cell, slot).
+- The places depend only on (global cell, slot), so the load stays independent of the rank layout
+  and species loaded on the same places stay neutral place by place (PIC-D21).
+- In the kernel: `#ifdef LOAD_LATTICE` in `load_particles` with the three numbers as defines
+  (`pypic/kernelsrc.py`, a case in `scripts/check_kernels.py`); without the define the source of
+  the kernel is the one of today. The planes that the moving window loads use the same kernel.
+- Not changed: the particles injected at an open face keep their random places (a lattice has no
+  meaning for a flux through a face).
+- GPU test: the charge density of one species of a uniform beam loaded on a lattice with an even
+  number of places per axis is uniform to round-off (with random places it scatters by
+  1 / sqrt(particles per cell)); the places agree between 1 rank and 2×2 ranks.
+- Stage order: the commit of the `#ifdef MOVING_WINDOW` macros (Stage 4, W0) comes first, so the
+  comparison of the compiled kernels against 477223a is taken before `load_particles` changes.
+
 Formulas fixed before the first run of the gates (2026-11-11; `examples/wakefield/theory.py`, the
 limits are CPU tests in `tests/cpu/test_wakefield.py`):
 
@@ -528,6 +559,49 @@ random places, as a patch that is not committed. If the load is the cause, the a
 table above stays at the value of the first wavelength for all wavelengths (within the 2 % that
 the 256-per-cell run reaches), and the gate value is within the 5 %. The outcome is recorded
 here before anything is changed in the engine or in a gate definition.
+
+Outcome of that test (2026-11-12; 8 GPUs, FP64, code of 3823577 with the uncommitted patch: the
+slot `s` of a cell is put at `((s & 1) + 0.5) / 2`, `(((s >> 1) & 1) + 0.5) / 2`,
+`(((s >> 2) & 1) + 0.5) / 2` of the cell instead of three random numbers; momenta, weights, ids,
+grid, seed and measurement unchanged):
+
+| Run | Criterion | Limit | Random places (above) | Lattice 2×2×2 | |
+|---|---|---|---|---|---|
+| `beam_linear` | amplitude `c − 1` | 5 % | −6.90 % | **+0.51 %** | within the limit |
+| | wavelength `k beta − 1` | 2 % | +0.59 % | −0.25 % | |
+| | `R(sigma_r) / R(0)` against 0.7516 | 10 % | −0.44 % | −0.77 % | |
+| | rms residual of the fit / amplitude | — | 0.224 | 0.042 | |
+| the same, `drive=false` | max \|E_x\| on the axis / predicted; mean plateau density | 1 %; 1 % | 0.0; +0.013 % | 0.0; 0.000 % | |
+
+Gauss 5.2e-15 (2.5e-16 without the driver); 52 s and 10.9 GB per GPU at the peak (random
+places: 52 s, 11.4 GB). The gate value at the output before the last (t = 77.4) is +0.42 %.
+
+One wavelength each, as in the table above (`amp / theory`, lattice load):
+
+| Wavelength behind the driver | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| t = 66.4 | 1.013 | 1.013 | 1.016 | 1.005 | 1.003 | 1.002 | 0.952 | 0.968 | 0.937 | | | |
+| t = 77.4 | 1.013 | 1.012 | 1.012 | 1.002 | 0.988 | 0.992 | 0.976 | 0.953 | 0.936 | 0.920 | 0.892 | |
+| t = 88.5 | 1.013 | 1.013 | 1.011 | 1.002 | 0.992 | 0.975 | 0.977 | 0.971 | 0.927 | 0.931 | 0.878 | 0.855 |
+
+Against what was fixed before the run:
+
+- The gate value is within the 5 %: yes (+0.51 %).
+- The amplitude stays at the value of the first wavelength for all wavelengths within 2 %: **no**.
+  It does over the first four wavelengths (within 1.1 %; the fifth is 2.1 % below the first at
+  t = 88.5), then it falls: 3.6 to 4.2 % below at the wavelengths 6 to 8, 8 to 16 % at 9 to 12.
+- So the random places of the load cause most of the loss in the gate window (0.855 → 0.992 at
+  the fifth wavelength, 0.712 → 0.855 at the twelfth) and not all of the loss far behind the
+  bunch. What remains is smaller than the loss of the 256-per-cell run with random places
+  (0.967 at the fifth wavelength, 0.896 at the eighth). Its cause is not identified. The last
+  four columns at t = 88.5 lie at x < 45, where the dx = 0.25 run had residuals of 0.34 to 0.82;
+  here the residuals are 0.04 there as everywhere, so the build-up of the bunch field does not
+  explain them.
+- The measurement is quieter: the rms residual of the gate fit is 0.042 instead of 0.224 of the
+  amplitude.
+
+Both linear gates stay recorded as failed in the configuration fixed above (random places, 8 per
+cell). See the amendment of 2026-11-12 in Stage 3 for what follows from this outcome.
 
 Found on the way:
 
