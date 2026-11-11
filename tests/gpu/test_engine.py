@@ -789,7 +789,9 @@ def test_laser_antenna_emits_the_paraxial_beam(pol):
     """A steady beam from the antenna in vacuum (PIC-D20), emitted one Rayleigh length before its
     focus: amplitude and width at the focus and one Rayleigh length behind it follow the paraxial
     beam of the grid, the antenna sends the same power forwards and backwards, its work is the
-    power through the two planes and closes the energy budget, and it leaves no charge."""
+    power through the two planes, the energy budget stops changing once the box is full, and no
+    charge is left. (The budget itself keeps an offset that does not grow: the record takes B at
+    t^n, and B_n^2 is above the B^(n-1/2) . B^(n+1/2) of the leapfrog energy by tan^2(omega dt / 2).)"""
     from pypic.antenna import diffraction_wavenumber, wavenumber
 
     lam, per = 2.0 * math.pi, 16  # omega = 1; steps per period
@@ -837,7 +839,7 @@ def test_laser_antenna_emits_the_paraxial_beam(pol):
     assert abs(fwd / bwd - 1.0) < 0.01, (fwd, bwd)
     work = (h["antenna"][-1] - h["antenna"][-2]) / (per * dt)
     assert abs(work / (fwd + bwd) - 1.0) < 0.01, (work, fwd, bwd)
-    assert abs(h["budget"][-1]) < 0.01 * h["antenna"][-1], (h["budget"][-1], h["antenna"][-1])
+    assert abs(h["budget"][-1] - h["budget"][-2]) < 0.01 * work * per * dt, (h["budget"][-2:], work * per * dt)
     assert np.nanmax(h["gauss"]) < 1e-10 and np.nanmax(h["divB"]) < 1e-12
 
 
@@ -1049,7 +1051,11 @@ def test_bunch_on_its_partner_builds_the_field_of_the_gaussian_bunch():
     """A rigid Gaussian bunch with gamma = 10 that starts on a partner of the opposite charge at
     rest, in vacuum (PIC-D21), sigma = 8 cells. After 40 sigma the fields in its mid-plane are those
     of the steady bunch: E_r within 3 % between 0.56 and 1.94 sigma (the start on the partner
-    leaves 0.8 % to 1.6 % there), B_theta = beta E_r within 1 %. No charge is left anywhere."""
+    leaves 0.8 % to 1.6 % there), B_theta = beta E_r within 1 %. The fields are means over the circle
+    of each radius, with 64 particles per cell: on four lines with 8 per cell the shot noise of the
+    bunch is larger than the limits. No charge is left anywhere."""
+    from scipy.ndimage import map_coordinates
+
     T = _wakefield_theory()
     cells, gamma, nb, n, steps = 8, 10.0, 0.05, (448, 192, 192), 640  # lengths in sigma
     dx, beta = 1.0 / cells, math.sqrt(1.0 - 1.0 / gamma ** 2)
@@ -1060,7 +1066,7 @@ def test_bunch_on_its_partner_builds_the_field_of_the_gaussian_bunch():
         return [Beam(nb, drift=(u, 0.0, 0.0),
                      profile=[{**shape, "axis": a, "center": c} for a, c in zip("xyz", (x0, j0 * dx, j0 * dx))])]
 
-    cfg = SimConfig(n_cells=n, dx=(dx,) * 3, dt=0.5 * dx, ppc=8, npml=10, boundaries=(("open", "open"),) * 3,
+    cfg = SimConfig(n_cells=n, dx=(dx,) * 3, dt=0.5 * dx, ppc=64, npml=10, boundaries=(("open", "open"),) * 3,
                     species=[SpeciesConfig("b", -1, 1e6, bunch(gamma * beta)), SpeciesConfig("p", 1, 1e6, bunch(0.0))],
                     diag_interval=64, gauss_interval=64)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
@@ -1071,20 +1077,25 @@ def test_bunch_on_its_partner_builds_the_field_of_the_gaussian_bunch():
     xc = (x0 + beta * steps * cfg.dt) / dx  # centre of the bunch in cells
     m = np.arange(4, 16)
 
-    def radial(F, across, stagger):
-        """F on the line through the axis along the axis ``across``, at the distances +-(m + 1/2) dx,
-        at the centre of the bunch: the parabola through the three nearest samples along x."""
+    phi = (np.arange(64) + 0.5) * (2.0 * math.pi / 64)
+    cos, sin = np.cos(phi), np.sin(phi)
+    ring = (m[:, None] + 0.5) * np.stack([cos, sin])[:, None, :]  # (y, z) in cells from the axis
+
+    def plane(F, stagger, across):
+        """F at the centre of the bunch along x (the parabola through the three nearest planes), on
+        the circles of the radii (m + 1/2) dx about the axis (bilinear in the plane). ``stagger``:
+        the offset of F along x, ``across``: the axis across x along which F sits half a cell up."""
         ic = round(xc - stagger)
         s = xc - stagger - ic
-        rows = slice(sx.start + ic - 1, sx.start + ic + 2)
         a, b = sy.start + j0, sz.start + j0
-        line = F[rows, a - 16:a + 16, b] if across == 1 else F[rows, a, b - 16:b + 16]
-        lo, mid, hi = cp.asnumpy(line)
+        lo, mid, hi = cp.asnumpy(F[sx.start + ic - 1:sx.start + ic + 2, a - 20:a + 20, b - 20:b + 20])
         v = mid + 0.5 * s * (hi - lo) + 0.5 * s * s * (hi - 2.0 * mid + lo)
-        return 0.5 * (v[16 + m] - v[15 - m])
+        off = (0.5, 0.0) if across == 1 else (0.0, 0.5)
+        return map_coordinates(v, [20.0 + ring[0] - off[0], 20.0 + ring[1] - off[1]], order=1)
 
-    e_r = 0.5 * (radial(g.Ey, 1, 0.0) + radial(g.Ez, 2, 0.0))
-    b_th = 0.5 * (radial(g.Bz, 1, 0.5) - radial(g.By, 2, 0.5))
+    # E_y and B_z sit half a cell up along y, E_z and B_y along z
+    e_r = np.mean(plane(g.Ey, 0.0, 1) * cos + plane(g.Ez, 0.0, 2) * sin, axis=1)
+    b_th = np.mean(plane(g.Bz, 0.5, 1) * cos - plane(g.By, 0.5, 2) * sin, axis=1)
     steady = -T.bunch_field((m + 0.5) * dx, 1.0, 1.0, gamma, T.bunch_charge(nb, 1.0, 1.0))
     assert np.max(np.abs(e_r / steady - 1.0)) <= 0.03, e_r / steady
     assert np.max(np.abs(b_th / (beta * e_r) - 1.0)) <= 0.01, b_th / (beta * e_r)

@@ -285,6 +285,11 @@ Why: a laser driver needs a field source, and the engine has none. A current tha
 
 Not established: nothing is run yet with the implicit solver (refused). The beam is paraxial: the terms of order `1 / (k w0)²` are not emitted. The curved front is an advance in time of the whole pulse, exact for the carrier and first order for the envelope.
 
+Measured (2026-11-11, RTX PRO 6000; test A1 of the plan; diagnostic only):
+- **Beam:** a steady beam in vacuum (336×96² cells, dx = λ/12, dy = dz = λ/6, dt = λ/16, six open faces, w0 = 2λ, the plane 12.7 λ before the focus). Width +0.13 % and amplitude −0.21 % at the focus, +0.74 % and −1.44 % at 1.05 z_R behind it, against the paraxial beam of the grid (limit 2 %). Forward against backward power −0.076 %; work of the antenna against the power through two planes on either side −0.005 %. Gauss 1.5e-14, div B 1.7e-14. E along y and along z give the same numbers.
+- **Budget:** with a wave in the box the budget of the explicit scheme keeps an offset that does not grow (645 at a work of 48,281 after 35 periods, 611 at 114,650 after 80). 447 of it is the recorded magnetic energy: B is taken at t^n, and `B_n²` is above the `B^(n−1/2) · B^(n+1/2)` of the leapfrog energy by `((dt / 2) curl E)²`, `tan²(ω dt / 2)` of the magnetic energy of a wave (4.0 % at ω dt = 2π/16). The rest appears while the beam is switched on. Once the box is full the budget changes by 5.8e-5 of the work per period.
+- **Decomposition:** a focused pulse from a plane whose two node planes lie on either side of a rank face, the axis on the rank faces across it: 1 GPU against (2,2,1) and (2,1,2): the histories of the field energies, of the work and of the flux through the open faces agree within 1e-10.
+
 ### PIC-D21 — Bunch driver: a product of 1-D shapes, loaded on a partner of the opposite charge (2026-11-11) — Status: Proposed
 Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 2). Extends PIC-D17 (block, capacity, neutrality). Both solvers load this way; only the explicit one is run.
 - **Profile:** `Beam.profile` may be a list of 1-D profiles with different axes among x, y, z (not `"r"`): the density is `density · Π shape_a`. Each shape is cut by itself: a particle has the weight 0 where one of the shapes is below the cut 1e-10 (`profiles.CUT`), so the particles that are kept are exactly those of the product of the intervals the shapes reach. A single profile (a dict) along x, y or z loads the whole box as before, and its runs do not change.
@@ -297,6 +302,11 @@ Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 2). Extends PIC-D17 (block, ca
 Why: a beam driver is a charge that is not neutral, and the engine holds no field for it at t = 0 (no Poisson solver; charge conservation comes from the deposition only). A partner at the same positions makes the load neutral at every particle, with the loader and the neutrality check of PIC-D17 unchanged. A bunch is small against the box: loaded into its block it costs the particles of the block, not of the box, and a product of shapes cut one by one makes the block exact.
 
 Not established: no run with the implicit solver. The partner stays in the box as a charge at rest where the bunch started (a run measures away from it, or lets it leave with a moving window, PIC-D22). The start was solved for vacuum only: in a plasma the field of the start is screened and the time to form was not derived.
+
+Measured (2026-11-11, RTX PRO 6000; test B1 of the plan; diagnostic only):
+- **Field of the bunch:** γ = 10, σ_x = σ_r = 8 cells, n_b = 0.05, 448×192² cells with six open faces, after 40 σ. With 64 particles per cell and the fields taken as means over the circle of each radius, `E_r` in the mid-plane is +0.86 to +1.77 % above the steady field between 0.56 σ and 1.94 σ (the start gives +0.83 to +1.63 %; limit 3 %), `B_θ / (β E_r) − 1` is +0.79 % at 0.56 σ and within ±0.23 % at the other radii (limit 1 %). Gauss 1.6e-15, div B 5.6e-16.
+- **Noise:** with 8 particles per cell and the fields on four lines through the axis, the first form of the test, the deviation of `E_r` was up to 6.1 % and differed from seed to seed (2.1 to 6.1 %): the shot noise of the bunch, not its field. The test failed in that form and its measurement was amended (plan, Results, Stage 2).
+- **Decomposition:** a bunch loaded into a block in the low half of x that crosses the rank face along x: 1 GPU against 2×2: the same ids and counts, histories within 1e-10.
 
 ## Review amendments
 

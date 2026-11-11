@@ -247,4 +247,77 @@ a speed other than c; the window with `precision: compact`; boosted frame; ionis
 
 ## Results
 
-(Filled in stage by stage.)
+### Stage 1 — antenna, test A1 (2026-11-11): the criteria of the table hold
+
+`tests/gpu/test_engine.py::test_laser_antenna_emits_the_paraxial_beam` (336×96², dx = λ/12,
+dy = dz = λ/6, dt = λ/16, six open faces, w0 = 2λ, the plane 12.7 λ before the focus, steady
+beam; one GPU, FP64). E along y and E along z give the same numbers to 15 digits.
+
+| Criterion | Limit | Measured |
+|---|---|---|
+| Width at the focus; 1.05 z_R behind it | 2 % | +0.13 %; +0.74 % |
+| Amplitude at the focus; 1.05 z_R behind it | 2 % | −0.21 %; −1.44 % |
+| Forward flux against backward flux | 1 % | −0.076 % |
+| Work of the antenna against the flux through the two planes | 1 % | −0.005 % |
+| Gauss, div B | 1e-10, 1e-12 | 1.5e-14, 1.7e-14 |
+| 1 GPU against 2×2 GPUs (2,2,1 for E along y, 2,1,2 for E along z), plane on a rank face | history ≤ 1e-10 | passed |
+
+A check that is not in the table, written into the test before its first run, failed in that
+run: `|budget| < 1 % of the work of the antenna` after 35 periods gave 1.33 % (645.1 of 48,325).
+It is not a leak. The budget of the explicit scheme (monitored only) keeps an offset that does
+not grow: from 35 to 80 periods the work rises from 48,281 to 114,650 and the budget goes from
+645 to 611. Of the 645, 447 (0.92 % of the work) are the definition of the recorded magnetic
+energy: the record takes B at t^n, and `B_n²` is above the `B^(n−1/2) · B^(n+1/2)` of the
+leapfrog energy by `((dt / 2) curl E)²`, which is `tan²(ω dt / 2)` = 4.0 % of the magnetic energy
+of a wave with ω dt = 2π / 16 (computed in the run from `curl E`, not estimated). The other 199
+(0.41 %) appear during the first 10 periods, while the beam is switched on and the flux through
+the open faces is not yet steady, and stay between 141 and 199 afterwards. The check was replaced
+by the statement that does hold exactly in the steady state: the budget does not change over one
+period once the box is full, within 1 % of the work of that period (measured: 5.8e-5). It
+protects the sign and the place of the term `antenna` in the budget.
+
+### Stage 2 — bunch, test B1 (2026-11-11): failed as first defined; amended measurement passes
+
+First run, as fixed in the test before the run (448×192², σ = 8 cells, γ = 10, n_b = 0.05,
+8 particles per cell, 640 steps = 40 σ; E_r and B_θ as the mean of the four lines ±y, ±z through
+the axis, at the radii (m + 1/2) dx, m = 4…15; limits 3 % for E_r against the steady field and
+1 % for B_θ against β E_r): **failed**. `E_r / E_steady − 1` = +5.62, +6.07, +4.48, +0.70,
++0.12, −0.20, +1.14, +0.89, +1.41, +1.60, +1.67, +1.70 %; `B_θ / (β E_r) − 1` up to 1.97 %.
+Gauss 1.7e-15, div B 6.6e-16.
+
+Cause: the shot noise of the bunch particles in the measurement, which the prediction of the
+start-up (+0.83 % at the smallest radius to +1.63 % at the largest, B / βE + 0.07 to 0.15 %) did
+not contain. Shown by the same run with other seeds and particle numbers (one GPU each):
+
+| Particles per cell | Seed | Four lines: max E dev. | Circle mean: max E dev. | Circle mean: max B dev. |
+|---|---|---|---|---|
+| 8 | 12345 | 6.07 % | 3.67 % | 0.79 % |
+| 8 | 2024 | 3.63 % | 3.95 % | 0.92 % |
+| 8 | 777 | 2.10 % | 3.31 % | 0.68 % |
+| 27 | 12345 | — | 1.87 % | 0.36 % |
+| 27 | 777 | — | 2.26 % | 0.63 % |
+| 64 | 12345 | 2.07 % | 1.77 % | 0.79 % |
+| 64 | 2024 | — | 1.93 % | 0.37 % |
+| 64 | 777 | 2.28 % | 1.93 % | 0.43 % |
+
+("Circle mean": the mean over 64 points of the circle of each radius, bilinear in the plane.
+With 8 particles per cell single lines differ from each other by up to 14 %. With 64 the four
+lines still give a B deviation of 1.78 % for the seed 12345.) With 64 particles per cell the
+largest deviation of E is at the largest radius for every seed, 1.77 to 1.93 % against the
+1.63 % of the start-up.
+
+**Amendment (2026-11-11) to the measurement of B1.** E_r and B_θ are the means over the circle
+of each radius (64 points, bilinear in the mid-plane), and the bunch is loaded with 64 particles
+per cell. Reason: the criterion is about the field of the bunch; with 8 particles per cell on
+four lines the measurement is limited by the shot noise of the bunch (table above), not by that
+field. Not changed: the radii, the run length, the seed, and the limits 3 % and 1 %.
+
+Result with the amended measurement (seed 12345, one GPU, 55 s): `E_r / E_steady − 1` = +0.91,
++1.05, +1.13, +1.09, +0.86, +0.96, +1.13, +1.34, +1.61, +1.67, +1.70, +1.77 % (limit 3 %; the
+start-up alone gives +0.83 to +1.63 %); `B_θ / (β E_r) − 1` = +0.79 % at the smallest radius,
+within ±0.23 % at the others (limit 1 %); Gauss 1.6e-15, div B 5.6e-16. Passed.
+`test_bunch_is_decomposition_independent` (1 GPU against 2×2): passed.
+
+Not shown: the 0.79 % of B at the smallest radius is not the start-up (0.07 %) and differs from
+seed to seed (0.37 to 0.79 % with 64 particles per cell); it was not followed further. An initial
+field from a Poisson solve stays out of scope (B1 does not fail at the run-up within reach).
