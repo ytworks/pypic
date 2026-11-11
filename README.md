@@ -119,6 +119,7 @@ Each example has the same structure:
 | [`reconnection`](examples/reconnection) | σ = 10 pair reconnection, plasmoids, power law | Harris equilibrium; published rate and index (empirical) | equilibrium 1.1 % of B₀; rate ≈ 0.1–0.2; p = 2.4 (small box) |
 | [`bow_shock`](examples/bow_shock) | 3-D bow shock of a magnetised planet in the solar wind (open box, dipole, absorbing sphere) | pressure-balance magnetopause; Spreiter et al. (1966) stand-off; perpendicular MHD shock (reported) | magnetopause 0.92 to 0.93 R_mp; shock 1.38 R_mp (1.37); upstream within 0.1 % |
 | [`blast_wave`](examples/blast_wave) | 3-D blast wave: a debris shell expanding from a magnetised body into a magnetised plasma at rest (open box, radial beams, dipole, absorbing sphere) | fast magnetosonic speed; debris extent of Le et al. (2021), Eq. 4 with D = 3; perpendicular MHD shock (reported) | front at 2.1 fast speeds, B_z up to 2.7 B₀; debris extent 1.24 R_m (1.02); plasma ahead within 0.05 % |
+| [`wakefield`](examples/wakefield) | plasma wake of a laser pulse and of a rigid electron bunch in a box that follows the driver (antenna, bunch on a heavy partner, moving window); cavity behind an a₀ = 4 pulse (recorded run) | linear cold-plasma wake (Schroeder et al. 2011; Muggli 2020); scalings of Lu et al. (2007) (reported) | amplitude −1.3 % (pulse), +0.5 % (bunch); wavelength −0.02 %, −0.25 % |
 
 New set-up features these examples use (all engine-level; see `docs/design/engine.md` PIC-D9, PIC-D10):
 
@@ -138,6 +139,13 @@ Open-flow features that `bow_shock` and `blast_wave` use (explicit scheme only; 
 - **`capacity_factor`** sizes the particle arrays for a run that gains particles; the history key `fill` reports how full they are.
 
 `blast_wave` also uses **radial beams** (`Beam.origin`, `Beam.drift_radial`, profile axis `"r"`; PIC-D17): a density shape of the distance from a point and a drift along the radius, loaded only into the cells the shape reaches. Both schemes load them; only the explicit one was run with them.
+
+Driver features that `wakefield` uses (explicit scheme only; PIC-D20 to PIC-D23, OUT-D5):
+
+- **Laser antenna** (`lasers`): a Gaussian beam or a plane wave emitted from a plane inside the box, towards +x and towards −x. Its current is a discrete curl, so it carries no charge; the history key `antenna` holds its work.
+- **Bunches** (`Beam.profile` as a list of 1-D shapes): a bunch is loaded on a heavy partner of the opposite charge at the same places, so the box is neutral at the start and the field of the bunch builds up as it moves.
+- **Lattice places** (`lattice`): the particles of a cell on a regular a × b × c lattice instead of random places, for a cold plasma without density noise.
+- **Moving window** (`window`): the box follows a driver along +x at the speed of light, one cell at a time, and loads the plasma ahead plane by plane. Positions stay those of the laboratory; the output files give laboratory places, and diagnostics regions are window coordinates.
 
 ## Using it as a library
 
