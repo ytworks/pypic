@@ -58,8 +58,8 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   stationary at the end (particle number, body charge); the shock distance depends on the 2 n₀ definition.
 - Bow-shock plan (R1, R6; `docs/plans/2026-11-10-bow-shock.md`): all phases done. Phases 0–4
   (PIC-D12..D16) gated on d2ac1d9, 84f5808, 7893fec, 98e626b; Phase 5 (the example, gate M3, the sort
-  fix) gated on 39acb7f, production run on 9ba2a65, the review fixes of PR #39 gated on 9b901c1. On branch `bow-shock/5-example`, PR #39 (open, not merged);
-  wiki page `Bow-Shock` in `docs/wiki/` (rendered locally, the wiki repository not pushed).
+  fix) gated on 39acb7f, production run on 9ba2a65, the review fixes of PR #39 gated on 9b901c1. Merged to main by PR #39;
+  wiki page `Bow-Shock` (EN + JA) published with the merge.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
