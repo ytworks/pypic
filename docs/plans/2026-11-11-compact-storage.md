@@ -168,4 +168,32 @@ numbers.
 
 ## Results
 
-(filled in stage by stage)
+### A0 — baseline (2026-11-12, e883591, no other job on the GPUs)
+
+`scripts/bench_step.py --example two_stream --config examples/two_stream/configs/ei.yaml --set
+cells_per_wavelength=64 --set t_end=4 --set overrides.diag_interval=10`: 256×64×64, 50,331,648
+particles, 100 steps after 20 of warm-up, three runs each. `kernel_push` is the phase of
+`--phases` (mean over the ranks; those runs synchronise the device at each phase and are 0.2 ms
+(1 GPU) and 0.3–0.4 ms (8 GPUs) slower per step).
+
+| GPUs | precision | ms / step, three runs | ns / particle / step | `kernel_push` ms |
+|---|---|---|---|---|
+| 1 | fp64 | 22.02, 22.01, 22.01 | 0.437 | 20.87 |
+| 1 | mixed | 18.18, 18.19, 18.18 | 0.361 | 16.94 |
+| 8 | fp64 | 3.61, 3.66, 3.72 | 0.573–0.592 (GPU time) | 2.76 |
+| 8 | mixed | 3.42, 3.29, 3.42 | 0.523–0.544 (GPU time) | 2.31 |
+
+The figures of the roadmap are reproduced (22.0 ms and 0.44 / 0.36 ns on 1 GPU; 3.4 ms on
+8 GPUs is the `mixed` figure). The other phases of the 8-GPU `mixed` step: `migrate` 0.49–0.59,
+`reduce_ghosts` 0.22–0.23, `field_push` 0.19–0.23, `record` 0.14, `sort` 0.10, not attributed
+0.19 ms. With a record at every step (`diag_interval=1`, measured first by mistake) the 8-GPU
+step is 4.5 ms (fp64) and 4.1–4.4 ms (mixed): the figures above need `diag_interval=10`.
+
+Amendment (2026-11-12, before any prototype is measured) — how the 2 % criteria are judged.
+Fact: the three 8-GPU runs of the whole step differ by 4 % (3.29–3.42 ms), more than the limit
+of 2 %; the spread comes from `migrate`, `reduce_ghosts` and `field_push`, which a prototype
+does not touch. `kernel_push` repeats within 0.1 % (2.305, 2.307, 2.308 ms) and the 1-GPU step
+within 0.1 %. So a prototype is judged by the change of `kernel_push` (plus `sort`, which (a)
+changes) in ms, relative to the whole `mixed` step of the same number of GPUs (18.18 ms on
+1 GPU, 3.38 ms on 8 GPUs, the mean of the three runs). The limits (2 %) are unchanged; both
+GPU counts are reported and the 8-GPU figure decides, since that is the production layout.
