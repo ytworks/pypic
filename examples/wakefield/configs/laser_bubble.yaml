@@ -1,0 +1,24 @@
+# Blowout wake of a laser pulse (reported, no gate): a0 = 4, omega0 = 10 omega_pe, the matched waist
+# 2 sqrt(a0) = 4 focused at the top of the ramp, duration 2. The box (30.2 x 40 x 40 c/omega_pe,
+# 2.4e9 particles) follows the pulse through 172 c/omega_pe of plasma. The electron histograms over
+# (x, u_x) and u_x are written with the plane through the axis.
+driver: laser
+regime: blowout
+nx: 1536
+window_lead: 8
+focus: 8
+n_perp: 320
+width: 40
+cells_per_wavelength: 32
+transverse: periodic
+ramp: [4, 8, 190, 194]
+x_end: 180
+omega0: 10
+a0: 4
+duration: 2
+waist: 4
+plane_x: 2
+ppc: 8
+lattice: [2, 2, 2]
+n_out: 20
+u_range: [-20, 400]

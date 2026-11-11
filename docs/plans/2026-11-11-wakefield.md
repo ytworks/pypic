@@ -798,5 +798,39 @@ interval gave before the run (−1.33 %, −0.02 %, +0.06 %); the bunch keeps th
 The window changes nothing that the gates measure.
 
 Cost: 235 M particles at the load in both; laser 6,160 steps in 122 s (17 to 20 ms per step),
-bunch 1,416 steps in 27 s. The box at rest of Stage 3 holds 3.0 (laser) and 2.3 (bunch) times
+bunch 1,416 steps in 27 s. The box at rest of Stage 3 holds 2.8 (laser) and 2.3 (bunch) times
 the cells.
+
+### Stage 5 — production set-up `laser_bubble`: formulas and analysis, before the first run (2026-11-12)
+
+Formulas (`theory.blowout`), compared with the text of Lu et al., Phys. Rev. ST Accel. Beams 10,
+061301 (2007) (arXiv physics/0612227): matched spot k_p R ≃ k_p w0 = 2 √a0 (Eq. 1); the field on
+the axis e E_z / (m c ω_p) ≃ ξ / 2, peak √a0; etching speed c ω_p² / ω0²; phase velocity of the
+wake c [1 − 3 ω_p² / (2 ω0²)]; dephasing length (2 / 3) (ω0² / ω_p²) R (Eq. 4); energy gain
+(2 / 3) m c² (ω0 / ω_p)² a0 (Eq. 6). They agree with the numbers of the design above
+(k_p R ≈ 4, slope 1 / 2); for a0 = 4, ω0 = 10 ω_pe: R = 4, peak E_x 2, dephasing length 267,
+energy gain 267 m c². The run ends after 172 c/ω_pe of plasma, before the dephasing length.
+
+The planner gets `regime: blowout` (laser only): no linear theory and no gate; the plane through
+the axis as before, the electron histograms over (x, u_x) (two cells, Δu_x = 2) and over u_x
+(Δu_x = 1) on −20 ≤ u_x ≤ 400 (a particle outside is not counted; the report says whether the
+last bin is occupied).
+
+Definitions of the report, fixed here:
+
+- Pulse: centre = centroid of E_y² on the axis; a0 = max |E_y| / ω0 there.
+- Cavity: the largest connected region of the plane with electron density below 0.5 n0 between
+  1 c/ω_pe above the lower face (or the top of the ramp) and the centre of the pulse, after the
+  density is averaged along x over one spacing across (6 samples, so that a sample is as long as
+  wide). Radius = half of its largest extent across.
+- Field: max and min of E_x on the axis in the same interval; the zero at which E_x rises inside
+  the cavity that is nearest to its widest place, and the slope of a line fitted within
+  1 c/ω_pe of it.
+- Electrons: those of the bins at and above u_x = 2 ω0 / ω_pe = 20: number in n0 (c/ω_pe)³, mean
+  and largest u_x (upper edge of the last occupied bin), the most populated bin; converted for a
+  laser of 0.8 µm (n0 = 1.74e19 cm⁻³; 3.60e7 electrons, 5.76 pC per unit).
+- The same numbers at every output (history).
+
+CPU test on planted data (`test_wakefield_blowout_report_recovers_a_planted_cavity_field_and_bunch`):
+a sphere without electrons behind a pulse, a smaller hole behind it, vacuum ahead, E_x with
+several rising zeros, a histogram with a bin at the threshold.

@@ -66,12 +66,21 @@ k = k_w = 1 / beta leaves behind the bunch
 R(0) = s exp(s) E_1(s) with s = (k_w sigma_r)^2 / 2. Limits: a wide bunch has
 R = exp(-r^2 / (2 sigma_r^2)) and the wake of a sheet, whose field jumps by its charge per area;
 a thin one has R = (k_w sigma_r)^2 K_0(k_w r).
+
+Blowout (`blowout`; no gate, the numbers a run is reported against). A pulse with a0 >~ 2 and the
+matched waist w = 2 sqrt(a0) expels the electrons from a nearly spherical cavity (Lu et al.,
+Phys. Rev. ST Accel. Beams 10, 061301 (2007), Eqs. 1, 4, 6 and the text around them):
+radius R = 2 sqrt(a0); on the axis E_x = (x - x_c) / 2 through the centre x_c of the cavity, so
+its largest value is sqrt(a0); the wake follows the pulse at v_g minus the speed 1 / omega0^2 at
+which the front of the pulse is etched away, 1 - 3 / (2 omega0^2); an electron stays in phase over
+the length (2 / 3) omega0^2 R and gains (2 / 3) omega0^2 a0 there.
 """
 from __future__ import annotations
 
 import math
 
 import numpy as np
+from scipy import constants
 from scipy.integrate import quad
 from scipy.special import i0e, j1, k0e
 
@@ -145,6 +154,21 @@ def amplitude_in_plasma(a0: float, omega: float, density: float = 1.0) -> float:
     """a0 of a pulse inside a plasma of the density ``density`` that it entered from vacuum through
     a long ramp: the energy flux a^2 omega k is kept."""
     return a0 * (1.0 - density / omega ** 2) ** -0.25
+
+
+def blowout(a0: float, omega: float) -> dict:
+    """Scalings of the blowout regime for a pulse of the matched waist (Lu et al. 2007)."""
+    radius = 2.0 * math.sqrt(a0)
+    return {"radius": radius, "slope": 0.5, "Ex_max": math.sqrt(a0), "wake_speed": 1.0 - 1.5 / omega ** 2,
+            "dephasing_length": (2.0 / 3.0) * omega ** 2 * radius, "energy_gain": (2.0 / 3.0) * omega ** 2 * a0}
+
+
+def electrons_per_unit(omega: float, wavelength: float = 0.8e-6) -> float:
+    """Electrons in n0 (c / omega_pe)^3 for a laser of the given vacuum wavelength in metres with
+    omega0 = omega omega_pe."""
+    n0 = constants.epsilon_0 * constants.m_e * (2.0 * math.pi * constants.c / wavelength) ** 2 \
+        / (constants.e ** 2 * omega ** 2)
+    return n0 * (omega * wavelength / (2.0 * math.pi)) ** 3
 
 
 def beam_wake_profile(r, sigma_r: float, kw: float = 1.0):

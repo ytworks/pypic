@@ -20,7 +20,9 @@ plasma enters behind a vacuum margin ``window_margin``. The ramp, the focus, the
 bunch, ``x_end`` and the run time are laboratory values in both cases.
 
 Theory (theory.py): the linear wake of both drivers; the analysis compares the on-axis E_x, its
-wavelength and the radial dependence with it.
+wavelength and the radial dependence with it. ``regime: blowout`` (a pulse with a0 of a few) has
+no gate: the run also writes the histograms of the electrons over (x, u_x) and u_x, and the
+analysis reports the cavity, the field on the axis and the trapped electrons.
 """
 from __future__ import annotations
 
@@ -45,6 +47,8 @@ import theory as T  # noqa: E402
 class WakeParams:
     driver: str = "laser"  # "laser" or "bunch"
     drive: bool = True  # False: the same box and run time without the driver
+    regime: str = "linear"  # "linear": the gate against the linear wake; "blowout": the report (laser)
+    u_range: tuple = (-20.0, 400.0)  # u_x of the electron histograms of the regime "blowout"
     nx: int = 3200
     n_perp: int = 128  # cells along y and along z
     width: float = 24.0  # size along y and z, c/omega_pe
@@ -87,6 +91,9 @@ def params_from_dict(d: dict) -> WakeParams:
         raise ValueError("ramp: four increasing x positions")
     if p.driver == "bunch" and p.dx is None:
         raise ValueError("driver 'bunch' needs dx")
+    if p.regime not in ("linear", "blowout") or (p.regime == "blowout" and p.driver != "laser"):
+        raise ValueError("regime must be 'linear' or 'blowout' (blowout: driver 'laser')")
+    p.u_range = tuple(float(v) for v in p.u_range)
     if p.window_lead is not None and not 0.0 < p.window_lead < p.nx * cells(p)[0]:
         raise ValueError("window_lead must lie inside the box")
     return p
@@ -190,14 +197,23 @@ def plan_wakefield(p: WakeParams, n_gpus: int = 1):
                             focus_x=g["focus"],
                             envelope={"shape": "gaussian", "duration": p.duration, "t_peak": g["t_peak"]})]
             fields = fields + ["Ey"]
-        ex0, er0 = wake_amplitude(p, g["focus"], 0.5 * p.waist)
-        theory = {**g, "Ex_axis_focus": float(wake_amplitude(p, g["focus"])[0][0]),
-                  "Er_over_Ex_half_waist": float(er0[0] / ex0[0])}
+        if p.regime == "blowout":
+            theory = {**g, "blowout": T.blowout(p.a0, p.omega0)}
+        else:
+            ex0, er0 = wake_amplitude(p, g["focus"], 0.5 * p.waist)
+            theory = {**g, "Ex_axis_focus": float(wake_amplitude(p, g["focus"])[0][0]),
+                      "Er_over_Ex_half_waist": float(er0[0] / ex0[0])}
         head = (f"laser a0={p.a0:g}, omega0={p.omega0:g}, duration={p.duration:g}, waist={p.waist:g}; antenna at "
                 f"x={g['x_plane']:.3f}, peak at t={g['t_peak']:g}, focus x={g['focus']:.2f}, "
                 f"Rayleigh length {g['rayleigh']:.1f}")
-        pred = (f"linear wake: v_g={g['v_g']:.5f} (vacuum {g['v_g_vacuum']:.5f}), E_x on the axis at the focus "
-                f"{theory['Ex_axis_focus']:.4e}, E_r/E_x at r=waist/2 {theory['Er_over_Ex_half_waist']:.4f}")
+        if p.regime == "blowout":
+            b = theory["blowout"]
+            pred = (f"blowout (Lu et al. 2007; reported, no gate): cavity radius 2 sqrt(a0) = {b['radius']:.2f}, "
+                    f"E_x on the axis (x - x_c) / 2 up to {b['Ex_max']:.2f}, dephasing length "
+                    f"{b['dephasing_length']:.0f}, energy gain over it {b['energy_gain']:.0f} m c^2")
+        else:
+            pred = (f"linear wake: v_g={g['v_g']:.5f} (vacuum {g['v_g_vacuum']:.5f}), E_x on the axis at the focus "
+                    f"{theory['Ex_axis_focus']:.4e}, E_r/E_x at r=waist/2 {theory['Er_over_Ex_half_waist']:.4f}")
     else:
         beta = speed(p)
         if p.drive:
@@ -215,6 +231,13 @@ def plan_wakefield(p: WakeParams, n_gpus: int = 1):
         pred = (f"linear wake: k_w=1/beta={theory['k_w']:.5f}, E_x on the axis {theory['Ex_axis']:.5f}, "
                 f"R(sigma_r)/R(0)={theory['R_ratio']:.4f}")
     diags = [{"name": "axis_plane", "kind": "slice", "axis": "y", "fields": fields, "every": {"count": p.n_out}}]
+    if p.regime == "blowout":
+        # x of a histogram is the place in the box (OUT-D5); bins of two cells and of u_x = 2, and of u_x = 1
+        nu = max(2, int(round(p.u_range[1] - p.u_range[0])))
+        diags += [{"name": "phase", "kind": "histogram", "species": ["electron"], "quantities": ["x", "ux"],
+                   "bins": [p.nx // 2, nu // 2], "ranges": [[0.0, Lx], list(p.u_range)], "every": {"count": p.n_out}},
+                  {"name": "spectrum", "kind": "histogram", "species": ["electron"], "quantities": ["ux"],
+                   "bins": [nu], "ranges": [list(p.u_range)], "every": {"count": p.n_out}}]
     tr = (p.transverse, p.transverse)
     win = window(p)
     bc = (("open", "reflecting" if win else "open"), tr, tr)

@@ -300,6 +300,52 @@ def test_wakefield_measurement_recovers_a_planted_wake_of_a_bunch():
     assert m["phase"] == pytest.approx(0.1, abs=1e-4) and m["R_ratio"] == pytest.approx(0.7, rel=1e-4)
 
 
+def test_wakefield_blowout_report_recovers_a_planted_cavity_field_and_bunch():
+    """Behind a pulse at x = 122 a sphere of radius 3.5 without electrons around x = 117.4, in which
+    E_x = 0.45 (x - 117.4) on the axis; a smaller hole behind it and the vacuum ahead of the plasma are not
+    taken for the cavity, and the other rising zeros of E_x are not taken for the one inside it. From a
+    histogram over u_x the electrons at and above u_x = 20 are counted."""
+    from types import SimpleNamespace
+
+    W = _example("wakefield")
+    p = W.PL.WakeParams(regime="blowout", a0=4.0, nx=1536, n_perp=320, width=40.0, ramp=(4.0, 8.0, 190.0, 194.0))
+    dx, dz, _ = W.PL.cells(p)
+    x_low, zc = 100.0, 20.0
+    xn, xh, z = x_low + np.arange(p.nx) * dx, x_low + (np.arange(p.nx) + 0.5) * dx, np.arange(p.n_perp) * dz
+    r2 = (z[None, :] - zc) ** 2
+    density = np.ones((p.nx, p.n_perp))
+    density[(xn[:, None] - 117.4) ** 2 + r2 < 3.5 ** 2] = 0.0
+    density[(xn[:, None] - 110.5) ** 2 + r2 < 2.0 ** 2] = 0.0
+    density[xn > 124.0] = 0.0
+    ex = 0.45 * (np.mod(xh - 117.4 + 3.5, 7.0) - 3.5)
+    ey = 3.2 * p.omega0 * np.exp(-((xn - 122.0) / 2.0) ** 2) * np.cos(p.omega0 * xn)
+    planes = {"n:electron": density, "Ex": np.repeat(ex[:, None], p.n_perp, axis=1),
+              "Ey": ey[:, None] * np.exp(-r2 / 16.0)}
+    s = SimpleNamespace(t=np.array([120.0]), read=lambda c, i: planes[c],
+                        plane_axes=lambda c, i=None: (xh if c == "Ex" else xn, z))
+    b = W._bubble(p, s, 0)
+    assert b["a0"] == pytest.approx(3.2, rel=1e-2) and b["pulse_center"] == pytest.approx(122.0, abs=0.02)
+    assert b["cavity"]["radius"] == pytest.approx(3.5, abs=dz)
+    assert b["cavity"]["x_widest"] == pytest.approx(117.4, abs=dz)
+    assert b["cavity"]["x_back"] == pytest.approx(113.9, abs=2.0 * dz)
+    assert b["cavity"]["x_front"] == pytest.approx(120.9, abs=2.0 * dz)
+    assert b["Ex_zero"] == pytest.approx(117.4, abs=1e-9) and b["Ex_slope"] == pytest.approx(0.45, rel=1e-9)
+    assert b["Ex_max"] == pytest.approx(1.575, abs=0.45 * dx) and b["Ex_min"] == pytest.approx(-1.575, abs=0.45 * dx)
+
+    edges = np.linspace(-20.0, 400.0, 421)
+    counts = np.zeros(420)
+    counts[15:25] = 1e4  # the plasma
+    counts[39], counts[40] = 7.0, 1.0  # the bins below and at u_x = 20
+    counts[120:170] = 0.06  # 3 between u_x = 100 and 150
+    t = W.trapped(edges, counts, 20.0)
+    assert t["number"] == pytest.approx(4.0) and t["u_max"] == 150.0 and not t["at_range_limit"]
+    assert t["u_peak"] == 20.5 and t["u_mean"] == pytest.approx((20.5 + 0.06 * 50 * 125.0) / 4.0)
+    counts[-1] = 0.1
+    t = W.trapped(edges, counts, 20.0)
+    assert t["u_max"] == 400.0 and t["at_range_limit"]
+    assert W.trapped(edges, np.zeros(420), 20.0)["number"] == 0.0
+
+
 @pytest.mark.parametrize("config, wavelengths", [("laser_linear", 1.0), ("beam_linear", 5.0)])
 def test_wakefield_gate_keeps_the_driver_and_the_fit_inside_the_moving_window(config, wavelengths):
     """The gate configurations run in a moving window: the engine accepts them, the window starts when the

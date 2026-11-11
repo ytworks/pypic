@@ -14,6 +14,17 @@ reported: the fitted phase, the amplitude at the output before the last, the pla
 The places are those of the laboratory (OUT-D5). No interval of a fit or of the density comes
 closer than 1 c/omega_pe to the lower x face of the box, and the density is taken up to
 1 c/omega_pe behind the front of the plasma of a moving window.
+
+regime "blowout" (no gate; everything is reported next to the scalings of Lu et al. 2007):
+cavity: the largest connected region of the plane with electron density below 0.5 n0 between the
+      lower face + 1 and the centre of the pulse (the density averaged along x over one spacing
+      across); its radius is half of its largest extent across.
+field: max and min of E_x on the axis behind the pulse; the zero at which E_x rises inside the
+      cavity (the nearest to the widest place) and the slope of a line fitted within 1 c/omega_pe
+      of it (a sphere without electrons: 1 / 2).
+electrons: from the histogram over u_x, those with u_x >= 2 omega0 / omega_pe (twice the gamma of
+      the wake): their number in n0 (c/omega_pe)^3, mean and largest u_x, the most populated bin;
+      the number of electrons and the charge for a laser of 0.8 um.
 """
 from __future__ import annotations
 
@@ -23,14 +34,17 @@ import os
 import sys
 
 import numpy as np
+from scipy import constants, ndimage
 from scipy.optimize import minimize_scalar
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import plan as PL  # noqa: E402
+import theory as T  # noqa: E402
 
 from pypic.analysis import open_run  # noqa: E402
 from pypic.analysis import plot as P  # noqa: E402
+from pypic.analysis.particles import spectrum  # noqa: E402
 
 
 def line(plane: np.ndarray, coords: np.ndarray, pos: float) -> np.ndarray:
@@ -121,10 +135,148 @@ def _measure(p, s, i: int) -> dict:
     return out
 
 
+def cavity(density, x, z, x_lo: float, x_hi: float, level: float = 0.5):
+    """The largest connected region with density below ``level`` among the samples x_lo <= x <= x_hi of
+    a plane (first axis x). The density is first averaged along x over one spacing across. None if
+    there is no such sample; else the radius (half of the largest extent across), the x of that
+    place (the middle of the columns that have it) and the first and last x of the region."""
+    n = max(1, int(round((z[1] - z[0]) / (x[1] - x[0]))))
+    sel = (x >= x_lo) & (x <= x_hi)
+    if sel.sum() < 2:
+        return None
+    lab, count = ndimage.label(ndimage.uniform_filter1d(np.asarray(density, dtype=float), n, axis=0,
+                                                        mode="nearest")[sel] < level)
+    if count == 0:
+        return None
+    across = (lab == 1 + int(np.argmax(np.bincount(lab.ravel())[1:]))).sum(axis=1)
+    cols, widest = np.nonzero(across)[0], np.nonzero(across == across.max())[0]
+    xs = x[sel]
+    return {"radius": float(0.5 * across.max() * (z[1] - z[0])), "x_widest": float(np.median(xs[widest])),
+            "x_back": float(xs[cols[0]]), "x_front": float(xs[cols[-1]])}
+
+
+def rising_zero(x, y, x_near: float, half: float = 1.0):
+    """(place, slope) of the zero of y at which it rises that is nearest to x_near, from a line fitted
+    to the samples within ``half`` of the crossing. NaN without such a crossing."""
+    up = np.nonzero((y[:-1] < 0.0) & (y[1:] >= 0.0))[0]
+    if not up.size:
+        return float("nan"), float("nan")
+    x0 = x[up[int(np.argmin(np.abs(x[up] - x_near)))]]
+    sel = np.abs(x - x0) <= half
+    slope, cut = np.polyfit(x[sel], y[sel], 1)
+    return float(-cut / slope), float(slope)
+
+
+def trapped(edges, counts, u_min: float) -> dict:
+    """The particles of the bins at and above u_min of a histogram over u_x: number (sum of the
+    weights), mean u_x, the centre of the most populated bin, the upper edge of the last occupied
+    bin, and whether that is the last bin of the histogram (the range then cuts the spectrum)."""
+    edges = np.asarray(edges, dtype=float)
+    lo = int(np.searchsorted(edges, u_min, side="left"))
+    c = np.asarray(counts, dtype=float)[lo:]
+    number = float(c.sum())
+    if number <= 0.0:
+        return {"u_min": float(u_min), "number": 0.0, "u_mean": float("nan"), "u_peak": float("nan"),
+                "u_max": float("nan"), "at_range_limit": False}
+    centres = 0.5 * (edges[lo:-1] + edges[lo + 1:])
+    top = int(np.nonzero(c)[0][-1])
+    return {"u_min": float(u_min), "number": number, "u_mean": float(np.sum(c * centres) / number),
+            "u_peak": float(centres[int(np.argmax(c))]), "u_max": float(edges[lo + top + 1]),
+            "at_range_limit": top == len(c) - 1}
+
+
+def _bubble(p, s, i: int, x_low: float | None = None) -> dict:
+    """The pulse, the cavity behind it and E_x on the axis at the output i of the plane through the axis."""
+    zc = 0.5 * p.width
+    xy, zy = s.plane_axes("Ey", i)
+    ey = line(s.read("Ey", i), zy, zc)
+    out = {"t": float(s.t[i]), "a0": float(np.abs(ey).max() / p.omega0), "pulse_center": float("nan"),
+           "cavity": None, "Ex_max": float("nan"), "Ex_min": float("nan"), "Ex_zero": float("nan"),
+           "Ex_slope": float("nan")}
+    if not np.any(ey):
+        return out
+    out["pulse_center"] = x_p = float(np.sum(xy * ey ** 2) / np.sum(ey ** 2))
+    xn, zn = s.plane_axes("n:electron", i)
+    if x_low is None:
+        x_low = float(xn[0])
+    x_lo = max(p.ramp[1], x_low) + 1.0
+    out["cavity"] = cav = cavity(s.read("n:electron", i), xn, zn, x_lo, x_p)
+    xe, ze = s.plane_axes("Ex", i)
+    ex = line(s.read("Ex", i), ze, zc)
+    behind = (xe >= x_lo) & (xe <= x_p)
+    if behind.any():
+        out["Ex_max"], out["Ex_min"] = float(ex[behind].max()), float(ex[behind].min())
+        xb, eb = xe[behind], ex[behind]
+        out["x_Ex_max"], out["x_Ex_min"] = float(xb[eb.argmax()]), float(xb[eb.argmin()])
+    if cav is not None:
+        inside = (xe >= cav["x_back"]) & (xe <= cav["x_front"])
+        out["Ex_zero"], out["Ex_slope"] = rising_zero(xe[inside], ex[inside], cav["x_widest"])
+    return out
+
+
+def _blowout(run, p, info, show_plot: bool, fig_dir: str | None) -> dict:
+    th = info["theory"]["blowout"]
+    s, sp = run.series("axis_plane"), run.series("spectrum")
+    last = len(s.t) - 1
+    u_min = 2.0 * p.omega0
+    edges = sp.edges[0]
+    each = [_bubble(p, s, i) for i in range(last + 1)]
+    beam = [trapped(edges, sp.read("electron", i), u_min) for i in range(last + 1)]
+    b, tr = each[last], beam[last]
+    g = run.scalars["gauss"]
+    res = {"driver": p.driver, "drive": p.drive, "regime": p.regime, "t": b["t"], "theory": th,
+           "gauss_max": float(np.nanmax(g)) if np.isfinite(g).any() else float("nan"),
+           "pulse_center_measured": b["pulse_center"], "pulse_center_planned": PL.driver_position(p, b["t"]),
+           "a0_measured": b["a0"], "cavity": b["cavity"],
+           "cavity_radius": b["cavity"]["radius"] if b["cavity"] else float("nan"),
+           "Ex_axis_max": b["Ex_max"], "Ex_axis_min": b["Ex_min"], "x_Ex_axis_max": b.get("x_Ex_max"),
+           "x_Ex_axis_min": b.get("x_Ex_min"), "Ex_zero": b["Ex_zero"], "Ex_slope": b["Ex_slope"], "trapped": tr,
+           "electrons_in_range": float(np.sum(sp.read("electron", last)))}
+    res["cavity_radius_over_theory"] = res["cavity_radius"] / th["radius"]
+    per_unit = T.electrons_per_unit(p.omega0)
+    res["trapped_electrons_0.8um"] = tr["number"] * per_unit
+    res["trapped_charge_pC_0.8um"] = tr["number"] * per_unit * constants.e * 1e12
+    res["history"] = {"t": [e["t"] for e in each], "pulse_center": [e["pulse_center"] for e in each],
+                      "a0": [e["a0"] for e in each],
+                      "cavity_radius": [e["cavity"]["radius"] if e["cavity"] else float("nan") for e in each],
+                      "Ex_min": [e["Ex_min"] for e in each], "Ex_slope": [e["Ex_slope"] for e in each],
+                      "trapped_number": [t["number"] for t in beam], "u_max": [t["u_max"] for t in beam],
+                      "u_peak": [t["u_peak"] for t in beam]}
+    if show_plot:
+        P.style()
+        fig, ax = P.plt.subplots(3, 1, figsize=(11, 10))
+        xn, zn = s.plane_axes("n:electron", last)
+        xe, ze = s.plane_axes("Ex", last)
+        P.field_map(ax[0], s.read("n:electron", last), [xn[0], xn[-1], zn[0], zn[-1]], signed=False, vlim=(0.0, 4.0),
+                    label="electron density [n0]", ylabel="z [c/ωpe]")
+        tw = ax[0].twinx()
+        tw.plot(xe, line(s.read("Ex", last), ze, 0.5 * p.width), color=P.color(1), lw=0.8)
+        tw.set_ylabel("E_x on the axis")
+        tw.grid(False)
+        ax[0].set_title(f"t = {b['t']:.1f}: cavity radius {res['cavity_radius']:.2f} (2√a0 = {th['radius']:.2f}), "
+                        f"slope of E_x {b['Ex_slope']:.3f} (1/2)", fontsize=9)
+        ph = run.series("phase")
+        pe = ph.edges
+        P.phase_space(ax[1], ph.read("electron", last), [pe[0] + float(ph.window_shift[last]) * run.dx[0], pe[1]],
+                      xlabel="x [c/ωpe]", ylabel="u_x")
+        ax[1].set_xlim(ax[0].get_xlim())
+        cen, f = spectrum(edges, sp.read("electron", last))
+        ok = (f > 0) & (cen >= 0.0)
+        ax[2].semilogy(cen[ok], f[ok], color=P.color(0))
+        ax[2].axvline(u_min, **P.THEORY)
+        ax[2].set_xlabel("u_x")
+        ax[2].set_ylabel("dN/du_x [n0 (c/ωpe)³]")
+        fig.tight_layout()
+        res["plot"] = P.save(fig, os.path.join(fig_dir or run.path, "wakefield.png"))
+    return res
+
+
 def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
     p = PL.params_from_dict(info["params"])
+    if p.regime == "blowout":
+        return _blowout(run, p, info, show_plot, fig_dir)
     th = info["theory"]
     s = run.series("axis_plane")
     last = len(s.t) - 1
