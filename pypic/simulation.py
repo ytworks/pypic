@@ -1255,7 +1255,7 @@ class Simulation:
         self._run_steps = n
         # collective: every rank must reach this point (push_rate() itself is then local)
         self._n_total_end = self.total_particles()
-        if self.window:  # collective, as above
+        if self.window and self._wd:  # collective, as above (the same on every rank: no species, no check)
             near = self.comm.allreduce(cp.stack([w[3] for w in self._wd]))
             if float(cp.sum(near)) > 0.0:
                 raise RuntimeError(self._WALL_ERROR)

@@ -1161,6 +1161,16 @@ def _window_run(dims: str, case: str) -> dict:
         if os.path.exists(path):
             o["E"] = np.load(path)
             o["out"] = _window_output(os.path.join(tmp, case))
+        if case.startswith("pulse"):
+            from pypic.analysis import open_run
+
+            dump = open_run(os.path.join(tmp, case)).fields("dump")
+            o["t"] = dump.times
+            x0 = np.array([dump.get(it, "Ey").coords[0][0] for it in dump.iterations])
+            o["first_plane"] = np.rint((x0 - x0[0]) / 0.05).astype(int)  # laboratory plane of the first one
+            # field energy per plane (up to the cell volume), per output
+            o["energy"] = np.array([sum((dump.get(it, c).data ** 2).sum(axis=(1, 2)) for c in dump.components)
+                                    for it in dump.iterations])
     return o
 
 
@@ -1266,6 +1276,26 @@ def test_moving_window_output_is_in_laboratory_coordinates():
     x, xr = o["x"], ref["x"]
     assert len(x) == len(xr) > 0 and x[0] >= 240 * 0.05 and x[-1] < 300 * 0.05
     assert np.max(np.abs(x - xr)) < 1e-9
+
+
+@pytest.mark.parametrize("dims", ["1,1,1", "2,1,1"])
+def test_moving_window_lets_a_pulse_out_through_its_lower_face(dims):
+    """The antenna emits the same pulse towards -x. It runs into the lower face of the window
+    (open: an absorbing layer that every shift moves), which comes towards it, and has left by
+    t = 3.8. From then on the field energy in the 28 planes behind the forward pulse is the one of
+    the box at rest at the same laboratory planes (the slow short waves of the forward pulse,
+    which the Yee scheme leaves behind), up to 1e-4 of the energy of the pulse."""
+    if cp.cuda.runtime.getDeviceCount() < 2 and dims != "1,1,1":
+        pytest.skip("needs >= 2 GPUs")
+    o, ref = _window_run(dims, "pulse"), _window_run("1,1,1", "pulse_static")
+    assert o["shift"] == 200 and o["first_plane"][-1] == 200
+    t, behind, ahead = o["t"], o["energy"][:, :28].sum(axis=1), o["energy"][:, 28:].sum(axis=1)
+    pulse = ahead[-1]
+    assert abs(behind.max() / pulse - 1.0) < 0.01 and 2.5 < t[np.argmax(behind)] < 2.9  # the pulse towards -x
+    late = t >= 3.8
+    rest = np.array([ref["energy"][i, s:s + 28].sum() for i, s in enumerate(o["first_plane"])])
+    assert np.abs(behind - rest)[late].max() <= 1e-4 * pulse
+    assert behind[late].min() <= 1e-9 * pulse  # after the pulse left, before the short waves arrive
 
 
 def test_mixed_precision_is_explicit_only():

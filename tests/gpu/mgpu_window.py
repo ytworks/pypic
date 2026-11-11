@@ -1,6 +1,7 @@
 """Helper for the moving-window tests (PIC-D22): run with ``python -m pypic.launch -n N``.
 
-    mgpu_window.py <dims> <case> [<file>]    dims like 2,2,1; case thermal | tracers | laser | static
+    mgpu_window.py <dims> <case> [<file>]    dims like 2,2,1; case thermal | tracers | laser | static |
+                                             pulse | pulse_static
 
 thermal, tracers: a warm plasma fills a box of 64 x 24 x 24 cells up to the vacuum margin before the x+ wall; the
 window moves from t = 0 on and makes 400 shifts (more than six box lengths: every particle left
@@ -20,6 +21,11 @@ laser:   a focused pulse in a cold plasma, open faces across the window (absorbi
 static:  the same pulse and plasma in a box at rest that ends where the window ends after its
          200 shifts. Writes E on the same laboratory cells, and the same output with the regions
          at the laboratory places that the window has at the end, to the directory ``static``.
+pulse:   a plane wave in vacuum, periodic across the window. The antenna emits the same pulse
+         towards -x: it runs into the lower face of the window, which comes towards it. Writes
+         field dumps of E and B every eight steps to the directory ``pulse`` next to <file>.
+pulse_static: the same in a box at rest that holds every place of the window (directory
+         ``pulse_static``).
 """
 import json
 import os
@@ -83,8 +89,25 @@ def laser_run():
                           "divB": h["divB"]}))
 
 
-if case in ("laser", "static"):
-    laser_run()
+def pulse_run():
+    moving = case == "pulse"
+    n, dx = (128 if moving else 328, 8, 8), (0.05, 0.1, 0.1)
+    pulse = Laser(plane_x=60.5 * dx[0], a0=0.1, omega=10.0,
+                  envelope={"shape": "gaussian", "duration": 0.3, "t_peak": 1.5})
+    dump = Diagnostic("dump", "fields", fields=("E", "B"), every=8, dtype="float64")
+    cfg = SimConfig(n_cells=n, dx=dx, dt=0.0225, n_steps=512, dims=dims, npml=8, lasers=[pulse], species=[],
+                    boundaries=(("open", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic")),
+                    output=OutputConfig(dir=os.path.join(os.path.dirname(sys.argv[3]), case), diagnostics=[dump]),
+                    window=Window(start=1.5, margin=8 * dx[0]) if moving else None, diag_interval=8,
+                    gauss_interval=8)
+    sim = Simulation(cfg, verbose=False)
+    sim.run()
+    if sim.rank == 0:
+        print(json.dumps({"shift": sim.window_shift}))
+
+
+if case in ("laser", "static", "pulse", "pulse_static"):
+    pulse_run() if case.startswith("pulse") else laser_run()
     sys.exit(0)
 n, dx, theta, slab = (64, 24, 24), 0.1, 4e-3, 8
 species = ([SpeciesConfig("e", -1, 1, [Beam(1.0, theta=theta)]), SpeciesConfig("i", 1, 100, [Beam(1.0, theta=theta)])]
