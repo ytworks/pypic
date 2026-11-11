@@ -148,6 +148,49 @@ limits are CPU tests in `tests/cpu/test_wakefield.py`):
   +0.87 % from 1 / v_g, +0.50 % from eta); E_r / E_x at r = w / 2 stays `0.5 v_g` = 0.4957. Neither
   term was taken from a paper.
 
+Set-up and measurement of the gates, fixed before the first run (2026-11-11). Both runs are
+explicit, with electrons and ions (mass 1836) at 8 particles per cell each, open x faces, and a
+density that rises from zero to n0 along x over a ramp (`table` profile) and falls again before
+the far face, so no plasma touches an open face.
+
+- `laser_linear`: 3200×128² cells, `dx = lambda0 / 32`, `dy = dz = 24 / 128`, `dt = dx / 2`;
+  transverse faces periodic. Antenna in the vacuum before the ramp, `t_peak = 4 tau`, focus at the
+  centre of the box; the run ends when the centre of the pulse is at `x_p` = 54 (the travel time
+  is the integral of 1 / v_g over the local density, with `yee_group_velocity`). Measured on the
+  slice through the axis that is normal to the polarisation (E_z is the radial field there, the
+  laser field has no component in it), at the last output, in the window from one c/omega_p
+  behind the start of the plateau to `x_p - 3 tau`.
+  - Amplitude and wavelength: least-squares fit of the on-axis `E_x(x) = c A_th(x) cos(k x + phi)
+    + b`, with `A_th(x)` the amplitude of the theory at x (`beam_at` for the local a0 and w,
+    `amplitude_in_plasma`, `laser_wake` with the speed v_g); free c, k, phi, b; k starts at the
+    peak of the spectrum. Criteria: `|c - 1|` ≤ 5 %, `|k v_g - 1|` ≤ 2 %.
+  - E_r / E_x at r = w / 2: E_x and E_z interpolated to the two lines at the distance w / 2 from
+    the axis (E_z taken with its sign away from the axis, the two sides averaged); with k and phi
+    of the on-axis fit, `E_x = c_x A_x,th(x) cos(k x + phi) + b` and
+    `E_r = -c_r A_r,th(x) sin(k x + phi) + b'`. Criterion: `|c_r / c_x - 1|` ≤ 10 %.
+- `beam_linear`: 900×192² cells, `dx = 1 / 8` in all directions (sigma = 8 cells), `dt = dx / 2`;
+  transverse faces reflecting: the partner leaves a net charge that oscillates at its place, and
+  between periodic transverse faces that charge gives a uniform E_x of about 2 % of the wake,
+  which the conducting walls remove. The bunch (q = -1, mass 1e6, gamma = 10) and its partner
+  (q = +1, mass 1e6, at rest) start inside the plateau at x = 12, centred on the axis; the run
+  ends when the bunch is at `x_b` = 100. Window: from `max(42, x_b - 5 sigma_x - 5 * 2 pi beta)`
+  to `x_b - 5 sigma_x` (five wavelengths, at least 30 c/omega_p from the start of the bunch).
+  - Amplitude and wavelength: fit of the on-axis `E_x = c A_th cos(k (x - x_b) + phi) + b`,
+    `A_th = beam_wake(r = 0)`. Criteria: `|c - 1|` ≤ 5 %, `|k beta - 1|` ≤ 2 %.
+  - `R(sigma_r) / R(0)`: the amplitude of E_x on the lines at the distance sigma_r from the axis
+    in the slice (8 cells, on nodes; both sides averaged) with k and phi of the on-axis fit, over
+    the on-axis amplitude, against 0.7516. Criterion: 10 %.
+  - Reported, not a criterion: the on-axis amplitude at the output before the last (is the wake
+    stationary?), the phase phi.
+- N1 is the box of `beam_linear` and N2 the box of `laser_linear` (cells with dx ≠ dy), each run
+  once with `driver: none` and recorded here: max |E_x| on the axis ≤ 1 % of the predicted
+  amplitude of that gate, mean electron density over the plateau within 1 % of n0. A cold plasma
+  loaded with its ions at the same places has no field at all, so the expected result is zero up
+  to round-off; the runs check that the ramps, the faces and the anisotropic cells add nothing.
+- Both gates also need Gauss ≤ 1e-10 in the checked region (the gate driver's criterion).
+- The time estimates of the table are replaced by the plans of the configurations: about 6,200
+  steps for `laser_linear` and 1,420 for `beam_linear`.
+
 ### Stage 4 — moving window (PIC-D22, OUT-D5)
 
 `window: {start, margin}`. Positions stay in the laboratory frame. Under `#ifdef MOVING_WINDOW`
