@@ -40,6 +40,45 @@ def test_streaming_limits():
     assert abs(S.filamentation_cold(1e4, u) - (u / g) / math.sqrt(g)) < 1e-6
 
 
+def _fluid_growth(k, beams, B0):
+    """Largest growth rate of the linearised cold relativistic fluids + Maxwell equations for
+    exp(i k y) (drifts and B0 along x). beams: (q, m, n0, u0). Unknowns: (dn, du) per beam, E, B."""
+    nb = len(beams)
+    M = np.zeros((4 * nb + 6,) * 2, dtype=complex)
+    e, b, ik = 4 * nb, 4 * nb + 3, 1j * k
+    for j, (q, m, n0, u0) in enumerate(beams):
+        g = math.sqrt(1 + u0 * u0)
+        v0, o, qm = u0 / g, 4 * j, q / m
+        M[o, o + 2] = -n0 * ik / g  # continuity, v_y = u_y / gamma
+        for c in range(3):
+            M[o + 1 + c, e + c] = qm
+        M[o + 2, b + 2], M[o + 3, b + 1] = -qm * v0, qm * v0  # v0 x dB
+        M[o + 2, o + 3], M[o + 3, o + 2] = qm * B0 / g, -qm * B0 / g  # dv x B0
+        M[e, o], M[e, o + 1] = -q * v0, -q * n0 / g ** 3  # -J_x: convected charge, longitudinal mass
+        M[e + 1, o + 2] = M[e + 2, o + 3] = -q * n0 / g
+    M[e, b + 2], M[e + 2, b] = ik, -ik  # curl B
+    M[b, e + 2], M[b + 2, e] = -ik, ik  # -curl E
+    return float(np.linalg.eigvals(M).real.max())
+
+
+def test_filamentation_in_a_flow_aligned_field_follows_the_linearised_fluid_equations():
+    u = 0.5
+    g = math.sqrt(1 + u * u)
+    pair = [(q, 1.0, 0.5, s * u) for q in (-1.0, 1.0) for s in (1.0, -1.0)]
+    ei = [(-1.0, 1.0, 0.5, u), (-1.0, 1.0, 0.5, -u), (1.0, 100.0, 1.0, 0.0)]
+    for beams in (pair, ei):
+        comps = [(n * q * q / m, u0) for q, m, n, u0 in beams]
+        w_crit = math.sqrt(sum(wp2 * (u / g) ** 2 / g for wp2, u0 in comps if u0))
+        for f in (0.0, 0.5, 0.9, 1.5):
+            for k in (0.5, 1.0, 4.0):
+                got = float(S.filamentation_growth(k, comps, f * w_crit))
+                # B0 from the gyrofrequency of the drifting beams, omega_c = |q| B0 / (gamma m)
+                assert abs(got - _fluid_growth(k, beams, f * w_crit * g)) < 1e-7, (f, k)
+        ks = np.linspace(0.1, 50.0, 200)
+        assert np.all(S.filamentation_growth(ks, comps, w_crit) == 0.0)  # stable at every k from the critical field
+        assert np.all(S.filamentation_growth(ks[-20:], comps, 0.99 * w_crit) > 0.0)
+
+
 def _example_theory(name):
     import importlib.util
     import os
