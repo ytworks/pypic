@@ -442,6 +442,9 @@ class SimConfig:
     species: list = field(default_factory=list)  # list[SpeciesConfig]
     ppc: int = 16  # particle positions per cell (every beam gets one particle per position)
     seed: int = 12345
+    # places of the ppc particles of a cell (PIC-D23): None = random (seed, global cell, slot);
+    # (a, b, c) with a b c = ppc = a regular lattice of a x b x c places, the same in every cell
+    lattice: tuple | None = None
     dims: tuple | None = None  # rank grid (px,py,pz); None = automatic
     B0: tuple = (0.0, 0.0, 0.0)  # uniform external/initial magnetic field
     E0: tuple = (0.0, 0.0, 0.0)  # uniform initial electric field (no conducting face tangential to it)
@@ -483,6 +486,11 @@ class SimConfig:
             raise ValueError("capacity_factor must be >= 1")
         if not 0.0 <= float(self.marder_zone) <= 1.0 / 6.0:
             raise ValueError("marder_zone is a Marder number: 0 (off) or 0 < nu <= 1/6")
+        if self.lattice is not None:
+            lat = tuple(self.lattice)
+            if len(lat) != 3 or any(int(v) != v or v < 1 for v in lat) or lat[0] * lat[1] * lat[2] != self.ppc:
+                raise ValueError(f"lattice {lat} must be three positive integers with the product ppc = {self.ppc}")
+            self.lattice = tuple(int(v) for v in lat)
 
     def to_dict(self):
         return asdict(self)
@@ -510,7 +518,7 @@ class SimConfig:
         lasers = [v if isinstance(v, Laser) else Laser(**v) for v in d.pop("lasers", [])]
         window = d.pop("window", None)
         window = window if window is None or isinstance(window, Window) else Window(**window)
-        for k in ("n_cells", "dx", "B0", "E0", "dims"):
+        for k in ("n_cells", "dx", "B0", "E0", "dims", "lattice"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:

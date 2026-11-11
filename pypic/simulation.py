@@ -79,7 +79,8 @@ class Simulation:
             raise ValueError("precision='mixed' is for the explicit solver only (PIC-D11)")
         self.injection = injection.check_config(cfg)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
-            self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body))
+            self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body,
+            lattice=cfg.lattice))
         self.k_push = self.pmod.get_function("push_deposit")
         self.k_rho = self.pmod.get_function("deposit_rho")
         self.k_kin = self.pmod.get_function("kinetic")

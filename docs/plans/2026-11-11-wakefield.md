@@ -615,6 +615,16 @@ Found on the way:
   (0.06 %): the `tan²(omega dt / 2)` = 0.24 % of the magnetic energy 15.5 that the record takes
   at t^n (see A1).
 
+The lattice option in the engine (2026-11-12, PIC-D23, Proposed): `SimConfig.lattice`, the defines
+`LATTICE_X / _Y / _Z`, the `#ifdef` in `load_particles`, one case in `scripts/check_kernels.py`.
+Null check of the change: the six cases without a lattice and without a window give the same
+kernel text after the C preprocessor (`cpp -P`) as before it, both units. Their PTX is the same in
+23 of the 24 compilations; in one (absorbing sphere, mixed gather, `compute_80`) the number of one
+virtual register differs (`%fd873` / `%fd874`, three bytes). The unchanged commit 477223a shows
+the same difference between two working directories of the compiling process, so the PTX hash of
+that case is not a reproducible null test; the preprocessed text is (this also qualifies the
+"byte for byte" of W0 below: it held for the runs that were compared).
+
 ### Stage 4 — moving window
 
 W0, the compiled kernels (2026-11-12, the commit that adds the `#ifdef MOVING_WINDOW` macros

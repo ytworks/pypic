@@ -680,10 +680,17 @@ extern "C" __global__ void load_particles(double* P, const long long cap, const 
     int j = (int)(c % nly);
     int i = (int)(c / nly);
     long long gcell = ((long long)(gx0 + i) * gny + (gy0 + j)) * (long long)((long long)1 << 30) + (gz0 + k);
+#ifdef LATTICE_X
+    // PIC-D23: the slots of a cell sit on LATTICE_X x LATTICE_Y x LATTICE_Z places (their product is ppc)
+    double x = (gx0 + i + (slot % LATTICE_X + 0.5) / LATTICE_X) * DX;
+    double y = (gy0 + j + (slot / LATTICE_X % LATTICE_Y + 0.5) / LATTICE_Y) * DY;
+    double z = (gz0 + k + (slot / (LATTICE_X * LATTICE_Y) + 0.5) / LATTICE_Z) * DZ;
+#else
     unsigned long long sp = hash_key(seed, (unsigned long long)gcell, (unsigned long long)slot);
     double x = (gx0 + i + urand(sp)) * DX;
     double y = (gy0 + j + urand(sp)) * DY;
     double z = (gz0 + k + urand(sp)) * DZ;
+#endif
     unsigned long long sm = hash_key(seed ^ (stream * 0x2545F4914F6CDD1DULL + 77ULL), (unsigned long long)gcell,
                                      (unsigned long long)slot);
     double u[3];

@@ -63,7 +63,7 @@ def grid_defines(decomp: Decomposition, dx, dt: float, ghost: int, use_pml: bool
 
 
 def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0, body=None,
-                     window: int = 0) -> dict:
+                     window: int = 0, lattice=None) -> dict:
     """Particle kernels share the grid constants (no CPML terms) plus the path-segment bound.
     ``mixed`` (PIC-D11): the explicit push gathers E and B from float32 copies; OXI.. are the
     global cell indices of local index 0, so the gather weights come from global coordinates and
@@ -72,7 +72,8 @@ def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0
     (PIC-D14): the absorbing sphere of the configuration, or None. ``window`` (PIC-D22): 0 compiles
     the kernels of a box at rest; a moving window passes the number of its simulation, because the
     kernels then read the shift and the faces along x from the device array ``window_state`` of
-    their module, and two simulations of one process must not share a module."""
+    their module, and two simulations of one process must not share a module. ``lattice``
+    (PIC-D23): the places per axis of the particles of a cell, or None for random places."""
     D = dict(grid_defs)
     D.pop("USE_PML", None)
     D["MAXSEG"] = 3 * (D["GH"] + 2) + 4
@@ -80,6 +81,9 @@ def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0
     D.update(body_defines(body))
     if window:
         D["MOVING_WINDOW"] = int(window)
+    if lattice is not None:
+        for c, v in zip("XYZ", lattice):
+            D[f"LATTICE_{c}"] = int(v)
     if mixed:
         D["MIXED_GATHER"] = 1
         for c in "XYZ":

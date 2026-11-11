@@ -36,7 +36,7 @@ from pypic.parallel.decomp import Decomposition  # noqa: E402
 ARCHS = ("compute_80", "compute_120")  # Ampere (portability) and Blackwell (target hardware)
 P, O, R = "periodic", "open", "reflecting"
 # name, n_cells, rank grid, rank, boundaries, solver, dx, dt, paired injection faces (bit mask), body,
-# moving window
+# moving window, lattice of the particle places (PIC-D23; optional)
 CASES = [
     ("explicit periodic, 1 rank", (16, 8, 8), (1, 1, 1), 0, ((P, P), (P, P), (P, P)),
      "explicit", 0.1, 0.05, 0, None, False),
@@ -54,6 +54,8 @@ CASES = [
      ((O, R), (R, R), (R, R)), "explicit", 0.1, 0.05, 0, None, True),
     ("explicit moving window (PIC-D22), mixed-precision gather, split along x and y", (32, 8, 8), (2, 2, 1), 0,
      ((O, R), (P, P), (R, R)), "mixed", 0.1, 0.05, 0, None, True),
+    ("explicit periodic, particles loaded on a 2 x 2 x 1 lattice (PIC-D23)", (16, 8, 8), (1, 1, 1), 0,
+     ((P, P), (P, P), (P, P)), "explicit", 0.1, 0.05, 0, None, False, (2, 2, 1)),
 ]
 
 
@@ -103,12 +105,13 @@ def main() -> int:
     nvrtc = NVRTC(find_nvrtc())
     print(f"NVRTC {nvrtc.version[0]}.{nvrtc.version[1]}")
     failures = 0
-    for name, n_cells, dims, rank, bc, solver, h, dt, paired, body, window in CASES:
+    for name, n_cells, dims, rank, bc, solver, h, dt, paired, body, window, *lattice in CASES:
         implicit = solver == "implicit"
         ghost = 2 if not implicit else int(math.ceil(dt / h)) + 2
         decomp = Decomposition.build(n_cells, dims, rank, bc, npml=6)
         gdef = grid_defines(decomp, (h, h, h), dt, ghost, use_pml=not implicit and any(O in b for b in bc))
-        pdef = particle_defines(gdef, mixed=solver == "mixed", paired_faces=paired, body=body, window=int(window))
+        pdef = particle_defines(gdef, mixed=solver == "mixed", paired_faces=paired, body=body, window=int(window),
+                                lattice=lattice[0] if lattice else None)
         units = [("fields", FIELD_SOURCES, gdef), ("particles", PARTICLE_SOURCES, pdef)]
         for unit, sources, defs in units:
             src = assemble_source(sources, defs)

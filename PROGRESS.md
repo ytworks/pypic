@@ -19,7 +19,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11, D20, D21 Proposed),
+Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11, D20, D21, D23 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
@@ -91,6 +91,11 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-12 — [amendment] R8 Stage 3: both linear wakefield gates failed with random places; PIC-D23 lattice places (Proposed)
+- What: `beam_linear` and `laser_linear` failed on the amplitude with 8 random places per cell (−6.90 % and −8.28 %, limit 5 %); wavelength, radial ratio and both null runs passed. Test fixed before its run: the same bunch run on a 2 × 2 × 2 lattice (8 per cell, same cost) gives +0.51 %, the run without a driver has E = 0. Amendment: the four Stage 3 runs use lattice places through a new option `lattice: [a, b, c]` (PIC-D23); limits and measurements unchanged. Both gates stay recorded as failed in the configuration first fixed. The lattice runs of `laser_linear` and of the null runs are not done yet.
+- Why: the loss follows the noise of the load (2.8 % at 32 per cell), not the driver; 32 random particles per cell cost four times the memory and time. One prediction of the test was not met: the amplitude still falls far behind the bunch (8 to 16 % in the wavelengths 9 to 12, outside the gate window), cause not identified.
+- Refs: PIC-D23 (`docs/design/engine.md`); `docs/plans/2026-11-11-wakefield.md` (Results, Stage 3; amendment of 2026-11-12); `pypic/kernels/particles.cu` (`load_particles`), `scripts/check_kernels.py`; PR #42. No gate record yet.
 
 ### 2026-11-11 — [amendment] R8 tests A1 and B1 run: A1 holds; B1 failed as first defined, its measurement amended
 - What: A1 (antenna in vacuum, 1 GPU): width and amplitude within 1.44 % of the paraxial beam of the grid (limit 2 %), forward / backward power −0.076 %, work against flux −0.005 %, 1 against 2×2 GPUs within 1e-10. B1 (bunch on its partner) failed in its first form: `E_r` up to 6.07 % from the steady field (limit 3 %) with 8 particles per cell on four lines. Amended: means over the circle of each radius, 64 particles per cell; radii, seed and limits unchanged; then +0.86 to +1.77 % (start-up alone: +0.83 to +1.63 %), B within 0.79 % (limit 1 %).

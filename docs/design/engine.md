@@ -2,7 +2,7 @@
 
 Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12..D16 2026-11-11, bow-shock plan;
 PIC-D17 2026-11-11, blast-wave plan); PIC-D11 **Proposed** (2026-11-10, #10); PIC-D20, PIC-D21
-**Proposed** (2026-11-11, wakefield plan).
+**Proposed** (2026-11-11, wakefield plan); PIC-D23 **Proposed** (2026-11-12, wakefield plan).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -307,6 +307,17 @@ Measured (2026-11-11, RTX PRO 6000; test B1 of the plan; diagnostic only):
 - **Field of the bunch:** γ = 10, σ_x = σ_r = 8 cells, n_b = 0.05, 448×192² cells with six open faces, after 40 σ. With 64 particles per cell and the fields taken as means over the circle of each radius, `E_r` in the mid-plane is +0.86 to +1.77 % above the steady field between 0.56 σ and 1.94 σ (the start gives +0.83 to +1.63 %; limit 3 %), `B_θ / (β E_r) − 1` is +0.79 % at 0.56 σ and within ±0.23 % at the other radii (limit 1 %). Gauss 1.6e-15, div B 5.6e-16.
 - **Noise:** with 8 particles per cell and the fields on four lines through the axis, the first form of the test, the deviation of `E_r` was up to 6.1 % and differed from seed to seed (2.1 to 6.1 %): the shot noise of the bunch, not its field. The test failed in that form and its measurement was amended (plan, Results, Stage 2).
 - **Decomposition:** a bunch loaded into a block in the low half of x that crosses the rank face along x: 1 GPU against 2×2: the same ids and counts, histories within 1e-10.
+
+### PIC-D23 — Lattice places: the particles of a cell on a regular a × b × c lattice (2026-11-12) — Status: Proposed
+Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 3, amendment of 2026-11-12). Both solvers load this way; only the explicit one is run.
+- **Option:** `lattice: [a, b, c]` of `SimConfig`; `a b c` must equal `ppc` (checked at construction). Without it the places are the random ones (seed, global cell, slot), and the kernels compile from the same source as before (the six cases of `scripts/check_kernels.py` without a lattice give the same text after the C preprocessor).
+- **Places:** slot `s` of a cell sits at the fractions `((s mod a) + 1/2) / a`, `(((s / a) mod b) + 1/2) / b`, `((s / (a b)) + 1/2) / c` of the cell along x, y, z (integer divisions). The places depend only on (global cell, slot): they are the same in every cell, for every beam, seed and rank layout. The momenta are drawn as before from (seed, stream, global cell, slot).
+- **Kernel:** `load_particles` under `#ifdef LATTICE_X`, with the defines `LATTICE_X`, `LATTICE_Y`, `LATTICE_Z` (`kernelsrc.particle_defines`). The planes loaded by a moving window (PIC-D22) use the same kernel and get the same places. Particles injected at a face (PIC-D13) keep their random places.
+- **What it gives:** the places are symmetric about the centre of the cell on each axis, so with the CIC shape the charge density of one species of uniform weight is uniform to round-off (the places at `1/2 ± d` of a cell give its two nodes equal shares), and a cold plasma starts without the density noise of random places; the neutrality at every place (PIC-D17, PIC-D21) is unchanged.
+
+Why: the linear wakefield gates lost 6.9 % (bunch) and 8.3 % (laser) of the amplitude with 8 random places per cell, and 2.8 % with 32: the loss follows the noise of the load, not the driver. With a 2 × 2 × 2 lattice, the same 8 particles per cell and the same cost, the bunch gate measures +0.51 % and the run without a driver has no field at all. The alternative, 32 random particles per cell, needs four times the memory and time and still loses 2.8 %.
+
+Not established: the wake still loses amplitude far behind the bunch with the lattice (3.6 to 4.2 % in the wavelengths 6 to 8, 8 to 16 % in 9 to 12, outside the window of the gate); the cause is not identified. A cold lattice is not a thermal equilibrium: a warm plasma on a lattice has the density of the lattice and the velocities of the draw, and the known instabilities of a cold beam on a grid are not removed. No run with the implicit solver.
 
 ## Review amendments
 
