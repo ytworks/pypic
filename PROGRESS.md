@@ -19,8 +19,8 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11, D20, D21, D23 Proposed),
-`docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
+Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11, D20..D23 Proposed),
+`docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3 Accepted, OUT-D5 Proposed).
 
 | Milestone | Status |
 |---|---|
@@ -85,7 +85,8 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   the body charge; charge and potential of the body under the debris.
 - Wakefield (R8; `docs/plans/2026-11-11-wakefield.md`, PR #42, not merged): laser antenna (PIC-D20), bunch driver (PIC-D21)
   and `examples/wakefield` exist; the two linear gates and their null runs pass in the static box with lattice places
-  (PIC-D23) and failed on the amplitude with random places. Not done: the moving window (PIC-D22), the gate record.
+  (PIC-D23) and failed on the amplitude with random places. The moving window (PIC-D22) and its output (OUT-D5) exist and pass
+  the tests W0 to W4 of the plan. Not done: the window runs of the two gates, the production run, the gate record.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -94,6 +95,11 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-12 — [design] PIC-D22 moving window, OUT-D5 window output (Proposed); tests W0 to W4 pass
+- What: `window: {start, margin}` (explicit solver, x− open, x+ reflecting): the box follows the driver at c one cell at a time; positions stay laboratory positions and the index coordinate subtracts the integer shift, so the deposit, the loader and the migration are unchanged. History term `window_out`. Output: regions are placed in the window, files give laboratory places (`window_shift` per row, `gridGlobalOffset` per iteration). Tests fixed in the plan: W0 kernels and regress bits unchanged without a window; W1 plasma at rest over 400 shifts (density 0.45 %, limit 2.5 %); W2 against the box at rest 7e-15 (limit 1e-6); W3 1 vs N GPUs ≤ 5.4e-13; W4 energy at the lower face that the box at rest does not have 5.3e-10 (limit 1e-4). Found and fixed: a hang with x split (collective in a rank-dependent branch), a window without species.
+- Why: a wakefield run follows its driver over many box lengths; an integer shift of the index coordinate keeps charge conservation and decomposition independence without a new mechanism.
+- Refs: PIC-D22 (`docs/design/engine.md`), OUT-D5 (`docs/design/output-analysis.md`); `docs/plans/2026-11-11-wakefield.md` (Stage 4, Results); `pypic/window.py`, `tests/gpu/mgpu_window.py`; PR #42. No gate record yet; the window with the mixed gather is compiled only. W4's measurement was set against the box at rest after the first form measured the dispersion tail of the pulse (limit unchanged).
 
 ### 2026-11-12 — [progress] R8 Stage 3: the four static-box wakefield runs pass with lattice places (PIC-D23)
 - What: on 68a3a29 (8 GPUs, FP64, 2 × 2 × 2 places per cell, limits and measurements as first fixed): `beam_linear` amplitude +0.51 % (limit 5 %), wavelength −0.25 % (2 %), radial ratio −0.77 % (10 %); `laser_linear` −1.91 %, +0.07 %, +0.04 %; both runs without a driver have E_x = 0 on the axis and the density of the load. Gauss ≤ 1.1e-13. The failure with random places (entry below) stays recorded.

@@ -694,3 +694,49 @@ of `scripts/check_kernels.py` without a window, both units, both architectures (
 give the same PTX as the commit 477223a, byte for byte (sha256 of the PTX of NVRTC 13.5; script
 outside the repository, as fixed in the amendment). The two new cases with a window compile. The
 other half of W0 (`mgpu_regress` bits) is taken with the GPU tests of the stage.
+
+W0, the bits (2026-11-12): `tests/gpu/test_engine.py` with the stored bits of `mgpu_regress`
+passes on the commit that puts the shift into the step (26 targeted GPU tests, no window in any
+of the old ones). W0 holds in both halves.
+
+W1 to W4 (2026-11-12, `tests/gpu/mgpu_window.py`, `tests/gpu/test_engine.py`; RTX PRO 6000):
+**all pass.**
+
+| Test | Criterion | Limit | Measured |
+|---|---|---|---|
+| W1 | density per slab of eight cells, 400 shifts | 2.5 % | 0.45 % (0.9955 to 1.0042; front slab 0.7497 against 0.75) |
+| | mean u_x per slab | 0.02 v_te | 0.012 v_te |
+| | ⟨u²⟩ / 3θ | 1.05 | 1.019 |
+| | Gauss; div B | 1e-10; 1e-12 | 3.2e-14; 3.4e-16 |
+| W2 | E against the box at rest, farther than 32 cells from x−, 200 shifts | 1e-6 max\|E\| | 6.9e-15 (1 GPU), 6.9e-15 (2,2,1), 7.1e-15 (1,2,2) |
+| W3 | histories, 1 GPU against (2,1,1), (2,2,1), (1,2,2) | 1e-10 | kinetic 1.1e-14, electric 9.4e-16, magnetic 6.3e-15, `window_out` 5.4e-13, budget 1.2e-13 |
+| | loaded planes | equal | 995,303 particles in every layout; test particles equal by a hash of (id, position, momentum) |
+| W4 | energy behind the forward pulse that the box at rest does not have, over the pulse energy | 1e-4 | 5.3e-10 (1 GPU and (2,1,1)) |
+
+W4 as measured. The plan fixed the limit, not the measurement. Set-up: a plane wave in vacuum
+(a0 = 0.1, ω = 10, duration 0.3), periodic across, 128×8×8 cells, window from t = 1.5, 200 shifts;
+the pulse that the antenna emits towards −x meets the lower face around t = 2.7. Measured is the
+field energy in the 28 planes of the window behind the forward pulse, at every output from
+t = 3.8 on, in units of the energy of the forward pulse (equal to the one of the pulse towards −x:
+1.00009 passed through these planes). First measurement: 2.4e-11 at t = 3.8, but 1.5e-6 at t = 9
+and 9.0e-5 at the end (t = 11.5), a rise that is not a reflection: the same run in a box at rest
+has the same energy at the same laboratory planes (9.045e-5 at the end). It is the short waves of
+the forward pulse (three periods long, so its spectrum reaches ω = 25, where the group velocity
+of the grid is 0.82 c), which fall behind. The test therefore takes the difference to the box at
+rest: at most 5.3e-10. A reflection would add to the window run only.
+
+Two defects found by the tests and fixed in the same commits: a run split along x hung at the
+first shift (`YeeGrid.shift_x` called the exchange of psi only on ranks with an absorbing layer: a
+collective inside a rank-dependent branch); a run with a window and no species raised in the
+check at its end.
+
+OUT-D5 (2026-11-12): the window run of W2 on 2×2×1 GPUs and the box at rest on 1 GPU write the
+same diagnostics at the same laboratory places (the regions are given in the window and in the
+box). Read through `pypic.analysis` at 85 and 200 shifts: dump coordinates within 1.8e-15 and E_y
+within 6.0e-15 of its maximum; slice 2.2e-15; density lineout 9.5e-15; x histogram 2.2e-16;
+particles of a region: the same 245,716, positions within 5.3e-15. `scalars.h5` holds the shift
+of every record (the last one, step 504: 196; the output at step 512: 200). The test fails
+without the change of the diagnostics (checked once).
+
+Not shown by Stage 4: a production-size window run, the cost of a shift, the window with the
+mixed gather on a GPU (compiled only) — all three come with Stage 5 and the gates.

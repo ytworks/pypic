@@ -1,7 +1,8 @@
 # Output and analysis design
 
 Status: **Accepted** (2026-11-09, PR #2). Plan: `docs/plans/2026-11-09-output-analysis-examples.md`.
-Decisions: OUT-D1..D4, ANA-D1..D3.
+OUT-D5 **Proposed** (2026-11-12, wakefield plan).
+Decisions: OUT-D1..D5, ANA-D1..D3.
 Applies to: `pypic/output/` (schedule, writers, GPU diagnostics, manager), `pypic/analysis/`,
 `pypic/setup/runner.py`, every `examples/<name>/`.
 
@@ -75,6 +76,18 @@ the strictest (spectral kinds: Nyquist of the shortest period ×2 *and* 10 sampl
 time-averaged over the interval as an anti-aliasing filter; tracks: 16 per shortest period;
 dumps: a fixed number). Aliasing / under-sampling warnings and a storage table are part of the
 planner report; `budget_GB` widens only `auto` cadences and refuses fixed ones that do not fit.
+
+### OUT-D5 — Moving window: diagnostics are placed in the window, the files give laboratory places (2026-11-12) — Status: Proposed
+Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 4). The window itself: PIC-D22 (`docs/design/engine.md`).
+- **Placed in the window:** with `window:` the `region` of a diagnostic, the place of a slice plane and the x range and x bins of a histogram are coordinates of the window: the diagnostic follows the driver. A particle region and a histogram filter compare `x − window_shift · dx`.
+- **Written:** `window_shift`, the cells that the window has moved at the output (the record of a step precedes the shift at its end, PIC-D22). Field dumps: `gridGlobalOffset[0] = (region_lo + window_shift) dx` per iteration (openPMD). Reduced series (lineout, modes, slice, kspectrum, histogram): a dataset `window_shift` (int64) with one value per row, only in a run with a window. `scalars.h5`: `window_shift` per row. `run.json`: `window: {start, margin_cells, front_cell, window_shift_end}`, or null. Particle and track positions are laboratory positions as they are stored.
+- **Reader:** `Run.window`; `Series.window_shift` (zeros without a window); `Series.x(comp, i)`, `plane_axes(comp, i)` and `extent(comp, i)` give the laboratory x of the output i, and positions in the window without i. The edges of an x histogram stay those of the window (`edges + window_shift[i] dx` in the laboratory). `FieldSeries.get` and the XDMF index take the offset of the iteration.
+
+Why: what a window run looks at moves with the driver, so a region fixed in the window is the useful one and the arrays keep one shape; one integer per row gives the laboratory place back exactly, where an axis of doubles per row would cost more and round.
+
+Not established: a time-averaged output (`average`, the `auto` cadence of spectral kinds) averages at fixed places of the window over an interval in which the window moves, and its row carries the shift of the output step; the phase of a Fourier mode along x refers to the window. Neither is used by a recorded run.
+
+Measured (2026-11-12, RTX PRO 6000; diagnostic only): the laser run of W2 with a window on 2×2×1 GPUs against the box at rest on 1 GPU, regions at the same laboratory places, outputs at 85 and 200 shifts: dump coordinates within 1.8e-15, dump E_y within 6.0e-15 of its maximum, slice 2.2e-15, lineout of the density 9.5e-15, x histogram 2.2e-16 (relative), the same 245,716 particles of a region with positions within 5.3e-15.
 
 ### PIC-D8 — Persistent particle ids (see `docs/design/engine.md`)
 
