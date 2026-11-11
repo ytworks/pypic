@@ -19,7 +19,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11 Proposed),
+Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11 and PIC-D18 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
@@ -83,6 +83,12 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   rising at 3× the length), while its potential stays within 1.2 T_e / e and the plasma outside
   2 r_dip is as in N1. The owner made the charge a reported value (amendment). Not shown: a level of
   the body charge; charge and potential of the body under the debris.
+- More examples (R6; `docs/plans/2026-11-11-more-examples.md`, PR #41, branch `examples/r6`; not merged, no gate record yet —
+  the full gates run once on the final head): done in targeted 8-GPU FP64 runs, results in the plan: `bow_shock/south` and
+  `oblique` (gate criteria passed), `two_stream/ei_b0`, `filamentation/pair_b0` and `pair_b0_stable` (passed; growth rate with a
+  field along the drift in `pypic/theory/streaming.py`). PIC-D18 (Proposed): `E0` tangential to reflecting faces, explicit
+  solver; GPU test on 1 GPU. Open: `bow_shock/dp10`, `blast_wave/cloud` and `rm12`, the magnetised shock `pair_2d_sigma`,
+  the long runs (reconnection, shock tail).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -92,6 +98,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [design] PIC-D18 (Proposed): a uniform `E0` tangential to reflecting faces (explicit solver)
+- What: `Simulation._set_initial_fields` accepts an `E0` component tangential to an axis whose two faces are reflecting (explicit solver; open faces and the implicit solver keep refusing). No new code path: the wall condition applied after the load zeroes the field on the wall, so the wall is a conductor at rest in a plasma that carries E = −v × B (piston in a magnetised flow). GPU test: a cold pair plasma in E × B drift between reflecting walls keeps its drift outside the light cones of the walls (momentum change 1.3e-5 u, fields 1.1e-4, Gauss 1.6e-14; the old code raises). Amendment to the plan: `external_fields.E` tangential to a reflecting face is not refused.
+- Why: the magnetised piston shock (R6, `relativistic_shock/pair_2d_sigma`) needs the motional field of the flow, which is tangential to the wall. The refusal of the external field would have removed behaviour that PIC-D12 accepts and `tests/gpu/mgpu_migrate.py` uses.
+- Refs: PIC-D18 (`docs/design/engine.md`); `docs/plans/2026-11-11-more-examples.md` (Stage 4, Amendment); `tests/gpu/test_engine.py`; PR #41. Not yet run: the GPU gates on this change (once, on the final head of the PR).
 ### 2026-11-11 — [progress] Blast wave, review of PR #40: shell mass from the centre, rings at the slice spacing; gates recorded on 17f1b5f
 - What: 17f1b5f: `theory.shell_peak_density` integrates the Gaussian shell over r ≥ 0 (it included r < 0: a shell with r_s = 0.1 R_m, w = 0.3 R_m held 18 % too few particles; gate and production shells: peak density +5.1e-9); `plane_history` and `body_potential` use rings as wide as the slice samples are apart (with `slice_coarsen` 3 or 4 the debris extent was nan, with 4 the body potential). Gates on 17f1b5f, 8 GPUs, ALL PASSED: FP64 (93 GPU tests, five two-stream gates, 17 example gates) and mixed (four, 17). `blast_wave:gate`, FP64 against 9bfa1a5: front speed and ring mean equal in 9 digits, ∆98 in 10; body charge +22.42 (was +22.49), potential 5.02 / 1.24 T_e/e (4.94 / 1.26).
 - Why: review findings, both reproduced. The peak density changes the bits of the gate configuration, so the records were taken again (mixed after FP64 on the same commit).

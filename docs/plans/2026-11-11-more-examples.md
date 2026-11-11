@@ -146,6 +146,15 @@ is refused (today nothing refuses it, and the wall acts only on the difference f
 E × B drift between reflecting walls feels no force in the interior, Gauss ≤ 1e-10 (the code
 before the change raises).
 
+Amendment (2026-11-11, before the implementation): the refusal of `external_fields.E` tangential
+to a reflecting face is dropped. New fact: PIC-D12 (Accepted) allows an external field tangential
+to any face, and `tests/gpu/mgpu_migrate.py` (variant `dipole`) runs with an external E tangential
+to its reflecting z faces; the refusal would have removed accepted behaviour. PIC-D18 states the
+difference instead: `E0` is a Yee field and the wall zeroes the total tangential field; an
+external E is not shorted by a wall. `pypic/initial_fields.py` and `pypic/external.py` are not
+changed (plane waves and 1-D profiles keep refusing a tangential E). The test region is the
+interior farther than c t + 2 from both walls: each wall sends a front into the plasma at c.
+
 Example: `ShockParams.sigma`, `field`. The magnetised jump conditions go into
 `examples/relativistic_shock/theory.py` (σ → 0 reproduces `jump_conditions`; γ0 → ∞ gives the form
 of Kennel & Coroniti 1984).

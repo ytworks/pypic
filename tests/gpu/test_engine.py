@@ -106,6 +106,34 @@ def test_external_uniform_fields_give_the_orbits_of_grid_fields(precision):
     assert np.max(np.abs(orbits[0][3:] - np.asarray(pts).T[3:])) > 0.1  # the fields did act
 
 
+def test_exb_drifting_plasma_between_reflecting_walls_keeps_its_drift():
+    """A cold pair plasma that drifts at -beta0 along x in B0 = B z and E0 = -v x B0, between
+    reflecting x walls to which E0 is tangential (PIC-D18): the walls act on the plasma only inside
+    their light cones. Outside them the particles keep the drift and the fields their values."""
+    u0, B, nx, dx, dt, steps = 0.5, 0.5, 128, 0.25, 0.1, 71  # 71 steps = half a gyration period
+    beta0 = u0 / math.sqrt(1 + u0 * u0)
+    bc = (("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
+    beam = [Beam(1.0, (-u0, 0, 0), 0.0)]
+    cfg = SimConfig(n_cells=(nx, 4, 4), dx=(dx,) * 3, dt=dt, ppc=8, boundaries=bc, B0=(0, 0, B), E0=(0, -beta0 * B, 0),
+                    species=[SpeciesConfig("e", -1, 1, beam), SpeciesConfig("p", 1, 1, beam)],
+                    diag_interval=5, gauss_interval=5)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(steps)
+    reach = steps * dt + 2.0  # the light cone of a wall and two skin depths
+    for sp in sim.species:
+        P = sp.P[:, : sp.n]
+        inside = (P[0] > reach) & (P[0] < nx * dx - reach)
+        assert int(inside.sum()) > sp.n // 4
+        du = cp.stack([P[3] + u0, P[4], P[5]])[:, inside]
+        assert float(cp.max(cp.abs(du))) < 1e-4 * u0
+    g = sim.grid
+    cells = slice(int(reach / dx) + 1, nx - int(reach / dx) - 1)
+    for F, value in ((g.Ey, -beta0 * B), (g.Bz, B)):
+        assert float(cp.max(cp.abs(F[g.physical_slice()][cells] / value - 1))) < 5e-4
+    assert np.nanmax(sim.history["gauss"]) < 1e-10
+    sim.close()
+
+
 # ------------------------------------------------------------ conservation laws
 def test_esirkepov_current_moment_equals_the_displacement():
     """Without fields, sum J dV dt = sum q w (x1 - x0) per component: the deposit of moves along
