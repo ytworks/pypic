@@ -60,7 +60,13 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   (PIC-D12..D16) gated on d2ac1d9, 84f5808, 7893fec, 98e626b; Phase 5 (the example, gate M3, the sort
   fix) gated on 39acb7f, production run on 9ba2a65, the review fixes of PR #39 gated on 9b901c1. Merged to main by PR #39;
   wiki page `Bow-Shock` (EN + JA) published with the merge.
-- Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
+- Blast wave around a magnetised body (R6; `docs/plans/2026-11-11-blast-wave.md`): stopped in Phase 0.
+  Planner skeleton and null-test analysis in `examples/blast_wave` (no debris yet, no change of
+  `pypic/`). N1 (plasma at rest, six `flux` faces, 384³, 1760 steps) passed; N2 (with body and dipole)
+  failed one of seven criteria: the body charge does not level (still rising at 3× the length), while
+  its potential stays within 1.2 T_e / e and the plasma outside 2 r_dip is as in N1.
+- Blockers: the blast-wave plan waits for the owner's decision on the failed N2 criterion (Phase 1,
+  radial beams PIC-D17, not started). GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
 
@@ -69,6 +75,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [progress] Blast-wave plan, Phase 0: null test N1 passed, N2 failed the charge criterion
+- What: plan `docs/plans/2026-11-11-blast-wave.md` (a debris shell expanding from a magnetised body in a uniform field, after Keenan et al. and Le et al. 2021; owner decisions of 2026-11-11), `examples/blast_wave` (planner skeleton without debris, null-test analysis). Gate size without debris, 8 GPUs (384³, 9.06e8 particles, 1760 steps, 85–89 ms/step). N1 (no body): density within 0.44 %, T_e ≤ 1.030, mean velocity ≤ 0.0013 v_te, Gauss 8e-16: passed. N2 (body + dipole): the same outside 2 r_dip, body potential −0.33 / −0.87 T_e (limit 5), but the body charge changes by 10.2 over the last third (limit 3.18): failed. A run of 3× the length (diagnostic): charge +68 and rising (+0.012 per step), potential −0.67 / −1.14 T_e.
+- Why: the criteria were fixed before the first run with the rule to stop when N2 fails; they are unchanged. The limit on the charge lies below the 1σ shot noise of the net count (3.8), but the rise is real: ions are absorbed 2 % faster than electrons.
+- Refs: plan Phase 0 (Results); PIC-D13, PIC-D14 (used as they are); `examples/blast_wave/{plan,analyze,theory,run}.py`, `configs/gate.yaml`. No change of `pypic/`, no gate run. Open: the owner's decision; Phase 1 (PIC-D17) not started.
 ### 2026-11-11 — [progress] Review fixes of PR #39 gated: ALL PASSED on 9b901c1, fp64 and mixed
 - What: gates on the commit of the review fixes, 8 GPUs: growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (the values of 39acb7f), Gauss max 7.6e-12, implicit energy 1.9e-10, 16 example gates, 90 GPU tests; mixed: 20 explicit gates, Gauss max 7.7e-12, Buneman growth −4.7 %. `bow_shock:gate`: magnetopause 0.917 (mixed 0.917), shock 1.381 (1.381), upstream within 0.11 %, body charge +744 (+732).
 - Why: the change gate of `pypic/` (the new rule of `injection.check_config`; the kernel changed by a comment only), on one clean commit (CI cannot run the gates).

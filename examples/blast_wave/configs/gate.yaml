@@ -1,0 +1,10 @@
+# Gate: m_i/m_e = 16, M_A = 3 (V_d = 0.1875 c), R_m = 8 d_i = 64 cells, R_B = 66.6 d_e. 384^3 cells
+# (half-width 1.44 R_B), 9.1e8 ambient particles, 1760 steps (1.25 R_B / V_d); a few minutes on 8 GPUs.
+mass_ratio: 16
+mach_alfven: 3
+wpe_wce: 4
+vte: 0.1
+rm: 8
+half_width: 1.44
+ppc: 8
+run: 1.25
