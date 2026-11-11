@@ -226,6 +226,62 @@ and `run.json`. `check_kernels.py`: a window split along x, the window with the 
 | W3 | 1 against (2,2,1) against (1,2,2) GPUs: history ≤ 1e-10, the loaded planes equal by (id, position) |
 | W4 | a pulse leaving through x−: reflected energy ≤ 1e-4; reported to the owner if it fails |
 
+Amendment (2026-11-11, before any Stage 4 code) — W0. The kernel files get `#ifdef
+MOVING_WINDOW` branches and macros for the x bounds, so the assembled text of every configuration
+changes and the second half of W0 cannot hold as written. It is replaced by what it stood for:
+without a window the macros expand to the tokens that are there now, and the code that NVRTC
+compiles from the cases of `scripts/check_kernels.py` (the PTX) equals the one of 477223a. This
+is compared once, with a script outside the repository; the outcome goes into Results. The first
+half (the bits of `mgpu_regress`) stays as it is.
+
+Design fixed before coding (the reasons are in PIC-D22):
+
+- Shift: after a step that ends at the time t the window has moved by
+  `s = max(0, floor((t - start) / dx))` cells, at most one more than before (dt < dx). Every rank
+  computes s from the configuration and the step number.
+- Values of the run: the particle module holds `window_state` (s, the two faces of the window
+  along x, the two bounds of the rank along x), written by the kernel `window_set`; no kernel gets
+  a new argument. The Python doubles are the ones that the migration classifier gets. Two
+  simulations of one process must not share the module: the defines carry a number of the
+  instance.
+- Exactness: the index coordinate along x is `(x - OX) / DX - s`. For 0 <= s <= X < 2^53 the
+  difference is exact, so a shift lowers the index coordinate of every particle by exactly 1 and
+  the charge on the grid moves with the fields.
+- Fields: E, B and the psi arrays are copied one plane down into a scratch array, which then
+  takes the place of the array. Before the copy psiE is exchanged along x (its ghost planes are
+  not kept up to date otherwise); after it E, B and psiB are exchanged along x. This is wider
+  than "B and psiB" above: the plane that enters a rank from its neighbour is needed for all of
+  them.
+- The x+ wall moves one cell: its surface charge moves with it. The current that carries it, on
+  the edges between the old and the new wall node, changes E_x there by the value of E_x on the
+  edge before, so `E_x(W - 1) = E_x(W - 2)`; every other field of the new cell is zero. Gauss's
+  law at the node that stops being a wall then holds by the continuity of this current. No
+  Poisson solve, no correction of a field that is already there.
+- x−: after the shift `window_drop` is the only kernel that fills the flag list of this step: dead
+  slots, particles below the new face (their kinetic energy, charge and number are summed, their
+  weight is set to 0, nothing is deposited) and particles outside the bounds of the rank. The
+  charge of a dropped particle stays on the nodes -1 .. reach of the new window, which the Gauss
+  check leaves out at an open face already (PIC-D15).
+- New plane: the plasma is loaded up to the window cell `n - 1 - m`, `m = round(margin / dx)`;
+  after the shift to s the laboratory plane `s + n - 1 - m` is loaded, by the loader of the
+  initial load (same seed, global cell and slot), ids from a block per shift. A beam without a
+  drift along x is loaded as it was at the shift before and moved for the time since then, with a
+  reflection at the upper face of the plane: with this a thermal plasma is a Maxwellian behind
+  the front at every load (a plane that is loaded where it stands counts the particles that
+  crossed into it from the plane before twice, a mean velocity of v_te^2 / c per slab). A beam
+  with a drift along x is loaded where it stands. No half kick: the fields at the front are those
+  of the vacuum margin.
+- Energy: `window_out` is the sum of the field energy that the copy removes, the kinetic energy
+  of the dropped particles and minus the kinetic energy of the loaded planes. It joins the one
+  reduction of `_record`; the recorded value is the one at the time of the record (before the
+  shift of the step), like the work of the antenna.
+- Antenna: its two rows follow the shift. It is switched off when its cell reaches the nodes
+  next to x− that the Gauss check leaves out; the configuration is refused unless the envelope
+  is Gaussian and has fallen to exp(-25) by then.
+- Refused with a window, besides the list above: `initial_fields`, `external_fields`, a
+  `perturbation` of a beam, x boundaries other than (`open`, `reflecting`), a margin of fewer
+  than 4 cells or one that leaves no plasma.
+
 ### Stage 5 — window runs
 
 The gate configurations become window runs (laser 1152×128², about 1.5 min). Production (a0 = 4,
