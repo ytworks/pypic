@@ -60,13 +60,14 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   (PIC-D12..D16) gated on d2ac1d9, 84f5808, 7893fec, 98e626b; Phase 5 (the example, gate M3, the sort
   fix) gated on 39acb7f, production run on 9ba2a65, the review fixes of PR #39 gated on 9b901c1. Merged to main by PR #39;
   wiki page `Bow-Shock` (EN + JA) published with the merge.
-- Blast wave around a magnetised body (R6; `docs/plans/2026-11-11-blast-wave.md`): stopped in Phase 0.
-  Planner skeleton and null-test analysis in `examples/blast_wave` (no debris yet, no change of
-  `pypic/`). N1 (plasma at rest, six `flux` faces, 384³, 1760 steps) passed; N2 (with body and dipole)
-  failed one of seven criteria: the body charge does not level (still rising at 3× the length), while
-  its potential stays within 1.2 T_e / e and the plasma outside 2 r_dip is as in N1.
-- Blockers: the blast-wave plan waits for the owner's decision on the failed N2 criterion (Phase 1,
-  radial beams PIC-D17, not started). GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
+- Blast wave around a magnetised body (R6; `docs/plans/2026-11-11-blast-wave.md`): Phase 1 (radial
+  beams, PIC-D17) in progress. Phase 0: planner skeleton and null-test analysis in `examples/blast_wave`
+  (no debris yet). N1 (plasma at rest, six `flux` faces, 384³, 1760 steps) passed; N2 (with body and
+  dipole) failed one of seven criteria fixed before the run: the body charge does not level (still
+  rising at 3× the length), while its potential stays within 1.2 T_e / e and the plasma outside
+  2 r_dip is as in N1. The owner made the charge a reported value (amendment). Not shown: a level of
+  the body charge; charge and potential of the body under the debris.
+- Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
 
@@ -75,6 +76,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [amendment] Blast-wave null test N2: the body charge is reported, not limited
+- What: the criterion "change of the body charge over the last third ≤ 0.10 max|Q|" of N2 is dropped; charge, largest charge and change are reported (`examples/blast_wave/analyze.py`). N2 stays recorded as failed against the criteria fixed before the run; its six remaining criteria were met. The plan goes on to Phase 1 (PIC-D17).
+- Why: owner decision after the results. What the criterion protected is measured directly and holds at 1× and 3× the run length (plasma outside 2 r_dip as in N1; body potential within 1.2 T_e / e, not following the charge); the limit came from the vacuum formula for the potential and lies below the shot noise of the absorbed count. Not decided: a level of the charge was not shown; the body under the debris is unknown (the gate reports its potential without a limit).
+- Refs: plan Phase 0 (Results, Amendment); the entry below.
 ### 2026-11-11 — [progress] Blast-wave plan, Phase 0: null test N1 passed, N2 failed the charge criterion
 - What: plan `docs/plans/2026-11-11-blast-wave.md` (a debris shell expanding from a magnetised body in a uniform field, after Keenan et al. and Le et al. 2021; owner decisions of 2026-11-11), `examples/blast_wave` (planner skeleton without debris, null-test analysis). Gate size without debris, 8 GPUs (384³, 9.06e8 particles, 1760 steps, 85–89 ms/step). N1 (no body): density within 0.44 %, T_e ≤ 1.030, mean velocity ≤ 0.0013 v_te, Gauss 8e-16: passed. N2 (body + dipole): the same outside 2 r_dip, body potential −0.33 / −0.87 T_e (limit 5), but the body charge changes by 10.2 over the last third (limit 3.18): failed. A run of 3× the length (diagnostic): charge +68 and rising (+0.012 per step), potential −0.67 / −1.14 T_e.
 - Why: the criteria were fixed before the first run with the rule to stop when N2 fails; they are unchanged. The limit on the charge lies below the 1σ shot noise of the net count (3.8), but the rise is real: ions are absorbed 2 % faster than electrons.

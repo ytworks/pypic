@@ -8,8 +8,8 @@ for each face, the two block layers at the face and the next two. With a body, t
 dipole radii of its centre or of the axis through it along B0 are left out. Limits: Gauss law
 <= 1e-10 and div B <= 1e-12; density of each species within 2.5 % of step 0; T_e <= 1.05 of step 0;
 mean velocity < 0.02 v_te; with a body, its potential against the plasma at two dipole radii
-<= 5 T_e / e in both slice planes and the change of its charge over the last third <= 10 % of the
-largest charge.
+<= 5 T_e / e in both slice planes. The charge of the body and its change over the last third are
+reported without a limit (the plan, Phase 0, Amendment).
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from pypic.analysis import open_run
 
 GAUSS_MAX, DIVB_MAX = 1e-10, 1e-12
 DENSITY_TOL, TE_MAX, VELOCITY_MAX = 0.025, 1.05, 0.02  # against step 0; velocity in v_te
-POTENTIAL_MAX, CHARGE_DRIFT_MAX = 5.0, 0.10  # in T_e / e; fraction of the largest charge
+POTENTIAL_MAX = 5.0  # in T_e / e
 SLAB, INNER = 2, 4  # block layers of a face slab; the interior starts behind two slabs
 EXCLUDE = 2.0  # dipole radii around the body and its axis along B0 that the regions leave out
 LAST = 2.0 / 3.0  # the last third of the run starts here
@@ -150,7 +150,6 @@ def null_test(run_dir: str) -> dict:
                    body_charge=float(q[-1]), body_charge_max=q_max, body_charge_change=float(abs(q[-1] - q[i0])),
                    n_absorbed=int(s["n_absorbed"][-1]))
         checks["potential"] = bool(all(abs(p) <= POTENTIAL_MAX for p in res["potential"].values()))
-        checks["charge_level"] = bool(res["body_charge_change"] <= CHARGE_DRIFT_MAX * q_max)
     res.update(checks=checks, passed=all(checks.values()))
     return res
 

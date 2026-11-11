@@ -1,5 +1,5 @@
 # Blast wave around a magnetised body (`examples/blast_wave`) and radial beams (PIC-D17)
-Status: Stopped in Phase 0 — N1 passed, N2 failed the charge criterion; waiting for the owner's decision (Phase 0, Results)
+Status: In progress — Phase 1 (radial beams). Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
 Refs: roadmap R6; PIC-D12..D16 (used as they are), PIC-D17 (new, Phase 1)
 
 ## Context
@@ -158,8 +158,19 @@ How the criterion came about: the approved plan asked for a potential within 5 T
 over the last third is below 10 %, with the potential taken as |Q| / (4π R_b); when the potential
 was redefined before the runs (above), the second half stayed a criterion on Q.
 
-Decision: none yet. By the rule above the work stops here; the criteria are unchanged and N2 stays
-recorded as failed. Phase 1 has not started.
+### Amendment (2026-11-11, owner decision after the results)
+
+The criterion "change of the body charge over the last third ≤ 0.10 max|Q|" is no longer a limit of
+N2; the charge, its largest value and its change over the last third are reported. N2 stays recorded
+as failed against the criteria fixed before the run; the six criteria that remain were met in it.
+The work goes on to Phase 1.
+
+Reason: what the criterion was to protect is measured directly and holds at one and at three times
+the run length (the plasma outside 2 r_dip as in N1, the potential of the body within 1.2 T_e / e
+and not following Q); the limit was a remainder of the vacuum formula for the potential and lies
+below the shot noise of the absorbed count. Not decided by this: a level of the charge was not
+shown, and the charge and the potential of the body under the debris are not known; the gate
+reports the potential of the body without a limit, as in the approved plan.
 
 ## Phase 1 — radial beams (PIC-D17)
 
