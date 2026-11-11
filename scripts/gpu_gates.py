@@ -35,7 +35,7 @@ from pypic.provenance import code_state
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "examples" / "two_stream"))
 
-CONFIGS = ["ei", "ep", "eip", "ei_implicit", "buneman"]
+CONFIGS = ["ei", "ep", "eip", "ei_implicit", "buneman", "ei_b0"]
 # precision: mixed (PIC-D11) applies to the explicit solver only; its record is the explicit gates
 MIXED_CONFIGS = [c for c in CONFIGS if "implicit" not in c]
 PRECISION = "fp64"
@@ -50,11 +50,11 @@ EXAMPLES = [
     ("plasma_waves", "unmagnetized"), ("plasma_waves", "perpendicular"),
     ("landau_damping", "landau"), ("landau_damping", "dawson"), ("landau_damping", "wavebreaking"),
     ("landau_damping", "relativistic"),
-    ("filamentation", "pair"),
+    ("filamentation", "pair"), ("filamentation", "pair_b0"), ("filamentation", "pair_b0_stable"),
     ("particle_orbits", "gyration"), ("particle_orbits", "exb"), ("particle_orbits", "hyperbolic"),
     ("particle_orbits", "e_gt_b"), ("particle_orbits", "plane_wave"),
     ("plasma_expansion", "isothermal_hydrogen"), ("relativistic_shock", "pair_2d"), ("reconnection", "pair_sigma10"),
-    ("bow_shock", "gate"), ("blast_wave", "gate"),
+    ("bow_shock", "gate"), ("bow_shock", "south"), ("bow_shock", "oblique"), ("blast_wave", "gate"),
 ]
 EXAMPLE_NAMES = [f"{e}:{c}" for e, c in EXAMPLES]
 # examples verified by a convergence check: run again with dt_scale=0.5, on one GPU (few particles)
