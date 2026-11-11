@@ -16,7 +16,7 @@ import shutil
 
 import numpy as np
 
-from .. import __version__
+from .. import __version__, window
 from ..provenance import commit_label, repo_root
 from .diagnostics import KINDS, FieldSource
 from .names import expand_fields
@@ -197,6 +197,11 @@ class OutputManager:
             # history are those of the Yee fields, which exclude the external fields (PIC-D12)
             "field_convention": {"E_B": "total", "field_energy": "yee",
                                  "external_fields": bool(sim.external)},
+            # moving window (OUT-D5): the shift of an output, in cells, is the row ``window_shift`` of
+            # scalars.h5 and of every reduced series, and is in gridGlobalOffset of a field dump
+            "window": ({"start": cfg.window.start, "margin_cells": window.margin_cells(cfg),
+                        "front_cell": window.front_cell(cfg), "window_shift_end": window.shift_after(cfg, cfg.n_steps)}
+                       if sim.window else None),
             "timescales": dict(self.cfg.timescales), "codec": self.cfg.codec,
             "scalars": {"path": "scalars.h5", "every_steps": cfg.diag_interval} if self.cfg.scalars else None,
             "diagnostics": [self.diag_layout(dg) for dg in self.diags],
@@ -287,6 +292,13 @@ class OutputManager:
                                               self.cfg.codec, self.cfg.level)
         return self.writers[name]
 
+    def _row(self, data: dict) -> dict:
+        """A row of a reduced series; with a moving window it carries the shift of its output, in
+        cells (OUT-D5): the x of the row in the laboratory is the x of the series plus shift * dx."""
+        if self.sim.window:
+            return dict(data, window_shift=np.int64(self.sim.window_shift))
+        return data
+
     def _write(self, dg, step, data):
         from . import h5
 
@@ -317,17 +329,17 @@ class OutputManager:
                 self.writers[key].append(step, t, rows)
         elif d.kind in ("lineout", "modes"):
             w = self._series(dg)
-            w.append(step, data["t_mean"], data["data"])
+            w.append(step, data["t_mean"], self._row(data["data"]))
         elif d.kind == "slice":
             w = self._series(dg, {"axis": d.axis, "plane_position": json.dumps(dg.plane_coords())})
-            w.append(step, t, data)
+            w.append(step, t, self._row(data))
         elif d.kind == "kspectrum":
             w = self._series(dg, {"k": dg.k_bins.tolist()})
-            w.append(step, t, data)
+            w.append(step, t, self._row(data))
         elif d.kind == "histogram":
             w = self._series(dg, {"quantities": json.dumps(list(d.quantities)),
                                   "edges": json.dumps([e.tolist() for e in dg.edges])})
-            w.append(step, t, data)
+            w.append(step, t, self._row(data))
 
     def _write_scalars(self):
         """Hand the history rows not yet taken to the (chunk-buffered) scalars writer (rank 0).
@@ -350,6 +362,9 @@ class OutputManager:
         data = {k: np.asarray(h[k][sl], dtype=np.float64) for k in SCALAR_KEYS}
         for sp, v in self.sim.kinetic_species.items():
             data[f"kinetic_{sp}"] = np.asarray(v[sl], dtype=np.float64)
+        if self.sim.window:  # the record of a step is taken before the shift at its end (PIC-D22)
+            data["window_shift"] = np.array([window.shift_after(self.sim.cfg, int(s)) for s in h["step"][sl]],
+                                            dtype=np.int64)
         try:
             w.buffer_rows(h["step"][sl], h["t"][sl], data)
         except Exception:

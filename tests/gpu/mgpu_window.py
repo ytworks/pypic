@@ -14,18 +14,22 @@ tracers: one species of test particles and no field at all: the particles move o
 
 laser:   a focused pulse in a cold plasma, open faces across the window (absorbing layers that
          the shift moves through every rank), 200 shifts. Writes E on the cells of the window
-         farther than 32 cells from x- to <file> (.npy).
+         farther than 32 cells from x- to <file> (.npy), and output (a field dump, a slice, a
+         lineout, particles and a histogram, with regions in the window) to the directory
+         ``laser`` next to it.
 static:  the same pulse and plasma in a box at rest that ends where the window ends after its
-         200 shifts. Writes E on the same laboratory cells.
+         200 shifts. Writes E on the same laboratory cells, and the same output with the regions
+         at the laboratory places that the window has at the end, to the directory ``static``.
 """
 import json
+import os
 import sys
 
 import cupy as cp
 import numpy as np
 
 from pypic import Beam, SimConfig, SpeciesConfig, window
-from pypic.config import Laser, Window
+from pypic.config import Diagnostic, Laser, OutputConfig, Window
 from pypic.simulation import Simulation
 
 dims = tuple(int(v) for v in sys.argv[1].split(","))
@@ -39,8 +43,23 @@ def laser_run():
     prof = None if moving else {"shape": "step", "x0": -1.0, "x1": end}
     pulse = Laser(plane_x=60.5 * dx[0], a0=0.1, omega=10.0, waist=0.8, focus_x=8.0,
                   envelope={"shape": "gaussian", "duration": 0.3, "t_peak": 1.5})
+    lab = 0 if moving else shifts  # cells from the x of the diagnostics to the one of the window at the end
+
+    def cells(c0, c1):
+        return ((c0 + lab) * dx[0], (c1 + lab) * dx[0])
+
+    kw = {"every": 256, "dtype": "float64"}  # outputs at the steps 0, 256 (85 shifts) and 512 (200 shifts)
+    inner = (cells(40, 100), None, None)
+    diags = [Diagnostic("dump", "fields", fields=("Ey",), **kw,  # static: every place the window dump has had
+                        region=(cells(skip, n[0]) if moving else (skip * dx[0], (n[0] + shifts) * dx[0]), None, None)),
+             Diagnostic("plane", "slice", fields=("Ey",), axis="z", **kw),
+             Diagnostic("line", "lineout", fields=("n:e",), axis="x", average=False, **kw),
+             Diagnostic("part", "particles", species=("e",), region=inner, **kw),
+             Diagnostic("hist", "histogram", species=("e",), quantities=("x",), bins=(24,),
+                        ranges=(cells(skip, n[0]),), region=inner, **kw)]
     cfg = SimConfig(n_cells=n if moving else (n[0] + shifts,) + n[1:], dx=dx, dt=0.0225, n_steps=512, dims=dims,
                     npml=8, ppc=4, lasers=[pulse], diag_interval=8, gauss_interval=8,
+                    output=OutputConfig(dir=os.path.join(os.path.dirname(sys.argv[3]), case), diagnostics=diags),
                     species=[SpeciesConfig("e", -1, 1, [Beam(1.0, profile=prof)]),
                              SpeciesConfig("i", 1, 100, [Beam(1.0, profile=prof)])],
                     boundaries=(("open", "reflecting"), ("open", "open"), ("open", "open")),

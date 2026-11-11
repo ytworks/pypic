@@ -1160,6 +1160,27 @@ def _window_run(dims: str, case: str) -> dict:
         o = json.loads(r.stdout.strip().splitlines()[-1])
         if os.path.exists(path):
             o["E"] = np.load(path)
+            o["out"] = _window_output(os.path.join(tmp, case))
+    return o
+
+
+def _window_output(path: str) -> dict:
+    """The output of a laser run of mgpu_window.py as the reader gives it, x in the laboratory."""
+    from pypic.analysis import open_run
+
+    run = open_run(path)
+    dump, plane, line, hist, sc = (run.fields("dump"), run.series("plane"), run.series("line"), run.series("hist"),
+                                   run.scalars)
+    last = len(plane.t) - 1
+    o = {"window": run.window, "scalars": (sc.step, sc.window_shift),
+         "shifts": [s.window_shift.tolist() for s in (plane, line, hist)],
+         "dump": {it: (dump.get(it, "Ey").coords[0], dump.get(it, "Ey").data) for it in dump.iterations},
+         "plane": (plane.plane_axes("Ey", last)[0], plane.read("Ey", last)),
+         "line": (line.x("n:e", last), line.read("n:e", last)),
+         "hist": (hist.edges[0] + hist.window_shift[last] * run.dx[0], hist.read("e", last)),
+         "x": np.sort(run.particles("part").get(512, "e")["x"])}
+    for s in (plane, line, hist, sc):
+        s.close()
     return o
 
 
@@ -1214,6 +1235,37 @@ def test_moving_window_gives_the_fields_of_the_box_at_rest(dims):
     assert np.max(np.abs(o["E"] - ref["E"])) <= 1e-6 * scale
     assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
     assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
+
+
+def test_moving_window_output_is_in_laboratory_coordinates():
+    """Output of a run with a moving window (OUT-D5): the regions of the diagnostics are places in
+    the window, and with the shift that every output records the reader gives laboratory places.
+    The field dump at 85 and at 200 shifts, and at the end the slice, the lineout, the particles of
+    a region and the x histogram, are those of the box at rest at the same laboratory places."""
+    if cp.cuda.runtime.getDeviceCount() < 4:
+        pytest.skip("needs >= 4 GPUs")
+    ref, o = _window_run("1,1,1", "static")["out"], _window_run("2,2,1", "laser")["out"]
+    assert ref["window"] is None and ref["shifts"] == [[0, 0, 0]] * 3
+    assert o["window"]["window_shift_end"] == 200 and o["shifts"] == [[0, 85, 200]] * 3
+    step, shift = o["scalars"]  # a record every 8 steps; the one of step 504 is the last
+    assert shift[0] == 0 and shift[step == 256] == 85 and step[-1] == 504 and shift[-1] == 196
+    for it, n_shift in ((256, 85), (512, 200)):
+        (x, ey), (xr, eyr) = o["dump"][it], ref["dump"][it]
+        assert ey.shape[0] == 96 and abs(x[0] - (32 + n_shift) * 0.05) < 1e-12  # Ey sits on the nodes along x
+        i = int(np.argmin(np.abs(xr - x[0])))
+        assert np.max(np.abs(xr[i:i + 96] - x)) < 1e-12
+        scale = np.max(np.abs(eyr))
+        assert scale > 0.1 and np.max(np.abs(ey - eyr[i:i + 96])) <= 1e-6 * scale
+    for k, scale in (("plane", np.max(np.abs(ref["plane"][1]))), ("line", 1.0)):
+        (x, v), (xr, vr) = o[k], ref[k]
+        assert np.max(np.abs(x[32:] - xr[232:])) < 1e-12
+        assert scale > 0.1 and np.max(np.abs(v[32:] - vr[232:])) <= 1e-6 * scale, k
+    (e, h), (er, hr) = o["hist"], ref["hist"]
+    assert np.max(np.abs(e - er)) < 1e-12 and h[2:17].min() > 0 and not h[:2].any() and not h[17:].any()
+    assert np.max(np.abs(h - hr)) <= 1e-9 * h.max()
+    x, xr = o["x"], ref["x"]
+    assert len(x) == len(xr) > 0 and x[0] >= 240 * 0.05 and x[-1] < 300 * 0.05
+    assert np.max(np.abs(x - xr)) < 1e-9
 
 
 def test_mixed_precision_is_explicit_only():

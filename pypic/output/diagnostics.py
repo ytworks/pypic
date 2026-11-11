@@ -99,6 +99,11 @@ class Diag:
             return -0.5 * dt  # explicit leapfrog: u at t - dt/2
         return 0.0
 
+    def window_x(self) -> float:
+        """Laboratory x of the lower face of a moving window at this output (OUT-D5): a region, a
+        plane and the x bins of a diagnostic are coordinates of the window. 0 without a window."""
+        return self.sim.window_shift * self.sim.cfg.dx[0]
+
     def species_list(self):
         names = self.d.species or tuple(s.name for s in self.sim.species)
         return [self.sim.species_by_name(n) for n in names]
@@ -221,8 +226,9 @@ class FieldsDiag(Diag):
         if not self.root:
             return None
         dx = self.sim.cfg.dx
+        shift = (self.sim.window_shift, 0, 0)  # the offset of a moving window is the one of this output (OUT-D5)
         grid = {"spacing": tuple(dx[a] * self.d.coarsen[a] for a in range(3)),
-                "offset": tuple(self.region[a][0] * dx[a] for a in range(3))}
+                "offset": tuple((self.region[a][0] + shift[a]) * dx[a] for a in range(3))}
         return {"meshes": meshes, "grid": grid}
 
 
@@ -467,6 +473,8 @@ class HistogramDiag(Diag):
     def _quantity(self, sp, q):
         P = sp.P[:, : sp.n]
         if q in ("x", "y", "z"):
+            if q == "x" and self.sim.window_shift:  # the bins are those of the window
+                return P[0] - self.window_x()
             return P["xyz".index(q)]
         if q in ("ux", "uy", "uz"):
             return P[3 + "xyz".index(q[1])]
@@ -485,8 +493,8 @@ class HistogramDiag(Diag):
                 if self.region is not None:
                     for a, r in enumerate(self.region):
                         if r is not None:
-                            x = sp.P[a, : sp.n]
-                            w *= (x >= r[0]) & (x < r[1])
+                            x, x0 = sp.P[a, : sp.n], 0.0 if a else self.window_x()
+                            w *= (x >= r[0] + x0) & (x < r[1] + x0)
                 idx = cp.zeros(sp.n, dtype=cp.int64)
                 for q, (lo, hi, nb, lg) in zip(self.d.quantities, self.spec):
                     v = self._quantity(sp, q)
@@ -514,7 +522,7 @@ class HistogramDiag(Diag):
         return out if self.root else None
 
 
-def _select(sp, stride, select=None, region=None):
+def _select(sp, stride, select=None, region=None, window_x=0.0):
     P = sp.P[:, : sp.n]
     mask = cp.fmod(P[7], float(stride)) == 0 if stride > 1 else cp.ones(sp.n, dtype=cp.bool_)
     if select:
@@ -528,7 +536,8 @@ def _select(sp, stride, select=None, region=None):
     if region is not None:
         for a, r in enumerate(region):
             if r is not None:
-                mask &= (P[a] >= r[0]) & (P[a] < r[1])
+                x0 = 0.0 if a else window_x
+                mask &= (P[a] >= r[0] + x0) & (P[a] < r[1] + x0)
     return mask
 
 
@@ -537,7 +546,7 @@ class ParticlesDiag(Diag):
         sim = self.sim
         out = {}
         for sp in self.species_list():
-            mask = _select(sp, self.d.stride, self.d.select, self.d.region)
+            mask = _select(sp, self.d.stride, self.d.select, self.d.region, self.window_x())
             Q = sp.P[:, : sp.n][:, mask] if sp.n else cp.zeros((sp.P.shape[0], 0))
             Q = gather_columns(sim.comm, cp.ascontiguousarray(Q[:8]))
             if not self.root:
