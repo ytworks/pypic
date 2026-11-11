@@ -190,6 +190,25 @@ class Laser:
 
 
 @dataclass
+class Window:
+    """Moving window (PIC-D22): from the time ``start`` on the box follows a driver along +x at the
+    speed of light, one cell at a time; positions stay those of the laboratory. x- must be open
+    and x+ reflecting. The plasma is loaded up to ``margin`` (a length, c/omega_pe) before the x+
+    wall, and every cell that enters the box behind this vacuum margin is loaded as at the start
+    of the run. Explicit solver only."""
+
+    start: float = 0.0
+    margin: float = 1.0
+
+    def __post_init__(self):
+        self.start, self.margin = float(self.start), float(self.margin)
+        if not self.start >= 0.0:
+            raise ValueError("window.start must be >= 0")
+        if not self.margin > 0.0:
+            raise ValueError("window.margin must be > 0")
+
+
+@dataclass
 class ExternalFields:
     """Static fields the particles feel in addition to the Yee fields (PIC-D12): a uniform E, a
     uniform B and dipoles. The Yee fields are then the difference to them, so an external field
@@ -448,6 +467,7 @@ class SimConfig:
     injection: Injection = field(default_factory=Injection)  # plasma entering through open faces (PIC-D13)
     body: Body | None = None  # absorbing sphere (PIC-D14)
     lasers: list = field(default_factory=list)  # list[Laser]: laser antennas (PIC-D20)
+    window: Window | None = None  # moving window along +x (PIC-D22)
     # Marder number (0 < nu <= 1/6; 0 = off) of the zone at the open faces (PIC-D16): every step
     # div E - rho diffuses in the absorbing layer and the first nodes inside, where the removed and
     # the entering particles leave charge that no deposit balances. Explicit solver only.
@@ -488,10 +508,12 @@ class SimConfig:
         body = d.pop("body", None)
         body = body if body is None or isinstance(body, Body) else Body(**body)
         lasers = [v if isinstance(v, Laser) else Laser(**v) for v in d.pop("lasers", [])]
+        window = d.pop("window", None)
+        window = window if window is None or isinstance(window, Window) else Window(**window)
         for k in ("n_cells", "dx", "B0", "E0", "dims"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:
             d["boundaries"] = tuple(tuple(b) for b in d["boundaries"])
         return cls(species=sp, implicit=imp, output=out, current_filter=flt, external_fields=ext,
-                   injection=inj, body=body, lasers=lasers, **d)
+                   injection=inj, body=body, lasers=lasers, window=window, **d)

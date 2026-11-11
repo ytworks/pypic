@@ -280,7 +280,7 @@ Design fixed before coding (the reasons are in PIC-D22):
   is Gaussian and has fallen to exp(-25) by then.
 - Refused with a window, besides the list above: `initial_fields`, `external_fields`, a
   `perturbation` of a beam, x boundaries other than (`open`, `reflecting`), a margin of fewer
-  than 4 cells or one that leaves no plasma.
+  than 4 cells plus the reach of the current filter, or one that leaves no plasma.
 
 ### Stage 5 — window runs
 

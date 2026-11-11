@@ -52,6 +52,23 @@ def plane_cell(laser, dx) -> int:
     return math.floor(laser.plane_x / dx[0])
 
 
+def first_cell(cfg, retreat: int = 0) -> int:
+    """The lowest cell along x that may hold an antenna when x- is not periodic: off the wall and
+    off the nodes next to an open face that the Gauss check leaves out."""
+    return 1 + (retreat if cfg.boundaries[0][0] == "open" else 0)
+
+
+def front_advance(laser, dx, dt) -> float:
+    """c of the advance in time c r^2 of the curved front at the plane: k_d r^2 / (2 omega R(d)),
+    d the distance from the plane to the focus (0 for a plane wave)."""
+    if laser.waist is None:
+        return 0.0
+    d = laser.focus_x - (plane_cell(laser, dx) + 0.5) * dx[0]
+    kd = diffraction_wavenumber(wavenumber(laser.omega, dx[0], dt), dx[0])
+    zr = 0.5 * kd * laser.waist ** 2
+    return 0.5 * kd / laser.omega * d / (d * d + zr * zr)
+
+
 def check_config(cfg, retreat: int = 0, reach: int = 0) -> bool:
     """True if ``cfg`` has lasers; raises on what is not supported. ``retreat``: nodes next to an
     open face that are left out of the Gauss check; ``reach``: the reach of the current filter."""
@@ -69,7 +86,7 @@ def check_config(cfg, retreat: int = 0, reach: int = 0) -> bool:
         # not among the nodes next to an open face (PIC-D15, PIC-D16)
         lo, hi = cfg.boundaries[0]
         if lo != "periodic":
-            first = 1 + (retreat if lo == "open" else 0)
+            first = first_cell(cfg, retreat)
             last = n - 1 - (retreat if hi == "open" else 0)
             if ia < first or ia + 1 > last:
                 raise ValueError(f"laser plane_x must lie in the cells {first} .. {last - 1} along x: off the "
@@ -117,11 +134,10 @@ class Antenna:
             self.phase = laser.phase
         else:
             d = laser.focus_x - (ia + 0.5) * dx[0]
-            kd = diffraction_wavenumber(k, dx[0])
-            zr = 0.5 * kd * laser.waist ** 2
+            zr = 0.5 * diffraction_wavenumber(k, dx[0]) * laser.waist ** 2
             w2 = laser.waist ** 2 * (1.0 + (d / zr) ** 2)
             self.amp = peak * math.sqrt(laser.waist ** 2 / w2) * xp.exp(-r2 / w2)
-            self.advance = (0.5 * kd / laser.omega * d / (d * d + zr * zr)) * r2  # k_d r^2 / (2 omega R)
+            self.advance = front_advance(laser, dx, cfg.dt) * r2  # k_d r^2 / (2 omega R)
             self.phase = laser.phase - math.atan(d / zr)
         self.envelope = dict(laser.envelope)
 
