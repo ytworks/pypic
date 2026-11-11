@@ -24,8 +24,11 @@ class Beam:
     perturbation: list = field(default_factory=list)
     # density profile along one axis: n(x) = density * shape(x) >= 0 (pypic.profiles), e.g.
     # {"axis": "x", "shape": "step", "x0": 0.0, "x1": 50.0}; beams of all species share positions,
-    # so equal profiles keep the plasma exactly neutral; particles where shape < 1e-10 are dropped
-    profile: dict | None = None
+    # so equal profiles keep the plasma exactly neutral; particles where shape < 1e-10 are dropped.
+    # A list of such profiles with different axes among x, y, z is their product (PIC-D21): a
+    # bunch. It is loaded only into the cells in which every shape reaches 1e-10, and the beams of
+    # the plasma species that load the same cells must be neutral together (as for a radial profile)
+    profile: dict | list | None = None
     # radial beam (PIC-D17): ``origin`` is a point in c/omega_pe. A profile with "axis": "r" is a
     # shape of the distance from it, and ``drift_radial`` is a proper velocity along the unit vector
     # from it (0 at the origin itself). A radial profile is loaded only into the cells its support
@@ -36,13 +39,20 @@ class Beam:
     def __post_init__(self):
         self.drift = tuple(self.drift)
         self.drift_radial = float(self.drift_radial)
-        if self.profile is not None:
+        if isinstance(self.profile, (list, tuple)):
+            from .profiles import validate
+
+            self.profile = [validate(p, extra=("axis",)) for p in self.profile]
+            axes = [p.get("axis", "x") for p in self.profile]
+            if not axes or any(a not in ("x", "y", "z") for a in axes) or len(set(axes)) != len(axes):
+                raise ValueError("a list of profiles needs one profile per axis among x, y, z")
+        elif self.profile is not None:
             from .profiles import validate
 
             self.profile = validate(self.profile, extra=("axis",))
             if self.profile.get("axis", "x") not in ("x", "y", "z", "r"):
                 raise ValueError("profile axis must be x, y, z or r")
-        radial_profile = self.profile is not None and self.profile.get("axis", "x") == "r"
+        radial_profile = isinstance(self.profile, dict) and self.profile.get("axis", "x") == "r"
         if self.origin is None:
             if radial_profile or self.drift_radial:
                 raise ValueError("a radial profile or drift_radial needs an origin")

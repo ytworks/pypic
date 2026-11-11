@@ -17,7 +17,7 @@ from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
 from .particles import MIGRATE_KERNELS, Species, migrate
-from .profiles import CUT, evaluate, invert_cos_density, support
+from .profiles import CUT, evaluate, invert_cos_density, support, support_interval
 
 NDIAG = 12  # entries of the diagnostics buffer of a species (Simulation.sdiag)
 
@@ -170,12 +170,21 @@ class Simulation:
 
     # ----------------------------------------------------------------- set-up
     def _beam_block(self, b):
-        """Global cells ``(lo, hi)`` per axis that a beam loads: the box, or for a radial profile
-        the cells the ball of its support reaches (PIC-D17). The same on every rank."""
+        """Global cells ``(lo, hi)`` per axis that a beam loads: the box; for a radial profile the
+        cells the ball of its support reaches (PIC-D17); for a list of profiles the cells in which
+        every shape reaches the cut (PIC-D21). The same on every rank."""
         n = self.cfg.n_cells
+        L, dx = self.grid.L, self.grid.dx
+        if isinstance(b.profile, list):
+            blk = [(0, n[a]) for a in range(3)]
+            for p in b.profile:
+                a = "xyz".index(p.get("axis", "x"))
+                lo, hi = support_interval(p, L[a])
+                lo = min(max(int(math.floor(lo / dx[a])), 0), n[a])
+                blk[a] = (lo, max(min(int(math.ceil(hi / dx[a])), n[a]), lo))
+            return tuple(blk)
         if b.profile is None or b.profile.get("axis", "x") != "r":
             return tuple((0, n[a]) for a in range(3))
-        L, dx = self.grid.L, self.grid.dx
         rs = support(b.profile, math.sqrt(sum(max(abs(o), abs(L[a] - o)) ** 2 for a, o in enumerate(b.origin))))
         blk = []
         for a, o in enumerate(b.origin):
@@ -217,13 +226,19 @@ class Simulation:
         list_id = float(n_beams * n_glob * cfg.ppc)  # explicit-list ids follow all beam ids
         for si, sc in enumerate(cfg.species):
             # room for what the beams load; of a block smaller than the box a rank holds at least
-            # its even share, since the particles spread from the ranks that load them
+            # its even share, since the particles spread from the ranks that load them. A bunch (a
+            # list of profiles) can pass through a rank as a whole: room for all of it there
             cells = 0 if sc.beams else cells_local
             for bi, b in enumerate(sc.beams):
                 blk = blocks[(si, bi)] = self._beam_block(b)
                 mine = math.prod(self._local_block(blk)[1])
-                share = -(-math.prod(hi - lo for lo, hi in blk) // self.comm.size)
-                cells += cells_local if blk == box else max(mine, share)
+                whole = math.prod(hi - lo for lo, hi in blk)
+                if blk == box:
+                    cells += cells_local
+                elif isinstance(b.profile, list):
+                    cells += max(mine, min(whole, cells_local))
+                else:
+                    cells += max(mine, -(-whole // self.comm.size))
             cap = int(cfg.capacity_factor * cells * cfg.ppc) + 4096 + len(sc.particles)
             sp = Species(sc.name, sc.charge, sc.mass, cap)
             sp.test = bool(sc.test)
@@ -233,18 +248,18 @@ class Simulation:
                 sp.load(self.grid, self.k_load, b, cfg.ppc, cfg.seed, streams[(si, bi)],
                         self._local_block(blocks[(si, bi)]))
                 self._beam_ranges[(si, bi)] = (lo, sp.n)
-                if b.profile is not None:
-                    axis = b.profile.get("axis", "x")
+                for p in b.profile if isinstance(b.profile, list) else [b.profile] if b.profile else []:
+                    axis = p.get("axis", "x")
                     if axis == "r":
                         x = cp.sqrt(sum((sp.P[a, lo:sp.n] - o) ** 2 for a, o in enumerate(b.origin)))
                     else:
                         x = sp.P["xyz".index(axis), lo:sp.n]
-                    f = evaluate(b.profile, x, xp=cp)
+                    f = evaluate(p, x, xp=cp)
                     if bool(cp.any(f < 0)):
                         raise ValueError(f"species {sc.name}: density profile is negative somewhere")
                     # negligible tails (sech^2, gauss) are cut: those particles get weight 0 and are
                     # removed; a fixed threshold keeps this decomposition independent and, for equal
-                    # profiles, neutral
+                    # profiles, neutral. In a product each shape is cut by itself
                     sp.P[6, lo:sp.n] *= cp.where(f < CUT, 0.0, f)
             if sc.particles:
                 self._load_list(sp, sc.particles, list_id)
