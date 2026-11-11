@@ -1133,6 +1133,20 @@ def test_bunch_is_decomposition_independent():
     assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
 
 
+@pytest.mark.parametrize("n, dims", [(1, "1,1,1"), (4, "2,2,1")])
+def test_lattice_places_follow_the_global_cell_and_give_a_uniform_density(n, dims):
+    """Lattice places (PIC-D23): on one rank and on 2x2 ranks every particle sits at the place of
+    its (global cell, slot), and the charge density of one species alone is uniform to round-off."""
+    if cp.cuda.runtime.getDeviceCount() < n:
+        pytest.skip(f"needs >= {n} GPUs")
+    r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), os.path.join(HERE, "mgpu_lattice.py"),
+                        dims], capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stderr[-2000:]
+    o = json.loads(r.stdout.strip().splitlines()[-1])
+    assert o["n"] == 16 * 8 * 8 * 16 and o["wrong"] == 0
+    assert o["density_deviation"] < 1e-13
+
+
 def test_mixed_precision_is_explicit_only():
     with pytest.raises(ValueError, match="explicit"):
         plasma("implicit", precision="mixed")
