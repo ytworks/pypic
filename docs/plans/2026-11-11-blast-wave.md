@@ -1,5 +1,5 @@
 # Blast wave around a magnetised body (`examples/blast_wave`) and radial beams (PIC-D17)
-Status: In progress — Phase 1 (radial beams). Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
+Status: In progress — Phase 2 (the example). Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
 Refs: roadmap R6; PIC-D12..D16 (used as they are), PIC-D17 (new, Phase 1)
 
 ## Context
@@ -208,6 +208,17 @@ reports the potential of the body without a limit, as in the approved plan.
   load no block cell would set `fill`, and the gate could not show the fill of the ambient species,
   which decides the production size (Risks: capacity).
 - `Beam.origin` without a radial profile or drift is refused too (nothing would use it).
+
+### Result (2026-11-11)
+
+Commit 574c904, 8 GPUs, FP64 (`bench/results/2026-11-11-574c90452-gpu-gates.json`): 93 GPU tests
+pass (the new ones: mass and radial momentum of a shell within 5σ, ids, Gauss 2e-15 at step 0, 1
+against 2×2 GPUs with a block across a rank face); `scripts/check_kernels.py` passes; all 21 gates
+pass. The growth rates of the five two-stream gates equal those of 9b901c1 bit for bit;
+`bow_shock:gate` gives magnetopause 0.922 and shock 1.381 R_mp (9b901c1: 0.917, 1.381; the recorded
+runs of one seed spread over 0.917–0.922). No gated example uses a radial beam: the gates show the
+existing paths unchanged, the radial path is covered by the tests above and by the gate of Phase 3.
+`--precision mixed` was not run on this commit (Phase 3 runs both).
 
 ## Phase 2 — the example
 
