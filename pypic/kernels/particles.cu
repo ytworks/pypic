@@ -668,6 +668,7 @@ extern "C" __global__ void load_particles(double* P, const long long cap, const 
                                           const int gnz, const unsigned long long seed,
                                           const unsigned long long stream, const double w, const double theta,
                                           const double udx, const double udy, const double udz,
+                                          const double ur, const double ox, const double oy, const double oz,
                                           const double id_base) {
     long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
     long long ntot = (long long)nlx * nly * nlz * ppc;
@@ -687,7 +688,16 @@ extern "C" __global__ void load_particles(double* P, const long long cap, const 
                                      (unsigned long long)slot);
     double u[3];
     sample_mj(theta, sm, u);
-    boost_drift(u, udx, udy, udz, sm);
+    double vx = udx, vy = udy, vz = udz;
+    if (ur != 0.0) {  // radial beam (PIC-D17): the drift ur along the unit vector from the origin
+        const double rx = x - ox, ry = y - oy, rz = z - oz;
+        const double r = sqrt(rx * rx + ry * ry + rz * rz);
+        const double f = r > 0.0 ? ur / r : 0.0;
+        vx = f * rx;
+        vy = f * ry;
+        vz = f * rz;
+    }
+    boost_drift(u, vx, vy, vz, sm);
     long long p = offset + t;
     PX(p) = x;
     PY(p) = y;

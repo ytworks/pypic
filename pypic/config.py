@@ -26,15 +26,36 @@ class Beam:
     # {"axis": "x", "shape": "step", "x0": 0.0, "x1": 50.0}; beams of all species share positions,
     # so equal profiles keep the plasma exactly neutral; particles where shape < 1e-10 are dropped
     profile: dict | None = None
+    # radial beam (PIC-D17): ``origin`` is a point in c/omega_pe. A profile with "axis": "r" is a
+    # shape of the distance from it, and ``drift_radial`` is a proper velocity along the unit vector
+    # from it (0 at the origin itself). A radial profile is loaded only into the cells its support
+    # reaches; the beams of the plasma species that load the same cells must be neutral together
+    origin: tuple | None = None
+    drift_radial: float = 0.0
 
     def __post_init__(self):
         self.drift = tuple(self.drift)
+        self.drift_radial = float(self.drift_radial)
         if self.profile is not None:
             from .profiles import validate
 
             self.profile = validate(self.profile, extra=("axis",))
-            if self.profile.get("axis", "x") not in ("x", "y", "z"):
-                raise ValueError("profile axis must be x, y or z")
+            if self.profile.get("axis", "x") not in ("x", "y", "z", "r"):
+                raise ValueError("profile axis must be x, y, z or r")
+        radial_profile = self.profile is not None and self.profile.get("axis", "x") == "r"
+        if self.origin is None:
+            if radial_profile or self.drift_radial:
+                raise ValueError("a radial profile or drift_radial needs an origin")
+        else:
+            self.origin = tuple(float(v) for v in self.origin)
+            if len(self.origin) != 3:
+                raise ValueError("beam origin needs three components")
+            if not (radial_profile or self.drift_radial):
+                raise ValueError("a beam origin is only used by a radial profile or drift_radial")
+            if self.drift_radial and any(self.drift):
+                raise ValueError("give either drift or drift_radial in one beam")
+            if self.perturbation:
+                raise ValueError("a radial beam must not have a perturbation")
         self.perturbation = [dict(p) for p in self.perturbation]
         for p in self.perturbation:
             unknown = set(p) - PERTURBATION_KEYS
@@ -159,6 +180,9 @@ class Body:
 
 FACES = ("x-", "x+", "y-", "y+", "z-", "z+")  # face index = 2 * axis + side
 ID_LIMIT = 2 ** 53  # particle ids (PIC-D8): float64 represents every integer below this exactly
+# Particle slots of one species on one GPU: the kernels index particles with int (thread index, n);
+# row offsets row * cap are 64-bit.
+MAX_CAPACITY = 2 ** 31 - 1
 
 
 @dataclass

@@ -1,0 +1,10 @@
+# Production: m_i/m_e = 25, M_A = 3 (V_d = 0.15 c), R_m = 8 d_i = 80 cells, R_B = 83.2 d_e. 576^3 cells
+# (half-width 1.73 R_B), 3.1e9 ambient particles, 2800 steps (1.26 R_B / V_d = 7.0 / Omega_ci); 66 GB per GPU on 8 GPUs.
+mass_ratio: 25
+mach_alfven: 3
+wpe_wce: 4
+vte: 0.1
+rm: 8
+half_width: 1.73
+ppc: 8
+run: 1.25

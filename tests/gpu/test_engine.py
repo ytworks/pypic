@@ -689,6 +689,58 @@ def test_paired_face_keeps_the_charge_that_crossed_it_at_zero():
     assert abs(e[6] / (w * e[8]) - mean) < 5 * math.sqrt(var / e[8])
 
 
+# ---------------------------------------------------------------- radial beams
+def shell_plasma(electrons, ions, steps=0, seed=1):
+    cfg = SimConfig(n_cells=(32, 32, 32), dx=(0.5,) * 3, dt=0.2, n_steps=steps, ppc=8, seed=seed,
+                    species=[SpeciesConfig("e", -1, 1, electrons), SpeciesConfig("i", 1, 16, ions)],
+                    diag_interval=5, gauss_interval=5)
+    return Simulation(cfg, comm=SelfComm(), verbose=False)
+
+
+def test_radial_shell_has_the_mass_and_the_momentum_of_its_shape():
+    """A Gaussian shell with a radial drift (PIC-D17), fixed seed. Per species: the mass is the
+    integral of the shape, within 5 sigma of a bound of the sampling error (ppc uniform positions
+    per cell: variance <= w0 n0 int f^2 dV); the mean proper velocity along the radius is that of a
+    drifting Maxwellian, u_r (1 + 5 theta / 2), within 5 sigma (variance theta sum w^2 / (sum w)^2);
+    the particles are those of a uniform load of the box where the shape is not cut, so the block
+    of cells holds the whole shell. Gauss's law holds at the load and while the shell expands."""
+    origin, c, wd, n0, ur, theta = (8.1, 7.9, 8.0), 3.0, 0.6, 2.0, 0.1, 1e-2
+
+    def shell(th):
+        return [Beam(n0, theta=th, origin=origin, drift_radial=ur,
+                     profile={"axis": "r", "shape": "gauss", "center": c, "width": wd})]
+
+    sim = shell_plasma(shell(theta), shell(theta / 16), steps=40)
+    ref = shell_plasma([Beam(n0, theta=theta)], [Beam(n0, theta=theta / 16)])
+    r = (np.arange(400000) + 0.5) * (16.0 / 400000)  # midpoint rule; the shape ends at r = 5.9
+    f = np.exp(-((r - c) / wd) ** 2)
+    mass = n0 * np.sum(4 * np.pi * r * r * f) * (r[1] - r[0])
+    w0 = n0 * sim.grid.cell_volume / sim.cfg.ppc
+    sigma = math.sqrt(w0 * n0 * np.sum(4 * np.pi * r * r * f * f) * (r[1] - r[0]))
+    for sp, full, th in zip(sim.species, ref.species, (theta, theta / 16)):
+        P, Q = cp.asnumpy(sp.P[:, : sp.n]), cp.asnumpy(full.P[:, : full.n])
+        d = P[:3] - np.asarray(origin)[:, None]
+        w = P[6]
+        assert abs(w.sum() - mass) < 5 * sigma
+        u_r = (P[3:6] * d).sum(0) / np.sqrt((d * d).sum(0))
+        mean = (w * u_r).sum() / w.sum()
+        assert abs(mean - ur * (1 + 2.5 * th)) < 5 * math.sqrt(th * (w * w).sum()) / w.sum()
+        rq = np.sqrt(((Q[:3] - np.asarray(origin)[:, None]) ** 2).sum(0))
+        assert np.array_equal(np.sort(P[7]), np.sort(Q[7][np.exp(-((rq - c) / wd) ** 2) >= 1e-10]))
+    assert sim.gauss_error()[0] < 1e-10
+    sim.run()
+    assert np.nanmax(sim.history["gauss"]) < 1e-10
+
+
+def test_a_block_that_is_not_neutral_is_rejected():
+    """Beams that load the same block of cells share positions and must cancel there (PIC-D17): a
+    shell of electrons alone, with the ions uniform, leaves a charge that the initial E = 0 does not
+    hold."""
+    shell = [Beam(1.0, origin=(8.0, 8.0, 8.0), profile={"axis": "r", "shape": "gauss", "center": 3.0, "width": 0.6})]
+    with pytest.raises(ValueError, match="not charge neutral"):
+        shell_plasma(shell, [Beam(1.0)])
+
+
 # --------------------------------------------------------------------- fields
 def test_vacuum_wave_dispersion():
     """A y-polarised plane wave along x follows the Yee dispersion relation."""
@@ -878,6 +930,30 @@ def test_open_flow_is_decomposition_independent(variant):
         a, b = np.asarray(ref[k]), np.asarray(o[k])
         assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
     assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_radial_shell_is_decomposition_independent():
+    """A shell loaded into a block of cells (PIC-D17) around an absorbing sphere, in an ambient plasma
+    that enters through six open faces: the block lies across a rank face of the 2x2 rank grid and
+    two of the four ranks load no shell particle. 1 GPU and the 2x2 grid give the same run and the
+    same particles, shell particles reach the ranks that loaded none, and Gauss's law holds."""
+    script = os.path.join(HERE, "mgpu_radial.py")
+    outs = {}
+    for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    ref, o = outs[1], outs[4]
+    for k in ("ids", "n_injected", "n_absorbed", "n_particles", "far", "shell"):
+        assert o[k] == ref[k], k
+    assert ref["shell"] > 0 and ref["far"] > 0 and ref["n_absorbed"][-1] > 0
+    for k in ("kinetic", "electric", "magnetic", "lost_charge", "injected_charge", "absorbed_kinetic",
+              "absorbed_charge"):
+        a, b = np.asarray(ref[k]), np.asarray(o[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
 
 
 def test_mixed_precision_is_explicit_only():

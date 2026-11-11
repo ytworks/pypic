@@ -4196,6 +4196,262 @@
    },
    "analysis_commit": "9ba2a65185cd59bceecdfc4000b57587e924353e",
    "generated": "2026-11-11"
+  },
+  "blast_wave": {
+   "page": "Blast-Wave",
+   "title": {
+    "en": "Blast wave around a magnetised body",
+    "ja": "磁化天体のまわりの爆風"
+   },
+   "cases": {
+    "gate": {
+     "source": "fresh",
+     "evidence": null,
+     "results": {
+      "gauss_max": 6.06893008070486e-15,
+      "divB_max": 9.377915111130619e-15,
+      "r_b": 66.56268233766093,
+      "r_m": 32.0,
+      "fast_speed": 0.07739239842086129,
+      "last_step": 1760,
+      "window_samples": 14,
+      "front_speed": 0.16274968378855556,
+      "compression": 2.6865894164931907,
+      "asymmetry": 0.0021272968616187515,
+      "debris_extent": 39.5455585300089,
+      "debris_extent_step": 616,
+      "debris_extent_le": 32.62318941419909,
+      "debris_extent_start": 15.284810722795893,
+      "ambient_deviation": 0.0005003009092037214,
+      "ahead": {
+       "steps": [
+        0,
+        176,
+        352,
+        528,
+        704,
+        880,
+        1056,
+        1232,
+        1408,
+        1584,
+        1760
+       ],
+       "blocks": [
+        258678,
+        250399,
+        243718,
+        235928,
+        226991,
+        216293,
+        204534,
+        191376,
+        177347,
+        161716,
+        145526
+       ],
+       "n:e": [
+        1.0,
+        1.0000178688423336,
+        1.0000375945504105,
+        1.00003820663206,
+        1.0000187692596596,
+        1.0000018253303429,
+        1.0000011825799584,
+        0.9999783847165467,
+        0.9998715807092954,
+        0.9997120467670071,
+        0.9994996990907963
+       ],
+       "n:i": [
+        1.0,
+        1.0000242917289381,
+        1.0000500664949254,
+        1.000055624948529,
+        1.0000524480918827,
+        1.0000454267784915,
+        1.000025311849419,
+        1.0000094505822126,
+        0.999921411978678,
+        0.9997718781518125,
+        0.9995555191765618
+       ],
+       "B": [
+        1.0,
+        1.0000434762498582,
+        1.000084272751713,
+        1.0001172825129119,
+        1.0001399820797294,
+        1.000148443261568,
+        1.0001473622670178,
+        1.0001187212781626,
+        1.0000786982902423,
+        0.9999917447847164,
+        0.9999013753972869
+       ]
+      },
+      "front_mach_fast": 2.1029156236187405,
+      "debris_extent_ratio": 1.2121916722463955,
+      "front_end": 77.42053198412466,
+      "front_max": 77.56150940111097,
+      "cavity_max": 33.25,
+      "cavity_static": 8.063494719327188,
+      "compression_mhd": 2.508010763707207,
+      "compression_mhd_front": 2.2583846242909336,
+      "front_debris_distance": 10.51313949642632,
+      "front_debris_step": 660,
+      "debris_rms_along": 36.80988158056574,
+      "debris_rms_across": 14.807055116442116,
+      "energy_budget_change": 0.10899886599081121,
+      "debris_ion_energy_left": 0.20409273559909488,
+      "ambient_ion_energy_gain": 0.4090583658634838,
+      "fill_max": 0.6701039591445845,
+      "particles_start": 943088238.0,
+      "particles_end": 936674003.0,
+      "potential": {
+       "slice_z": 4.9370960978655045,
+       "slice_y": 1.2616958717537883
+      },
+      "body_charge": 22.493796779378485,
+      "body_charge_max": 32.881821719783716,
+      "n_absorbed": 106480,
+      "ms_per_step": 93.3577828249492,
+      "ns_per_particle_step": 0.7975027680527487,
+      "checks": {
+       "gauss": true,
+       "divB": true,
+       "ambient": true,
+       "front_speed": true,
+       "compression": true,
+       "symmetry": true,
+       "debris_extent": true
+      },
+      "passed": true
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       384,
+       384,
+       384
+      ],
+      "L": [
+       192.0,
+       192.0,
+       192.0
+      ],
+      "dx": [
+       0.5,
+       0.5,
+       0.5
+      ],
+      "dt": 0.25,
+      "n_steps": 1760,
+      "t_end": 440.0,
+      "ppc": 8,
+      "particles": 943088238,
+      "species": [
+       "e (q=-1, m=1): n=1, θ=0.01",
+       "i (q=+1, m=16): n=1, θ=0.000625",
+       "de (q=-1, m=1): n=4.12781, θ=0.01, gauss along r; n=4.12781, θ=0.01, gauss along r; n=4.12781, θ=0.01, gauss along r; n=4.12781, θ=0.01, gauss along r",
+       "di (q=+1, m=16): n=4.12781, θ=0.000625, gauss along r; n=4.12781, θ=0.000625, gauss along r; n=4.12781, θ=0.000625, gauss along r; n=4.12781, θ=0.000625, gauss along r"
+      ],
+      "boundaries": [
+       "x: open + flux inflow",
+       "y: open + flux inflow",
+       "z: open + flux inflow",
+       "absorbing sphere: radius 4.267 at (96, 96, 96)"
+      ],
+      "fields": [
+       "external B=(0, 0, 0.25)",
+       "external dipole m=(0, 0, 65.54) at (96, 96, 96)"
+      ],
+      "filter_passes": 4,
+      "gpus": 8,
+      "wall_time_s": 164.30969777191058,
+      "params": {
+       "mass_ratio": 16,
+       "mach_alfven": 3,
+       "wpe_wce": 4,
+       "vte": 0.1,
+       "rm": 8,
+       "half_width": 1.44,
+       "ppc": 8,
+       "run": 1.25
+      },
+      "planner": {
+       "debris": true,
+       "body": true,
+       "d_i": 4.0,
+       "r_m": 32.0,
+       "r_b": 66.56268233766093,
+       "center": [
+        96.0,
+        96.0,
+        96.0
+       ],
+       "b0": 0.25,
+       "v_a": 0.0625,
+       "v_d": 0.1875,
+       "v_fast": 0.07739239842086129,
+       "beta": 0.6400000000000001,
+       "mach_alfven": 3,
+       "mach_fast": 2.4227185592617446,
+       "debris_gyroradius": 12.0,
+       "shell_radius": 10.56,
+       "shell_width": 3.2,
+       "shell_peak_density": 16.511255005787422,
+       "debris_beams": 4,
+       "debris_extent_le": 32.62318941419909,
+       "shell_inside_body": 0.0003082999743982422,
+       "wpe_dt_peak": 1.0461612867343706,
+       "debris_particles": 37336144,
+       "debris_block_cells": 1124864,
+       "debris_slots": 13498368.0,
+       "ambient_slots": 84934656.0,
+       "dipole_radius": 6.4,
+       "body_radius": 4.266666666666667,
+       "core": 1.2800000000000002,
+       "moment": 65.53600000000002,
+       "dipole": [
+        0.0,
+        0.0,
+        1.0
+       ],
+       "t_b": 355.00097246752495,
+       "t_b_steps": 1420.0038898700998,
+       "omega_ci_t_end": 6.875,
+       "wce_dt_surface": 0.4843750000000001,
+       "debye_cells": 0.2,
+       "particles": 905969664,
+       "memory_per_gpu_GB": 21.45026304,
+       "id_fraction": 0.0017985654585572775,
+       "coarse_cells": 6,
+       "every_3d": 176,
+       "every_slice": 44,
+       "dims": [
+        1,
+        2,
+        4
+       ]
+      }
+     },
+     "provenance": {
+      "git_commit": "3752d32118303bef923f3fe7364eb2e7af7e2840",
+      "run_id": "4f8a4615",
+      "created": "2026-11-11T17:46:48+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/wiki/blast_wave/gate"
+     }
+    }
+   },
+   "images": {
+    "gate-blast_wave.png": 373019,
+    "gate.gif": 4077767
+   },
+   "analysis_commit": "3752d32118303bef923f3fe7364eb2e7af7e2840",
+   "generated": "2026-11-11"
   }
  }
 }

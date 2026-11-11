@@ -46,7 +46,12 @@ class Panel:
 
 
 class SlicePanel(Panel):
-    def __init__(self, run, diag, comp, signed=None, log=False, label=None):
+    """A component of a slice diagnostic. `scale` multiplies the data. `blank=(centre, radius)` leaves
+    out the part of the plane inside a sphere (an absorbing body: the dipole field in there would set
+    the colour scale). `vlim=(low, high)` fixes the colour range; the default is the robust range of
+    the frames."""
+
+    def __init__(self, run, diag, comp, signed=None, log=False, label=None, scale=1.0, blank=None, vlim=None):
         self.s = run.series(diag)
         self.comp = comp
         self.signed = (comp[:1] in "EBJ" and len(comp) == 2) if signed is None else signed
@@ -55,23 +60,40 @@ class SlicePanel(Panel):
         self.t = self.s.t
         axis = self.s.layout["axis"]
         self.xl, self.yl = [c for c in "xyz" if c != axis]
+        self.scale, self.vlim, self.mask = scale, vlim, None
+        if blank is not None:
+            centre, radius = blank
+            a, b = self.s.plane_axes(comp)
+            ca, cb = (c for c, ax in zip(centre, "xyz") if ax != axis)
+            cn = centre["xyz".index(axis)]
+            off = self.s.layout.get("plane_position", {}).get(comp, cn) - cn
+            self.mask = (a[:, None] - ca) ** 2 + (b[None, :] - cb) ** 2 + off ** 2 < radius ** 2
 
     def times(self):
         return self.t
 
+    def _read(self, i):
+        d = self.s.read(self.comp, i)
+        if self.scale != 1.0 or self.mask is not None:
+            d = np.array(d, dtype=float) * self.scale
+            if self.mask is not None:
+                d[self.mask] = np.nan
+        return d
+
     def prepare(self, frame_times):
-        idx = sorted({self._index(self.t, t) for t in frame_times[:: max(1, len(frame_times) // 12)]})
-        self.vlim = P.robust_limits([self.s.read(self.comp, i) for i in idx], self.signed, self.log)
+        if self.vlim is None:
+            idx = sorted({self._index(self.t, t) for t in frame_times[:: max(1, len(frame_times) // 12)]})
+            self.vlim = P.robust_limits([self._read(i) for i in idx], self.signed, self.log)
 
     def init(self, ax):
         self.ax = ax
-        d = self.s.read(self.comp, 0)
+        d = self._read(0)
         self.im = P.field_map(ax, d, self.s.extent(self.comp), signed=self.signed, log=self.log, vlim=self.vlim,
                               label=self.label, xlabel=f"{self.xl} [c/ωpe]", ylabel=f"{self.yl} [c/ωpe]")
 
     def update(self, t):
         i = self._index(self.t, t)
-        d = self.s.read(self.comp, i)
+        d = self._read(i)
         if self.log:
             d = np.where(d > 0, d, np.nan)
         self.im.set_data(np.asarray(d).T)

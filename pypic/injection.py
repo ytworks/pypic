@@ -89,8 +89,9 @@ def check_config(cfg) -> bool:
         s = by_name[n]
         if s.test or not s.beams:
             raise ValueError(f"injection: species {n!r} must be a plasma species with beams")
-        if any(b.profile is not None or b.perturbation for b in s.beams):
-            raise ValueError(f"injection: the beams of species {n!r} must not have a profile or a perturbation")
+        if any(b.profile is not None or b.perturbation or b.origin is not None for b in s.beams):
+            raise ValueError(f"injection: the beams of species {n!r} must not have a profile, a perturbation "
+                             "or a radial drift")
     paired = [FACES.index(k) for k, v in inj.faces.items() if v == "paired"]
     if not paired:
         if inj.neutralizer is not None:

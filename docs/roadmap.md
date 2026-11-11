@@ -29,6 +29,13 @@ together (wind as external fields, five injecting faces, dipole, absorbing spher
 configuration (240×320×320, 3.9e8 particles, 8 GPUs, 264 s) gives a magnetopause at 0.92 to 0.93 of
 the pressure-balance distance and a shock at 1.38 (Spreiter et al. 1966: 1.37); gate M3 of the plan.
 
+Blast wave around a magnetised body (R6, 2026-11-11): `examples/blast_wave` follows the debris
+clouds of Le et al. 2021 and Keenan et al. 2022 in full PIC: a shell with a radial drift (radial
+beams, PIC-D17) expands into a magnetised plasma at rest in a box with six injecting faces, around
+an absorbing sphere with a dipole. Gate configuration (384³, 9.4e8 particles, 8 GPUs, 164 s) and
+production configuration (576³, 3.1e9 particles, 788 s): front at 2.1 fast magnetosonic speeds,
+debris extent 21 to 22 % above the scaling of Le et al. 2021 (a 2-D fit used with D = 3).
+
 ## Next (in priority order)
 
 | ID | Item | Notes |
@@ -37,7 +44,7 @@ the pressure-balance distance and a shock at 1.38 (Spreiter et al. 1966: 1.37); 
 | R3 | Performance of the explicit step | rounds 1–3 (#5–#37): 8-GPU strong scaling 6.4× at 50M particles (3.4 ms/step; 22.0 ms on 1 GPU, 0.44 ns/particle/step), shock 6.3 ms/step on 8 GPUs. The push kernel is 71 % of the 8-GPU step (94 % on 1 GPU) and FP64-bound; what remains changes the arithmetic: a fixed-point deposit (R10), float32 storage (R5), `precision: mixed` by default (PIC-D11). Measured and dropped: tiled deposition (deposit atomics are 0.2 % of the PC samples), CUDA graphs (< 1 % on the local kernels, a captured NCCL exchange does not replay), the migration count inside the data message (1.4 %), paired filter passes on a decomposed axis (< 2 %) |
 | R4 | Implicit solver: robustness for ωp·dt > 2 | cost after rounds 2–3 (#20, #22, #28–#32): 488 ms/step on 1 GPU at 50M particles (~22× explicit), 76–78 ms on 8 GPUs; `implicit_push` is 92 % of the 1-GPU step and 73 % of the 8-GPU step, the CG 19 % on 8 GPUs. At the tested ωp·dt the Picard iteration contracts by ≈ 1.8e-4 per sweep, so Anderson acceleration or a plasma preconditioner saves no sweep there; they are open only for larger time steps. Measured and dropped: CUDA graphs, a hot/cold split of `implicit_push` (0.5 % of the kernel), a quadratic Picard start (worse start error) |
 | R5 | float32 / mixed-precision particle storage | must keep the gate criteria |
-| R6 | More examples | PR #2 set and the bow shock done; later: the bow shock with a southward or oblique IMF and at a larger Dp, magnetised shocks, beam–plasma with B0, long production runs (shock tail, large reconnection boxes) |
+| R6 | More examples | PR #2 set, the bow shock and the blast wave done; later: the bow shock with a southward or oblique IMF and at a larger Dp, the blast wave at a larger R_m / d_i and with a Gaussian cloud, magnetised shocks, beam–plasma with B0, long production runs (shock tail, large reconnection boxes) |
 | R8 | Laser / beam drivers and a moving window (wakefield acceleration) | needs field injection at a boundary |
 | R10 | Deterministic (order-independent) current deposition option | atomics make long turbulent runs realization-dependent (ANA-D3); needed for bitwise reproducibility |
 | R11 | Converged Fermi tail of the pair shock | t >~ 8000 / omega_pe, ~1e9 particles (quasi-2-D); needs R5/R10 performance work or many nodes |

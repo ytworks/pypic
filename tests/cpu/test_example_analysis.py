@@ -69,12 +69,12 @@ def test_the_flux_panel_draws_frames_without_a_measurable_flux():
     plt.close(fig)
 
 
-def _bow_shock():
-    """examples/bow_shock/analyze.py; its ``import theory`` must not meet the theory module of another example."""
+def _example(name):
+    """examples/<name>/analyze.py; its ``import theory`` must not meet the theory module of another example."""
     import sys
 
-    folder = ROOT / "examples/bow_shock"
-    spec = importlib.util.spec_from_file_location("bow_shock_analyze", folder / "analyze.py")
+    folder = ROOT / "examples" / name
+    spec = importlib.util.spec_from_file_location(f"{name}_analyze", folder / "analyze.py")
     mod = importlib.util.module_from_spec(spec)
     other = sys.modules.pop("theory", None)
     try:
@@ -91,7 +91,7 @@ def _bow_shock():
 def test_bow_shock_upstream_deviation_is_nan_without_a_measurement():
     from types import SimpleNamespace
 
-    B = _bow_shock()
+    B = _example("bow_shock")
     v, n_cells = 0.25, (48, 64, 64)  # R_mp = 20 cells: the upstream region is cells 4 to 16 along x
     info = {"r_mp": 10.0, "v_sw": v, "crossing_steps": 100}
 
@@ -113,3 +113,116 @@ def test_bow_shock_upstream_deviation_is_nan_without_a_measurement():
     # blocks of 12 cells: none lies inside the region, so nothing was measured
     up = state(12, {0: 1.0, 100: 1.0, 200: 1.0})
     assert up["blocks"] == 0 and np.isnan(up["deviation"])
+
+
+def test_blast_wave_front_and_debris_extent_are_recovered_from_synthetic_planes():
+    from scipy.special import erfinv
+
+    A = _example("blast_wave")
+    a = 0.25 + 0.5 * np.arange(256)  # the staggered positions of B_z; centre of the plane at 64
+    c, dr = (64.0, 64.0), 0.5
+    x, y = np.meshgrid(a - c[0], a - c[1], indexing="ij")
+    # a front with four corners: B falls from 2 to 1 between the 4-norm radii 20 and 40, 1.25 at 35,
+    # which is the radius 35 on the axes and 35 * 2^(1/4) on the diagonals
+    bz = np.clip(2.0 - ((x ** 4 + y ** 4) ** 0.25 - 20.0) / 20.0, 1.0, 2.0)
+    fronts = A.ray_fronts(bz, a, a, c, 4.0, dr, 8, A.FRONT_LEVEL)
+    assert np.max(np.abs(fronts[::2] - 35.0)) < 0.05 and np.max(np.abs(fronts[1::2] - 35.0 * 2.0 ** 0.25)) < 0.05
+    assert np.all(A.ray_fronts(np.ones_like(bz), a, a, c, 4.0, dr, 8, A.FRONT_LEVEL) == 0.0)  # no front
+    # a history: the diagonals 10 % ahead of the axes, speed 0.1; R_B = 100, so the window is 30 to 70
+    t = np.arange(0.0, 1000.0, 50.0)
+    f = 0.1 * t[:, None] * np.where(np.arange(8) % 2, 1.1, 1.0)
+    peak = np.where(t < 500.0, 2.0, 3.0)
+    m = A.window_measures(t, f, peak, 100.0)
+    assert list(t[m["window"]]) == [300.0, 350.0, 400.0, 450.0, 500.0, 550.0, 600.0, 650.0]
+    assert m["front_speed"] == pytest.approx(0.105) and m["asymmetry"] == pytest.approx(0.1 / 1.05)
+    assert m["compression"] == 3.0
+    one = A.window_measures(t[:7], f[:7], peak[:7], 100.0)  # a single sample in the window: no speed
+    assert len(one["window"]) == 1 and np.isnan(one["front_speed"]) and np.isfinite(one["asymmetry"])
+    none = A.window_measures(t[:5], f[:5], peak[:5], 100.0)
+    assert all(np.isnan(none[k]) for k in ("front_speed", "compression", "asymmetry"))
+    # Eq. 3 of Le et al. 2021 on a Gaussian cloud exp(-r^2 / L^2): D98 = L erfinv(0.98)
+    n = 0.5 * np.arange(257)
+    xn, yn = np.meshgrid(n - 64.0, n - 64.0, indexing="ij")
+    r, ring = A.ring_mean(np.exp(-(xn * xn + yn * yn) / 12.0 ** 2), n, n, c, dr)
+    assert r[0] == 0.25 and r[-1] == 63.75
+    assert A.extent(r, ring) == pytest.approx(12.0 * erfinv(0.98), rel=5e-3)
+    assert np.isnan(A.extent(r, np.zeros_like(r))) and np.isnan(A.extent(r, np.where(r < 1.0, np.nan, ring)))
+
+
+def _blast_wave_slices(cs, n_cells=384, dx=0.5):
+    """A run with the slice z = centre written as means over blocks of cs cells: B_z with a cavity inside
+    the radius 10 and a ramp from 2 to 1 between 20 and 40, debris ions in a Gaussian shell (radius 20,
+    width 5), E_r = 1 / r. The centre is at 96."""
+    from types import SimpleNamespace
+
+    stagger = {"Bz": (0.5, 0.5), "n:di": (0.0, 0.0), "Ex": (0.5, 0.0), "Ey": (0.0, 0.5)}
+
+    def read(comp, j):
+        x, y = np.meshgrid(*((np.arange(n_cells) + s) * dx - 96.0 for s in stagger[comp]), indexing="ij")
+        r = np.maximum(np.hypot(x, y), 1e-12)
+        plane = {"Bz": np.where(r < 10.0, 0.0, np.clip(2.0 - (r - 20.0) / 20.0, 1.0, 2.0)),
+                 "n:di": np.exp(-((r - 20.0) / 5.0) ** 2), "Ex": x / r ** 2, "Ey": y / r ** 2}[comp]
+        plane = plane.reshape(n_cells // cs, cs, n_cells // cs, cs).mean(axis=(1, 3))
+        return plane if isinstance(j, int) else np.stack([plane] * 2)
+
+    def plane_axes(comp):
+        return tuple((np.arange(n_cells // cs) + ((cs - 1) / 2 + s) / cs) * dx * cs for s in stagger[comp])
+
+    series = SimpleNamespace(layout={"axis": "z"}, step=np.array([0, 10, 20]), read=read, plane_axes=plane_axes)
+    return SimpleNamespace(dx=(dx, dx, dx), dt=0.25, series=lambda name: series)
+
+
+def test_blast_wave_analysis_follows_the_resolution_of_the_slices():
+    """The rings are as wide as the samples of the slice are apart, so that every ring holds a sample.
+    Rings of the cell width gave nan for slices written as means over blocks of 3 or 4 cells."""
+    from scipy.special import erfinv
+
+    A = _example("blast_wave")
+    info = {"center": (96.0, 96.0, 96.0), "b0": 1.0, "body": True, "body_radius": 64.0 / 15.0,
+            "dipole_radius": 6.4, "d_i": 4.0, "params": {"vte": 0.1}}
+    for cs in (1, 3, 4):
+        run = _blast_wave_slices(cs)
+        h = A.plane_history(run, info)
+        assert h["front"] == pytest.approx(35.0, abs=0.5 * cs), cs  # B_z = 1.25 on the ramp; one sample
+        assert h["extent"] == pytest.approx(20.0 + 5.0 * erfinv(0.96), abs=0.5 * cs), cs  # Eq. 3 on the shell
+        # E_r = 1 / r from the body radius to two dipole radii, three times as far out
+        assert A.body_potential(run, info, "slice_z") * 0.1 ** 2 == pytest.approx(np.log(3.0), rel=0.05), cs
+
+
+def test_blast_wave_gate_fails_without_a_measurement():
+    from types import SimpleNamespace
+
+    A = _example("blast_wave")
+    good = {"gauss_max": 1e-12, "divB_max": 1e-14, "ambient_deviation": 0.01, "front_speed": 0.1, "fast_speed": 0.08,
+            "compression": 2.0, "asymmetry": 0.02, "debris_extent": 30.0, "debris_extent_le": 32.6,
+            "debris_extent_step": 880, "last_step": 1760}
+    assert all(A.gate_checks(good).values())
+    for key, check in (("gauss_max", "gauss"), ("divB_max", "divB"), ("ambient_deviation", "ambient"),
+                       ("front_speed", "front_speed"), ("compression", "compression"), ("asymmetry", "symmetry"),
+                       ("debris_extent", "debris_extent")):
+        checks = A.gate_checks({**good, key: float("nan")})
+        assert [k for k, ok in checks.items() if not ok] == [check]
+    # the extent still grows at the end of the run: no maximum was seen
+    assert not A.gate_checks({**good, "debris_extent_step": 1760})["debris_extent"]
+
+    # ahead of the front: 16^3 blocks of 4 d_e around the centre (32, 32, 32); R_B = 20, so the region
+    # begins 4 d_e beyond the front
+    info = {"center": (32.0, 32.0, 32.0), "body": False, "r_b": 20.0}
+    coords = tuple(2.0 + 4.0 * np.arange(16) for _ in range(3))
+
+    def ahead(front, density):
+        """A uniform plasma with the given density at each 3-D output and the front radius at each slice sample."""
+        data = {(it, q): np.full((16, 16, 16), d if q.startswith("n") else 0.25 * (q == "Bz"))
+                for it, d in density.items() for q in ("n:e", "n:i", "Bx", "By", "Bz")}
+        f = SimpleNamespace(iterations=sorted(density),
+                            get=lambda it, q: SimpleNamespace(data=data[it, q], coords=coords))
+        step = np.array(sorted(front))
+        return A.ahead_of_front(SimpleNamespace(fields=lambda name: f), info, step, np.array([front[k] for k in step]))
+
+    out = ahead({0: 0.0, 50: 10.0, 100: 20.0}, {0: 1.0, 100: 1.1})
+    assert out["blocks"][0] > out["blocks"][1] > 0 and out["deviation"] == pytest.approx(0.1)
+    # the region does not come back when the front is lost later
+    assert ahead({0: 0.0, 50: 20.0, 100: 0.0}, {0: 1.0, 100: 1.0})["blocks"] == out["blocks"]
+    # a front so far out that no block lies ahead of it: nothing was measured
+    out = ahead({0: 0.0, 50: 60.0, 100: 60.0}, {0: 1.0, 100: 1.0})
+    assert out["blocks"][1] == 0 and np.isnan(out["deviation"])

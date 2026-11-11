@@ -128,3 +128,53 @@ def test_bow_shock_planner_gives_a_configuration_the_engine_accepts():
     # output blocks so large that none lies inside the upstream region: its gate could not be measured
     with pytest.raises(ValueError, match="upstream region"):
         P.plan_bow_shock(P.params_from_dict({**params, "coarse": 0.5}))
+
+
+def test_blast_wave_planner_gives_a_configuration_the_engine_accepts():
+    import os
+
+    import numpy as np
+    import yaml
+
+    from pypic import body, external, injection
+
+    P = _example_planner("blast_wave")
+    with open(os.path.join(os.path.dirname(P.__file__), "configs", "gate.yaml")) as f:
+        params = yaml.safe_load(f)
+
+    def plan(n_gpus=8, **over):
+        return P.plan_blast_wave(P.params_from_dict({**params, **over}), n_gpus=n_gpus)
+
+    cfg, report, info = plan()
+    # the checks that Simulation makes at construction (no GPU needed for them)
+    reach = cfg.current_filter.passes + int(cfg.current_filter.compensate)
+    assert external.check_config(cfg) and injection.check_config(cfg) and body.check_config(cfg, reach)
+    assert math.prod(cfg.dims) == 8 and "blast-wave planner" in report
+    # the debris: as many ions as the ambient plasma holds inside R_m, electrons with the same shape
+    # (neutral), every beam with the radial speed V_d = M_A v_A around the centre of the body; the
+    # same number for a shell wider than its radius, of which the Gaussian is cut off at the centre
+    r = np.linspace(0.0, 4.0 * info["r_m"], 400001)
+    for c in (cfg, plan(body=False, shell_radius=0.1, shell_width=0.3)[0]):
+        sp = {s.name: s for s in c.species}
+        for name in ("de", "di"):
+            number = 0.0
+            for b in sp[name].beams:
+                assert b.origin == tuple(info["center"]) and b.profile["axis"] == "r"
+                assert b.drift_radial / math.sqrt(1.0 + b.drift_radial ** 2) == pytest.approx(info["v_d"], rel=1e-12)
+                shape = np.exp(-((r - b.profile["center"]) / b.profile["width"]) ** 2)
+                number += b.density * float(np.sum(4.0 * math.pi * r * r * shape) * (r[1] - r[0]))
+            assert number == pytest.approx(4.0 / 3.0 * math.pi * info["r_m"] ** 3, rel=1e-6), name
+    assert sorted(cfg.injection.species) == ["e", "i"]  # the debris does not enter through the faces
+    # without the shell and the body: the null tests
+    cfg0, _, _ = plan(debris=False, body=False)
+    assert [s.name for s in cfg0.species] == ["e", "i"] and cfg0.body is None
+    for match, n_gpus, over in (
+            ("debris_beams", 8, {"debris_beams": 0}),
+            ("omega_pe dt", 8, {"shell_width": 0.05}),  # a thin shell is dense
+            ("overlaps the body", 8, {"body_radius": 1.2}),
+            ("particle slots", 1, {"ppc": 32}),  # 2.7e9 slots of one species on one GPU
+            ("half_width", 8, {"half_width": 1.2}),
+            ("body radius", 8, {"dipole_radius": 0.1}),
+            ("Omega_ce dt", 8, {"body_radius": 0.3, "dipole_radius": 0.5})):
+        with pytest.raises(ValueError, match=match):
+            plan(n_gpus, **over)

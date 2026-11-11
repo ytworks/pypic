@@ -222,25 +222,6 @@ def summary(results: dict[str, dict], path: str) -> str:
     return P.save(fig, path, dpi=110)
 
 
-class _Outside:
-    """A slice series scaled by a constant and blanked inside the body (the dipole field in there
-    would set the colour scale)."""
-
-    def __init__(self, series, comp, info, scale):
-        self._s, self._scale = series, scale
-        a, b = series.plane_axes(comp)
-        ca, cb = (c for c, ax in zip(info["center"], "xyz") if ax != series.layout["axis"])
-        self._mask = (a[:, None] - ca) ** 2 + (b[None, :] - cb) ** 2 < info["body_radius"] ** 2
-
-    def __getattr__(self, k):
-        return getattr(self._s, k)
-
-    def read(self, k, sel=slice(None)):
-        d = np.array(self._s.read(k, sel), dtype=float) * self._scale
-        d[..., self._mask] = np.nan
-        return d
-
-
 def movie(run_dir: str, out: str | None = None, fps: int = 12, n_frames: int = 100, dpi: int = 110) -> str:
     from pypic.analysis import Movie
     from pypic.analysis.animate import SlicePanel
@@ -251,9 +232,8 @@ def movie(run_dir: str, out: str | None = None, fps: int = 12, n_frames: int = 1
     for diag, comp, scale, label, log in (("slice_z", "n:i", 1.0, "n_i / n_0 (z = centre)", False),
                                           ("slice_y", "n:i", 1.0, "n_i / n_0 (y = centre)", False),
                                           ("slice_z", "Bz", 1.0 / info["b_imf"], "B_z / B_imf (z = centre)", True)):
-        panel = SlicePanel(run, diag, comp, signed=False, log=log, label=label)
-        panel.s = _Outside(panel.s, comp, info, scale)
-        m.add(panel)
+        m.add(SlicePanel(run, diag, comp, signed=False, log=log, label=label, scale=scale,
+                         blank=(info["center"], info["body_radius"])))
     return m.save(out or os.path.join(run_dir, "bow_shock.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
 
 

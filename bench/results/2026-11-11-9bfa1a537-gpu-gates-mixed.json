@@ -1,0 +1,895 @@
+{
+  "date": "2026-11-11",
+  "commit": "9bfa1a537a1f3bdb036a4e2db2d4dfdd71191368",
+  "dirty": false,
+  "gpus": 8,
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "quick": false,
+  "all_passed": true,
+  "gates": [
+    {
+      "name": "two-stream:ei",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.3516099942828085,
+        "growth_theory": 0.34152114213476215,
+        "growth_rel_error": 0.029540929984549345,
+        "gauss_max": 2.184474823252458e-12,
+        "divB_max": 5.3621217807440805e-15,
+        "energy_error_max": 0.002193050178791751,
+        "wall_time_s": 5.0951650069328025,
+        "ns_per_particle_step_x_gpus": 2.6198290901542993
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:ep",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.46022807896778,
+        "growth_theory": 0.4680931521766451,
+        "growth_rel_error": -0.01680236758921232,
+        "gauss_max": 8.333854439879218e-13,
+        "divB_max": 9.66649951719881e-15,
+        "energy_error_max": 0.0023989141410393298,
+        "wall_time_s": 4.435668132966384,
+        "ns_per_particle_step_x_gpus": 2.511985020493886
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:eip",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.3247179816128144,
+        "growth_theory": 0.3322174078098893,
+        "growth_rel_error": -0.022573850800035194,
+        "gauss_max": 3.4803548931705564e-12,
+        "divB_max": 8.33678116010663e-15,
+        "energy_error_max": 0.00029370848911935103,
+        "wall_time_s": 9.036496649961919,
+        "ns_per_particle_step_x_gpus": 1.8390684518480156
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "two-stream:buneman",
+      "passed": true,
+      "metrics": {
+        "growth_fit": 0.05096884008512613,
+        "growth_theory": 0.05372784084847818,
+        "growth_rel_error": -0.051351417063881515,
+        "gauss_max": 7.578382366091319e-12,
+        "divB_max": 1.5998175062942955e-14,
+        "energy_error_max": 0.00426705043721993,
+        "wall_time_s": 14.709693785989657,
+        "ns_per_particle_step_x_gpus": 43.272048323574936
+      },
+      "criteria": {
+        "growth_rel_error_max": 0.1,
+        "gauss_max": 1e-10,
+        "divB_max": 1e-12
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "plasma_waves:unmagnetized",
+      "passed": true,
+      "metrics": {
+        "geometry": "unmagnetized",
+        "d_omega": 0.020978985316372073,
+        "branches": {
+          "Ex: Langmuir (kinetic)": {
+            "component": "Ex",
+            "points": 24,
+            "found": 24,
+            "median_rel_error": 0.013860018809735536,
+            "max_rel_error": 0.02201269257569546,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ey: EM (Yee)": {
+            "component": "Ey",
+            "points": 24,
+            "found": 24,
+            "median_rel_error": 0.003384351809971915,
+            "max_rel_error": 0.011966953613522091,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ez: EM (Yee)": {
+            "component": "Ez",
+            "points": 24,
+            "found": 24,
+            "median_rel_error": 0.0032320442863940863,
+            "max_rel_error": 0.011795888977732866,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          }
+        },
+        "passed": true,
+        "gauss_max": 5.229275346074758e-12,
+        "divB_max": 4.2587461335230614e-15,
+        "wall_time_s": 7.171754985000007,
+        "ns_per_particle_step_x_gpus": 2.5007380375696515
+      },
+      "criteria": {
+        "analysis": "examples/plasma_waves/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "plasma_waves:perpendicular",
+      "passed": true,
+      "metrics": {
+        "geometry": "perpendicular",
+        "d_omega": 0.020957887585698498,
+        "branches": {
+          "Ez: O mode": {
+            "component": "Ez",
+            "points": 20,
+            "found": 20,
+            "median_rel_error": 0.0005058881310631224,
+            "max_rel_error": 0.0017789454787292115,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ey: X upper": {
+            "component": "Ey",
+            "points": 20,
+            "found": 20,
+            "median_rel_error": 0.0006524938594892201,
+            "max_rel_error": 0.0017835342818408643,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ey: X lower": {
+            "component": "Ey",
+            "points": 20,
+            "found": 20,
+            "median_rel_error": 0.04647624101355133,
+            "max_rel_error": 0.08880094389566473,
+            "fraction_within_tolerance": 0.45,
+            "checked": false
+          },
+          "Ex: Bernstein 1": {
+            "component": "Ex",
+            "points": 91,
+            "found": 83,
+            "median_rel_error": 0.004560407319442541,
+            "max_rel_error": 0.01936736446260834,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ex: Bernstein 2": {
+            "component": "Ex",
+            "points": 91,
+            "found": 91,
+            "median_rel_error": 0.007006371525544774,
+            "max_rel_error": 0.0195799438296598,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ex: Bernstein 3": {
+            "component": "Ex",
+            "points": 91,
+            "found": 73,
+            "median_rel_error": 0.007359154482035257,
+            "max_rel_error": 0.011644064688989684,
+            "fraction_within_tolerance": 1.0,
+            "checked": true,
+            "passed": true
+          },
+          "Ex: Bernstein 4": {
+            "component": "Ex",
+            "points": 91,
+            "found": 37,
+            "median_rel_error": 0.0070605775973718,
+            "max_rel_error": 0.033851377938840035,
+            "fraction_within_tolerance": 0.972972972972973,
+            "checked": false
+          }
+        },
+        "passed": true,
+        "gauss_max": 4.980987844405149e-12,
+        "divB_max": 1.0610988452149473e-12,
+        "wall_time_s": 20.221607443061657,
+        "ns_per_particle_step_x_gpus": 2.229846523084623
+      },
+      "criteria": {
+        "analysis": "examples/plasma_waves/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "landau_damping:landau",
+      "passed": true,
+      "metrics": {
+        "case": "landau",
+        "omega_fit": 1.414051506775754,
+        "gamma_fit": -0.16041575720504525,
+        "omega_theory": 1.415661888604536,
+        "gamma_theory": -0.15335946690960525,
+        "omega_rel_error": -0.0011375469253957545,
+        "gamma_rel_error": 0.04601144251237644,
+        "fit_window": [
+          0.0,
+          19.738822639500157
+        ],
+        "passed": true,
+        "gauss_max": 3.8124364776237485e-13,
+        "wall_time_s": 23.85923416505102,
+        "ns_per_particle_step_x_gpus": 1.485437970513884
+      },
+      "criteria": {
+        "analysis": "examples/landau_damping/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "landau_damping:dawson",
+      "passed": true,
+      "metrics": {
+        "case": "dawson",
+        "sheets": 304,
+        "freq_rel_error_median": 0.0030547052120381,
+        "amp_rel_error_median": 0.003916414746467495,
+        "passed": true,
+        "gauss_max": 7.632783294297951e-14,
+        "wall_time_s": 5.584992416086607,
+        "ns_per_particle_step_x_gpus": 22.828883255485607
+      },
+      "criteria": {
+        "analysis": "examples/landau_damping/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "landau_damping:wavebreaking",
+      "passed": true,
+      "metrics": {
+        "case": "wavebreaking",
+        "t_cross": 0.9733688258898454,
+        "t_cross_theory": 0.9851107833377457,
+        "rel_error": -0.011919428399835678,
+        "max_gamma_end": 1.0106178522109985,
+        "passed": true,
+        "gauss_max": 2.1495305535523812e-13,
+        "wall_time_s": 5.2205621670000255,
+        "ns_per_particle_step_x_gpus": 23.70817169461943
+      },
+      "criteria": {
+        "analysis": "examples/landau_damping/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "landau_damping:relativistic",
+      "passed": true,
+      "metrics": {
+        "case": "relativistic",
+        "sheets": 304,
+        "beta_max": 0.3000126296706434,
+        "omega_theory_max_amplitude": 0.9823436391298078,
+        "freq_rel_error_median": 0.0007469463836051078,
+        "nonrelativistic_shift": 0.015112769702573359,
+        "passed": true,
+        "gauss_max": 2.6395552410463097e-13,
+        "wall_time_s": 3.13434127997607,
+        "ns_per_particle_step_x_gpus": 39.855210367534255
+      },
+      "criteria": {
+        "analysis": "examples/landau_damping/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "filamentation:pair",
+      "passed": true,
+      "metrics": {
+        "k": [
+          0.3535533905932738,
+          0.7071067811865476,
+          1.0606601717798212,
+          1.4142135623730951,
+          1.7677669529663689,
+          2.1213203435596424,
+          2.4748737341529163,
+          2.8284271247461903,
+          3.181980515339464,
+          3.5355339059327378,
+          3.889087296526011,
+          4.242640687119285,
+          4.59619407771256,
+          4.949747468305833,
+          5.303300858899106,
+          5.656854249492381
+        ],
+        "gamma_fit": [
+          -0.014839559992974096,
+          0.2501534253734778,
+          0.3924154813383903,
+          0.43554433767356715,
+          0.4660837997280142,
+          0.4965385138997206,
+          0.5173186821868531,
+          0.5324627086172907,
+          0.5456958219246988,
+          0.5470219833749078,
+          0.5499894194719805,
+          0.5580006845186467,
+          0.5652202230878693,
+          0.5574635317936887,
+          0.5599528049050416,
+          0.5580637845145475
+        ],
+        "gamma_theory": [
+          0.168010823542332,
+          0.29761089070947644,
+          0.3857485605584397,
+          0.4440850886405144,
+          0.48314961856256716,
+          0.5099456092168514,
+          0.5288291964749573,
+          0.5424930111747623,
+          0.5526250973806509,
+          0.5603067546456856,
+          0.566247330208554,
+          0.5709233929296238,
+          0.5746625073716389,
+          0.5776946751337253,
+          0.5801846079619779,
+          0.582252416106359
+        ],
+        "linear_window": [
+          6.777474258761586,
+          10.432741274722943
+        ],
+        "median_rel_error_m2_10": 0.021766034032974037,
+        "max_rel_error_m2_10": 0.1594614539234922,
+        "eps_B_peak": 0.19457772157839467,
+        "t_peak": 31.678980804998496,
+        "B_sat_trapping_estimate": 0.14982614944167713,
+        "passed": true,
+        "gauss_max": 2.5013324744804777e-13,
+        "wall_time_s": 7.463993558078073,
+        "ns_per_particle_step_x_gpus": 3.155238898120904
+      },
+      "criteria": {
+        "analysis": "examples/filamentation/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:gyration",
+      "passed": true,
+      "metrics": {
+        "case": "gyration",
+        "dt": 0.05,
+        "max_rel_position_error": 0.0032341159460324786,
+        "per_particle": [
+          0.0032341159460324786,
+          0.003149022946435586,
+          0.002688077929453628,
+          0.0017234249859616228,
+          0.000666976643909282,
+          0.0001586706554914355,
+          2.331266498924542e-05,
+          3.2782387483646064e-06
+        ],
+        "refined_dt": 0.025,
+        "refined_max_error": 0.000808498662342447,
+        "convergence_ratio": 4.000150027041899,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 0.4211837589973584,
+        "ns_per_particle_step_x_gpus": 83701.0649835768
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:exb",
+      "passed": true,
+      "metrics": {
+        "case": "exb",
+        "dt": 0.05,
+        "max_rel_position_error": 0.0002030416598340844,
+        "per_particle": [
+          0.0002030416598334059,
+          0.00020304165983363207,
+          0.0002030416598340844,
+          0.0002030416598340844,
+          0.00020304165983351896,
+          0.0002030416598340844,
+          0.0002030416598340844,
+          0.000203041659833519
+        ],
+        "refined_dt": 0.025,
+        "refined_max_error": 5.0762407118177874e-05,
+        "convergence_ratio": 3.999843020867617,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 0.8426467949757352,
+        "ns_per_particle_step_x_gpus": 83795.42511691878
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:hyperbolic",
+      "passed": true,
+      "metrics": {
+        "case": "hyperbolic",
+        "dt": 0.07957747154594767,
+        "max_rel_position_error": 5.553878035417084e-07,
+        "per_particle": [
+          5.551996579311652e-07,
+          5.553160014675182e-07,
+          5.553383285767943e-07,
+          5.55283519861282e-07,
+          5.553817356051343e-07,
+          5.551903423118753e-07,
+          5.552543870451468e-07,
+          5.553878035417084e-07
+        ],
+        "refined_dt": 0.039788735772973836,
+        "refined_max_error": 1.3949391736695824e-07,
+        "convergence_ratio": 3.981448180859981,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 0.8830941769992933,
+        "ns_per_particle_step_x_gpus": 87817.63892196633
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:e_gt_b",
+      "passed": true,
+      "metrics": {
+        "case": "e_gt_b",
+        "dt": 0.03183098861837907,
+        "max_rel_position_error": 4.287227534314747e-07,
+        "per_particle": [
+          4.286373476159394e-07,
+          4.2870140967523163e-07,
+          4.286902169780121e-07,
+          4.287132093396138e-07,
+          4.2860956208084005e-07,
+          4.28650554256191e-07,
+          4.286562170993145e-07,
+          4.287227534314747e-07
+        ],
+        "refined_dt": 0.015915494309189534,
+        "refined_max_error": 1.2516126411961447e-07,
+        "convergence_ratio": 3.4253629223635174,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 0.882478200015612,
+        "ns_per_particle_step_x_gpus": 87756.38424976252
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "particle_orbits:plane_wave",
+      "passed": true,
+      "metrics": {
+        "case": "plane_wave",
+        "dt": 0.02454369260617026,
+        "max_rel_position_error": 0.0004451737810709806,
+        "per_particle": [
+          0.00037772384512057574,
+          0.0003280651142450545,
+          0.00018849299396078096,
+          0.00044516270664692634,
+          0.0003776501032792971,
+          0.0003279560298811909,
+          0.00018851547924935596,
+          0.0004451737810709806
+        ],
+        "drift_measured": 0.49981113807743943,
+        "drift_theory_node": 0.5,
+        "refined_dt": 0.01227184630308513,
+        "refined_max_error": 0.00011833048993823876,
+        "convergence_ratio": 3.7621223515877773,
+        "passed": true,
+        "gauss_max": 0.0,
+        "wall_time_s": 1.0408576839836314,
+        "ns_per_particle_step_x_gpus": 84705.21516793876
+      },
+      "criteria": {
+        "analysis": "examples/particle_orbits/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "plasma_expansion:isothermal_hydrogen",
+      "passed": true,
+      "metrics": {
+        "tau_end": 9.991201846809222,
+        "E_max_final": 0.1525048952560169,
+        "E_max_theory_final": 0.17968179513276566,
+        "E_max_median_rel_error": 0.14862093974118107,
+        "E_max_max_rel_error": 0.21735640160943248,
+        "front_median_rel_error": 0.07619267998035736,
+        "spectrum_rms_log_ratio": 0.4543484865745735,
+        "electron_temperature_final_over_initial": 1.0371849121985457,
+        "velocity_profile_median_rel_error": 0.08389055437003234,
+        "regime": "isothermal (thick slab)",
+        "passed": true,
+        "gauss_max": 5.8114242584839104e-12,
+        "wall_time_s": 16.206384561024606,
+        "ns_per_particle_step_x_gpus": 4.343895104264037
+      },
+      "criteria": {
+        "analysis": "examples/plasma_expansion/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "relativistic_shock:pair_2d",
+      "passed": true,
+      "metrics": {
+        "dims_eff": 2,
+        "beta_sh": 0.4719213233101621,
+        "beta_sh_theory": 0.49715693370682207,
+        "beta_sh_rel_error": -0.050759848019220455,
+        "compression": 3.0706286430358887,
+        "compression_theory": 3.006962460928112,
+        "compression_rel_error": 0.021172922154846594,
+        "compression_gamma_3_2": 3.1333333333333333,
+        "density_ahead_of_shock": 1.0632275342941284,
+        "beta_sh_gamma_3_2": 0.46770717334674267,
+        "t_measured": 298.2197176579748,
+        "theta_downstream_fit": 4.232913186331723,
+        "theta2_theory": 7.440763653560054,
+        "nonthermal_fraction": 0.08380582139274195,
+        "tail_index_p": null,
+        "tail_index_err": null,
+        "tail_range": [
+          null,
+          null
+        ],
+        "tail_index_window_p": null,
+        "tail_index_window_err": null,
+        "tail_window": [
+          45.177455135327435,
+          48.370906627537025
+        ],
+        "tail_index_literature_2d": 2.4,
+        "t_spectrum": 396.98079298625566,
+        "gamma_max_t": [
+          null,
+          16.00545172108987,
+          16.00545172108987,
+          16.00545172108987,
+          19.216319778256796,
+          27.699681801130712,
+          33.256539866670046,
+          39.92816422383116,
+          45.10391056958129,
+          47.93818914044657,
+          54.15224661312787,
+          54.15224661312787,
+          57.555112355844884,
+          50.95057056128253,
+          47.93818914044657,
+          50.95057056128253,
+          47.93818914044657,
+          47.93818914044657,
+          50.95057056128253,
+          50.95057056128253,
+          54.15224661312787,
+          54.15224661312787,
+          54.15224661312787,
+          54.15224661312787,
+          57.555112355844884,
+          57.555112355844884,
+          57.555112355844884,
+          57.555112355844884,
+          57.555112355844884,
+          57.555112355844884,
+          61.171810321362976,
+          57.555112355844884,
+          57.555112355844884,
+          57.555112355844884,
+          61.171810321362976,
+          61.171810321362976,
+          61.171810321362976,
+          61.171810321362976,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          65.01577748397533,
+          69.10129518219576
+        ],
+        "gamma_max_growth_exponent": 0.25255589954376034,
+        "gamma_max_growth_literature": 0.5,
+        "eps_B_end": 0.01972798314065322,
+        "passed": true,
+        "gauss_max": 2.402716914318148e-12,
+        "wall_time_s": 7.935352054075338,
+        "ns_per_particle_step_x_gpus": 7.213276528695312
+      },
+      "criteria": {
+        "analysis": "examples/relativistic_shock/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "reconnection:pair_sigma10",
+      "passed": true,
+      "metrics": {
+        "equilibrium_max_dev_over_B0": 0.011379027591618384,
+        "reconnection_rate_peak": 0.21804873407216024,
+        "reconnection_rate_mean_active": 0.10088303429055114,
+        "reconnection_rate_literature": 0.1,
+        "magnetic_energy_converted": 0.538916548500568,
+        "power_law_index": 2.4516504496969502,
+        "power_law_err": 0.05767925392807528,
+        "power_law_range": [
+          5.0,
+          50.0
+        ],
+        "werner2016_index": 2.1213594362117862,
+        "sigma": 10,
+        "E_parallel_share_top1pct": 0.0007717376304697793,
+        "passed": true,
+        "gauss_max": 1.8818280267396403e-13,
+        "wall_time_s": 10.614950013929047,
+        "ns_per_particle_step_x_gpus": 3.4827176382086162
+      },
+      "criteria": {
+        "analysis": "examples/reconnection/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "bow_shock:gate",
+      "passed": true,
+      "metrics": {
+        "gauss_max": 4.6254666763445584e-14,
+        "r_mp": 20.0,
+        "upstream_deviation": 0.0011137185901348712,
+        "upstream": {
+          "e": {
+            "density": 0.0011137185901348712,
+            "u_x": 0.0006035128653443245,
+            "n_end": 1.0000968887179735,
+            "u_x_end": 0.999476747687228
+          },
+          "i": {
+            "density": 0.0010665363771793501,
+            "u_x": 0.0004031951078787843,
+            "n_end": 1.000016370200211,
+            "u_x_end": 0.9995968048921212
+          }
+        },
+        "compression": 3.8706111150317106,
+        "x_compression": 25.75,
+        "compression_mhd": 2.9653419658152917,
+        "x_magnetopause": 31.702987318527686,
+        "magnetopause": 0.9148506340736157,
+        "x_shock": 22.36570953743142,
+        "shock": 1.381714523128429,
+        "shock_spreiter": 1.3709521575187251,
+        "sheath": 0.5103170634270402,
+        "sheath_spreiter": 0.3709521575187251,
+        "magnetopause_magnetic": 0.9373569208817445,
+        "wind_density": 0.9898160058661502,
+        "body_charge": 756.09375,
+        "absorbed_per_step": [
+          1477.1572916666667,
+          616.1333333333333,
+          419.44631578947366
+        ],
+        "fill_max": 0.5685022463948317,
+        "particles_start": 391940798.0,
+        "particles_end": 433739607.0,
+        "checks": {
+          "gauss": true,
+          "upstream": true,
+          "compression": true,
+          "magnetopause": true,
+          "shock_upstream": true
+        },
+        "passed": true,
+        "wall_time_s": 235.02378367097117,
+        "ns_per_particle_step_x_gpus": 0.7525765022934963
+      },
+      "criteria": {
+        "analysis": "examples/bow_shock/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    },
+    {
+      "name": "blast_wave:gate",
+      "passed": true,
+      "metrics": {
+        "gauss_max": 6.918077222195507e-15,
+        "divB_max": 8.625045122556685e-15,
+        "r_b": 66.56268233766093,
+        "r_m": 32.0,
+        "fast_speed": 0.07739239842086129,
+        "last_step": 1760,
+        "window_samples": 14,
+        "front_speed": 0.16274967880523641,
+        "compression": 2.6865894211811967,
+        "asymmetry": 0.0021272970359039463,
+        "debris_extent": 39.54555829703839,
+        "debris_extent_step": 616,
+        "debris_extent_le": 32.62318941419909,
+        "debris_extent_start": 15.284810722795893,
+        "ambient_deviation": 0.0005006658810046138,
+        "ahead": {
+          "steps": [
+            0,
+            176,
+            352,
+            528,
+            704,
+            880,
+            1056,
+            1232,
+            1408,
+            1584,
+            1760
+          ],
+          "blocks": [
+            258678,
+            250399,
+            243718,
+            235928,
+            226991,
+            216293,
+            204534,
+            191354,
+            177293,
+            161682,
+            145208
+          ],
+          "n:e": [
+            1.0,
+            1.000017864875008,
+            1.0000375851155903,
+            1.000038236017747,
+            1.0000185270779836,
+            1.0000014043188896,
+            1.0000024858595469,
+            0.9999795368640412,
+            0.9998738919284339,
+            0.9997159629357776,
+            0.9994993341189954
+          ],
+          "n:i": [
+            1.0,
+            1.000024291750449,
+            1.0000500659976062,
+            1.0000555162517057,
+            1.0000521613082254,
+            1.0000447417082783,
+            1.0000255241908669,
+            1.0000073417169195,
+            0.9999190680308973,
+            0.9997714440190539,
+            0.9995610527067034
+          ],
+          "B": [
+            1.0,
+            1.0000434771667182,
+            1.000084252104161,
+            1.0001173247854906,
+            1.0001400738025132,
+            1.0001487061299654,
+            1.0001474312189855,
+            1.0001201783885645,
+            1.0000771466132028,
+            0.9999894068575873,
+            0.9999029864465072
+          ]
+        },
+        "front_mach_fast": 2.1029155592284483,
+        "debris_extent_ratio": 1.2121916651051405,
+        "front_end": 77.45482362880311,
+        "front_max": 77.65015018909143,
+        "cavity_max": 33.25,
+        "cavity_static": 8.063494719327188,
+        "compression_mhd": 2.508010763707207,
+        "compression_mhd_front": 2.258384569249085,
+        "front_debris_distance": 10.513136891444738,
+        "front_debris_step": 660,
+        "debris_rms_along": 36.80841731460172,
+        "debris_rms_across": 14.807476325226851,
+        "energy_budget_change": 0.10897724667465002,
+        "debris_ion_energy_left": 0.20409307857832276,
+        "ambient_ion_energy_gain": 0.40905684766086925,
+        "fill_max": 0.6701177337759802,
+        "particles_start": 943088238.0,
+        "particles_end": 936673785.0,
+        "potential": {
+          "slice_z": 5.072670716502555,
+          "slice_y": 1.1544379724477272
+        },
+        "body_charge": 21.717059612887553,
+        "body_charge_max": 32.881821719783716,
+        "n_absorbed": 106358,
+        "ms_per_step": 84.80589771021518,
+        "ns_per_particle_step": 0.7244480762348205,
+        "checks": {
+          "gauss": true,
+          "divB": true,
+          "ambient": true,
+          "front_speed": true,
+          "compression": true,
+          "symmetry": true,
+          "debris_extent": true
+        },
+        "passed": true,
+        "wall_time_s": 149.2583799699787,
+        "ns_per_particle_step_x_gpus": 0.7244480762348205
+      },
+      "criteria": {
+        "analysis": "examples/blast_wave/README.md",
+        "gauss_max": 1e-10
+      },
+      "failed_checks": []
+    }
+  ],
+  "precision": "mixed"
+}

@@ -40,6 +40,7 @@ def test_supported_and_rejected_combinations():
         config({"x-": "flux"}, species=("e", "nobody")),
         config({"x-": "flux"}, species=("e", "t")),  # a test species
         config({"x-": "flux"}, ions=[Beam(1.0, profile={"axis": "x", "shape": "step", "x0": 0.0, "x1": 1.0})]),
+        config({"x-": "flux"}, ions=[Beam(1.0, origin=(1.0, 1.0, 1.0), drift_radial=0.1)]),  # a radial beam
         config({"x-": "flux"}, neutralizer="e"),  # no paired face uses it
         config({"x-": "paired"}),  # no neutralizer
         config({"x-": "paired"}, species=("e",), neutralizer="e"),  # nothing to pair with

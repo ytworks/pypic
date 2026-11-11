@@ -33,6 +33,7 @@ from pypic.config import (
 )
 from pypic.injection import ids_per_step
 from pypic.parallel.decomp import auto_dims
+from pypic.setup import mhd
 from pypic.setup.planner import apply_overrides
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -94,7 +95,7 @@ def _cells(length: float, dx: float) -> int:
 
 def plan_bow_shock(p: BowShockParams, n_gpus: int = 1):
     b_imf = 1.0 / p.wpe_wce
-    v = p.mach_alfven * T.alfven_speed(b_imf, p.mass_ratio)
+    v = p.mach_alfven * mhd.alfven_speed(b_imf, p.mass_ratio)
     if not 0.0 < v < 1.0:
         raise ValueError(f"wind speed {v:g} c: lower mach_alfven or raise wpe_wce or mass_ratio")
     gamma = 1.0 / math.sqrt(1.0 - v * v)
@@ -170,14 +171,14 @@ def plan_bow_shock(p: BowShockParams, n_gpus: int = 1):
                        for n, d in zip(cfg.n_cells, cfg.dims or (1, 1, 1)))
     n_out = sum(3 if m.split(":")[0] in ("flux", "E", "B") else 1 for m in moments)
     mem = (slots * 64 + slots / 2 * 40 + padded * 8 * (31 + n_out)) / 1e9 + 1.0
-    beta = T.plasma_beta(p.vte, p.ti_te, b_imf)
-    x_mhd = T.compression(p.mach_alfven, beta)
+    beta = mhd.plasma_beta(p.vte, p.ti_te, b_imf)
+    x_mhd = mhd.compression(p.mach_alfven, beta)
     lam_d = p.vte  # Debye length in d_e
     info = {
         "r_mp": r_mp, "d_i": math.sqrt(p.mass_ratio), "center": list(center), "body_radius": radius, "core": core,
         "v_sw": v, "b_imf": b_imf, "B": list(B), "E": list(E), "moment": moment,
         "b_standoff": T.standoff_field(v, p.mass_ratio), "ram_pressure": p.mass_ratio * v * v,
-        "beta": beta, "mach_alfven": p.mach_alfven, "mach_fast": T.fast_mach(p.mach_alfven, beta),
+        "beta": beta, "mach_alfven": p.mach_alfven, "mach_fast": mhd.fast_mach(p.mach_alfven, beta),
         "compression_mhd": x_mhd, "sheath_spreiter": 1.1 / x_mhd,
         "shock_standoff_spreiter": T.shock_standoff(r_mp, x_mhd),
         "crossing_time": t_cross, "crossing_steps": cross_steps, "omega_ci_t_end": omega_ci * cfg.n_steps * cfg.dt,
