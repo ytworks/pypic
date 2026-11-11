@@ -125,3 +125,6 @@ def test_bow_shock_planner_gives_a_configuration_the_engine_accepts():
     # a body so small that the dipole field at its surface cannot be resolved in time is refused
     with pytest.raises(ValueError, match="Omega_ce dt"):
         P.plan_bow_shock(P.params_from_dict({**params, "body_radius": 0.4}))
+    # output blocks so large that none lies inside the upstream region: its gate could not be measured
+    with pytest.raises(ValueError, match="upstream region"):
+        P.plan_bow_shock(P.params_from_dict({**params, "coarse": 0.5}))

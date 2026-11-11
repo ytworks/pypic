@@ -124,6 +124,9 @@ def plan_bow_shock(p: BowShockParams, n_gpus: int = 1):
     species = [SpeciesConfig("e", -1.0, 1.0, [Beam(1.0, u, theta_e)]),
                SpeciesConfig("i", 1.0, p.mass_ratio, [Beam(1.0, u, theta_e * p.ti_te / p.mass_ratio)])]
     c3 = max(1, int(round(p.coarse * r_mp / dx)))
+    if not all(T.upstream_blocks(n_cells, (c3,) * 3, (dx,) * 3, r_mp)):
+        raise ValueError(f"coarse = {p.coarse:g} R_mp leaves no block of the 3-D output inside the upstream region "
+                         f"(x from {T.UPSTREAM_X[0]:g} to {T.UPSTREAM_X[1]:g} R_mp): lower coarse")
     cs = int(p.slice_coarsen)
     moments = ["n:e", "n:i", "flux:e", "flux:i", "ekin:e", "ekin:i", "E", "B", "rho"]
     in_plane = ["n:e", "n:i", "flux:i", "B"]

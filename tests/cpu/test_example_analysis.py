@@ -67,3 +67,49 @@ def test_the_flux_panel_draws_frames_without_a_measurable_flux():
     panel.init(ax)
     panel.update(1.0)
     plt.close(fig)
+
+
+def _bow_shock():
+    """examples/bow_shock/analyze.py; its ``import theory`` must not meet the theory module of another example."""
+    import sys
+
+    folder = ROOT / "examples/bow_shock"
+    spec = importlib.util.spec_from_file_location("bow_shock_analyze", folder / "analyze.py")
+    mod = importlib.util.module_from_spec(spec)
+    other = sys.modules.pop("theory", None)
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.modules.pop("theory", None)
+        if other is not None:
+            sys.modules["theory"] = other
+        if str(folder) in sys.path:
+            sys.path.remove(str(folder))
+    return mod
+
+
+def test_bow_shock_upstream_deviation_is_nan_without_a_measurement():
+    from types import SimpleNamespace
+
+    B = _bow_shock()
+    v, n_cells = 0.25, (48, 64, 64)  # R_mp = 20 cells: the upstream region is cells 4 to 16 along x
+    info = {"r_mp": 10.0, "v_sw": v, "crossing_steps": 100}
+
+    def state(block, density):
+        """Upstream state of a uniform wind with the given density at each output step."""
+        shape = tuple(-(-n // block) for n in n_cells)
+        data = {(it, name): np.full(shape, d * (v if name.startswith("flux") else 1.0))
+                for it, d in density.items() for name in ("n:e", "n:i", "fluxx:e", "fluxx:i")}
+        f = SimpleNamespace(iterations=sorted(density), get=lambda it, name: SimpleNamespace(data=data[it, name]))
+        run = SimpleNamespace(fields=lambda name: f, n_cells=n_cells, dx=(0.5, 0.5, 0.5),
+                              config={"output": {"diagnostics": [{"name": "coarse", "coarsen": [block] * 3}]}})
+        return B.upstream_state(run, info)
+
+    up = state(4, {0: 1.0, 100: 1.0, 200: 0.9})
+    assert up["blocks"] == 3 * 12 * 12 and up["outputs"] == 2
+    assert up["deviation"] == pytest.approx(0.1) and up["e"]["u_x"] == pytest.approx(0.0, abs=1e-12)
+    # an output without a finite density in the last crossing: not "no deviation"
+    assert np.isnan(state(4, {0: 1.0, 100: float("nan"), 200: 1.0})["deviation"])
+    # blocks of 12 cells: none lies inside the region, so nothing was measured
+    up = state(12, {0: 1.0, 100: 1.0, 200: 1.0})
+    assert up["blocks"] == 0 and np.isnan(up["deviation"])

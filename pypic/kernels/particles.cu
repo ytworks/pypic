@@ -239,7 +239,9 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         }
         // --- reflecting walls: split the path at the wall so the deposited current
         //     follows the real (folded) trajectory and charge stays conserved. A paired face
-        //     returns its neutraliser the same way, with a velocity of the inflow distribution ---
+        //     returns its neutraliser the same way, with a velocity of the inflow distribution.
+        //     Three hits are enough: a reflecting wall is hit once per axis and step, and a returned
+        //     neutraliser meets no second paired face (they lie on one axis, injection.check_config) ---
         const double Lg[3] = {LX, LY, LZ};
         const int b0[3] = {BCX0, BCY0, BCZ0};
         const int b1[3] = {BCX1, BCY1, BCZ1};

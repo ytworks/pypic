@@ -86,3 +86,20 @@ def downstream(mach_alfven: float, beta: float, gamma: float = GAMMA) -> dict:
 def shock_standoff(r_mp: float, x: float) -> float:
     """Distance of the bow shock from the centre of the obstacle on the subsolar line (Spreiter et al. 1966)."""
     return r_mp * (1.0 + 1.1 / x)
+
+
+# Region of the undisturbed wind where the run is compared with the wind (gate "upstream"), in R_mp:
+# range of x from the upstream face, and distance from the four side faces.
+UPSTREAM_X, UPSTREAM_SIDE = (0.2, 0.8), 0.4
+
+
+def upstream_blocks(n_cells, block, dx, r_mp) -> list:
+    """Per axis, the indices of the blocks of the coarse output (``block`` cells of size ``dx`` each)
+    that lie wholly inside the upstream region. An empty list: the blocks are too large to measure it."""
+    lim = [(UPSTREAM_X[0] * r_mp, UPSTREAM_X[1] * r_mp)]
+    lim += [(UPSTREAM_SIDE * r_mp, n_cells[a] * dx[a] - UPSTREAM_SIDE * r_mp) for a in (1, 2)]
+    eps, out = 1e-9 * r_mp, []
+    for a, (lo, hi) in enumerate(lim):
+        w = block[a] * dx[a]
+        out.append([k for k in range(-(-n_cells[a] // block[a])) if k * w >= lo - eps and (k + 1) * w <= hi + eps])
+    return out

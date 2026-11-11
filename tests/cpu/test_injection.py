@@ -28,6 +28,9 @@ def test_supported_and_rejected_combinations():
     assert not check_config(config({}))
     assert check_config(config({"x-": "flux", "y+": "flux"}))
     assert check_config(config({"x-": "paired", "y-": "flux"}, neutralizer="e"))
+    rest = [Beam(1.0, (0.0, 0.0, 0.0), 0.01)]
+    assert check_config(config({"x-": "paired", "x+": "paired"}, neutralizer="e", electrons=rest, ions=rest))
+    oblique = [Beam(1.0, (0.2, 0.2, 0.0), 0.01)]  # x- and y- are both inflow faces
     side = (("open", "open"), ("periodic", "periodic"), ("reflecting", "reflecting"))
     out = [Beam(1.0, (-0.2, 0.0, 0.0), 0.01)]
     bad = [
@@ -42,6 +45,8 @@ def test_supported_and_rejected_combinations():
         config({"x-": "paired"}, species=("e",), neutralizer="e"),  # nothing to pair with
         config({"x+": "paired"}, neutralizer="e"),  # the flow leaves through x+
         config({"x-": "paired"}, neutralizer="e", electrons=out, ions=out),
+        # paired faces that meet at an edge: a returned neutraliser could leave through the other one
+        config({"x-": "paired", "y-": "paired"}, neutralizer="e", electrons=oblique, ions=oblique),
     ]
     for cfg in bad:
         with pytest.raises(ValueError):

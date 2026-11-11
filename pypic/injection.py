@@ -10,7 +10,9 @@ A ``flux`` face launches every species on its own. A ``paired`` face is the infl
 the neutraliser species is returned at the face with the inflow distribution instead of leaving,
 and every other species (a carrier) enters together with a neutraliser particle born at the same
 point, so the face collects no charge. A carrier that leaves through a paired face is paid for by
-the next carrier entering in the same face column, which enters without a partner.
+the next carrier entering in the same face column, which enters without a partner. The paired faces
+of a run lie on one axis: a neutraliser returned near an edge where two of them met could cross
+the other one again and again within its step.
 
 Pure Python: the kernels are ``inject_face``, ``inject_partners`` and ``push_deposit`` in
 ``kernels/particles.cu``.
@@ -94,6 +96,9 @@ def check_config(cfg) -> bool:
         if inj.neutralizer is not None:
             raise ValueError("injection.neutralizer is only used by a paired face")
         return True
+    if len({f >> 1 for f in paired}) > 1:
+        raise ValueError("paired injection faces must lie on one axis: a neutralizer returned at one of two "
+                         "paired faces that meet at an edge can leave through the other within its step")
     if inj.neutralizer not in names:
         raise ValueError("a paired injection face needs injection.neutralizer, one of the injected species")
     qn = by_name[inj.neutralizer].charge

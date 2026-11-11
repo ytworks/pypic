@@ -19,13 +19,14 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import theory as T  # noqa: E402
+
 from pypic.analysis import open_run  # noqa: E402
 from pypic.analysis import plot as P  # noqa: E402
 from pypic.analysis.fields import front_position  # noqa: E402
 
 GAUSS_MAX, UPSTREAM_TOL, COMPRESSION_MIN, MAGNETOPAUSE_TOL = 1e-10, 0.05, 2.0, 0.25
 BAND, SMOOTH = 0.1, 0.1  # half width across and running mean along the subsolar line, in R_mp
-UP_X, UP_SIDE = (0.2, 0.8), 0.4  # upstream region: x range and distance from the side faces, in R_mp
 
 
 def _running_mean(a, w):
@@ -43,32 +44,33 @@ def _fall_to(x, p, i0, level):
     return float(x[i - 1] + (level - p[i - 1]) * (x[i] - x[i - 1]) / (p[i] - p[i - 1]))
 
 
+def _mean(a) -> float:
+    """Mean of the blocks of a region; nan for a region without a block (nothing was measured)."""
+    return float(a.astype(float).mean()) if a.size else float("nan")
+
+
 def upstream_state(run, info) -> dict:
     """Largest deviation of the density (against t = 0) and of u_x (against the wind) of each species over the
-    outputs of the last crossing, in the blocks of the coarse output that lie inside the upstream region."""
+    outputs of the last crossing, in the blocks of the coarse output that lie inside the upstream region.
+    nan where there is no measurement: no block lies inside the region (``blocks`` is 0: the blocks are
+    too large for it) or a value is not finite. A nan deviation fails the gate."""
     f = run.fields("coarse")
     its = f.iterations
     c = next(d for d in run.config["output"]["diagnostics"] if d["name"] == "coarse")["coarsen"]
     r_mp, v = info["r_mp"], info["v_sw"]
-    shape = f.get(its[0], "n:e").data.shape
-    lo = [np.arange(shape[a]) * c[a] * run.dx[a] for a in range(3)]  # a block covers [lo, lo + c dx]
-    hi = [lo[a] + c[a] * run.dx[a] for a in range(3)]
-    L = [run.n_cells[a] * run.dx[a] for a in range(3)]
-    eps = 1e-9 * r_mp
-    sel = [(lo[0] >= UP_X[0] * r_mp - eps) & (hi[0] <= UP_X[1] * r_mp + eps)]
-    sel += [(lo[a] >= UP_SIDE * r_mp - eps) & (hi[a] <= L[a] - UP_SIDE * r_mp + eps) for a in (1, 2)]
+    sel = T.upstream_blocks(run.n_cells, c, run.dx, r_mp)
     region = np.ix_(*sel)
     last = [it for it in its if it >= its[-1] - info["crossing_steps"]]
-    out = {"blocks": int(np.prod([s.sum() for s in sel])), "outputs": len(last)}
+    out = {"blocks": int(np.prod([len(s) for s in sel])), "outputs": len(last)}
     for sp in "ei":
-        n0 = f.get(its[0], f"n:{sp}").data[region].astype(float).mean()
-        dn = du = 0.0
-        for it in last:
-            n = f.get(it, f"n:{sp}").data[region].astype(float).mean()
-            ux = f.get(it, f"fluxx:{sp}").data[region].astype(float).mean() / n
-            dn, du = max(dn, abs(n / n0 - 1.0)), max(du, abs(ux / v - 1.0))
-        out[sp] = {"density": dn, "u_x": du, "n_end": n / n0, "u_x_end": ux / v}
-    out["deviation"] = max(max(out[sp]["density"], out[sp]["u_x"]) for sp in "ei")
+        n0 = _mean(f.get(its[0], f"n:{sp}").data[region])
+        with np.errstate(divide="ignore", invalid="ignore"):  # an empty region or a zero density gives nan
+            n = np.array([_mean(f.get(it, f"n:{sp}").data[region]) for it in last]) / n0
+            ux = np.array([_mean(f.get(it, f"fluxx:{sp}").data[region]) for it in last]) / (n * n0 * v)
+        # np.max keeps a nan (the builtin max drops it, which reported a missing measurement as no deviation)
+        out[sp] = {"density": float(np.max(np.abs(n - 1.0))), "u_x": float(np.max(np.abs(ux - 1.0))),
+                   "n_end": float(n[-1]), "u_x_end": float(ux[-1])}
+    out["deviation"] = float(np.max([[out[sp]["density"], out[sp]["u_x"]] for sp in "ei"]))
     return out
 
 
@@ -132,7 +134,7 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
                particles_end=float(s["n_particles"][-1]))
     checks = {
         "gauss": bool(res["gauss_max"] <= GAUSS_MAX),
-        "upstream": bool(up["deviation"] <= UPSTREAM_TOL),
+        "upstream": bool(up["deviation"] <= UPSTREAM_TOL),  # False for nan: no measurement, no pass
         "compression": bool(res["compression"] >= COMPRESSION_MIN),
         "magnetopause": bool(np.isfinite(x_mp) and abs(res["magnetopause"] - 1.0) <= MAGNETOPAUSE_TOL),
         "shock_upstream": bool(np.isfinite(x_sh) and np.isfinite(x_mp) and x_sh < x_mp),
