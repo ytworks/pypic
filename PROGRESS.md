@@ -19,7 +19,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D16 Accepted, PIC-D11 Proposed),
+Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D16 Accepted, PIC-D11, PIC-D17 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
@@ -60,9 +60,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   (PIC-D12..D16) gated on d2ac1d9, 84f5808, 7893fec, 98e626b; Phase 5 (the example, gate M3, the sort
   fix) gated on 39acb7f, production run on 9ba2a65, the review fixes of PR #39 gated on 9b901c1. Merged to main by PR #39;
   wiki page `Bow-Shock` (EN + JA) published with the merge.
-- Blast wave around a magnetised body (R6; `docs/plans/2026-11-11-blast-wave.md`): Phase 1 (radial
-  beams, PIC-D17) in progress. Phase 0: planner skeleton and null-test analysis in `examples/blast_wave`
-  (no debris yet). N1 (plasma at rest, six `flux` faces, 384³, 1760 steps) passed; N2 (with body and
+- Blast wave around a magnetised body (R6; `docs/plans/2026-11-11-blast-wave.md`): Phase 1 done in
+  the code (radial beams, PIC-D17 Proposed: a shell with a radial drift, loaded into the cells its
+  shape reaches; GPU tests pass, the gates not yet rerun on its commit); Phase 2 (the example) next.
+  Phase 0: planner skeleton and null-test analysis in `examples/blast_wave` (no debris yet). N1 (plasma at rest, six `flux` faces, 384³, 1760 steps) passed; N2 (with body and
   dipole) failed one of seven criteria fixed before the run: the body charge does not level (still
   rising at 3× the length), while its potential stays within 1.2 T_e / e and the plasma outside
   2 r_dip is as in N1. The owner made the charge a reported value (amendment). Not shown: a level of
@@ -76,6 +77,10 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-11 — [design] PIC-D17 radial beams (Proposed): a shell loaded into the cells its shape reaches
+- What: `Beam.origin`, `Beam.drift_radial`, profile axis `"r"`. A radial profile is loaded only into the block of cells of its support (`profiles.support`), cut to the rank; ids and positions are those of a load of the box. Capacity counts the cells a species loads (a rank at least its even share of a block). Beams of one block must be neutral together (error). Zero-weight removal by species: compaction with a profile, flag list otherwise. Tests: mass and radial momentum within 5σ, ids, Gauss 2e-15, 1 vs 2×2 GPUs equal (ids, histories 1e-10) with a block across a rank face; 93 GPU tests pass.
+- Why: the debris of the blast wave is a shell expanding from a point; a beam had one drift and a 1-D shape and loaded the whole box (12 GB per GPU and beam at 576³). Two changes against the plan, each from a fact (plan, Phase 1): the flag list overflows for a shell (half its particles go) and compaction would copy the ambient species; `fill` is a maximum over ranks, so on-demand debris arrays would hide the ambient fill.
+- Refs: PIC-D17 (`docs/design/engine.md`); plan Phase 1; `pypic/{config,profiles,particles,simulation,injection}.py`, `kernels/particles.cu`; `tests/gpu/mgpu_radial.py`, `tests/cpu/test_radial.py`. Gates not rerun yet (existing beams take the old loader path).
 ### 2026-11-11 — [amendment] Blast-wave null test N2: the body charge is reported, not limited
 - What: the criterion "change of the body charge over the last third ≤ 0.10 max|Q|" of N2 is dropped; charge, largest charge and change are reported (`examples/blast_wave/analyze.py`). N2 stays recorded as failed against the criteria fixed before the run; its six remaining criteria were met. The plan goes on to Phase 1 (PIC-D17).
 - Why: owner decision after the results. What the criterion protected is measured directly and holds at 1× and 3× the run length (plasma outside 2 r_dip as in N1; body potential within 1.2 T_e / e, not following the charge); the limit came from the vacuum formula for the potential and lies below the shot noise of the absorbed count. Not decided: a level of the charge was not shown; the body under the debris is unknown (the gate reports its potential without a limit).

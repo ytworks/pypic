@@ -55,24 +55,30 @@ class Species:
         return self.P[:, : self.n]
 
     # ---------------------------------------------------------------- loading
-    def load(self, grid, kernel, beam: Beam, ppc: int, seed: int, stream: int):
-        """Append ppc particles per physical cell of this rank. Positions depend only on
+    def load(self, grid, kernel, beam: Beam, ppc: int, seed: int, stream: int, block=None):
+        """Append ppc particles per cell of ``block`` = (first global cell, cells) per axis, a part of
+        this rank's physical cells (default: all of them). Positions depend only on
         (seed, global cell, slot): beams loaded with equal seed share positions. Particle ids are
         ((stream - 1) * N_cells + global cell) * ppc + slot, independent of the rank layout."""
         ax = grid.d.axes
-        nl = [a.n_phys for a in ax]
+        g0, nl = block if block is not None else ([a.phys_lo for a in ax], [a.n_phys for a in ax])
         ntot = nl[0] * nl[1] * nl[2] * ppc
+        if ntot == 0:
+            return
         self.ensure_capacity(self.n + ntot)
         w = beam.density * grid.cell_volume / ppc
         gn = grid.d.n_cells
         id_base = (stream - 1) * gn[0] * gn[1] * gn[2] * ppc
+        origin = beam.origin if beam.origin is not None else (0.0, 0.0, 0.0)
         launch(kernel, ntot, (
             self.P, np.int64(self.cap), np.int64(self.n), np.int32(ppc),
             np.int32(nl[0]), np.int32(nl[1]), np.int32(nl[2]),
-            np.int32(ax[0].phys_lo), np.int32(ax[1].phys_lo), np.int32(ax[2].phys_lo),
+            np.int32(g0[0]), np.int32(g0[1]), np.int32(g0[2]),
             np.int32(gn[0]), np.int32(gn[1]), np.int32(gn[2]),
             np.uint64(seed), np.uint64(stream), np.float64(w), np.float64(beam.theta),
-            np.float64(beam.drift[0]), np.float64(beam.drift[1]), np.float64(beam.drift[2]), np.float64(id_base)))
+            np.float64(beam.drift[0]), np.float64(beam.drift[1]), np.float64(beam.drift[2]),
+            np.float64(beam.drift_radial), np.float64(origin[0]), np.float64(origin[1]), np.float64(origin[2]),
+            np.float64(id_base)))
         self.n += ntot
 
     def sort(self, kernel):

@@ -17,7 +17,7 @@ from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
 from .particles import MIGRATE_KERNELS, Species, migrate
-from .profiles import invert_cos_density
+from .profiles import CUT, evaluate, invert_cos_density, support
 
 NDIAG = 12  # entries of the diagnostics buffer of a species (Simulation.sdiag)
 
@@ -108,15 +108,22 @@ class Simulation:
         self._init_external()
         fields_set = self._set_initial_fields()
         moved = self._apply_perturbations()
-        if any(b.profile is not None for sc in cfg.species for b in sc.beams):
-            for sp in self.species:  # drop the particles a profile gave zero weight (collective)
+        # Drop the particles with weight zero (collective; the choice depends on the configuration
+        # only, so every rank makes the same calls). A species with a profile can lose most of what
+        # it loaded: it is compacted, which copies only the particles it keeps. Of the other species
+        # only the particles inside the body go: they are flagged and taken out without a copy of
+        # the species (a flag list that overflows takes all particles of the species out).
+        shaped = [any(b.profile is not None for b in sc.beams) for sc in cfg.species]
+        for sp, sh in zip(self.species, shaped):
+            if sh:
                 sp.compact_and_migrate(self.grid, self.comm)
-        elif self.body:  # drop the particles loaded inside the body (collective), without a second copy
+        if self.body and not all(shaped):
             self.flag.fill(0)
             for i, sp in enumerate(self.species):
-                lst = sp.flag_list()
-                launch(self.k_flag_dead, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), self.flag[i:i + 1], lst,
-                                                np.int32(lst.size)))
+                if not shaped[i]:
+                    lst = sp.flag_list()
+                    launch(self.k_flag_dead, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), self.flag[i:i + 1],
+                                                    lst, np.int32(lst.size)))
             self._migrate()
         # nodes at which Gauss's law is checked: all but those that hold the charge of the body
         self._gauss_keep = None
@@ -155,10 +162,33 @@ class Simulation:
         self.output = OutputManager(self)
 
     # ----------------------------------------------------------------- set-up
+    def _beam_block(self, b):
+        """Global cells ``(lo, hi)`` per axis that a beam loads: the box, or for a radial profile
+        the cells the ball of its support reaches (PIC-D17). The same on every rank."""
+        n = self.cfg.n_cells
+        if b.profile is None or b.profile.get("axis", "x") != "r":
+            return tuple((0, n[a]) for a in range(3))
+        L, dx = self.grid.L, self.grid.dx
+        rs = support(b.profile, math.sqrt(sum(max(abs(o), abs(L[a] - o)) ** 2 for a, o in enumerate(b.origin))))
+        blk = []
+        for a, o in enumerate(b.origin):
+            lo = min(max(int(math.floor((o - rs) / dx[a])), 0), n[a])
+            blk.append((lo, max(min(int(math.ceil((o + rs) / dx[a])), n[a]), lo)))
+        return tuple(blk)
+
+    def _local_block(self, blk):
+        """The part of the global block ``blk`` in this rank's physical cells: (first cell, cells)."""
+        g0, nl = [], []
+        for (lo, hi), ax in zip(blk, self.decomp.axes):
+            g0.append(max(lo, ax.phys_lo))
+            nl.append(max(min(hi, ax.phys_lo + ax.n_phys) - g0[-1], 0))
+        return g0, nl if all(nl) else [0, 0, 0]
+
     def _load_species(self):
         """Load every beam (plasma species first, then test species, so adding a test species never
         changes the random numbers of the plasma), explicit test-particle lists, density profiles
-        (weights) and check the charge neutrality slot by slot (all beams share positions)."""
+        (weights) and check the charge neutrality slot by slot (beams that load the same cells
+        share positions)."""
         cfg = self.cfg
         n_beams = sum(len(sc.beams) for sc in cfg.species)
         n_glob = math.prod(cfg.n_cells)
@@ -166,6 +196,7 @@ class Simulation:
         if self._n_ids >= ID_LIMIT:
             raise ValueError("too many particles for exact float64 particle ids (n_beams * cells * ppc >= 2^53)")
         cells_local = int(np.prod([a.n_phys for a in self.decomp.axes]))
+        box = tuple((0, n) for n in cfg.n_cells)
         order = [i for i, sc in enumerate(cfg.species) if not sc.test] + \
                 [i for i, sc in enumerate(cfg.species) if sc.test]
         streams, stream = {}, 1
@@ -175,27 +206,39 @@ class Simulation:
                 stream += 1
         self._streams = streams
         self._beam_ranges = {}
+        blocks = {}
         list_id = float(n_beams * n_glob * cfg.ppc)  # explicit-list ids follow all beam ids
         for si, sc in enumerate(cfg.species):
-            cap = int(cfg.capacity_factor * cells_local * cfg.ppc * max(1, len(sc.beams))) + 4096 + len(sc.particles)
+            # room for what the beams load; of a block smaller than the box a rank holds at least
+            # its even share, since the particles spread from the ranks that load them
+            cells = 0 if sc.beams else cells_local
+            for bi, b in enumerate(sc.beams):
+                blk = blocks[(si, bi)] = self._beam_block(b)
+                mine = math.prod(self._local_block(blk)[1])
+                share = -(-math.prod(hi - lo for lo, hi in blk) // self.comm.size)
+                cells += cells_local if blk == box else max(mine, share)
+            cap = int(cfg.capacity_factor * cells * cfg.ppc) + 4096 + len(sc.particles)
             sp = Species(sc.name, sc.charge, sc.mass, cap)
             sp.test = bool(sc.test)
             sp.qdep = 0.0 if sp.test else sp.q
             for bi, b in enumerate(sc.beams):
                 lo = sp.n
-                sp.load(self.grid, self.k_load, b, cfg.ppc, cfg.seed, streams[(si, bi)])
+                sp.load(self.grid, self.k_load, b, cfg.ppc, cfg.seed, streams[(si, bi)],
+                        self._local_block(blocks[(si, bi)]))
                 self._beam_ranges[(si, bi)] = (lo, sp.n)
                 if b.profile is not None:
-                    from .profiles import evaluate
-
-                    a = "xyz".index(b.profile.get("axis", "x"))
-                    f = evaluate(b.profile, sp.P[a, lo:sp.n], xp=cp)
+                    axis = b.profile.get("axis", "x")
+                    if axis == "r":
+                        x = cp.sqrt(sum((sp.P[a, lo:sp.n] - o) ** 2 for a, o in enumerate(b.origin)))
+                    else:
+                        x = sp.P["xyz".index(axis), lo:sp.n]
+                    f = evaluate(b.profile, x, xp=cp)
                     if bool(cp.any(f < 0)):
                         raise ValueError(f"species {sc.name}: density profile is negative somewhere")
                     # negligible tails (sech^2, gauss) are cut: those particles get weight 0 and are
                     # removed; a fixed threshold keeps this decomposition independent and, for equal
                     # profiles, neutral
-                    sp.P[6, lo:sp.n] *= cp.where(f < 1e-10, 0.0, f)
+                    sp.P[6, lo:sp.n] *= cp.where(f < CUT, 0.0, f)
             if sc.particles:
                 self._load_list(sp, sc.particles, list_id)
             list_id += len(sc.particles)
@@ -206,23 +249,34 @@ class Simulation:
             # [5] charge lost at open faces, [6] kinetic energy, [7] charge and [8] number injected,
             # [9] kinetic energy, [10] charge and [11] number absorbed by the body
             self.sdiag.append(cp.zeros(NDIAG))
-        # neutrality: beams were loaded slot by slot on the same positions, so summing q w over the
-        # beams of the plasma species position by position gives the net charge exactly
-        plasma = [(si, bi) for si, sc in enumerate(cfg.species) if not sc.test for bi in range(len(sc.beams))]
-        if plasma:
-            n0 = {self._beam_ranges[k][1] - self._beam_ranges[k][0] for k in plasma}
-            if len(n0) == 1:
-                net = None
-                for si, bi in plasma:
-                    lo, hi = self._beam_ranges[(si, bi)]
-                    v = self.species[si].q * self.species[si].P[6, lo:hi]
-                    net = v if net is None else net + v
-                scale = max(float(cp.max(cp.abs(net))) if net.size else 0.0, 0.0)
-                wmax = max(float(cp.max(self.species[si].P[6, slice(*self._beam_ranges[(si, bi)])]))
-                           if self._beam_ranges[(si, bi)][1] > self._beam_ranges[(si, bi)][0] else 0.0
-                           for si, bi in plasma)
-                bad = self.comm.allreduce_scalar(scale, "max") > 1e-12 * max(wmax, 1e-300)
-                if bad and self.verbose:
+        # neutrality: the beams that load the same cells were loaded slot by slot on the same
+        # positions, so summing q w over them position by position gives their net charge exactly.
+        # One reduction for all blocks: [largest |net|, largest weight] per block.
+        groups = {}
+        for (si, bi), blk in blocks.items():
+            if not cfg.species[si].test:
+                groups.setdefault(blk, []).append((si, bi))
+        groups = sorted(groups.items())
+        loc = np.zeros(2 * len(groups))
+        for g, (_, beams) in enumerate(groups):
+            net = None
+            for si, bi in beams:
+                lo, hi = self._beam_ranges[(si, bi)]
+                w = self.species[si].P[6, lo:hi]
+                net = self.species[si].q * w if net is None else net + self.species[si].q * w
+                if hi > lo:
+                    loc[2 * g + 1] = max(loc[2 * g + 1], float(cp.max(w)))
+            if net.size:
+                loc[2 * g] = float(cp.max(cp.abs(net)))
+        if groups:
+            glob = cp.asnumpy(self.comm.allreduce(cp.asarray(loc), "max"))
+            for g, (blk, _) in enumerate(groups):
+                if not glob[2 * g] > 1e-12 * max(glob[2 * g + 1], 1e-300):
+                    continue
+                if blk != box:  # a charge left in a part of the box has a field that E = 0 does not hold
+                    raise ValueError(f"the beams loaded into the cells {blk} are not charge neutral together "
+                                     "(PIC-D17)")
+                if self.verbose:
                     print("[pypic] WARNING: the plasma is not charge neutral (net charge density != 0)", flush=True)
 
     def _load_list(self, sp, particles, id0: float):

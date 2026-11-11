@@ -193,6 +193,22 @@ reports the potential of the body without a limit, as in the approved plan.
 - Acceptance: `pytest tests/gpu`, `scripts/check_kernels.py`, the gates of the existing examples
   unchanged.
 
+### Changes while building (2026-11-11)
+
+- Removal of the zero-weight particles: not one path. A species with a profile is compacted, a
+  species without one loses only the particles inside the body, by the flag list. Fact: the flag
+  list holds capacity / 8 entries and a species that overflows it is copied as a whole; a shell
+  loaded into its block loses about half of its particles (54,364 of 110,592 in the test set-up
+  were kept), so the flag path would copy every shell species, and compaction of every species (the
+  path of a configuration with a profile before) would copy the ambient species, 9.1e8 particles at
+  the gate.
+- Capacity: for a block smaller than the box a rank counts at least its even share of the block.
+  Fact: `fill` is the largest particles / capacity over ranks and species, and an array grown on
+  demand is grown to 1.25 of what it must hold; without the share the debris arrays of the ranks that
+  load no block cell would set `fill`, and the gate could not show the fill of the ambient species,
+  which decides the production size (Risks: capacity).
+- `Beam.origin` without a radial profile or drift is refused too (nothing would use it).
+
 ## Phase 2 — the example
 
 `examples/blast_wave/{plan.py, theory.py, analyze.py, README.md, configs/gate.yaml, configs/full.yaml}`.

@@ -418,7 +418,8 @@ def default_umax(cfg) -> float:
     umax = 0.0
     for sc in cfg.species:
         for b in sc.beams:
-            umax = max(umax, math.sqrt(sum(x * x for x in b.drift)) + 4.0 * math.sqrt(max(b.theta, 0.0)) + 1e-3)
+            drift = max(math.sqrt(sum(x * x for x in b.drift)), abs(b.drift_radial))
+            umax = max(umax, drift + 4.0 * math.sqrt(max(b.theta, 0.0)) + 1e-3)
     return 2.0 * umax if umax > 0 else 1.0
 
 
