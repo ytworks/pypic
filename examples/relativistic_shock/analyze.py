@@ -2,8 +2,10 @@
 
 python examples/relativistic_shock/analyze.py output/relativistic_shock/pair_2d [--movie]
 gate: shock speed and density compression within 10 % of the jump conditions of the run's
-      effective dimensionality (Synge gas, theory.py); reported: downstream temperature, the
-      non-thermal tail (power-law index of dN/dgamma) and gamma_max(t), magnetic energy fraction.
+      effective dimensionality (Synge gas, theory.py); with a magnetised flow (sigma > 0) also the
+      mean downstream field over B1 within 10 % of the compression (flux freezing).
+reported: downstream temperature, the non-thermal tail (power-law index of dN/dgamma) and
+      gamma_max(t), magnetic energy fraction; sigma > 0: the field ahead of the shock (precursor).
 """
 from __future__ import annotations
 
@@ -55,6 +57,17 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
            "compression_gamma_3_2": info["jump_gamma_3_2"]["compression"], "density_ahead_of_shock": n1_ahead,
            "beta_sh_gamma_3_2": info["jump_gamma_3_2"]["beta_sh"],
            "t_measured": float(t[i_last])}
+    sigma = info.get("sigma", 0.0)
+    if sigma:
+        # flux freezing: the field along B1 is compressed with the plasma, B2 / B1 = n2 / n1
+        name, B1 = "B" + info["field_component"], info["B1"]
+        xb, b = lo.x(name), lo[name][i_last] / B1
+        b2 = float(np.mean(b[(xb > 0.3 * xl) & (xb < 0.8 * xl)]))
+        ahead = b[(xb > xl + 5 * skin) & (xb < edge - 5 * skin)]
+        res.update(sigma=sigma, field_component=name, field_compression=b2,
+                   field_compression_rel_error=(b2 - jc["compression"]) / jc["compression"],
+                   field_ahead_mean=float(np.mean(ahead)), field_ahead_rms=float(np.std(ahead)),
+                   field_ahead_max_deviation=float(np.max(np.abs(ahead - 1.0))))
     # downstream spectrum from the (x, gamma) histogram at the latest time the run is still valid
     xg = run.series("x_gamma")
     ex, eg = xg.edges
@@ -93,7 +106,8 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
                tail_window=[plw["lo"], plw["hi"]], tail_index_literature_2d=2.4, t_spectrum=float(xg.t[ig]),
                gamma_max_t=list(map(float, gmax)), gamma_max_growth_exponent=alpha,
                gamma_max_growth_literature=0.5, eps_B_end=float(s["magnetic"][-1] / s["kinetic"][0]))
-    res["passed"] = bool(abs(res["beta_sh_rel_error"]) <= 0.10 and abs(res["compression_rel_error"]) <= 0.10)
+    res["passed"] = bool(abs(res["beta_sh_rel_error"]) <= 0.10 and abs(res["compression_rel_error"]) <= 0.10
+                         and abs(res.get("field_compression_rel_error", 0.0)) <= 0.10)
     g = s["gauss"][np.isfinite(s["gauss"])]
     res["gauss_max"] = float(g.max()) if g.size else float("nan")
     if show_plot:
@@ -105,6 +119,8 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
         ax[0].plot(jc["beta_sh"] * tt, tt, **P.THEORY, label=f"jump cond. β_sh={jc['beta_sh']:.3f}")
         ax[0].legend()
         ax[1].plot(x, ne[i_last], color=P.color(0), label=f"n_e, t={t[i_last]:.0f}")
+        if sigma:
+            ax[1].plot(xb, b, color=P.color(1), lw=0.8, label=f"{name} / B1")
         ax[1].axhline(jc["compression"] * n1, **P.THEORY, label=f"n2/n1={jc['compression']:.2f}")
         ax[1].set_xlabel("x [c/ωpe]")
         ax[1].legend()
