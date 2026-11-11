@@ -254,3 +254,37 @@ the plane y = y_c is at +z 2.382 R_mp and −z 1.574 R_mp (asymmetry +0.204; `so
 Magnetopause by magnetic pressure 0.958 R_mp. Body charge +522; absorbed particles per step 1529,
 491, 357 in the three crossings; particles 3.919e8 → 4.200e8; largest fill ratio 0.59; energy
 monitor +1.4e-2 (monitored only).
+
+### Stage 3 — beam–plasma with B0 (2026-11-11): three gates passed
+
+Targeted runs on 8 GPUs, FP64 (the working tree of 3ab48e0; `pypic/` differs from it only by the
+PIC-D18 check of `E0`, which these configurations do not reach). Each run takes 5 to 8 s.
+
+| Gate | Criterion | Limit | Measured | |
+|---|---|---|---|---|
+| `two_stream/ei_b0` | growth rate of the k_max mode | 10 % | +2.2 % (fit 0.3491, theory 0.3415) | pass |
+| | Gauss, div B | 1e-10, 1e-12 | 1.9e-12, 4.9e-13 | pass |
+| `filamentation/pair_b0` (Ω = 0.5 Ω_c) | median growth-rate error, m = 4…10 | ≤ 10 % | 5.7 % (largest 18 %, m = 4) | pass |
+| | Gauss | 1e-10 | 6.3e-13 | pass |
+| `filamentation/pair_b0_stable` (Ω = 1.5 Ω_c) | Σ\|B_m\|² (m = 2…10), end over 10 % of the run | ≤ e² = 7.39 | 6.02 | pass |
+| | Gauss | 1e-10 | 3.5e-14 | pass |
+| `filamentation/pair` (no field, existing gate) | median growth-rate error, m = 2…10 | ≤ 10 % | 2.2 % (unchanged analysis path) | pass |
+
+Reported:
+- **Oblique two-stream modes** (`ei_b0` against `ei` of the same working tree, from the 3-D field
+  outputs): the growth rate of the k_max mode is the same (`ei` +3.0 %), the saturation is not.
+  Without the field 82 % of Σ|E_k|² is in modes with k_⊥ ≠ 0 at t = 29.3 / ω_pe and the electric
+  energy peaks at 5.3 % of the initial electron kinetic energy (t = 21.1); with Ω_ce = ω_pe along the
+  drift 2.0 % is in k_⊥ ≠ 0 at the same time (17 % at the end, t = 87.8), E_x holds 99 % of |E|², the
+  peak is 18.8 % (t = 37.3) and the amplitude of the (k_max, 0, 0) mode peaks 8.8 times higher
+  (0.0326 against 0.0037). The electrons lose 4.7 % of their kinetic energy by the end (0.65 % without
+  the field).
+- **Filamentation, saturation:** the magnetic energy of the perturbation peaks at 19.5 % of the
+  initial kinetic energy with and without the field (`pair_b0` at t = 33.9, `pair` at t = 31.7): at
+  Ω = 0.5 Ω_c the field lowers the rates (m = 6: fit 0.410 against 0.497; theory 0.417 against 0.510)
+  and not the level. In `pair_b0` the modes m = 1 (stable in the linear theory) and m = 2 (Γ = 0.055)
+  rise at 0.134 and 0.248 in the fit window: they are driven by the faster modes, which is why the
+  gate starts at m = 4.
+- **Stable case:** the mode energy grows 6.0-fold between 10 % of the run and its end with no
+  unstable k (the unstable case would give e^(2 Γ t) with Γ t ≈ 22). The margin to the limit e² is
+  small (19 %).
