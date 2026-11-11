@@ -405,6 +405,40 @@ class YeeGrid:
     def curl_B(self, B, out, s=1.0):
         launch(self.k_curl_B, self.n_update, (*B, *out, np.float64(s)))
 
+    def shift_x(self):
+        """Moving window (PIC-D22): E, B and the memory of the PML go one plane down along x. The
+        plane that enters at the upper end is zero, but for E_x of the new wall cell, which takes
+        the value of the cell below it: div E = 0 at the node between them (the caller refuses
+        charge there). B, and the memory of the PML, are valid afterwards with their ghosts; the
+        caller ends with ``apply_bc_E()`` and ``fill_ghosts`` of E, after it has taken the current
+        of the plane it loads out of E."""
+        ax = self.d.axes[0]
+        if self.use_pml:  # psiE is updated on the owned range only: its plane above comes from the neighbour
+            self.fill_ghosts(self.psiE, axes=(0,))
+        if getattr(self, "_shift_tmp", None) is None:
+            self._shift_tmp = cp.empty(self.shape)
+
+        def down(arr):
+            out = self._shift_tmp
+            out[:-1] = arr[1:]
+            out[-1] = 0
+            self._shift_tmp = arr
+            return out
+
+        for name in FIELD_NAMES:
+            setattr(self, name, down(getattr(self, name)))
+        if self.use_pml:
+            self.psiE = [down(p) for p in self.psiE]
+            self.psiB = [down(p) for p in self.psiB]
+        if ax.hi is None:
+            w = self.g + ax.n_int
+            self.Ex[w - 1] = self.Ex[w - 2]
+        # the outermost ghost plane of B and of psiB is not kept up to date by push_B
+        self.apply_bc_B()
+        self.fill_ghosts((self.Bx, self.By, self.Bz), axes=(0,))
+        if self.use_pml:
+            self.fill_ghosts(self.psiB, axes=(0,))
+
     def zero_J(self):
         self.Jx.fill(0)
         self.Jy.fill(0)

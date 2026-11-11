@@ -51,11 +51,12 @@ class Species:
         return self.P[:, : self.n]
 
     # ---------------------------------------------------------------- loading
-    def load(self, grid, kernel, beam: Beam, ppc: int, seed: int, stream: int, block=None):
+    def load(self, grid, kernel, beam: Beam, ppc: int, seed: int, stream: int, block=None, id_base=None):
         """Append ppc particles per cell of ``block`` = (first global cell, cells) per axis, a part of
         this rank's physical cells (default: all of them). Positions depend only on
         (seed, global cell, slot): beams loaded with equal seed share positions. Particle ids are
-        ((stream - 1) * N_cells + global cell) * ppc + slot, independent of the rank layout."""
+        ((stream - 1) * N_cells + global cell) * ppc + slot, independent of the rank layout;
+        ``id_base`` replaces (stream - 1) * N_cells * ppc (planes of the moving window, PIC-D22)."""
         ax = grid.d.axes
         g0, nl = block if block is not None else ([a.phys_lo for a in ax], [a.n_phys for a in ax])
         ntot = nl[0] * nl[1] * nl[2] * ppc
@@ -64,7 +65,8 @@ class Species:
         self.ensure_capacity(self.n + ntot)
         w = beam.density * grid.cell_volume / ppc
         gn = grid.d.n_cells
-        id_base = (stream - 1) * gn[0] * gn[1] * gn[2] * ppc
+        if id_base is None:
+            id_base = (stream - 1) * gn[0] * gn[1] * gn[2] * ppc
         origin = beam.origin if beam.origin is not None else (0.0, 0.0, 0.0)
         launch(kernel, ntot, (
             self.P, np.int64(self.cap), np.int64(self.n), np.int32(ppc),
@@ -202,12 +204,13 @@ def ascending(a, k_rank):
     return out
 
 
-def migrate(species, grid, comm, flag, kernels):
+def migrate(species, grid, comm, flag, kernels, shift=0):
     """Take the particles flagged by the push kernels (flag[s] of them for species s, indices in
     its flag list; flag[S + s] counts the particles appended behind the n of species s, which
     are taken in first) out of every species, drop the dead ones (w == 0) and send the rest to the
     neighbour ranks, axis by axis, all species in one message group per axis (issue #7).
-    ``kernels``: the functions MIGRATE_KERNELS of the particle module (issue #19).
+    ``kernels``: the functions MIGRATE_KERNELS of the particle module (issue #19). ``shift``: cells
+    the moving window has gone along x (PIC-D22); the rank bounds along x move with it.
 
     Host syncs: one for the flag counts and one per decomposed axis for the message sizes. With
     more than one rank every rank makes the same collective calls, whatever it has flagged. A
@@ -241,8 +244,9 @@ def migrate(species, grid, comm, flag, kernels):
     for a in [a for a in range(3) if grid.d.axes[a].nproc > 1] or [-1]:
         ax = grid.d.axes[a] if a >= 0 else None
         has_lo, has_hi = (ax.lo is not None, ax.hi is not None) if ax else (False, False)
-        x_lo = ax.phys_lo * grid.dx[a] if ax else 0.0
-        x_hi = (ax.phys_lo + ax.n_phys) * grid.dx[a] if ax else 0.0
+        off = shift if a == 0 else 0  # the same doubles as the kernel window_set gets
+        x_lo = (ax.phys_lo + off) * grid.dx[a] if ax else 0.0
+        x_hi = (ax.phys_lo + ax.n_phys + off) * grid.dx[a] if ax else 0.0
         wrap = grid.L[a] if ax and grid.d.bc[a][0] == "periodic" else 0.0
         # rows: to lo, to hi, stays, dead, from hi, from lo; one column per species
         C = cp.zeros((6, S), dtype=cp.int32)

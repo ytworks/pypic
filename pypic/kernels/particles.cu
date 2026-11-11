@@ -454,14 +454,16 @@ extern "C" __global__ void window_drop(double* P, const int n, const long long c
 // (the caller sets E -= DT J after the last round); the walls and open faces across the window
 // act as in the push, with the lost energy and charge in diag[4..5]; a particle that crosses a
 // rank bound is listed for migrate(), which the caller runs after every round. first: the kinetic
-// energy of the plane into wd[4] (a particle lost in the same round is in both sums). tau = 0:
-// nothing moves (a cold plane is loaded where it stands).
+// energy of the plane into wd[4] (a particle lost in the same round is in both sums), and the
+// slots that a density profile left without weight are listed, so that migrate() drops them.
+// tau = 0: nothing moves (a cold plane is loaded where it stands).
 extern "C" __global__ void window_move(double* P, const int n0, const int n, const long long cap, const double tau,
                                        const double xw, double* Jx, double* Jy, double* Jz, const double m,
                                        const double qdep, const int first, double* wd, double* diag, int* flag,
                                        int* list, const int listcap) {
     int p = n0 + blockIdx.x * blockDim.x + threadIdx.x;
     double kin = 0.0, lke = 0.0, lq = 0.0;
+    if (first && p < n && PW(p) == 0.0) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
     if (p < n && PW(p) != 0.0) {
         const double w = PW(p), qw = qdep * w;
         double u[3] = {PUX(p), PUY(p), PUZ(p)};

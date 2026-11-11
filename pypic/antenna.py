@@ -115,6 +115,7 @@ class Antenna:
         ia = float(plane_cell(laser, dx))
         ix = wrap(0, np.asarray(index[0], dtype=np.float64))
         self.rows = (np.nonzero(ix == ia)[0].tolist(), np.nonzero(ix == wrap(0, ia + 1.0))[0].tolist())
+        self._ix, self._ia = ix, ia
 
         k = wavenumber(laser.omega, dx[0], cfg.dt)
         peak = laser.a0 * laser.omega / math.tan(0.5 * k * dx[0])
@@ -140,6 +141,13 @@ class Antenna:
             self.advance = front_advance(laser, dx, cfg.dt) * r2  # k_d r^2 / (2 omega R)
             self.phase = laser.phase - math.atan(d / zr)
         self.envelope = dict(laser.envelope)
+
+    def set_shift(self, shift: int, on: bool = True):
+        """The rows of the plane after the moving window (PIC-D22) has gone ``shift`` cells: the
+        plane stays at its lab cell. ``on`` False switches the antenna off."""
+        lab = self._ix + float(shift)
+        self.rows = ((np.nonzero(lab == self._ia)[0].tolist(), np.nonzero(lab == self._ia + 1.0)[0].tolist())
+                     if on else ([], []))
 
     def _envelope(self, t):
         xp, env = self.xp, self.envelope
