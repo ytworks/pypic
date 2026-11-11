@@ -70,19 +70,21 @@ def test_the_flux_panel_draws_frames_without_a_measurable_flux():
 
 
 def _example(name):
-    """examples/<name>/analyze.py; its ``import theory`` must not meet the theory module of another example."""
+    """examples/<name>/analyze.py; its ``import theory`` and ``import plan`` must not meet the modules of
+    another example."""
     import sys
 
     folder = ROOT / "examples" / name
     spec = importlib.util.spec_from_file_location(f"{name}_analyze", folder / "analyze.py")
     mod = importlib.util.module_from_spec(spec)
-    other = sys.modules.pop("theory", None)
+    others = {m: sys.modules.pop(m, None) for m in ("theory", "plan")}
     try:
         spec.loader.exec_module(mod)
     finally:
-        sys.modules.pop("theory", None)
-        if other is not None:
-            sys.modules["theory"] = other
+        for m, other in others.items():
+            sys.modules.pop(m, None)
+            if other is not None:
+                sys.modules[m] = other
         if str(folder) in sys.path:
             sys.path.remove(str(folder))
     return mod
@@ -226,3 +228,64 @@ def test_blast_wave_gate_fails_without_a_measurement():
     # a front so far out that no block lies ahead of it: nothing was measured
     out = ahead({0: 0.0, 50: 60.0, 100: 60.0}, {0: 1.0, 100: 1.0})
     assert out["blocks"][1] == 0 and np.isnan(out["deviation"])
+
+
+def _wake_planes(W, p, t, ex, er):
+    """A stand-in for the output of the plane through the axis: E_x(x, r) on its edges and E_z = +-E_r."""
+    from types import SimpleNamespace
+
+    dx, dz, _ = W.PL.cells(p)
+    xs = {"Ex": (np.arange(p.nx) + 0.5) * dx, "Ez": np.arange(p.nx) * dx}
+    zs = {"Ex": np.arange(p.n_perp) * dz, "Ez": (np.arange(p.n_perp) + 0.5) * dz}
+    zc = 0.5 * p.width
+    planes = {"Ex": ex(xs["Ex"][:, None], np.abs(zs["Ex"][None, :] - zc)),
+              "Ez": er(xs["Ez"][:, None], np.abs(zs["Ez"][None, :] - zc)) * np.sign(zs["Ez"][None, :] - zc)}
+    return SimpleNamespace(t=np.array([t]), plane_axes=lambda c: (xs[c], zs[c]), read=lambda c, i: planes[c])
+
+
+def test_wakefield_measurement_recovers_a_planted_wake_of_a_pulse():
+    """The wake of the theory with 1.03 times its amplitude, 1.004 times its wavenumber and 0.95 times its
+    radial field: the fits return these three numbers (the lines at waist / 2 lie between samples)."""
+    W = _example("wakefield")
+    p = W.PL.WakeParams()
+    g = W.PL.laser_geometry(p)
+    k, phase = 1.004 / g["v_g"], 0.7
+
+    def potential(x, r):  # written out here, not taken from the planner
+        f2 = 1.0 + ((x - g["focus"]) / g["rayleigh"]) ** 2
+        a2 = p.a0 ** 2 / f2 / np.sqrt(1.0 - 1.0 / p.omega0 ** 2)
+        return (a2 * 0.25 * p.duration * np.sqrt(0.5 * np.pi) * np.exp(-p.duration ** 2 / 8.0)
+                * np.exp(-2.0 * r ** 2 / (p.waist ** 2 * f2))), p.waist ** 2 * f2
+
+    def ex(x, r):
+        return 1.03 * potential(x, r)[0] / g["v_g"] * np.cos(k * x + phase) + 2e-5
+
+    def er(x, r):
+        phi, w2 = potential(x, r)
+        return -0.95 * 1.03 * 4.0 * r / w2 * phi * np.sin(k * x + phase) - 1e-5
+
+    m = W._measure(p, _wake_planes(W, p, W.PL.arrival_time(p, p.x_end), ex, er), 0)
+    assert m["window"] == pytest.approx([9.0, 48.0], abs=1e-6)
+    assert m["amplitude_ratio"] == pytest.approx(1.03, rel=1e-3)
+    assert m["k_times_speed"] == pytest.approx(1.004, rel=1e-5)
+    assert m["phase"] == pytest.approx(phase, abs=1e-3) and m["offset"] == pytest.approx(2e-5, rel=1e-2)
+    assert m["Er_over_Ex_ratio"] == pytest.approx(0.95, rel=2e-3)
+
+
+def test_wakefield_measurement_recovers_a_planted_wake_of_a_bunch():
+    """A wake with 0.97 times the amplitude of the theory on the axis, the phase 0.1 behind the bunch
+    and 0.7 of the axis value at r = sigma_r."""
+    W = _example("wakefield")
+    p = W.PL.WakeParams(driver="bunch", nx=900, n_perp=192, dx=0.125, ramp=(2.0, 5.0, 107.0, 110.0), x_end=100.0)
+    beta = W.PL.speed(p)
+    t = 88.5
+    xb = p.start + beta * t
+    amp = 0.97 * W.PL.wake_amplitude(p, 0.0)[0][0]
+
+    def ex(x, r):
+        return amp * 0.7 ** (r / p.sigma_r) ** 2 * np.cos(0.99 / beta * (x - xb) + 0.1)
+
+    m = W._measure(p, _wake_planes(W, p, t, ex, lambda x, r: 0.0 * x * r), 0)
+    assert m["window"] == pytest.approx([xb - 5.0 - 10.0 * np.pi * beta, xb - 5.0])
+    assert m["amplitude_ratio"] == pytest.approx(0.97, rel=1e-4) and m["k_times_speed"] == pytest.approx(0.99, rel=1e-5)
+    assert m["phase"] == pytest.approx(0.1, abs=1e-4) and m["R_ratio"] == pytest.approx(0.7, rel=1e-4)
