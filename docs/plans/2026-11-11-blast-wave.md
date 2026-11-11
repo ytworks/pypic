@@ -1,5 +1,5 @@
 # Blast wave around a magnetised body (`examples/blast_wave`) and radial beams (PIC-D17)
-Status: In progress — Phase 3 (the gate). The first run of the gate configuration passed all seven criteria (Phase 3, Result of the first run); the gate record on a clean commit is next. Phase 2 done: the example with planner, analysis and CPU tests. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
+Status: In progress — Phase 3 (the gate). The FP64 gate record passed on ae4bb69 with `blast_wave:gate` in it (Phase 3, Result of the gate record) and PIC-D17 is Accepted; the record with `precision: mixed` and Phase 4 (production run, wiki page) are next. The first run of the gate configuration passed all seven criteria (Phase 3, Result of the first run). Phase 2 done: the example with planner, analysis and CPU tests. Phase 1 done: radial beams (PIC-D17, Proposed) gated on 574c904. Phase 0 done: N1 passed, N2 failed the charge criterion, which the owner then made a reported value (Phase 0, Amendment)
 Refs: roadmap R6; PIC-D12..D16 (used as they are), PIC-D17 (new, Phase 1)
 
 ## Context
@@ -20,6 +20,20 @@ directions. The spherical shocks of the literature are driven outwards from the 
 - Dieckmann et al. 2018 (Phys. Plasmas 25; 2-D full PIC): a dense shell expanding into a magnetised
   ambient plasma; the kind of shock depends on the angle to the field.
 - Nersisyan & Osipyan (arXiv:0905.0051): an explosion in a dipole field.
+
+Correction (2026-11-11, after reading the papers again for the documents of Phase 3; the list above
+is left as it was written):
+
+- Le et al. 2021 present 2-D hybrid simulations, not 3-D ones. Keenan et al. is Phys. Plasmas 29,
+  012107 (2022) and is 3-D.
+- Le et al. 2021 do not say that the shock leaves the debris when ρ_d < R_m. They give ρ_d < R_m as
+  the regime in which the debris couples to the ambient plasma through the fields and as the range in
+  which their Eq. 4 applies, and ρ_d > R_m as the regime in which it decouples.
+- Their runs differ from this example in three more points than the list of differences below
+  names: a debris-to-ambient ion mass ratio of 3 (here 1), a Gaussian cloud of width 0.1 R_m (Keenan
+  et al.: 4 d_i), and R_m of 10 to 150 d_i (Keenan et al.: 40 d_i; here 8 d_i).
+- No decision and no gate criterion rests on the corrected sentences: the configuration keeps
+  ρ_d / R_m = 0.375 of Keenan et al., and whether the front leaves the debris is measured (reported).
 
 Owner decisions (2026-11-11): the shock is driven by a cloud expanding from the centre; the field is
 a uniform field plus a dipole at the centre.
@@ -384,6 +398,40 @@ Definitions fixed while building the analysis, before the first run with debris:
 - Fill of the particle arrays 67 % at the most (capacity factor 1.5); the particle number falls
   from 943.1e6 to 936.7e6.
 
+### Result of the gate record (2026-11-11; ae4bb69, clean tree, 8 GPUs, FP64)
+
+`python scripts/gpu_gates.py --gpus 8`: ALL PASSED
+(`bench/results/2026-11-11-ae4bb69c6-gpu-gates.json`): 93 GPU tests, the five two-stream gates with
+the growth rates of 574c904 (+3.0 / −1.7 / −2.3 / +3.5 / −4.7 %, Gauss max 7.6e-12, implicit energy
+1.9e-10) and 17 example gates, with `bow_shock:gate` (magnetopause 0.916, shock 1.381, upstream
+within 0.11 %) and `blast_wave:gate`. PIC-D17 is Accepted with this record. `precision: mixed` was
+not run on this commit.
+
+`blast_wave:gate` in the record is a second run of the configuration of the first run (same seed;
+the code of the run is the same, ae4bb69 only registers the gate). Against the first run:
+
+| Quantity | First run (1223a21) | Gate record (ae4bb69) |
+|---|---|---|
+| Speed of the front, largest ring mean of B_z / B0, axes against diagonals | 0.16274968 c, 2.6865894, 0.21272969 % | the same in all 16 digits |
+| Largest ∆98 and its step | 39.5455585 d_e, step 616 | the same in all 16 digits |
+| Ambient plasma ahead of the front | 0.0500307 % | 0.0500287 % |
+| Gauss, div B | 6.9e-15, 9.0e-15 | 7.9e-15, 9.0e-15 |
+| Front at the end | 77.4205320 d_e | 77.4205321 d_e |
+| Debris rms distance along B0 | 36.809888 d_e | 36.809882 d_e |
+| Body potential (plane across B0) | 4.93716 T_e / e | 4.93719 T_e / e |
+| Body charge at the end, particles absorbed | +22.4937968, 106,480 | +22.4937968, 106,480 |
+| Particles at the end | 936,674,000 | 936,673,989 |
+| Time per step | 93.5 ms | 93.2 ms |
+
+- The sentence of the first-run result "how far ∆98 moves between runs has not been measured" is
+  answered for FP64 and this seed: not at all in these two runs. The 21 % above Eq. 4 are therefore
+  not a difference between runs. Not shown: another seed, `precision: mixed`, more than two runs.
+- The sums over the blocks ahead of the front (relative to step 0) agree in all digits up to step
+  704 and differ in the 13th digit at step 880 and in the 8th at step 1760.
+- The count "943,087,492 particles at the start" of the first-run result is not the history value
+  at step 0, which is 943,088,238 in both runs (175,432 injected and 175 absorbed by then); where
+  the first number came from was not traced.
+
 ## Phase 4 — production run and documents
 
 `full.yaml` once, recorded with `scripts/record_example.py` (reported, not gated). README with the
@@ -396,7 +444,7 @@ citations and the differences to them; wiki page; `docs/roadmap.md` (R6); `PROGR
 | `flux` faces with a magnetised plasma at rest (tested so far with a wind only) | N1 |
 | Charging of the body in a plasma at rest and under the debris | N2; potential at the gate |
 | The cubic box and the grid break the symmetry | the axes-against-diagonals criterion |
-| The shock does not leave the debris (R_m / ρ_i = 2.67; Keenan et al. 8) | distance of front and debris: reported at the gate, judged at the production run |
+| The shock does not leave the debris (R_m / ρ_i = 2.67; Keenan et al. 8) (corrected 2026-11-11: R_m / ρ_d = 2.67 here and in Keenan et al.; what differs is R_m, 8 d_i here and 40 d_i there) | distance of front and debris: reported at the gate, judged at the production run |
 | Grid heating in the dense shell (dx / λ_D = 20 at the peak) | a 128³ trial, K = 1 against K = 4 |
 | Capacity | the fill measured at the gate, before the production size is fixed |
 

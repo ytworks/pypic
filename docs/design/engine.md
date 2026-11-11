@@ -1,7 +1,7 @@
 # Engine design
 
-Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12..D16 2026-11-11, bow-shock plan);
-PIC-D11 **Proposed** (2026-11-10, #10); PIC-D17 **Proposed** (2026-11-11, blast-wave plan).
+Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12..D16 2026-11-11, bow-shock plan;
+PIC-D17 2026-11-11, blast-wave plan); PIC-D11 **Proposed** (2026-11-10, #10).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -247,8 +247,8 @@ Measured (2026-11-11, RTX PRO 6000; PIC-D15 and PIC-D16; diagnostic only):
   - 40.7 ms/step on 8 GPUs (0.83 GPU-ns per particle and step), 234 s for the run; `fill` 0.77 with `capacity_factor` 1.3. The `oblique` run shared the GPUs with the test suite, so its time is not recorded here.
   - Not established by M2: the magnetic energy of `oblique` had not levelled after three crossings (+0.7 % per 480 steps at the end; `aligned` is level from step 1440). Nothing was run beyond 5760 steps, at another seed or at another size, and the edges where the paired face meets a flux face were not looked at apart from the face slabs.
 
-### PIC-D17 — Radial beams: a shape of the distance from a point, a drift along the radius, loaded into the cells the shape reaches (2026-11-11) — Status: Proposed
-Plan: `docs/plans/2026-11-11-blast-wave.md` (Phase 1). Accepted when the gate of `examples/blast_wave` is recorded (Phase 3). Both solvers load this way; only the explicit one was run.
+### PIC-D17 — Radial beams: a shape of the distance from a point, a drift along the radius, loaded into the cells the shape reaches (2026-11-11) — Status: Accepted
+Plan: `docs/plans/2026-11-11-blast-wave.md` (Phase 1). Accepted with the gate record of `examples/blast_wave` (Phase 3; ae4bb69, FP64). Both solvers load this way; only the explicit one was run.
 - `Beam.origin` (a point, c/ω_pe), `Beam.drift_radial` (a proper velocity along the unit vector from the origin; no drift for a particle at the origin itself), and the profile axis `"r"`: the shape is evaluated at the distance from the origin. Each of the two can be used without the other; a beam is radial when it has an origin.
 - **Loader:** `load_particles` takes the radial drift and the origin as run-time arguments (no new `#define`), builds the drift vector from the global position of the particle and gives it to `boost_drift`. The random numbers stay keyed by (seed, global cell, slot) and a beam without a radial drift takes the path it took before.
 - **Block:** a beam with a radial profile is loaded only into the global cells that the ball of its support reaches, `[floor((o − r_s) / dx), ceil((o + r_s) / dx))` per axis, cut to the box and then to the rank (`Simulation._beam_block`, `_local_block`; `Species.load(block=)`). `r_s = profiles.support(shape, r_max)` with `r_max` the distance from the origin to the farthest corner of the box: the shape is sampled at `r_max / 2^16` and `r_s` is one sample beyond the last one that reaches the cut 1e-10 (`profiles.CUT`, the weight below which a particle is not kept). A part of a shape narrower than a sample can be missed. Every other beam loads the box, as before. The id of a particle is the one a load of the whole box gives it.
@@ -260,12 +260,13 @@ Plan: `docs/plans/2026-11-11-blast-wave.md` (Phase 1). Accepted when the gate of
 
 Why: a blast wave is driven by a shell that expands from a point (Keenan et al., arXiv:2112.12114; Dieckmann et al. 2018), and a beam had one drift for all particles and a shape along one axis. A beam loaded the whole box with capacity for it: at 576³ a debris beam would take about 12 GB per GPU (plan, Context).
 
-Not established: no run of the implicit solver with a radial beam; nothing was measured at the size of the gate (the capacity and `fill` of the debris species, the time of the load); the mean of `u_r` was tested for θ ≤ 0.01 only (the expectation used is first order in θ).
+Not established: no run of the implicit solver with a radial beam; no gate with `precision: mixed` (PIC-D11) and a radial beam; at the size of the gate the `fill` of the debris species and the time of the load were not measured (the gate gives the largest `fill` over ranks and species); the mean of `u_r` was tested for θ ≤ 0.01 only (the expectation used is first order in θ).
 
 Measured (2026-11-11, RTX PRO 6000; diagnostic only):
 - **Tests:** a Gaussian shell (centre 3, width 0.6, 2 n_0, θ_e = 0.01, radial drift 0.1) of electrons and ions in 32³ cells, fixed seed. The weight of each species is within 5σ of `n_0 ∫ f dV` (a bound of the sampling error); the mean of `u_r` is within 5σ of `u_d (1 + 5θ/2)`, the mean proper velocity of a drifting Maxwellian along its drift to first order in θ; the ids are those of a load of the whole box where the shape is not cut; Gauss's law to 1e-10 at the load and over 40 steps (2.3e-15). A shell of electrons with uniform ions is refused. In a run of the same set-up by hand: weight 245.81 against 245.36 (0.19σ), electron `u_r` 0.100184 against 0.100025 (1.7σ), 54,364 of the 110,592 loaded particles kept per species, `fill` 0.37.
 - **Tight:** with the block one cell short on the high side the id comparison fails (528 particles of 54,364 missing; tried once by hand, not a test). The weight alone does not see it.
 - **Decomposition:** an ambient plasma entering through six `flux` faces, an absorbing sphere and a drifting shell of two more species (two beams each) in 16×24×12 cells; with the 2×2 rank grid the block lies across the rank face along x, the sphere on it, and the two ranks of the high half of y load no shell particle. 1 GPU against 2×2: the same ids, the same counts (9748 shell particles loaded, 1264 of them in the high half after 40 steps, 44 absorbed, 5002 injected), histories within 1e-10, Gauss 1.9e-15.
+- **Gate** (`blast_wave:gate`, ae4bb69, 8 GPUs, FP64; `bench/results/2026-11-11-ae4bb69c6-gpu-gates.json`): a debris shell of two species with four beams each (about 37e6 of the 943e6 particles) in 384³ cells with six `flux` faces and the absorbing sphere, 1760 steps: Gauss 7.9e-15, div B 9.0e-15, largest `fill` 0.67 with `capacity_factor` 1.5; all criteria of the example passed, and the other 22 gates of the record with it.
 
 ## Review amendments
 

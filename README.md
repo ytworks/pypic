@@ -118,6 +118,7 @@ Each example has the same structure:
 | [`relativistic_shock`](examples/relativistic_shock) | γ₀ = 15 pair shock, Fermi acceleration | relativistic Rankine–Hugoniot (Synge gas) | β_sh −5.4 %, n₂/n₁ +2.2 % |
 | [`reconnection`](examples/reconnection) | σ = 10 pair reconnection, plasmoids, power law | Harris equilibrium; published rate and index (empirical) | equilibrium 1.1 % of B₀; rate ≈ 0.1–0.2; p = 2.4 (small box) |
 | [`bow_shock`](examples/bow_shock) | 3-D bow shock of a magnetised planet in the solar wind (open box, dipole, absorbing sphere) | pressure-balance magnetopause; Spreiter et al. (1966) stand-off; perpendicular MHD shock (reported) | magnetopause 0.92 to 0.93 R_mp; shock 1.38 R_mp (1.37); upstream within 0.1 % |
+| [`blast_wave`](examples/blast_wave) | 3-D blast wave: a debris shell expanding from a magnetised body into a magnetised plasma at rest (open box, radial beams, dipole, absorbing sphere) | fast magnetosonic speed; debris extent of Le et al. (2021), Eq. 4 with D = 3; perpendicular MHD shock (reported) | front at 2.1 fast speeds, B_z up to 2.7 B₀; debris extent 1.24 R_m (1.02); plasma ahead within 0.05 % |
 
 New set-up features these examples use (all engine-level; see `docs/design/engine.md` PIC-D9, PIC-D10):
 
@@ -128,13 +129,15 @@ New set-up features these examples use (all engine-level; see `docs/design/engin
 - **Binomial current filter** (`current_filter`), against numerical Cherenkov noise in relativistic flows.
 - **`remove_mean_current`** for net-current set-ups such as Buneman.
 
-Open-flow features that `bow_shock` uses (explicit scheme only; PIC-D12 to PIC-D16):
+Open-flow features that `bow_shock` and `blast_wave` use (explicit scheme only; PIC-D12 to PIC-D16):
 
 - **External fields** (`external_fields`): a uniform E and B and regularised dipoles that the particles feel. The grid holds the difference to them, so open faces absorb only the difference; outputs hold the total fields.
 - **Injection through open faces** (`injection`): `flux` and `paired` faces keep a drifting plasma entering; the charge is conserved by the deposit of the entering path.
 - **Absorbing sphere** (`body`): removes the particles that enter it and keeps their charge.
 - **Current filter with open faces, and the Marder zone** (`marder_zone`) that removes the charge left at the open faces, outside the region where Gauss's law is checked.
 - **`capacity_factor`** sizes the particle arrays for a run that gains particles; the history key `fill` reports how full they are.
+
+`blast_wave` also uses **radial beams** (`Beam.origin`, `Beam.drift_radial`, profile axis `"r"`; PIC-D17): a density shape of the distance from a point and a drift along the radius, loaded only into the cells the shape reaches. Both schemes load them; only the explicit one was run with them.
 
 ## Using it as a library
 
