@@ -156,6 +156,14 @@ EXAMPLES: dict[str, dict] = {
         "cases": {"gate": fresh("gate", gpus=8)},
         "movies": ["gate"],
     },
+    "wakefield": {
+        "page": "Plasma-Wakefield",
+        "title": {"en": "Plasma wakefield of a laser pulse and of an electron bunch",
+                  "ja": "レーザーパルスと電子バンチのプラズマ航跡場"},
+        "cases": {"laser_linear": fresh("laser_linear", gpus=8), "beam_linear": fresh("beam_linear", gpus=8)},
+        "movies": ["laser_linear", "beam_linear"],
+        "gif": {"fps": 3},  # a gate run writes nine outputs
+    },
 }
 
 
@@ -234,8 +242,9 @@ def _species(sp: dict) -> str:
             s += ", u=(" + ", ".join(f"{x:.4g}" for x in u) + ")"
         s += f", θ={b['theta']:.3g}"
         if b.get("profile"):
-            pr = b["profile"]
-            s += f", {pr.get('shape')} along {pr.get('axis')}"
+            pr = b["profile"]  # one shape, or a product of shapes along several axes (PIC-D21)
+            s += ", " + " × ".join(f"{p.get('shape')} along {p.get('axis')}"
+                                   for p in (pr if isinstance(pr, list) else [pr]))
         if b.get("perturbation"):
             s += ", perturbation: " + ", ".join(_perturbation(p) for p in b["perturbation"])
         beams.append(s)
@@ -265,8 +274,17 @@ def conditions(d: Path) -> dict:
     body = cfg.get("body")
     if body:
         bnd.append(f"absorbing {body['shape']}: radius {body['radius']:.4g} at " + _vec(body["center"]))
+    if cfg.get("window"):
+        bnd.append(f"moving window: speed c from t = {cfg['window']['start']:.4g}")
     filt = cfg.get("current_filter") or {}
     fields = []
+    for la in cfg.get("lasers") or []:
+        s = f"laser antenna at x = {la['plane_x']:.4g}: a0 = {la['a0']:g}, ω = {la['omega']:g}"
+        if la.get("waist"):
+            s += f"; waist {la['waist']:g}"
+            if la.get("focus_x") is not None:
+                s += f"; focus at x = {la['focus_x']:.4g}"
+        fields.append(s)
     if any(abs(x) > 0 for x in cfg.get("B0", [0, 0, 0])):
         fields.append("B0=" + _vec(cfg["B0"]))
     if any(abs(x) > 0 for x in cfg.get("E0", [0, 0, 0])):
