@@ -53,7 +53,8 @@ EXAMPLES = [
     ("filamentation", "pair"), ("filamentation", "pair_b0"), ("filamentation", "pair_b0_stable"),
     ("particle_orbits", "gyration"), ("particle_orbits", "exb"), ("particle_orbits", "hyperbolic"),
     ("particle_orbits", "e_gt_b"), ("particle_orbits", "plane_wave"),
-    ("plasma_expansion", "isothermal_hydrogen"), ("relativistic_shock", "pair_2d"), ("reconnection", "pair_sigma10"),
+    ("plasma_expansion", "isothermal_hydrogen"), ("relativistic_shock", "pair_2d"),
+    ("relativistic_shock", "pair_2d_sigma"), ("reconnection", "pair_sigma10"),
     ("bow_shock", "gate"), ("bow_shock", "south"), ("bow_shock", "oblique"), ("blast_wave", "gate"),
 ]
 EXAMPLE_NAMES = [f"{e}:{c}" for e, c in EXAMPLES]
