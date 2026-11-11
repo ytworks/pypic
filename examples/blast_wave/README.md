@@ -113,7 +113,7 @@ python examples/blast_wave/analyze.py output/blast_wave/gate
 | largest ring mean of B_z / B₀ there | 2.08 | perpendicular MHD shock at the speed of the front: 1.95 |
 | front radii, axes against diagonals | within 0.45 % | |
 | largest extent of the debris ions Δ98 | 39.0 d_e = 1.22 R_m, at step 572 of 1760 | 32.6 d_e = 1.02 R_m (Eq. 4 of Le et al. 2021 with D = 3) |
-| ambient n_e, n_i and \|B\| ahead of the front | within 0.04 % of step 0 | |
+| ambient n_e, n_i and \|B\| ahead of the front | within 0.05 % of step 0 | |
 | Gauss's law, div B | 7e-15, 9e-15 | contracts 1e-10, 1e-12 |
 
 - **The excess of Δ98 over Eq. 4 is 19.5 %, against 21 % for the shell around the body**: the shape of the cloud and the body with its dipole change it by 1.5 points at this R_m, M_A and seed.
