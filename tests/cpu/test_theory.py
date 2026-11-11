@@ -100,6 +100,22 @@ def test_shock_jump_conditions():
     assert abs(T.jump_conditions(1e4, 2)["compression"] - 3.0) < 2e-3
 
 
+def test_magnetised_shock_jump_has_the_unmagnetised_and_the_kennel_coroniti_limits():
+    """sigma = 0 gives the jump of the unmagnetised flow; for gamma0 -> infinity the shock speed in
+    the downstream frame is u2 / sqrt(1 + u2^2) with u2 of Kennel & Coroniti (1984) (3-D gas; the
+    difference falls as 1 / gamma0^2: 4e-7 at gamma0 = 1e3 for sigma = 0.3)."""
+    T = _example_theory("relativistic_shock")
+    for dims in (2, 3):
+        a, b = T.jump_conditions(15.0, dims), T.jump_conditions_magnetised(15.0, 0.0, dims)
+        assert abs(a["beta_sh"] - b["beta_sh"]) < 1e-12 and abs(a["theta2"] - b["theta2"]) < 1e-10
+    for sigma in (0.01, 0.3, 3.0, 30.0):
+        u2 = ((8 * sigma ** 2 + 10 * sigma + 1 + math.sqrt(64 * sigma ** 2 * (sigma + 1) ** 2
+                                                           + 20 * sigma * (sigma + 1) + 1)) / (16 * (sigma + 1)))
+        j = T.jump_conditions_magnetised(1e3, sigma, 3)
+        assert abs(j["beta_sh"] / math.sqrt(u2 / (1 + u2)) - 1) < 2e-6
+        assert abs(j["compression"] - (1 + j["beta0"] / j["beta_sh"])) < 1e-12
+
+
 def test_mora_relations():
     T = _example_theory("plasma_expansion")
     Te, mi = 0.01, 1836.0
