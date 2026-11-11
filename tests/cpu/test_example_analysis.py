@@ -230,17 +230,18 @@ def test_blast_wave_gate_fails_without_a_measurement():
     assert out["blocks"][1] == 0 and np.isnan(out["deviation"])
 
 
-def _wake_planes(W, p, t, ex, er):
-    """A stand-in for the output of the plane through the axis: E_x(x, r) on its edges and E_z = +-E_r."""
+def _wake_planes(W, p, t, ex, er, x_low=0.0):
+    """A stand-in for the output of the plane through the axis: E_x(x, r) on its edges and E_z = +-E_r, in a
+    box that begins at x_low."""
     from types import SimpleNamespace
 
     dx, dz, _ = W.PL.cells(p)
-    xs = {"Ex": (np.arange(p.nx) + 0.5) * dx, "Ez": np.arange(p.nx) * dx}
+    xs = {"Ex": x_low + (np.arange(p.nx) + 0.5) * dx, "Ez": x_low + np.arange(p.nx) * dx}
     zs = {"Ex": np.arange(p.n_perp) * dz, "Ez": (np.arange(p.n_perp) + 0.5) * dz}
     zc = 0.5 * p.width
     planes = {"Ex": ex(xs["Ex"][:, None], np.abs(zs["Ex"][None, :] - zc)),
               "Ez": er(xs["Ez"][:, None], np.abs(zs["Ez"][None, :] - zc)) * np.sign(zs["Ez"][None, :] - zc)}
-    return SimpleNamespace(t=np.array([t]), plane_axes=lambda c: (xs[c], zs[c]), read=lambda c, i: planes[c])
+    return SimpleNamespace(t=np.array([t]), plane_axes=lambda c, i=None: (xs[c], zs[c]), read=lambda c, i: planes[c])
 
 
 def test_wakefield_measurement_recovers_a_planted_wake_of_a_pulse():
@@ -270,6 +271,14 @@ def test_wakefield_measurement_recovers_a_planted_wake_of_a_pulse():
     assert m["k_times_speed"] == pytest.approx(1.004, rel=1e-5)
     assert m["phase"] == pytest.approx(phase, abs=1e-3) and m["offset"] == pytest.approx(2e-5, rel=1e-2)
     assert m["Er_over_Ex_ratio"] == pytest.approx(0.95, rel=2e-3)
+    # the same wake seen by a moving window whose lower face is at x = 39.74: the fit keeps 1 c/omega_pe
+    # from the face and has 1.2 wavelengths left, from which it returns the same numbers
+    p.nx, p.focus = 1152, g["focus"]
+    m = W._measure(p, _wake_planes(W, p, W.PL.arrival_time(p, p.x_end), ex, er, x_low=39.74), 0)
+    assert m["window"] == pytest.approx([40.74, 48.0], abs=1e-6)
+    assert m["amplitude_ratio"] == pytest.approx(1.03, rel=1e-3)
+    assert m["k_times_speed"] == pytest.approx(1.004, rel=1e-4)
+    assert m["Er_over_Ex_ratio"] == pytest.approx(0.95, rel=2e-3)
 
 
 def test_wakefield_measurement_recovers_a_planted_wake_of_a_bunch():
@@ -289,3 +298,30 @@ def test_wakefield_measurement_recovers_a_planted_wake_of_a_bunch():
     assert m["window"] == pytest.approx([xb - 5.0 - 10.0 * np.pi * beta, xb - 5.0])
     assert m["amplitude_ratio"] == pytest.approx(0.97, rel=1e-4) and m["k_times_speed"] == pytest.approx(0.99, rel=1e-5)
     assert m["phase"] == pytest.approx(0.1, abs=1e-4) and m["R_ratio"] == pytest.approx(0.7, rel=1e-4)
+
+
+@pytest.mark.parametrize("config, wavelengths", [("laser_linear", 1.0), ("beam_linear", 5.0)])
+def test_wakefield_gate_keeps_the_driver_and_the_fit_inside_the_moving_window(config, wavelengths):
+    """The gate configurations run in a moving window: the engine accepts them, the window starts when the
+    driver is ``window_lead`` behind the x+ wall, and at the two outputs that are analysed the interval of the
+    fit lies in the box behind the driver and holds at least this many wavelengths of the wake."""
+    import yaml
+
+    from pypic import antenna, window
+
+    W = _example("wakefield")
+    with open(ROOT / f"examples/wakefield/configs/{config}.yaml") as f:
+        p = W.PL.params_from_dict(yaml.safe_load(f))
+    cfg, report, info = W.PL.plan_wakefield(p, n_gpus=8)
+    assert window.check_config(cfg) and antenna.check_config(cfg) == (p.driver == "laser")
+    length = cfg.n_cells[0] * cfg.dx[0]
+    assert W.PL.driver_position(p, cfg.window.start) == pytest.approx(length - p.window_lead, abs=1e-9)
+    every = cfg.n_steps // p.n_out
+    for steps in (cfg.n_steps - every, cfg.n_steps):
+        low = window.shift_after(cfg, steps) * cfg.dx[0]
+        x_driver = W.PL.driver_position(p, steps * cfg.dt)
+        lo, hi = W._window(p, x_driver, low)
+        assert low + 1.0 <= lo < hi < x_driver < low + length - p.window_margin
+        assert hi - lo >= wavelengths * 2.0 * np.pi * W.PL.speed(p) - 1e-9
+        assert p.ramp[1] < lo and hi < p.ramp[2]  # on the plateau
+    assert info["x_low_end"] == pytest.approx(window.shift_after(cfg, cfg.n_steps) * cfg.dx[0])

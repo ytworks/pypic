@@ -1,4 +1,4 @@
-"""Plasma wake behind a laser pulse or a particle bunch in a static box.
+"""Plasma wake behind a laser pulse or a particle bunch, in a moving window or in a box at rest.
 
     python -m pypic.launch -n 8 examples/wakefield/run.py --config examples/wakefield/configs/laser_linear.yaml
     python examples/wakefield/analyze.py output/wakefield/laser_linear

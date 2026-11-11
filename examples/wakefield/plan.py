@@ -1,7 +1,7 @@
-"""Planner for a plasma wake behind a laser pulse or a particle bunch (static box).
+"""Planner for a plasma wake behind a laser pulse or a particle bunch.
 
-A cold plasma of electrons and ions fills a plateau along x between two linear ramps; the x faces
-are open and no plasma touches them. The driver enters from the low-x side:
+A cold plasma of electrons and ions fills a plateau along x between two linear ramps. The driver
+enters from the low-x side:
 
 - ``driver: laser``: an antenna (PIC-D20) in the vacuum before the ramp emits a Gaussian beam with
   a Gaussian envelope, polarised along y, focused at ``focus``. The run ends when the centre of
@@ -12,6 +12,12 @@ are open and no plasma touches them. The driver enters from the low-x side:
   bunch is at ``x_end``.
 
 ``drive: false`` runs the same box for the same time without the driver (null test).
+
+The box: without ``window_lead`` it is at rest, holds the whole plasma and both x faces are open.
+With ``window_lead`` it is ``nx`` cells long and follows the driver as a moving window (PIC-D22):
+the window starts at the time at which the driver is ``window_lead`` behind the x+ wall, the
+plasma enters behind a vacuum margin ``window_margin``. The ramp, the focus, the start of the
+bunch, ``x_end`` and the run time are laboratory values in both cases.
 
 Theory (theory.py): the linear wake of both drivers; the analysis compares the on-axis E_x, its
 wavelength and the radial dependence with it.
@@ -26,9 +32,10 @@ from dataclasses import asdict, dataclass, field
 import numpy as np
 
 from pypic.antenna import diffraction_wavenumber, wavenumber
-from pypic.config import Beam, Laser, OutputConfig, SimConfig, SpeciesConfig
+from pypic.config import Beam, Laser, OutputConfig, SimConfig, SpeciesConfig, Window
 from pypic.parallel.decomp import auto_dims
 from pypic.setup.planner import apply_overrides
+from pypic.window import front_cell, shift_after
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import theory as T  # noqa: E402
@@ -50,6 +57,8 @@ class WakeParams:
     lattice: tuple | None = None  # places of the ppc particles of a cell (PIC-D23); None: random
     ion_mass: float = 1836.0
     n_out: int = 8  # outputs of the plane through the axis
+    window_lead: float | None = None  # moving window: the driver stays this far behind the x+ wall
+    window_margin: float = 1.0  # vacuum between the plasma and the x+ wall of a moving window
     # laser
     omega0: float = 10.0  # omega_pe
     a0: float = 0.1  # in vacuum at the focus
@@ -78,6 +87,8 @@ def params_from_dict(d: dict) -> WakeParams:
         raise ValueError("ramp: four increasing x positions")
     if p.driver == "bunch" and p.dx is None:
         raise ValueError("driver 'bunch' needs dx")
+    if p.window_lead is not None and not 0.0 < p.window_lead < p.nx * cells(p)[0]:
+        raise ValueError("window_lead must lie inside the box")
     return p
 
 
@@ -106,10 +117,11 @@ def laser_geometry(p: WakeParams) -> dict:
 
 
 def _pulse_path(p: WakeParams, n: int = 8001):
-    """(x, t): the time at which the centre of the pulse is at x, from the antenna to the far face."""
+    """(x, t): the time at which the centre of the pulse is at x, from the antenna to the end of
+    the box at rest or of the plasma."""
     dx, _, dt = cells(p)
     g = laser_geometry(p)
-    x = np.linspace(g["x_plane"], p.nx * dx, n)
+    x = np.linspace(g["x_plane"], max(p.nx * dx, p.ramp[3], p.x_end), n)
     slow = np.array([1.0 / T.yee_group_velocity(p.omega0, dx, dt, math.sqrt(d)) for d in density(p, x)])
     t = g["t_peak"] + np.concatenate([[0.0], np.cumsum(0.5 * (slow[1:] + slow[:-1]) * np.diff(x))])
     return x, t
@@ -136,6 +148,14 @@ def driver_position(p: WakeParams, t: float) -> float:
         return p.start + speed(p) * t
     xs, ts = _pulse_path(p)
     return float(np.interp(t, ts, xs))
+
+
+def window(p: WakeParams):
+    """The moving window of a run with ``window_lead`` (None: a box at rest): it starts when the
+    driver is ``window_lead`` behind the x+ wall of the first box."""
+    if p.window_lead is None:
+        return None
+    return Window(start=max(0.0, arrival_time(p, p.nx * cells(p)[0] - p.window_lead)), margin=p.window_margin)
 
 
 def wake_amplitude(p: WakeParams, x, r: float = 0.0):
@@ -196,14 +216,15 @@ def plan_wakefield(p: WakeParams, n_gpus: int = 1):
                 f"R(sigma_r)/R(0)={theory['R_ratio']:.4f}")
     diags = [{"name": "axis_plane", "kind": "slice", "axis": "y", "fields": fields, "every": {"count": p.n_out}}]
     tr = (p.transverse, p.transverse)
-    bc = (("open", "open"), tr, tr)
+    win = window(p)
+    bc = (("open", "reflecting" if win else "open"), tr, tr)
     n_cells = (p.nx, p.n_perp, p.n_perp)
     try:
         dims = auto_dims(n_gpus, n_cells)
     except ValueError:
         dims = None
     cfg = SimConfig(n_cells=n_cells, dx=(dx, dy, dy), dt=dt, n_steps=n_steps, species=species, ppc=p.ppc,
-                    lattice=p.lattice, seed=p.seed, dims=dims, boundaries=bc, lasers=lasers,
+                    lattice=p.lattice, seed=p.seed, dims=dims, boundaries=bc, lasers=lasers, window=win,
                     diag_interval=max(1, n_steps // 500),
                     gauss_interval=max(1, n_steps // 25), sort_interval=50,
                     output=OutputConfig(diagnostics=diags, timescales={"plasma_period": 2.0 * math.pi,
@@ -211,16 +232,26 @@ def plan_wakefield(p: WakeParams, n_gpus: int = 1):
     if p.overrides:
         cfg = apply_overrides(cfg, p.overrides)
     filled = 0.5 * (p.ramp[2] + p.ramp[3] - p.ramp[0] - p.ramp[1]) / Lx
+    x_low = 0.0
+    box = "box at rest; x faces open"
+    if win:
+        # the window holds plasma in the cells below its front
+        filled = min(filled, front_cell(cfg) / p.nx)
+        x_low = shift_after(cfg, n_steps) * dx
+        box = (f"moving window from t={win.start:.2f} (driver {p.window_lead:g} behind the x+ wall), vacuum margin "
+               f"{p.window_margin:g}; at the end x={x_low:.2f}..{x_low + Lx:.2f}; x- open, x+ conducting")
     n_plasma = int(2 * p.nx * p.n_perp ** 2 * p.ppc * filled)
     info = {"driver": p.driver, "drive": p.drive, "dx": dx, "dy": dy, "dt": dt, "Lx": Lx, "speed": speed(p),
-            "t_end": n_steps * dt, "x_driver_end": driver_position(p, n_steps * dt), "theory": theory,
-            "params": asdict(p)}
-    lines = ["=== pypic wakefield planner (static box) ===",
+            "t_end": n_steps * dt, "x_driver_end": driver_position(p, n_steps * dt), "x_low_end": x_low,
+            "theory": theory, "params": asdict(p)}
+    lines = ["=== pypic wakefield planner ===",
              head if p.drive else "no driver (null run); box and run time of: " + head,
              f"grid {cfg.n_cells}, dx={dx:.5f}, dy=dz={dy:.5f}, L=({Lx:.2f}, {p.width:g}, {p.width:g}), "
-             f"dt={dt:.6f}, {n_steps} steps to t={n_steps * dt:.2f}; x faces open, y and z {p.transverse}",
+             f"dt={dt:.6f}, {n_steps} steps to t={n_steps * dt:.2f}; y and z {p.transverse}",
+             box,
              f"plasma: ramp {p.ramp[0]:g}..{p.ramp[1]:g}, plateau to {p.ramp[2]:g}, down to {p.ramp[3]:g}; "
-             f"electrons and ions (mass {p.ion_mass:g}), {p.ppc} per cell each, about {n_plasma:,} particles",
+             f"electrons and ions (mass {p.ion_mass:g}), {p.ppc} per cell each, "
+             f"{'at most ' if win else ''}about {n_plasma:,} particles",
              f"driver at x={info['x_driver_end']:.2f} at the end",
              pred]
     return cfg, "\n".join(lines), info

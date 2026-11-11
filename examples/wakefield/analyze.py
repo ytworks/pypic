@@ -11,6 +11,9 @@ gate (bunch): on the axis E_x = c A_th cos(k (x - x_b) + phi) + b over five wave
 null run (drive: false): max |E_x| on the axis <= 1 % of the predicted amplitude, mean electron
       density on the plateau within 1 % of n0.
 reported: the fitted phase, the amplitude at the output before the last, the place of the driver.
+The places are those of the laboratory (OUT-D5). No interval of a fit or of the density comes
+closer than 1 c/omega_pe to the lower x face of the box, and the density is taken up to
+1 c/omega_pe behind the front of the plasma of a moving window.
 """
 from __future__ import annotations
 
@@ -75,21 +78,21 @@ def fit_amplitude(x, y, amp, k: float, phi: float) -> float:
                                  np.asarray(y, dtype=float), rcond=None)[0][0])
 
 
-def _window(p, x_driver: float):
-    """(x_lo, x_hi) of the measurement behind the driver."""
+def _window(p, x_driver: float, x_low: float = 0.0):
+    """(x_lo, x_hi) of the measurement behind the driver in a box that begins at x_low."""
     if p.driver == "bunch":
         hi = x_driver - 5.0 * p.sigma_x
-        return max(p.start + 30.0, hi - 5.0 * 2.0 * np.pi * PL.speed(p)), hi
-    return p.ramp[1] + 1.0, x_driver - 3.0 * p.duration
+        return max(p.start + 30.0, hi - 5.0 * 2.0 * np.pi * PL.speed(p), x_low + 1.0), hi
+    return max(p.ramp[1], x_low) + 1.0, x_driver - 3.0 * p.duration
 
 
 def _measure(p, s, i: int) -> dict:
     """Fits of the output i of the plane through the axis."""
-    xe, ze = s.plane_axes("Ex")
+    xe, ze = s.plane_axes("Ex", i)
     zc, speed = 0.5 * p.width, PL.speed(p)
     r = 0.5 * p.waist if p.driver == "laser" else p.sigma_r
     x_drv = PL.driver_position(p, float(s.t[i]))
-    lo, hi = _window(p, x_drv)
+    lo, hi = _window(p, x_drv, xe[0] - 0.5 * (xe[1] - xe[0]))
     sel = (xe >= lo) & (xe <= hi)
     x = xe[sel]
     origin = x_drv if p.driver == "bunch" else 0.0
@@ -106,7 +109,7 @@ def _measure(p, s, i: int) -> dict:
         # the amplitude at r = sigma_r over the one on the axis (both in units of their theory)
         out["R_ratio"] = cx * ax_r[0] / (on["c"] * PL.wake_amplitude(p, x)[0][0])
     else:
-        xz, zz = s.plane_axes("Ez")
+        xz, zz = s.plane_axes("Ez", i)
         selz = (xz >= lo) & (xz <= hi)
         ez = s.read("Ez", i)
         # E_r = -c_r A_r sin(k x + phi) + b' = c_r A_r cos(k x + phi + pi / 2) + b'
@@ -124,15 +127,19 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
     p = PL.params_from_dict(info["params"])
     th = info["theory"]
     s = run.series("axis_plane")
-    xe, ze = s.plane_axes("Ex")
-    zc = 0.5 * p.width
     last = len(s.t) - 1
+    xe, ze = s.plane_axes("Ex", last)
+    zc = 0.5 * p.width
+    # the box at the last output: its lower face and the front of the plasma of a moving window
+    x_low = float(xe[0] - 0.5 * (xe[1] - xe[0]))
+    w = run.window
+    front = (w["front_cell"] + int(s.window_shift[last])) * run.dx[0] if w else np.inf
     predicted = th["Ex_axis_focus"] if p.driver == "laser" else th["Ex_axis"]
     res = {"driver": p.driver, "drive": p.drive, "t": float(s.t[last]), "predicted_amplitude": predicted,
-           "speed": info["speed"]}
+           "speed": info["speed"], "x_low": x_low}
     # mean electron density on the plateau, in the plane, without the two nodes next to each face
-    xn, zn = s.plane_axes("n:electron")
-    seln = (xn >= p.ramp[1] + 1.0) & (xn <= p.ramp[2] - 1.0)
+    xn, zn = s.plane_axes("n:electron", last)
+    seln = (xn >= max(p.ramp[1], x_low) + 1.0) & (xn <= min(p.ramp[2], front) - 1.0)
     res["density_plateau"] = float(s.read("n:electron", last)[seln][:, 2:-2].mean())
     ex_axis = np.array([line(s.read("Ex", i), ze, zc) for i in range(last + 1)])
     res["Ex_axis_max"] = float(np.abs(ex_axis).max())
@@ -151,14 +158,16 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
         ok = abs(m["amplitude_ratio"] - 1.0) <= 0.05 and abs(m["k_times_speed"] - 1.0) <= 0.02
         if p.driver == "laser":
             res["Er_over_Ex_theory"] = th["Er_over_Ex_half_waist"]
-            ey = line(s.read("Ey", last), s.plane_axes("Ey")[1], zc) ** 2
-            res["pulse_center_measured"] = float(np.sum(s.plane_axes("Ey")[0] * ey) / np.sum(ey))
+            xy, zy = s.plane_axes("Ey", last)
+            ey = line(s.read("Ey", last), zy, zc) ** 2
+            res["pulse_center_measured"] = float(np.sum(xy * ey) / np.sum(ey))
             ok = ok and abs(m["Er_over_Ex_ratio"] - 1.0) <= 0.10
         else:
             res["R_ratio_theory"] = th["R_ratio"]
             res["R_ratio_rel_error"] = m["R_ratio"] / th["R_ratio"] - 1.0
-            nb = line(s.read("n:bunch", last), s.plane_axes("n:bunch")[1], zc)
-            res["bunch_center_measured"] = float(np.sum(s.plane_axes("n:bunch")[0] * nb) / np.sum(nb))
+            xb, zb = s.plane_axes("n:bunch", last)
+            nb = line(s.read("n:bunch", last), zb, zc)
+            res["bunch_center_measured"] = float(np.sum(xb * nb) / np.sum(nb))
             ok = ok and abs(res["R_ratio_rel_error"]) <= 0.10
         res["passed"] = bool(ok)
     if show_plot:

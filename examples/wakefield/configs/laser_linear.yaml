@@ -1,7 +1,10 @@
 # Linear wake of a laser pulse (gate): a0 = 0.1, omega0 = 10 omega_pe, field envelope
-# exp(-(t / 2)^2) exp(-r^2 / 4^2) (the resonant length), 32 cells per wavelength along x.
+# exp(-(t / 2)^2) exp(-r^2 / 4^2) (the resonant length), 32 cells per wavelength along x. The box
+# (22.6 c/omega_pe) follows the pulse; the box at rest of the whole plasma: nx=3200, window_lead=null.
 driver: laser
-nx: 3200
+nx: 1152
+window_lead: 8
+focus: 31.41592653589793
 n_perp: 128
 width: 24
 cells_per_wavelength: 32
