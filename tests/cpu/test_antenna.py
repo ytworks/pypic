@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from pypic import SimConfig
-from pypic.antenna import Antenna, check_config, wavenumber
+from pypic.antenna import Antenna, check_config, diffraction_wavenumber, wavenumber
 from pypic.config import Body, CurrentFilter, Laser
 
 FLAT = {"shape": "flat", "ramp": 8.0}
@@ -77,6 +77,21 @@ def test_plane_wave_of_the_antenna_on_the_1d_yee_grid(pol):
     k = wavenumber(omega, dx, dt)
     ref = np.sign(x) * a0 * omega * np.cos(omega * t - k * np.abs(x) + phase)
     assert np.max(np.abs(E - ref)[behind_the_ramp]) < 2e-3 * a0 * omega
+
+
+def test_diffraction_wavenumber_is_the_curvature_of_the_yee_dispersion():
+    """A wave of the Yee grid with a small transverse wavenumber q has k_x = k - q^2 / (2 k_d): k_x
+    from the dispersion relation of the grid; k_d differs from k on a coarse grid and tends to it."""
+    omega, dx, dy, dt = 1.0, 0.5, 1.0, 0.4
+    k = wavenumber(omega, dx, dt)
+    kd = diffraction_wavenumber(k, dx)
+    for q in (0.05, 0.1):
+        kx = 2.0 / dx * math.asin(dx * math.sqrt((math.sin(0.5 * omega * dt) / dt) ** 2
+                                                  - (math.sin(0.5 * q * dy) / dy) ** 2))
+        assert abs((k - kx) / (q * q / (2.0 * kd)) - 1.0) < q * q
+    assert 0.03 < 1.0 - kd / k < 0.05
+    k = wavenumber(omega, 0.01, 0.005)
+    assert abs(diffraction_wavenumber(k, 0.01) / k - 1.0) < 1e-4
 
 
 def test_lasers_reject_what_the_antenna_does_not_support():

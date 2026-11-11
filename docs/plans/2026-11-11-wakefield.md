@@ -49,8 +49,14 @@ Test A1 (vacuum):
 | Gauss, div B | 1e-10, 1e-12 |
 | 1 GPU against 2×2 GPUs with the plane on a rank boundary | history ≤ 1e-10 |
 
+Definition fixed before the first run of A1: the paraxial beam of the comparison is the one of
+the grid. A wave with a small transverse wavenumber q has `k_x = k - q^2 / (2 k_d)` on the Yee
+grid, `k_d = sin(k dx) / dx`, so the antenna and the test use `z_R = k_d w0^2 / 2` (k_d is 0.95 k
+at the 12 cells per wavelength of the test, and tends to k on a fine grid). The flux and the
+amplitudes are averages over one period of the steady beam of a flat envelope.
+
 CPU: the divergence of curl M is round-off; a sub-block equals the whole box bit for bit; the
-amplitude factor of the 1-D Yee grid.
+amplitude factor of the 1-D Yee grid; k_d against the dispersion relation of the grid.
 
 ### Stage 2 — bunch driver (PIC-D21, extends PIC-D17)
 

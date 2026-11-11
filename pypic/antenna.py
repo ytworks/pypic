@@ -14,7 +14,10 @@ the wavenumber k of the grid at omega; this fixes the amplitude of S exactly.
 
 A Gaussian beam is emitted as its field on the plane, at the distance d = focus_x - x_M before
 the focus: the amplitude w0 / w(d) exp(-r^2 / w(d)^2), the curved front as an advance in time
-k r^2 / (2 omega R(d)) of the carrier and of the envelope, and the Gouy phase atan(d / z_R).
+k_d r^2 / (2 omega R(d)) of the carrier and of the envelope, and the Gouy phase atan(d / z_R).
+The beam is the paraxial beam of the grid: a wave with a small transverse wavenumber q has
+k_x = k - q^2 / (2 k_d) on the Yee grid with ``k_d = sin(k dx) / dx``, so the Rayleigh length is
+z_R = k_d w0^2 / 2 (k_d -> k for dx -> 0).
 
 Everything is computed from global cell indices, so a rank's block equals the same part of the
 whole box bit for bit; on a periodic axis the index is wrapped first, which makes M periodic.
@@ -37,6 +40,11 @@ def wavenumber(omega: float, dx: float, dt: float) -> float:
         raise ValueError(f"the grid carries no wave at the laser omega = {omega}: "
                          "(dx / dt) sin(omega dt / 2) must be < 1")
     return 2.0 / dx * math.asin(s)
+
+
+def diffraction_wavenumber(k: float, dx: float) -> float:
+    """k_d of the paraxial beam on the Yee grid: k_x = k - q^2 / (2 k_d) for a small transverse q."""
+    return math.sin(k * dx) / dx
 
 
 def plane_cell(laser, dx) -> int:
@@ -109,10 +117,11 @@ class Antenna:
             self.phase = laser.phase
         else:
             d = laser.focus_x - (ia + 0.5) * dx[0]
-            zr = 0.5 * k * laser.waist ** 2
+            kd = diffraction_wavenumber(k, dx[0])
+            zr = 0.5 * kd * laser.waist ** 2
             w2 = laser.waist ** 2 * (1.0 + (d / zr) ** 2)
             self.amp = peak * math.sqrt(laser.waist ** 2 / w2) * xp.exp(-r2 / w2)
-            self.advance = (0.5 * k / laser.omega * d / (d * d + zr * zr)) * r2  # k r^2 / (2 omega R)
+            self.advance = (0.5 * kd / laser.omega * d / (d * d + zr * zr)) * r2  # k_d r^2 / (2 omega R)
             self.phase = laser.phase - math.atan(d / zr)
         self.envelope = dict(laser.envelope)
 
