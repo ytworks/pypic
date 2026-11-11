@@ -251,7 +251,13 @@ def _blowout(run, p, info, show_plot: bool, fig_dir: str | None) -> dict:
                     label="electron density [n0]", ylabel="z [c/ωpe]")
         tw = ax[0].twinx()
         tw.plot(xe, line(s.read("Ex", last), ze, 0.5 * p.width), color=P.color(1), lw=0.8)
+        if np.isfinite(b["Ex_zero"]):  # the slope of Lu et al. through the measured zero
+            half = 0.5 * th["radius"]
+            tw.plot([b["Ex_zero"] - half, b["Ex_zero"] + half], [-th["slope"] * half, th["slope"] * half], **P.THEORY)
         tw.set_ylabel("E_x on the axis")
+        tw.yaxis.set_label_position("left")  # the right side holds the colour bar of the map
+        tw.yaxis.tick_left()
+        tw.spines["left"].set_position(("outward", 42))
         tw.grid(False)
         ax[0].set_title(f"t = {b['t']:.1f}: cavity radius {res['cavity_radius']:.2f} (2√a0 = {th['radius']:.2f}), "
                         f"slope of E_x {b['Ex_slope']:.3f} (1/2)", fontsize=9)

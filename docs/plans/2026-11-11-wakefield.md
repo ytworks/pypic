@@ -834,3 +834,28 @@ Definitions of the report, fixed here:
 CPU test on planted data (`test_wakefield_blowout_report_recovers_a_planted_cavity_field_and_bunch`):
 a sphere without electrons behind a pulse, a smaller hole behind it, vacuum ahead, E_x with
 several rising zeros, a histogram with a bin at the threshold.
+
+### Stage 5 — probe of `laser_bubble` (2026-11-12, 61f454b, 8 GPUs)
+
+`laser_bubble` with `x_end=12`, `n_out=2`: 1,842 steps to t = 18.08 (before the window starts),
+2,099,609,600 particles at the load, scalars every 3 steps.
+
+| | Probe | Design above |
+|---|---|---|
+| ms / step | 134–141 | 250 (80 min for 19,000 steps) |
+| Peak device memory per GPU | 38.3 GB | 25 GB |
+| Estimate for the 19,120 steps (up to 2.43e9 particles) | about 52 min | about 80 min |
+
+The memory figure of the design was too low by a half; it stays far below the device (97 GB).
+The estimate is below the limit of 3 h, so the production run is started.
+
+What the output of a real run showed (analysis from end to end, no change to the definitions):
+
+- The sum of the electron histogram is 37,052.647 n0 (c/ω_pe)³ at the three outputs (equal to
+  3e-8) and is the sum of the profile over the loaded lattice planes, 4 ≤ x ≤ L_x − 1 (37,052.6).
+- t = 18.1: a0 = 3.97 (4), centre of the pulse 12.019 (planned 12.010), cavity radius 3.81 while
+  it is still on the ramp, slope of E_x 0.458, no electron above u_x = 20. Gauss 7.5e-12.
+- Energy budget (monitored only): work of the antenna 1.004e5; the budget is off by at most
+  7.6e2 while the pulse enters and by 63 (6e-4 of the work) at the end.
+- Figure: the axis of E_x moved to the left (it lay on the colour bar of the map), with the line
+  of slope 1 / 2 through the measured zero.
