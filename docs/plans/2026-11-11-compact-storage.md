@@ -197,3 +197,39 @@ within 0.1 %. So a prototype is judged by the change of `kernel_push` (plus `sor
 changes) in ms, relative to the whole `mixed` step of the same number of GPUs (18.18 ms on
 1 GPU, 3.38 ms on 8 GPUs, the mean of the three runs). The limits (2 %) are unchanged; both
 GPU counts are reported and the 8-GPU figure decides, since that is the production layout.
+
+### A0 — prototypes: method (2026-11-12, before the timings)
+
+The three prototypes are one kernel with compile-time variants, compiled behind the particle
+kernels of the engine with the same constants (so it uses the same float32 gather and the same
+atomics). Storage: local linear cell (int32), position within the cell (uint32, 2^-32 dx) and
+momentum (float64 in (a), float32 in (b) and (c)); the weight row is the one of the engine. The
+gather weights come from the stored integers (no `floor`); the end point is snapped to the
+lattice before the Esirkepov deposit, which takes the cell and the two lattice points per axis;
+the wrap on the axes that are not decomposed is an integer operation and the other axes flag
+their migrants. Periodic boundaries only; no walls, no injection, no body.
+
+- Timing ("shadow" run): in the real `mixed` benchmark run (same configuration, 1 and 8 GPUs),
+  at every push of the engine the particle rows are converted to the compact arrays of each
+  variant (not timed); then the push of the engine and the prototypes run one after the other on
+  the same particle state and the same fields, each between two device synchronisations, in an
+  order that rotates with the step. Only the push of the engine acts on the run; the prototypes
+  write their current into scratch arrays. So every kernel sees the states of the real run on
+  every rank, under the same load. The push of the engine timed this way is the `kernel_push` of
+  the baseline and is compared with it. A run of the engine kernel with zero charge on a copy of
+  the rows, and the prototypes compiled without the deposit, give the breakdown.
+- Sort: at a sort of the engine, the sort of the compact layout (argsort of the int32 cell row,
+  one `take` per row) is timed on the same state.
+- End points: at one step the positions and momenta of each prototype are compared with those of
+  the engine (largest difference over all particles and ranks).
+- Gauss residual: a one-rank periodic run without sort in which the prototype is the push; the
+  compact arrays live through the run, the current goes into the arrays of the engine, and the
+  charge density of the check is the CIC density of the stored lattice points.
+
+First check of the driver (64×16×16, 786,432 particles, 200 steps, the GPU shared with another
+job, so no timing): largest Gauss residual 1.4e-13 with the engine and 4.7e-15, 4.3e-15 and
+4.6e-15 with (a), (b) and (c); the electric energy of (a) follows the engine to 1e-10 relative.
+With (c) the kinetic energy of the record differs by 3.6e-4 relative at step 0: the prototype
+takes γ of the record from the float32 arithmetic, which cannot resolve γ − 1 of the cold ions.
+A product version would compute the record from `u² / (γ + 1)` in FP64; the timings do not
+depend on it (one step in ten records).
