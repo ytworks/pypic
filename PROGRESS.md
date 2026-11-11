@@ -19,7 +19,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11 and PIC-D18 Proposed),
+Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11 and PIC-D18 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
@@ -84,20 +84,27 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   2 r_dip is as in N1. The owner made the charge a reported value (amendment). Not shown: a level of
   the body charge; charge and potential of the body under the debris.
 - More examples (R6; `docs/plans/2026-11-11-more-examples.md`, PR #41, branch `examples/r6`; not merged, no gate record yet —
-  the full gates run once on the final head): done in targeted 8-GPU FP64 runs, results in the plan: `bow_shock/south` and
-  `oblique` (gate criteria passed), `two_stream/ei_b0`, `filamentation/pair_b0` and `pair_b0_stable` (passed; growth rate with a
-  field along the drift in `pypic/theory/streaming.py`). PIC-D18 (Proposed): `E0` tangential to reflecting faces, explicit
-  solver; GPU test on 1 GPU. Open: `bow_shock/dp10`, `blast_wave/cloud` and `rm12`, the magnetised shock `pair_2d_sigma`,
-  the long runs (reconnection, shock tail).
+  the full gates run once on the final head): all seven items done in targeted or recorded 8-GPU FP64 runs, results in the plan and the READMEs.
+  Gate criteria passed: `bow_shock/south` and `oblique`, `two_stream/ei_b0`, `filamentation/pair_b0` and `pair_b0_stable` (growth rate with a
+  field along the drift in `pypic/theory/streaming.py`), `relativistic_shock/pair_2d_sigma` (σ = 0.3; within 7.2 % of the magnetised jump).
+  PIC-D18 (Proposed): `E0` tangential to reflecting faces, explicit solver. Recorded: `bow_shock/dp10` (3.1e9 particles, 1.0 h; no fallback
+  to Dp = 8; device memory 0.08 % above the planner's figure), `blast_wave/rm12` (debris extent 15 % above Eq. 4, 21 % at 8 d_i),
+  `reconnection/pair_sigma10_xl` (index 2.04 against 2.10 in the half-size box), `relativistic_shock/pair_2d_t4000` and `pair_2d_tail`.
+  Reported: `blast_wave/cloud`. Wiki: sources and data in `docs/wiki/`, rendered locally, published with the merge.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
-- Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
-  tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
+- Production results (reported) recorded in `bench/results/*-example-*.json`. The pair shock to
+  t = 8000 / omega_pe (3.3e8 particles, 62 c/omega_pe across) has no extended tail: index 3.9–4.0 from t = 2000 on,
+  largest energy +13 % from t = 4000 to 8000. Not separated: transverse size, particles per cell, filter (R11).
 
 ## Change Log
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-12 — [progress] R6: the seven remaining examples run; the pair shock has no extended tail by t = 8000
+- What: on `examples/r6` (PR #41), 8 GPUs, FP64. Gate criteria passed in targeted runs: `bow_shock/south` (one reversal of B_z, 1.005 R_mp from the centre) and `oblique` (magnetopause 0.96, shock 1.25 R_mp), `two_stream/ei_b0` (+2.2 %), `filamentation/pair_b0` (median 5.7 %) and `pair_b0_stable`, `relativistic_shock/pair_2d_sigma` (β_sh −7.2 %, n2/n1 +4.7 %, B +4.1 %). Recorded runs: `bow_shock/dp10` (480×640², 3.1e9 particles, 3607 s: magnetopause 0.94, shock 1.44 R_mp; fullest GPU 78.66 GB, 0.08 % above the planner), `blast_wave/rm12` (576³, 3.2e9 particles: Δ98 +15 % over Eq. 4 of Le et al. 2021), `reconnection/pair_sigma10_xl` (3.7e8 particles, t = 4000: index 2.04 ± 0.02; half-size box 2.10), `relativistic_shock/pair_2d_t4000` and `pair_2d_tail` (3.3e8 particles, t = 8000). Reported: `blast_wave/cloud`. Shock tail: index 3.9–4.0 from t = 2000 to 8000, the energy that 1e-4 of the downstream particles exceed 172 → 195 (+13 %; t^1/2 gives +41 %), non-thermal fraction 15–18 %. Roadmap: R6 to Done, R11 reworded. Wiki sources updated.
+- Why: R6 of the roadmap. The tail result contradicts the earlier statement that t >~ 8000 / omega_pe is what a converged tail needs: the time was reached and the tail did not develop, so R11 is not a matter of run length alone.
+- Refs: plan `docs/plans/2026-11-11-more-examples.md` (Results); `bench/results/2026-11-11-{4d55109b5,c58f533c5,29451458d}-example-*.json`; example READMEs; `docs/roadmap.md`; `docs/wiki/`. Not yet run: the GPU gates on the final head; the wiki is not published.
 ### 2026-11-11 — [design] PIC-D18 (Proposed): a uniform `E0` tangential to reflecting faces (explicit solver)
 - What: `Simulation._set_initial_fields` accepts an `E0` component tangential to an axis whose two faces are reflecting (explicit solver; open faces and the implicit solver keep refusing). No new code path: the wall condition applied after the load zeroes the field on the wall, so the wall is a conductor at rest in a plasma that carries E = −v × B (piston in a magnetised flow). GPU test: a cold pair plasma in E × B drift between reflecting walls keeps its drift outside the light cones of the walls (momentum change 1.3e-5 u, fields 1.1e-4, Gauss 1.6e-14; the old code raises). Amendment to the plan: `external_fields.E` tangential to a reflecting face is not refused.
 - Why: the magnetised piston shock (R6, `relativistic_shock/pair_2d_sigma`) needs the motional field of the flow, which is tangential to the wall. The refusal of the external field would have removed behaviour that PIC-D12 accepts and `tests/gpu/mgpu_migrate.py` uses.
