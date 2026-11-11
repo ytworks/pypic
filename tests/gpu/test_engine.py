@@ -2,6 +2,7 @@
 Skipped as a whole without CuPy or a CUDA device (tests/gpu/conftest.py)."""
 from __future__ import annotations
 
+import functools
 import json
 import math
 import os
@@ -1145,6 +1146,51 @@ def test_lattice_places_follow_the_global_cell_and_give_a_uniform_density(n, dim
     o = json.loads(r.stdout.strip().splitlines()[-1])
     assert o["n"] == 16 * 8 * 8 * 16 and o["wrong"] == 0
     assert o["density_deviation"] < 1e-13
+
+
+@functools.lru_cache(maxsize=None)
+def _window_run(dims: str, case: str) -> dict:
+    n = math.prod(int(v) for v in dims.split(","))
+    r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), os.path.join(HERE, "mgpu_window.py"),
+                        dims, case], capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stderr[-2000:]
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+def test_moving_window_leaves_a_plasma_at_rest_as_it_was_loaded():
+    """Moving window (PIC-D22) over a warm plasma at rest, 400 shifts (six box lengths: every
+    particle at the end came in through a loaded plane). The plasma in the window is the loaded
+    one: density, no mean velocity, no heating, per slab of eight cells; Gauss's law and div B
+    hold through the shifts."""
+    o = _window_run("1,1,1", "thermal")
+    assert o["shift"] == 400
+    full = o["front"] // o["slab"]  # slabs that the plasma fills
+    density, ux, u2 = (np.asarray(o[k]) for k in ("density", "ux", "u2"))
+    assert np.max(np.abs(density[:full] - 1.0)) <= 0.025, density
+    assert abs(density[full] - (o["front"] % o["slab"]) / o["slab"]) <= 0.025 and not density[full + 1:].any(), density
+    assert np.max(np.abs(ux[:full + 1])) < 0.02 * math.sqrt(o["theta"]), ux
+    assert np.max(u2[:full + 1]) <= 1.05 * 3.0 * o["theta"], u2
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+@pytest.mark.parametrize("dims", ["2,2,1", "1,2,2"])
+def test_moving_window_is_decomposition_independent(dims):
+    """The window split along x (the shift crosses a rank face, the loaded plane lies in the last
+    ranks) and along y and z (the loaded plane lies in every rank): the histories of the plasma are
+    those of one GPU, and the test particles of a run without fields are the same particles, by a
+    hash of (id, position, momentum) summed over them."""
+    ref, o = _window_run("1,1,1", "thermal"), _window_run(dims, "thermal")
+    assert o["n_particles"] == ref["n_particles"] and o["n"] == ref["n"]
+    for k in ("kinetic", "electric", "magnetic", "window_out", "budget"):
+        a, b = np.asarray(ref[k]), np.asarray(o[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
+    ref, o = _window_run("1,1,1", "tracers"), _window_run(dims, "tracers")
+    assert ref["shift"] == 400 and ref["n"] > 0
+    assert o == ref
 
 
 def test_mixed_precision_is_explicit_only():

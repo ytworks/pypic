@@ -17,7 +17,7 @@ import sys
 
 import cupy as cp
 
-from pypic import Beam, SimConfig, SpeciesConfig
+from pypic import Beam, SimConfig, SpeciesConfig, window
 from pypic.config import Window
 from pypic.simulation import Simulation
 
@@ -33,7 +33,7 @@ sim = Simulation(cfg, verbose=False)
 sim.run()
 e = sim.species[0]
 P = e.P[:, : e.n]
-out = {"shift": sim.window_shift, "n": sim.total_particles()}
+out = {"shift": sim.window_shift, "n": sim.total_particles(), "front": window.front_cell(cfg)}
 if case == "thermal":
     cell = cp.floor(P[0] / dx).astype(cp.int64) - sim.window_shift
     rows = cp.stack([cp.bincount(cell // slab, weights=w, minlength=n[0] // slab)
@@ -43,7 +43,7 @@ if case == "thermal":
                                             "divB", "n_particles")})
     w = rows[0].clip(1e-300)
     out.update(density=(rows[0] / (slab * dx ** 3 * n[1] * n[2])).tolist(), ux=(rows[1] / w).tolist(),
-               u2=(rows[2] / w).tolist(), theta=theta)
+               u2=(rows[2] / w).tolist(), theta=theta, slab=slab)
 else:
     h = cp.zeros(e.n, dtype=cp.uint64)
     for r in (7, 0, 1, 2, 3, 4, 5):  # splitmix64 over the bits of the rows
