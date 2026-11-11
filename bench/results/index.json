@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "file": "2026-11-11-4d55109b5-example-bow_shock-dp10-run-4b073ac2.json",
+      "type": "example",
+      "date": "2026-11-11",
+      "commit": "4d55109b5f6da9256e6ae58f1c6c8bd0b7671770",
+      "dirty": false,
+      "run_id": "4b073ac2",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "bow_shock",
+      "config": "dp10"
+    },
+    {
       "file": "2026-11-11-c58f533c5-example-blast_wave-rm12-run-031fb299.json",
       "type": "example",
       "date": "2026-11-11",
