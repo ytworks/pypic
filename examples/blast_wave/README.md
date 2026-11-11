@@ -16,8 +16,10 @@ A shell of dense electron–ion plasma (the debris) expands from the centre of a
 |---|---|---|---|
 | `gate.yaml` (gate) | m_i/m_e = 16, V_d = 0.1875 c, R_m = 32 d_e, R_B = 66.6 d_e | 384³ (half-width 1.44 R_B), 1760 steps | front, symmetry, debris extent, conservation |
 | `full.yaml` | m_i/m_e = 25, V_d = 0.15 c, R_m = 40 d_e, R_B = 83.2 d_e | 576³ (half-width 1.73 R_B), 2800 steps | production |
+| `rm12.yaml` | the gate with R_m = 12 d_i = 48 d_e, R_B = 99.8 d_e, ρ_d = 0.25 R_m | 576³ (half-width 1.44 R_B), 2640 steps | another R_m / d_i |
+| `cloud.yaml` | the gate without the body and the dipole; the debris a Gaussian ball of width 0.33 R_m at the centre | 384³, 1760 steps | another shape (Keenan et al. 2022) |
 
-Both: M_A = 3 (fast Mach number 2.4), R_m = 8 d_i, ρ_d = 0.375 R_m, ω_pe/Ω_ce = 4, v_te = 0.1 c (Debye length 0.2 Δx), T_i = T_e (β = 0.64), 8 particles per cell and beam, run length 1.25 R_B / V_d ≈ 7 / Ω_ci.
+All: M_A = 3 (fast Mach number 2.4), ω_pe/Ω_ce = 4, v_te = 0.1 c (Debye length 0.2 Δx), T_i = T_e (β = 0.64), 8 particles per cell and beam, run length 1.25 R_B / V_d. `gate.yaml` and `full.yaml`: R_m = 8 d_i, ρ_d = 0.375 R_m, 7 / Ω_ci.
 
 ```bash
 python -m pypic.launch -n 8 examples/blast_wave/run.py --config examples/blast_wave/configs/gate.yaml
@@ -57,7 +59,7 @@ python examples/blast_wave/analyze.py output/blast_wave/gate
 - **Along B₀ the debris spreads further**: at the end the rms distance of the debris ions from the centre is 36.8 d_e along B₀ and 14.8 d_e per direction across it.
 - **Energy** is monitored only (explicit scheme). The debris ions keep 20 % of their kinetic energy and the ambient ions gain 41 % of the kinetic energy of the debris. The budget with the outflow and the absorbed particles changes by +1.95 % of the energy at step 0, which is 10.9 % of the kinetic energy of the debris; the ambient plasma alone (null test N1 of the plan) gains 2.2 % of its energy over the same number of steps.
 - **The body** absorbs 106,480 particles and holds the charge +22.5 at the end (largest value 32.9; units of e n₀ d_e³). Its potential against the plasma at two dipole radii is 4.9 T_e / e in the plane across B₀ and 1.3 T_e / e in the plane along it. These are reported without a limit: the null test with the body alone did not show a level of the charge. In the FP64 run on 17f1b5f they are 106,400 particles, +22.4, 5.0 and 1.2 T_e / e: the charge at the end and the potential move by 0.3 % and 2 % for a change of 5e-9 in the density of the shell.
-- **Not shown**: whether the 21 % hold at another R_m / d_i, with another shell shape or another seed (the production configuration below has another mass ratio and gives 22 %); a level of the body charge.
+- **Not shown**: whether the 21 % hold with another seed; a level of the body charge. Another mass ratio (22 %), another R_m / d_i (15 %) and a ball without the body (19.5 %) are in the sections below.
 - **Cost**: 93 ms per step (0.80 ns per particle and step, times 8 GPUs), 164 s for the 1760 steps; 85 ms per step with `precision: mixed`. The planner's memory figure is 21.5 GB per GPU for full particle arrays (66 GB for `full.yaml`); the arrays reach 67 % of their capacity (capacity factor 1.5). The device memory was not measured.
 
 ## Result of the production configuration (8 GPUs, FP64, one run)
@@ -73,9 +75,48 @@ python examples/blast_wave/analyze.py output/blast_wave/gate
 | ambient n_e, n_i and \|B\| ahead of the front | within 0.04 % of step 0 | |
 | Gauss's law, div B | 8e-15, 1.3e-14 | contracts 1e-10, 1e-12 |
 
-- **In units of R_m, R_B and the fast speed the result is that of the gate configuration.** Front: 2.10 fast speeds (gate 2.10); ring mean 2.69 (2.69); Δ98 22 % above the scaling (21 %); cavity 41.75 d_e = 0.50 R_B = 1.04 R_m (0.50 R_B); front at the end at 98.2 d_e = 1.18 R_B (1.16 R_B). The two configurations share M_A, R_m / d_i, ρ_d / R_m, the shape of the shell in units of R_m and the seed; they differ in the mass ratio (25 against 16), in V_d / c and in the half-width of the box (1.73 against 1.44 R_B). So the excess over Eq. 4 is the same at both mass ratios and box widths. Another R_m / d_i, shell shape or seed was not run.
+- **In units of R_m, R_B and the fast speed the result is that of the gate configuration.** Front: 2.10 fast speeds (gate 2.10); ring mean 2.69 (2.69); Δ98 22 % above the scaling (21 %); cavity 41.75 d_e = 0.50 R_B = 1.04 R_m (0.50 R_B); front at the end at 98.2 d_e = 1.18 R_B (1.16 R_B). The two configurations share M_A, R_m / d_i, ρ_d / R_m, the shape of the shell in units of R_m and the seed; they differ in the mass ratio (25 against 16), in V_d / c and in the half-width of the box (1.73 against 1.44 R_B). So the excess over Eq. 4 is the same at both mass ratios and box widths. Another seed was not run.
 - **The front leaves the debris**: it is 13.6 d_e ahead of Δ98 when it leaves the window (step 1050); at the end Δ98 has fallen to 42.9 d_e and the ring mean of B_z to 1.5 B₀.
 - **Along B₀**: at the end the rms distance of the debris ions from the centre is 49.2 d_e along B₀ and 18.3 d_e per direction across it.
 - **Energy** (monitored only): the debris ions keep 23 % of their kinetic energy and the ambient ions gain 40 % of the kinetic energy of the debris. The budget changes by +2.82 % of the energy at step 0, which is 25.9 % of the kinetic energy of the debris (gate: 10.9 %). The energy at step 0 is 9.2 times the kinetic energy of the debris here (gate: 5.6 times) and the run has 1.6 times the steps; no run without debris was made at this size, so the numerical heating of the ambient plasma is not separated from the two energy fractions above.
 - **The body** absorbs 248,006 particles and holds the charge +25.8 at the end (largest value 53.9). Its potential at two dipole radii is 6.1 T_e / e in the plane across B₀ and 1.1 T_e / e in the plane along it.
 - **Cost**: 281.5 ms per step (0.72 ns per particle and step, times 8 GPUs), 788 s for the 2800 steps. The particle arrays reach 67 % of their capacity; the planner's memory figure is 66.2 GB per GPU for full arrays. The device memory was not measured.
+
+## Result at R_m = 12 d_i (8 GPUs, FP64, one run)
+
+`rm12.yaml`: the gate configuration with R_m = 12 d_i instead of 8 d_i (the shell, the body and the dipole scale with R_m; ρ_d = 0.25 R_m), 576³ cells, 3.18e9 particles, 2640 steps = 10.3 / Ω_ci. The criteria of the gate are evaluated and reported. Record: `bench/results/2026-11-11-c58f533c5-example-blast_wave-rm12-run-031fb299.json`.
+
+| quantity | measured | reference |
+|---|---|---|
+| speed of the front between 0.3 and 0.7 R_B | 0.1616 c = 2.09 fast speeds = 0.86 V_d | fast speed 0.0774 c |
+| largest ring mean of B_z / B₀ there | 2.87 | perpendicular MHD shock at the speed of the front: 2.25 |
+| front radii, axes against diagonals | within 0.16 % | |
+| largest extent of the debris ions Δ98 | 56.4 d_e = 1.17 R_m, at step 2376 of 2640 | 48.9 d_e = 1.02 R_m (Eq. 4 of Le et al. 2021 with D = 3) |
+| ambient n_e, n_i and \|B\| ahead of the front | within 0.08 % of step 0 | |
+| Gauss's law, div B | 7e-15, 1.3e-14 | contracts 1e-10, 1e-12 |
+
+- **The excess of Δ98 over Eq. 4 is 15 % at R_m = 12 d_i against 21 % at 8 d_i**, with the same M_A, mass ratio, shell shape in units of R_m and seed. One run each.
+- **The debris extent grows in two stages here.** Δ98 (41 samples) has a first maximum of 44.4 d_e = 0.93 R_m at step 528, 9 % below Eq. 4, falls by 0.4 d_e and then rises to 56.4 d_e at step 2376; the last four samples fall by 0.2 % and the nine samples from step 2112 on lie within 0.25 d_e. The value of the table is this plateau at the end of the run. In the gate and in `cloud.yaml` the first maximum is the largest one and Δ98 falls afterwards (gate: 39.5 → 34.3 d_e). So the 15 % and the 21 % are not the same event of the expansion, and a longer run at R_m = 12 d_i was not made.
+- **Front and cavity in units of R_B are those of the gate**: 2.09 fast speeds (2.10); front at the end at 117.5 d_e = 1.18 R_B (1.16 R_B); cavity 50.25 d_e = 0.50 R_B = 1.05 R_m (0.50 R_B). The ring mean is higher (2.87 against 2.69). The front is 17.9 d_e ahead of Δ98 when it leaves the window (step 1056).
+- **Along B₀**: at the end the rms distance of the debris ions from the centre is 52.7 d_e along B₀ and 23.4 d_e per direction across it.
+- **Energy** (monitored only): the debris ions keep 13.5 % of their kinetic energy and the ambient ions gain 46.5 % of the kinetic energy of the debris. The budget changes by +2.7 % of the energy at step 0, which is 15.2 % of the kinetic energy of the debris; no run without debris was made at this size.
+- **The body** absorbs 306,982 particles and holds the charge +33.1 at the end (largest value 65.6). Its potential at two dipole radii is 0.08 T_e / e in the plane across B₀ and 0.41 T_e / e in the plane along it (gate: 4.9 and 1.3).
+- **Cost**: 286 ms per step (0.73 ns per particle and step, times 8 GPUs), 757 s for the 2640 steps. The particle arrays reach 67 % of their capacity. **Device memory**: 74,489 MiB = 78.1 GB on the fullest GPU during the run (46 to 71 GiB on the others; 64,297 MiB in the first 200 steps), against the planner's 68.6 GB for full particle arrays. The planner's figure is therefore not an upper bound of the device memory: here the run needs 14 % more.
+
+## Result for a Gaussian ball without the body (8 GPUs, FP64, one run)
+
+`cloud.yaml`: the gate without the body and its dipole, the debris a Gaussian ball at the centre (width 0.33 R_m = 10.56 d_e, peak density 20.9 n₀), the shape of a cloud in a uniform field (Keenan et al. 2022; a width of 0.1 R_m would need a peak density of 752 n₀ here). 384³ cells, 1.185e9 particles, 1760 steps. The run was launched from a working tree with an uncommitted change (the PIC-D18 check of `E0`, which this configuration does not reach), so it is reported here and in `docs/plans/2026-11-11-more-examples.md` and has no record in `bench/results/`.
+
+| quantity | measured | reference |
+|---|---|---|
+| speed of the front between 0.3 and 0.7 R_B | 0.1371 c = 1.77 fast speeds = 0.73 V_d | fast speed 0.0774 c |
+| largest ring mean of B_z / B₀ there | 2.08 | perpendicular MHD shock at the speed of the front: 1.95 |
+| front radii, axes against diagonals | within 0.45 % | |
+| largest extent of the debris ions Δ98 | 39.0 d_e = 1.22 R_m, at step 572 of 1760 | 32.6 d_e = 1.02 R_m (Eq. 4 of Le et al. 2021 with D = 3) |
+| ambient n_e, n_i and \|B\| ahead of the front | within 0.04 % of step 0 | |
+| Gauss's law, div B | 7e-15, 9e-15 | contracts 1e-10, 1e-12 |
+
+- **The excess of Δ98 over Eq. 4 is 19.5 %, against 21 % for the shell around the body**: the shape of the cloud and the body with its dipole change it by 1.5 points at this R_m, M_A and seed.
+- **The front is slower and weaker than that of the shell** (1.77 against 2.10 fast speeds, ring mean 2.08 against 2.69): the ball starts 0.33 R_m further in. At the end the front is at 77.0 d_e = 1.16 R_B (shell 1.16 R_B) and the cavity has 34.25 d_e = 0.51 R_B (shell 0.50 R_B), so the cavity has the same radius without the dipole.
+- The debris ions keep 21.5 % of their kinetic energy and the ambient ions gain 38.3 % of it (shell: 20 % and 41 %); rms distance of the debris ions at the end 36.8 d_e along B₀ and 14.9 d_e across (shell 36.8 and 14.8).
+- **Cost**: 109 ms per step, 192 s; device memory 29.3 GiB = 31.5 GB on the fullest GPU in the first 200 steps against the planner's 32.4 GB (not measured during the run).
