@@ -8,7 +8,7 @@ import pytest
 
 from pypic import SimConfig
 from pypic.config import Beam, Body, CurrentFilter, Laser, SpeciesConfig, Window
-from pypic.window import antenna_off_shift, check_config, margin_cells, shift_after, steps_since_shift
+from pypic.window import antenna_off_shift, beam_cells, check_config, margin_cells, shift_after, steps_since_shift
 
 BC = (("open", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
 
@@ -94,3 +94,34 @@ def test_window_keeps_the_antenna_until_the_pulse_has_ended():
     assert check_config(with_laser(4.05, waist=0.5, focus_x=3.0))  # converging: the edge of the beam is early
     with pytest.raises(ValueError, match="curved front"):
         check_config(with_laser(4.05, waist=0.5, focus_x=1.0))
+
+
+def _bunch(center):
+    return [{"axis": "x", "shape": "gauss", "center": center, "width": 0.2},
+            {"axis": "y", "shape": "gauss", "center": 0.8, "width": 0.2}]
+
+
+def test_window_loads_later_planes_only_at_rest_along_x():
+    """margin 0.8: the first load takes the cells 0 .. 31 (x < 3.2). A plasma at rest along x enters
+    every later plane; a drifting bunch and a radial beam are accepted where they end before
+    x = 3.2 and refused where they reach beyond it or have no end."""
+    def with_beams(*beams):
+        return cfg(species=[SpeciesConfig("e", -1.0, 1.0, list(beams))])
+
+    plasma = Beam(1.0, drift=(0.0, 0.3, 0.0), theta=0.01,
+                  profile={"axis": "x", "shape": "table", "x": [0.5, 1.0, 20.0, 21.0], "values": [0, 1, 1, 0]})
+    ball = {"axis": "r", "shape": "step", "x0": 0.0, "x1": 0.5}
+    inside = with_beams(plasma, Beam(0.1, drift=(5.0, 0.0, 0.0), profile=_bunch(2.0)),
+                        Beam(0.1, drift_radial=0.2, origin=(2.0, 0.8, 0.8), profile=ball))
+    assert check_config(inside)
+    s_end = shift_after(inside, inside.n_steps)
+    first, bunch, radial = (beam_cells(inside, b) for b in inside.species[0].beams)
+    # each bound lies one sample of the shape beyond its edge: a cell more where the edge is on a node
+    assert first == (4, 211) and first[1] < 32 + s_end
+    assert 0 < bunch[0] < 20 < bunch[1] <= 32 and radial == (14, 26)
+    for beam, match in [(Beam(1.0, drift=(0.1, 0.0, 0.0)), "drift along x"),
+                        (Beam(0.1, drift=(5.0, 0.0, 0.0), profile=_bunch(3.0)), "drift along x"),
+                        (Beam(0.1, origin=(3.0, 0.8, 0.8), profile=ball), "radial"),
+                        (Beam(0.1, drift_radial=0.2, origin=(2.0, 0.8, 0.8)), "radial")]:
+        with pytest.raises(ValueError, match=match):
+            check_config(with_beams(plasma, beam))

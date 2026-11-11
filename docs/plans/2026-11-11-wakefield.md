@@ -282,6 +282,65 @@ Design fixed before coding (the reasons are in PIC-D22):
   `perturbation` of a beam, x boundaries other than (`open`, `reflecting`), a margin of fewer
   than 4 cells plus the reach of the current filter, or one that leaves no plasma.
 
+Amendment (2026-11-12, before the kernels of Stage 4) — the load of a plane, the energy term,
+the x+ wall. Three facts that the design above did not have:
+
+1. The beams of a plane are loaded on the same positions (this is what makes the load neutral),
+   and the move "for the time since the shift before" gives each species its own displacement.
+   After it the charge on the grid is not zero, and E holds none of it: Gauss's law would fail at
+   checked nodes. So the move is a move of the engine like any other: it deposits its current
+   (Esirkepov, two halves so that no segment is longer than a cell; the reflection at the upper
+   face of the plane splits a segment there), the current is reduced, filtered and gets the wall
+   condition like the current of a step, and `E -= dt J`. The move is at most `dx + dt` long, less
+   than two cells: with the ghost width 2 the current of a particle of the first cell of a rank
+   stays inside the arrays and the particle migrates to the adjacent rank.
+2. "A beam with a drift along x is loaded where it stands" is not the state of such a beam. The
+   particles of the plane before have moved into the new plane (or away from it) by the drift
+   since the shift before: the new plane would have to be loaded without the part they fill, or
+   with a part of the plane ahead. Both take or add particles of one species only at places
+   that the other species of the plane keep, which ends the neutrality position by position that
+   Gauss's law rests on here; and the profile of such a beam is not at its place of t = 0 when
+   the plane enters. No run of R8 needs it (the bunch and its partner lie in the cells of the
+   first load). The line is replaced by a refusal, below.
+3. The field energy that a shift takes out of the physical cells is not only the plane that the
+   copy moves into the absorbing layer: the move of fact 1 and the rule of the wall change E too.
+
+What changes in the design:
+
+- Beams: every beam has a range of laboratory cells along x that it loads, from its profile on
+  the cells `0 .. n - m + s_end` (`s_end`: the shift after `n_steps` steps; no profile along x:
+  all of them). The first load takes the cells below `n - m`, the shift to s the plane
+  `s + n - 1 - m`. A beam whose range ends at or below the cell `n - m` is loaded once and may be
+  of any kind (a drifting bunch, a radial beam). A beam that enters later planes must have no
+  drift along x, no radial drift and no radial profile: refused otherwise. A run that goes on
+  beyond `n_steps` stops with an error at the shift `s_end + 1` (a function of the configuration
+  and of the step, so every rank raises).
+- A beam with a temperature that enters later planes: the plane is loaded as at the shift before
+  and moved as in fact 1. This is the exact state of a plasma that is uniform across the plane
+  and symmetric in v_x, except for the particles faster than `dx / T` along x (T: the time since
+  the shift before, at most `dx + dt`; with dt = dx / 2 that is 2 c / 3), which the reflection at
+  the upper face of the plane would have to hold back in the plane before as well. With a density
+  that varies across the plane it is as good as the first load is. For the first shift the time
+  is counted from `start`: a thermal plasma that waits for the window (start > 0) has expanded
+  into the margin by then, as a plasma with a free surface does. W1 uses `start = 0`. A cold beam
+  is loaded where it stands, without the move.
+- Neutrality of a plane: the same check as for the first load (net charge position by position
+  over the beams with the same cells across the plane), reduced over the ranks at every shift
+  that loads a plane; every rank raises if it fails.
+- Ids of a plane: `n_ids + ((p - (n - m)) n_streams + stream - 1) ny nz ppc` plus the number of
+  the particle in the plane, p the laboratory plane. Checked once at the start for the last
+  plane: below 2^53.
+- Energy: `window_out` is (field energy + kinetic energy of the particles) before the shift minus
+  after it: the field energy of the physical cells before the copy minus the one after all that
+  the shift does to the fields (copy, wall rule, the E of the move), plus the kinetic energy of
+  the dropped particles, minus the kinetic energy of the loaded ones.
+- x+ wall: the rule `E_x(W - 1) = E_x(W - 2)` is the rule for a wall node without the charge of a
+  particle. A particle within 1 + (reach of the current filter) cells of the x+ wall at a shift
+  is an error of the configuration (the driver or the plasma reached the wall before the window
+  left): `window_drop` counts them, the count is reduced with every record and at the end of a
+  run, and every rank raises. The margin of at least 4 cells plus the reach keeps the loaded
+  plasma away; nothing that starts behind the front catches up with a wall that moves at c.
+
 ### Stage 5 — window runs
 
 The gate configurations become window runs (laser 1152×128², about 1.5 min). Production (a0 = 4,

@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 
 from . import antenna
+from .profiles import support, support_interval
 
 # the plasma ends this many cells (plus the reach of the current filter) before the x+ wall at
 # least: the shape of a particle at the front and the current of one that streams ahead of it stay
@@ -47,6 +48,33 @@ def steps_since_shift(cfg, steps: int) -> int:
     return steps - j
 
 
+def front_cell(cfg) -> int:
+    """The first cell along x that the first load leaves empty; the shift to s loads the
+    laboratory plane ``front_cell + s - 1``."""
+    return cfg.n_cells[0] - margin_cells(cfg)
+
+
+def beam_cells(cfg, beam) -> tuple[int, int]:
+    """Laboratory cells ``(lo, hi)`` along x that ``beam`` loads during the run: those that its
+    profile reaches among the cells below ``front_cell + s_end``, with ``s_end`` the shift after
+    ``n_steps`` steps (no profile along x: all of them). The first load takes the cells below
+    ``front_cell``, every later plane is loaded when it enters."""
+    dx = cfg.dx[0]
+    end = front_cell(cfg) + shift_after(cfg, cfg.n_steps)
+    length = [end * dx] + [cfg.n_cells[a] * cfg.dx[a] for a in (1, 2)]
+    lo, hi = 0.0, length[0]
+    p = beam.profile
+    if isinstance(p, dict) and p.get("axis", "x") == "r":
+        rs = support(p, math.sqrt(sum(max(abs(o), abs(length[a] - o)) ** 2 for a, o in enumerate(beam.origin))))
+        lo, hi = beam.origin[0] - rs, beam.origin[0] + rs
+    else:
+        for q in p if isinstance(p, list) else [p] if p else []:
+            if q.get("axis", "x") == "x":
+                lo, hi = support_interval(q, length[0])
+    lo = min(max(math.floor(lo / dx), 0), end)
+    return lo, max(min(math.ceil(hi / dx), end), lo)
+
+
 def antenna_off_shift(cfg, laser, retreat: int = 0) -> int:
     """The shift at which the antenna of ``laser`` is switched off: its cell has reached the nodes
     next to x- where Gauss's law is not checked."""
@@ -78,6 +106,19 @@ def check_config(cfg, retreat: int = 0, reach: int = 0) -> bool:
                          "(4 plus the reach of the current filter)")
     if n - m <= antenna.first_cell(cfg, retreat):
         raise ValueError("window.margin leaves no cell for the plasma")
+    # a beam that is loaded plane by plane is loaded as a plasma at rest along x that is the same
+    # on both sides of the plane; whatever else lies in the cells of the first load
+    front = front_cell(cfg)
+    for sp in cfg.species:
+        for b in sp.beams:
+            if beam_cells(cfg, b)[1] <= front:
+                continue
+            radial = b.drift_radial != 0.0 or (isinstance(b.profile, dict) and b.profile.get("axis", "x") == "r")
+            if b.drift[0] != 0.0 or radial:
+                what = "a radial profile or drift" if radial else "a drift along x"
+                raise ValueError(f"species {sp.name}: a beam with {what} must end within the first load of a moving "
+                                 f"window (x < {front * dx[0]:g}): the planes that enter later are loaded at rest "
+                                 "along x (PIC-D22)")
     for laser in cfg.lasers:
         env = laser.envelope
         if env["shape"] != "gaussian":
