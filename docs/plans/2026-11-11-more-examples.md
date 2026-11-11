@@ -57,6 +57,25 @@ magnetic energy of the difference fields, last crossing over the one before, ≤
 the magnetic energy is reported (in M2 the oblique case had not levelled after three crossings).
 Stop rule: if O1 fails, `oblique` is reported and is not a gate.
 
+Definitions of O1 that M2 left to its analysis script (which is not in the repository), fixed
+here before the run and implemented as `null_test` in `examples/bow_shock/analyze.py`:
+
+- Samples: the 3-D output (every 480 steps, blocks of 8 cells). Regions: the interior (two blocks
+  or more from every face) and the slab of two blocks at each of the six faces. References: the
+  sample of step 0. "Last crossing": the samples of the last 1920 steps.
+- Density: Σn of the region over its value at step 0. Velocity: Σflux / Σn per component minus the
+  wind velocity, over |v|.
+- T: (2/3) (Σekin / Σn − m (γ_u − 1)) with γ_u of the mean velocity |Σflux / Σn|, over its value
+  at step 0 (for a drifting Maxwellian this is proportional to T at a fixed drift).
+- Energies: the mean of the scalar-history records `electric` and `magnetic` with a step in
+  (N − 1920, N], over the mean of those in (N − 3840, N − 1920], N the last step. Reported slope:
+  the linear fit of `magnetic` over the last crossing, per 480 steps, over its mean.
+
+Definition of the reversal of `south`: the profile of B_z on the subsolar line is taken like the
+density profile of the gate (slice z = z_c, band of ±0.1 R_mp, running mean over 0.1 R_mp, mean of
+the outputs of the last half crossing). Its changes of sign are counted between the shock and the
+surface of the body; the criterion needs exactly one, and x_rev is its linear interpolation.
+
 The compression of an oblique fast shock goes into `examples/bow_shock/theory.py`; at θ = 90° it
 must reproduce `pypic.setup.mhd.compression`. `analyze.py` gains: the point x_rev on the subsolar
 line where B_z changes sign; the signed B_z / |B_imf| in the movie; the choice of the upstream
