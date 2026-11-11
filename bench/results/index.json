@@ -1,6 +1,42 @@
 {
   "entries": [
     {
+      "file": "2026-11-11-29451458d-example-relativistic_shock-pair_2d_tail-run-b012ba98.json",
+      "type": "example",
+      "date": "2026-11-11",
+      "commit": "29451458dca01da0e82a1bece0984efcf7ee4d11",
+      "dirty": false,
+      "run_id": "b012ba98",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "relativistic_shock",
+      "config": "pair_2d_tail"
+    },
+    {
+      "file": "2026-11-11-29451458d-example-relativistic_shock-pair_2d_t4000-run-014c11db.json",
+      "type": "example",
+      "date": "2026-11-11",
+      "commit": "29451458dca01da0e82a1bece0984efcf7ee4d11",
+      "dirty": false,
+      "run_id": "014c11db",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "relativistic_shock",
+      "config": "pair_2d_t4000"
+    },
+    {
+      "file": "2026-11-11-29451458d-example-reconnection-pair_sigma10_xl-run-0e8c5abd.json",
+      "type": "example",
+      "date": "2026-11-11",
+      "commit": "29451458dca01da0e82a1bece0984efcf7ee4d11",
+      "dirty": false,
+      "run_id": "0e8c5abd",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "reconnection",
+      "config": "pair_sigma10_xl"
+    },
+    {
       "file": "2026-11-11-4d55109b5-example-bow_shock-dp10-run-4b073ac2.json",
       "type": "example",
       "date": "2026-11-11",
