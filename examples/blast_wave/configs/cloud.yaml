@@ -1,0 +1,13 @@
+# Gaussian cloud in a uniform field (Keenan et al. 2022): the gate without the body and its dipole, the
+# debris a ball (shell radius 0) of width 0.33 R_m. A width of 0.1 R_m would need a peak density of 752 n0.
+mass_ratio: 16
+mach_alfven: 3
+wpe_wce: 4
+vte: 0.1
+rm: 8
+shell_radius: 0
+shell_width: 0.33
+body: false
+half_width: 1.44
+ppc: 8
+run: 1.25
