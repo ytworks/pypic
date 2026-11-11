@@ -164,7 +164,7 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
     if show_plot:
         P.style()
         fig, ax = P.plt.subplots(2, 1, figsize=(11, 6.5), sharex=True)
-        P.field_map(ax[0], s.read("Ex", last).T, [xe[0], xe[-1], ze[0], ze[-1]], label="E_x", ylabel="z [c/ωpe]")
+        P.field_map(ax[0], s.read("Ex", last), [xe[0], xe[-1], ze[0], ze[-1]], label="E_x", ylabel="z [c/ωpe]")
         ax[0].set_aspect("auto")
         ax[1].plot(xe, ex_axis[last], color=P.color(0), lw=0.8, label=f"E_x on the axis, t={s.t[last]:.1f}")
         if m is not None:
