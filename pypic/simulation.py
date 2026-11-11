@@ -8,7 +8,7 @@ import time
 import cupy as cp
 import numpy as np
 
-from . import body, injection
+from . import antenna, body, injection
 from .backend import compile_module, launch
 from .config import FACES, ID_LIMIT, SimConfig
 from .external import check_config, dipoles_B
@@ -66,6 +66,7 @@ class Simulation:
         self.zone_depth = reach + 1
         self.gauss_retreat = (reach + (1 if self.marder else 0)) if has_open else 0
         self.body = body.check_config(cfg, reach)
+        antenna.check_config(cfg, self.gauss_retreat, reach)
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
         if cfg.precision not in ("fp64", "mixed"):
@@ -147,11 +148,17 @@ class Simulation:
         self.history = {k: [] for k in (
             "step", "t", "kinetic", "electric", "magnetic", "total", "lost_kinetic", "lost_charge",
             "injected_kinetic", "injected_charge", "n_injected", "absorbed_kinetic", "absorbed_charge",
-            "n_absorbed", "boundary_flux", "dissipated", "budget",
+            "n_absorbed", "boundary_flux", "dissipated", "antenna", "budget",
             "px", "py", "pz", "gauss", "divB", "picard", "n_particles", "fill")}
         self.kinetic_species = {s.name: [] for s in self.species}
         self.flux_out = 0.0
         self.dissipated = 0.0
+        # laser antennas (PIC-D20) on this rank's block, and the work of their currents on the
+        # field in this rank's physical cells: up to now, and up to the last recorded time level
+        index = [self.grid.global_positions(a, 0.0) for a in range(3)]
+        self.antennas = [antenna.Antenna(cp, laser, cfg, index) for laser in cfg.lasers]
+        self._antenna_work = cp.zeros(1)
+        self._antenna_rec = cp.zeros(1)
         self._last = None
         n_tot = self.total_particles()  # collective: must run on every rank, not only the printing one
         if self.verbose:
@@ -592,12 +599,16 @@ class Simulation:
         g.apply_bc_J()
         if self.cfg.remove_mean_current:
             self._remove_mean_current()
+        if self.antennas:
+            driven = self._antenna_add(do_diag)
         # The field update reads J and the fields, the migration the particles: queueing the update
         # first lets the host prepare it while the push kernels run, as the migration starts with
         # a host synchronisation.
         dt = self.cfg.dt
         g.push_B(0.5 * dt)
         g.push_E(dt)
+        if self.antennas:
+            self._antenna_work_done(driven)
         if self._relax:
             for e, idx in zip((g.Ex, g.Ey, g.Ez), self._relax[0]):
                 if idx.size:
@@ -609,6 +620,35 @@ class Simulation:
             g.marder_zone(self._charge_density(zone=True), self.zone_depth, self.marder)
         if self._has_open:
             self.flux_out += dt * g.poynting_out()
+
+    def _antenna_add(self, do_diag: bool):
+        """Add the antenna currents at t^(n+1/2) to J (PIC-D20): after the filter, the wall
+        condition and the mean-current removal, which are for the current of the particles.
+        Returns, per piece of current in this rank's physical cells, what its work needs: the
+        component, the index along x, the current and E^n there."""
+        g = self.grid
+        if do_diag:
+            self._antenna_rec = self._antenna_work.copy()  # the fields of the record are at t^n
+        J, E = (g.Jx, g.Jy, g.Jz), (g.Ex, g.Ey, g.Ez)
+        sx, sy, sz = g.physical_slice()
+        t = (self.step_count + 0.5) * self.cfg.dt
+        driven = []
+        for ant in self.antennas:
+            for c, i, a in ant.pieces(t):
+                J[c][i] += a
+                if sx.start <= i < sx.stop:
+                    driven.append((c, i, a[sy, sz], E[c][i, sy, sz].copy()))
+        return driven
+
+    def _antenna_work_done(self, driven):
+        """Work of the antenna currents on the field in this step, -dt sum J . (E^n + E^(n+1)) / 2
+        dV: the Yee update changes the electric energy by exactly this through the term -J."""
+        g = self.grid
+        E = (g.Ex, g.Ey, g.Ez)
+        _sx, sy, sz = g.physical_slice()
+        f = 0.5 * self.cfg.dt * g.cell_volume
+        for c, i, a, e0 in driven:
+            self._antenna_work -= f * cp.sum(a * (e0 + E[c][i, sy, sz]))
 
     J_STAGGER = ((0.5, 0, 0), (0, 0.5, 0), (0, 0, 0.5))
 
@@ -915,7 +955,7 @@ class Simulation:
         fill = np.zeros(self.comm.size)
         fill[self.rank] = max((sp.n / sp.cap for sp in self.species), default=0.0)
         vec = cp.concatenate([*self.sdiag, cp.asarray([float(sp.n) for sp in self.species]), cp.asarray(fill),
-                              fe_local])
+                              fe_local, self._antenna_rec])
         if self.comm.size > 1:
             vec = self.comm.allreduce(vec)
         hv = cp.asnumpy(vec)
@@ -949,7 +989,8 @@ class Simulation:
         h["n_absorbed"].append(int(round(float(np.sum(sd[:, 11])))))
         h["boundary_flux"].append(self.flux_out)
         h["dissipated"].append(self.dissipated)
-        h["budget"].append(tot + lost + absorbed - injected + self.flux_out + self.dissipated)
+        h["antenna"].append(float(fe[2]))  # work of the laser antennas on the field up to t^n
+        h["budget"].append(tot + lost + absorbed - injected + self.flux_out + self.dissipated - float(fe[2]))
         h["px"].append(mom[0])
         h["py"].append(mom[1])
         h["pz"].append(mom[2])
