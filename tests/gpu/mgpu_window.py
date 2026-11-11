@@ -1,8 +1,8 @@
 """Helper for the moving-window tests (PIC-D22): run with ``python -m pypic.launch -n N``.
 
-    mgpu_window.py <dims> <case>    dims like 2,2,1; case thermal | tracers
+    mgpu_window.py <dims> <case> [<file>]    dims like 2,2,1; case thermal | tracers | laser | static
 
-A warm plasma fills a box of 64 x 24 x 24 cells up to the vacuum margin before the x+ wall; the
+thermal, tracers: a warm plasma fills a box of 64 x 24 x 24 cells up to the vacuum margin before the x+ wall; the
 window moves from t = 0 on and makes 400 shifts (more than six box lengths: every particle left
 at the end was loaded by a shift).
 
@@ -11,18 +11,62 @@ thermal: electrons and ions. Prints the histories and, per slab of eight cells o
 tracers: one species of test particles and no field at all: the particles move on straight lines,
          so their bits do not depend on the layout of the ranks. Prints the number of particles and
          a sum over the particles of a hash of (id, position, momentum), exact in any order.
+
+laser:   a focused pulse in a cold plasma, open faces across the window (absorbing layers that
+         the shift moves through every rank), 200 shifts. Writes E on the cells of the window
+         farther than 32 cells from x- to <file> (.npy).
+static:  the same pulse and plasma in a box at rest that ends where the window ends after its
+         200 shifts. Writes E on the same laboratory cells.
 """
 import json
 import sys
 
 import cupy as cp
+import numpy as np
 
 from pypic import Beam, SimConfig, SpeciesConfig, window
-from pypic.config import Window
+from pypic.config import Laser, Window
 from pypic.simulation import Simulation
 
 dims = tuple(int(v) for v in sys.argv[1].split(","))
 case = sys.argv[2]
+
+
+def laser_run():
+    n, dx, shifts, skip, margin = (128, 32, 32), (0.05, 0.1, 0.1), 200, 32, 8
+    moving = case == "laser"
+    end = (n[0] - margin + shifts) * dx[0]  # the plasma of the window ends here after the last shift
+    prof = None if moving else {"shape": "step", "x0": -1.0, "x1": end}
+    pulse = Laser(plane_x=60.5 * dx[0], a0=0.1, omega=10.0, waist=0.8, focus_x=8.0,
+                  envelope={"shape": "gaussian", "duration": 0.3, "t_peak": 1.5})
+    cfg = SimConfig(n_cells=n if moving else (n[0] + shifts,) + n[1:], dx=dx, dt=0.0225, n_steps=512, dims=dims,
+                    npml=8, ppc=4, lasers=[pulse], diag_interval=8, gauss_interval=8,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, profile=prof)]),
+                             SpeciesConfig("i", 1, 100, [Beam(1.0, profile=prof)])],
+                    boundaries=(("open", "reflecting"), ("open", "open"), ("open", "open")),
+                    window=Window(start=1.5, margin=margin * dx[0]) if moving else None)
+    sim = Simulation(cfg, verbose=False)
+    sim.run()
+    # E on the cells i0 .. i0 + nx of the box: every rank puts its part into an array of zeros
+    i0, nx = (skip if moving else skip + shifts), n[0] - skip
+    g, ax = sim.grid, sim.decomp.axes
+    full = cp.zeros((3, nx) + n[1:])
+    x0, x1 = max(i0, ax[0].phys_lo), min(i0 + nx, ax[0].phys_lo + ax[0].n_phys)
+    if x1 > x0:
+        tr = tuple(slice(a.phys_lo, a.phys_lo + a.n_phys) for a in ax[1:])
+        for c, E in enumerate((g.Ex, g.Ey, g.Ez)):
+            full[(c, slice(x0 - i0, x1 - i0)) + tr] = E[g.physical_slice()][x0 - ax[0].phys_lo:x1 - ax[0].phys_lo]
+    full = sim.comm.allreduce(full.ravel()).reshape(full.shape)
+    if sim.rank == 0:
+        np.save(sys.argv[3], cp.asnumpy(full))
+        h = sim.history
+        print(json.dumps({"shift": sim.window_shift, "n": h["n_particles"][-1], "gauss": h["gauss"],
+                          "divB": h["divB"]}))
+
+
+if case in ("laser", "static"):
+    laser_run()
+    sys.exit(0)
 n, dx, theta, slab = (64, 24, 24), 0.1, 4e-3, 8
 species = ([SpeciesConfig("e", -1, 1, [Beam(1.0, theta=theta)]), SpeciesConfig("i", 1, 100, [Beam(1.0, theta=theta)])]
            if case == "thermal" else [SpeciesConfig("t", -1, 1, [Beam(1.0, theta=theta)], test=True)])

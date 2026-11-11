@@ -8,6 +8,7 @@ import math
 import os
 import subprocess
 import sys
+import tempfile
 
 import cupy as cp
 import numpy as np
@@ -1151,10 +1152,15 @@ def test_lattice_places_follow_the_global_cell_and_give_a_uniform_density(n, dim
 @functools.lru_cache(maxsize=None)
 def _window_run(dims: str, case: str) -> dict:
     n = math.prod(int(v) for v in dims.split(","))
-    r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), os.path.join(HERE, "mgpu_window.py"),
-                        dims, case], capture_output=True, text=True, timeout=600)
-    assert r.returncode == 0, r.stderr[-2000:]
-    return json.loads(r.stdout.strip().splitlines()[-1])
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "E.npy")  # written by the cases laser and static
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), os.path.join(HERE, "mgpu_window.py"),
+                            dims, case, path], capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        o = json.loads(r.stdout.strip().splitlines()[-1])
+        if os.path.exists(path):
+            o["E"] = np.load(path)
+    return o
 
 
 def test_moving_window_leaves_a_plasma_at_rest_as_it_was_loaded():
@@ -1191,6 +1197,23 @@ def test_moving_window_is_decomposition_independent(dims):
     ref, o = _window_run("1,1,1", "tracers"), _window_run(dims, "tracers")
     assert ref["shift"] == 400 and ref["n"] > 0
     assert o == ref
+
+
+@pytest.mark.parametrize("dims", ["1,1,1", "2,2,1"])
+def test_moving_window_gives_the_fields_of_the_box_at_rest(dims):
+    """A focused laser pulse in a cold plasma, with absorbing layers across the window: after 200
+    shifts E in the window (farther than 32 cells from x-, where the window has dropped the plasma
+    behind it) is E on the same laboratory cells of a box at rest that holds the whole path. The
+    two runs deposit in another order, so the bits differ."""
+    if cp.cuda.runtime.getDeviceCount() < math.prod(int(v) for v in dims.split(",")):
+        pytest.skip("needs >= 4 GPUs")
+    ref, o = _window_run("1,1,1", "static"), _window_run(dims, "laser")
+    assert o["shift"] == 200
+    scale = np.max(np.abs(ref["E"]))
+    assert scale > 0.1  # the pulse (a0 omega = 1 at the focus) is in the region
+    assert np.max(np.abs(o["E"] - ref["E"])) <= 1e-6 * scale
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
 
 
 def test_mixed_precision_is_explicit_only():
