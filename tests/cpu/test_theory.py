@@ -89,6 +89,23 @@ def test_bow_shock_scales():
     assert abs(mhd.fast_mach(ma1, beta) - 1.0) < 1e-14 and abs(mhd.compression(ma1, beta) - 1.0) < 1e-12
     assert mhd.compression(0.5 * ma1, beta) == 1.0
     assert abs(mhd.compression(1e4, beta) - 4.0) < 1e-6
+    # oblique fast shock: the same test of the energy flux, with the tangential flow and the Poynting
+    # flux B_z (v_x B_z - v_z B_x); (1.5, 0.1) along the field is a switch-on shock
+    for ma, beta in ((1.5, 0.1), (2.0, 0.05), (4.0, 0.64), (20.0, 3.0)):
+        for cos2 in (1e-6, 0.25, 0.5, 0.9, 1.0):
+            d = T.oblique_downstream(ma, beta, cos2)
+            x, bz1 = d["compression"], math.sqrt(1.0 - cos2)
+            up = (0.5 * ma ** 2 + g / (g - 1) * 0.5 * beta) * ma + bz1 * ma * bz1
+            down = ((0.5 * x * (d["v_x"] ** 2 + d["v_z"] ** 2) + g / (g - 1) * d["p"]) * d["v_x"]
+                    + d["B_z"] * (d["v_x"] * d["B_z"] - d["v_z"] * d["B_x"]))
+            assert x > 1.0 and d["p"] > 0.0 and abs(down / up - 1.0) < 1e-9, (ma, beta, cos2)
+        # the limits: the perpendicular shock, and along the field the gas-dynamic shock of the sonic Mach number
+        assert T.oblique_compression(ma, beta, 0.0) == mhd.compression(ma, beta)
+        assert abs(T.oblique_compression(ma, beta, 1e-9) / mhd.compression(ma, beta) - 1.0) < 1e-6
+    ms2 = 16.0 / (0.5 * g * 0.64)
+    assert abs(T.oblique_compression(4.0, 0.64, 1.0) - (g + 1) * ms2 / ((g - 1) * ms2 + 2.0)) < 1e-12
+    assert T.oblique_compression(1.5, 0.1, 1.0) == 2.25 and T.oblique_downstream(1.5, 0.1, 1.0)["B_z"] > 0.0
+    assert T.oblique_compression(0.5 * ma1, beta, 0.5) == 1.0  # slower than the fast speed: no shock
     # magnetopause: the doubled dipole field of the planner's moment balances the ram pressure at R_mp
     r, v, mi = 20.0, 0.25, 16.0
     m = T.dipole_moment(r, v, mi)

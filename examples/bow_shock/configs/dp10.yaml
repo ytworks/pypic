@@ -1,0 +1,10 @@
+# The gate wind with the magnetopause at 10 d_i = 80 cells: 480 x 640 x 640 cells, 3.1e9 particles,
+# 11520 steps (3 crossings = 45 / Omega_ci); about an hour on 8 GPUs, 79 GB of device memory per GPU.
+mass_ratio: 16
+mach_alfven: 4
+wpe_wce: 4
+vte: 0.1
+dp: 10
+box: [6, 8, 8]
+ppc: 8
+crossings: 3
