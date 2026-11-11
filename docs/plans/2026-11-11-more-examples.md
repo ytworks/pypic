@@ -205,3 +205,28 @@ Reported: slope of the magnetic energy over the last crossing −3.8e-4 of its m
 (levelled; it had not in M2 after three crossings); largest T_e of any region at the end 1.021
 (slab y+); the energy monitor of the explicit scheme drifts by +8.3e-3 over the run (monitored
 only); particles 393,216,311 → 393,126,101. `oblique` is therefore a gate.
+
+### Stage 1 — `bow_shock/south` (2026-11-11): gate passed
+
+8 GPUs, FP64, 5760 steps (three crossings), 3.92e8 particles at the start, 46 ms per step
+(wall 264 s). Evaluated by `analyze` of `examples/bow_shock/analyze.py`.
+
+| Criterion | Limit | Measured | |
+|---|---|---|---|
+| Gauss, every check | 1e-10 | 6.1e-14 | pass |
+| Upstream density and u_x, last crossing | 5 % | n: e 0.13 %, i 0.12 %; u_x: e 0.03 %, i 0.04 % | pass |
+| Sheath compression on the subsolar line | ≥ 2 | 2.48 (at 28.25 d_e; MHD 2.97) | pass |
+| Magnetopause by density | within 25 % of R_mp | 0.910 R_mp | pass |
+| Shock upstream of the magnetopause | holds | shock at 1.178 R_mp | pass |
+| B_z reverses once between shock and body | \|(x_c − x_rev) / R_mp − 1\| ≤ 0.25 | one reversal, 0.005 (x_rev at 1.005 R_mp from the centre) | pass |
+
+Reported: the reversal lies 0.094 R_mp (1.9 d_e) upstream of the magnetopause by density
+(erosion x_rev − x_mp = −0.094 R_mp: the density falls back to the wind value inside the field
+reversal, not outside it). Against the northward gate of the same wind (README: magnetopause
+0.92 to 0.93 R_mp, shock 1.38 R_mp, largest density 3.8 n0, sheath over magnetopause distance
+0.49 to 0.50): the magnetopause is at the same place, the shock is 0.20 R_mp closer (Spreiter
+1.371 R_mp), the largest density is 2.48 n0 and the sheath is 0.295 of the magnetopause distance
+(Spreiter 0.371). Magnetopause by magnetic pressure 0.883 R_mp. Flank (line x = x_c, plane
+y = y_c): +z 2.236 R_mp, −z 2.300 R_mp, asymmetry −0.014. Body charge +432; absorbed particles
+per step 1138, 403, 311 in the three crossings; particles 3.919e8 → 4.300e8; largest fill ratio
+0.57; energy monitor +2.7e-2 (monitored only).
