@@ -343,3 +343,48 @@ ions gain 38.3 % of it; energy monitor +1.9e-2 (budget change with the boundary 
 monitored only); particles 1.185e9 → 1.115e9; largest fill ratio 0.670. 200-step probe before the
 run: 123 ms per step, peak device memory 29.3 GiB = 31.5 GB on the largest GPU against the
 planner's 32.4 GB.
+
+### Stage 2 — `blast_wave/rm12` (2026-11-11): recorded, all criteria of the gate hold
+
+The gate configuration with R_m = 12 d_i = 48 d_e (R_B = 99.8 d_e, debris gyroradius 0.25 R_m
+instead of 0.375 R_m; shell and body scale with R_m). 576³ cells, 8 GPUs, FP64, 2640 steps
+(10.3 / Ω_ci), 3.183e9 particles, 286 ms per step (wall 757 s, 0.73 ns per particle and step).
+Launched from the clean tree of c58f533. Record:
+`bench/results/2026-11-11-c58f533c5-example-blast_wave-rm12-run-031fb299.json`.
+
+| Criterion of `blast_wave:gate` | Limit | Measured | |
+|---|---|---|---|
+| Gauss, div B | 1e-10, 1e-12 | 7.3e-15, 1.3e-14 | holds |
+| Front speed between 0.3 and 0.7 R_B | above the fast speed (0.0774 c) | 0.1616 c = 2.09 fast speeds = 0.86 V_d | holds |
+| Largest ring mean of B_z / B0 there | above 1.5 | 2.87 | holds |
+| Front radii, axes against diagonals | 5 % | 0.16 % | holds |
+| Δ98 of the debris ions against Eq. 4 of Le et al. 2021 (D = 3), reached before the end | ± 25 % | 56.4 d_e = 1.17 R_m at step 2376 of 2640; Eq. 4: 48.9 d_e; +15.2 % | holds |
+| Ambient n_e, n_i, \|B\| ahead of the front | 5 % | 0.082 % | holds |
+
+Reported:
+- **The excess over Eq. 4 is 15 % at R_m = 12 d_i, against 21 % at 8 d_i** (same M_A, m_i/m_e,
+  shell shape in units of R_m and seed). One run each: the 6 points are not separated from the
+  difference between realizations, which the gate runs give only for the same bits at step 0.
+- **The time history of Δ98 is not that of the gate.** Δ98 (41 samples, every 66 steps) has a
+  first maximum of 44.4 d_e = 0.93 R_m at step 528 (9 % *below* Eq. 4), falls to 44.1 d_e at
+  step 594 and then rises without a further dip to 56.4 d_e at step 2376; the last four samples
+  fall by 0.13 d_e (0.2 %), and the nine samples from step 2112 on lie within 0.25 d_e. The
+  criterion "reached before the end" holds by these four samples: the value is a plateau at the
+  end of the run and no fall like that of the gate (39.5 → 34.3 d_e) was seen. In the gate and in
+  `cloud` the first maximum is the largest one (`cloud`: 39.0 d_e at step 572, second maximum
+  38.2 d_e at step 1056).
+- Front: 2.09 fast speeds (gate 2.10); ring mean 2.87 (gate 2.69; perpendicular MHD shock at the
+  speed of the front 2.25); at the end at 117.5 d_e = 1.18 R_B (gate 1.16 R_B), 17.9 d_e ahead of
+  Δ98 when it leaves the window (step 1056). Cavity 50.25 d_e = 0.50 R_B = 1.05 R_m (gate
+  0.50 R_B; the static dipole alone 12.1 d_e).
+- Debris rms extent at the end 52.7 d_e along B0 and 23.4 d_e across; the debris ions keep 13.5 %
+  of their energy (gate 20 %) and the ambient ions gain 46.5 % of it (gate 41 %); energy monitor
+  +2.7e-2 (budget change with the boundary terms 0.152 of the debris energy; monitored only).
+- Body: 306,982 particles absorbed, charge +33.1 at the end (largest 65.6); potential at two
+  dipole radii 0.08 T_e / e across B0 and 0.41 T_e / e along it (gate 4.9 and 1.3).
+- Particles 3.183e9 → 3.161e9; largest fill ratio 0.671.
+- **Device memory: the run needs more than the planner's figure.** 200-step probe: 293 ms per
+  step, 64,297 MiB = 67.4 GB on the fullest GPU. During the run the fullest GPU reached
+  74,489 MiB = 78.1 GB (the others 46 to 71 GiB), against 68.6 GB of the planner for full particle
+  arrays: 14 % above it, with the arrays 67 % full. A 200-step probe therefore does not bound the
+  memory of a run; `dp10` below is judged with this in mind.
