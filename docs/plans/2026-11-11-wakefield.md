@@ -614,3 +614,12 @@ Found on the way:
 - The budget of `laser_linear` has a constant offset of 0.039 on a work of the antenna of 62.75
   (0.06 %): the `tan²(omega dt / 2)` = 0.24 % of the magnetic energy 15.5 that the record takes
   at t^n (see A1).
+
+### Stage 4 — moving window
+
+W0, the compiled kernels (2026-11-12, the commit that adds the `#ifdef MOVING_WINDOW` macros
+`XIDX`, `FLO`, `FHI`, `RX0`, `RX1` to `common.cuh` and uses them in `particles.cu`): the six cases
+of `scripts/check_kernels.py` without a window, both units, both architectures (24 compilations)
+give the same PTX as the commit 477223a, byte for byte (sha256 of the PTX of NVRTC 13.5; script
+outside the repository, as fixed in the amendment). The two new cases with a window compile. The
+other half of W0 (`mgpu_regress` bits) is taken with the GPU tests of the stage.

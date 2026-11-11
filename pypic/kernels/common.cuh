@@ -8,6 +8,8 @@
 //   SX0 SX1 ...     physical bounds of the local sub-domain
 //   BCX0 BCX1 ...   particle/field boundary type at global faces (0 periodic, 1 open, 2 reflecting)
 //   DECX DECY DECZ  1 if the axis is decomposed over more than one rank
+//   MOVING_WINDOW   defined for a run with a moving window (PIC-D22); its value numbers the
+//                   simulation, so that two of them in one process never share window_state
 #pragma once
 
 #define BC_PERIODIC 0
@@ -18,6 +20,30 @@
 // index steps of one node along x and y (along z: 1)
 #define STRIDE_I ((long long)NY * NZ)
 #define STRIDE_J ((long long)NZ)
+
+// Moving window (PIC-D22). Positions stay laboratory positions; the arrays hold the cells
+// s .. s + n along x after s shifts. XIDX is the index coordinate along x in the local arrays;
+// FLO / FHI are the positions of the lower and upper face of the box along axis a; RX0 / RX1 are
+// the bounds of the rank along x. Without a window they are the compile-time constants. With a
+// window they read window_state, which the kernel window_set writes after every shift:
+// [0] the shift s in cells, [1] [2] the faces x- and x+, [3] [4] the bounds of the rank along x
+// (the doubles that the migration compares with). s is an integer below 2^53, so XIDX loses
+// nothing by the subtraction. Not window-aware (refused with a window): the injection kernels
+// and the bank, the body, implicit.cu.
+#ifdef MOVING_WINDOW
+__device__ double window_state[5];
+#define XIDX(x) (((x) - OX) * (1.0 / DX) - window_state[0])
+#define FLO(a) ((a) == 0 ? window_state[1] : 0.0)
+#define FHI(a) ((a) == 0 ? window_state[2] : Lg[a])
+#define RX0 window_state[3]
+#define RX1 window_state[4]
+#else
+#define XIDX(x) (((x) - OX) * (1.0 / DX))
+#define FLO(a) 0.0
+#define FHI(a) Lg[a]
+#define RX0 SX0
+#define RX1 SX1
+#endif
 
 // Trilinear interpolation of a staggered Yee component.
 // (X,Y,Z) are local index coordinates (node i at integer i); (sx,sy,sz) are the
@@ -82,7 +108,11 @@ struct YeeWeightsF {
 
 __device__ __forceinline__ void yee_weights_global(const double* x, YeeWeightsF& w) {
     const double inv[3] = {1.0 / DX, 1.0 / DY, 1.0 / DZ};
+#ifdef MOVING_WINDOW
+    const int off[3] = {OXI + (int)window_state[0], OYI, OZI};
+#else
     const int off[3] = {OXI, OYI, OZI};
+#endif
 #pragma unroll
     for (int a = 0; a < 3; a++) {
         double fn = x[a] * inv[a], fh = fn - 0.5;

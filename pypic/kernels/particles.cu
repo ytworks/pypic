@@ -110,8 +110,8 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
 
 __device__ __forceinline__ void deposit_global(const double* p0, const double* p1, double qw, double* Jx,
                                                double* Jy, double* Jz) {
-    esirkepov((p0[0] - OX) * (1.0 / DX), (p0[1] - OY) * (1.0 / DY), (p0[2] - OZ) * (1.0 / DZ),
-              (p1[0] - OX) * (1.0 / DX), (p1[1] - OY) * (1.0 / DY), (p1[2] - OZ) * (1.0 / DZ), qw, Jx, Jy, Jz);
+    esirkepov(XIDX(p0[0]), (p0[1] - OY) * (1.0 / DY), (p0[2] - OZ) * (1.0 / DZ),
+              XIDX(p1[0]), (p1[1] - OY) * (1.0 / DY), (p1[2] - OZ) * (1.0 / DZ), qw, Jx, Jy, Jz);
 }
 
 // Deposit of the part of a path that lies inside the open faces of the box (PIC-D15): the current
@@ -128,14 +128,14 @@ __device__ __forceinline__ void deposit_cut(const double* p0, const double* p1, 
     for (int a = 0; a < 3; a++) {
         const double d = p1[a] - p0[a];
         if (o0[a]) {
-            if (p0[a] < 0.0 && p1[a] < 0.0) return;
-            if (p0[a] < 0.0) t0 = fmax(t0, (0.0 - p0[a]) / d);
-            else if (p1[a] < 0.0) t1 = fmin(t1, (0.0 - p0[a]) / d);
+            if (p0[a] < FLO(a) && p1[a] < FLO(a)) return;
+            if (p0[a] < FLO(a)) t0 = fmax(t0, (FLO(a) - p0[a]) / d);
+            else if (p1[a] < FLO(a)) t1 = fmin(t1, (FLO(a) - p0[a]) / d);
         }
         if (o1[a]) {
-            if (p0[a] >= Lg[a] && p1[a] >= Lg[a]) return;
-            if (p0[a] >= Lg[a]) t0 = fmax(t0, (Lg[a] - p0[a]) / d);
-            else if (p1[a] >= Lg[a]) t1 = fmin(t1, (Lg[a] - p0[a]) / d);
+            if (p0[a] >= FHI(a) && p1[a] >= FHI(a)) return;
+            if (p0[a] >= FHI(a)) t0 = fmax(t0, (FHI(a) - p0[a]) / d);
+            else if (p1[a] >= FHI(a)) t1 = fmin(t1, (FHI(a) - p0[a]) / d);
         }
     }
     if (t0 == 0.0 && t1 == 1.0) {
@@ -148,8 +148,8 @@ __device__ __forceinline__ void deposit_cut(const double* p0, const double* p1, 
         const double d = p1[a] - p0[a];
         q0[a] = t0 > 0.0 ? p0[a] + t0 * d : p0[a];
         q1[a] = t1 < 1.0 ? p0[a] + t1 * d : p1[a];
-        if (o0[a]) { q0[a] = fmax(q0[a], 0.0); q1[a] = fmax(q1[a], 0.0); }
-        if (o1[a]) { q0[a] = fmin(q0[a], Lg[a]); q1[a] = fmin(q1[a], Lg[a]); }
+        if (o0[a]) { q0[a] = fmax(q0[a], FLO(a)); q1[a] = fmax(q1[a], FLO(a)); }
+        if (o1[a]) { q0[a] = fmin(q0[a], FHI(a)); q1[a] = fmin(q1[a], FHI(a)); }
     }
     deposit_global(q0, q1, qw, Jx, Jy, Jz);
 }
@@ -199,7 +199,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         double by = h * (double)interp_f(By, yw, 1, 0, 1);
         double bz = h * (double)interp_f(Bz, yw, 1, 1, 0);
 #else
-        const double X = (pos0[0] - OX) * (1.0 / DX), Y = (pos0[1] - OY) * (1.0 / DY),
+        const double X = XIDX(pos0[0]), Y = (pos0[1] - OY) * (1.0 / DY),
                      Z = (pos0[2] - OZ) * (1.0 / DZ);
         YeeWeights yw;
         yee_weights(X, Y, Z, yw);
@@ -254,14 +254,14 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             int amin = -1;
             for (int a = 0; a < 3; a++) {
                 double d = pos1[a] - pos0[a];
-                if ((b0[a] == BC_REFLECT || ((fm >> (2 * a)) & 1)) && pos1[a] < 0.0 && d < 0.0) {
-                    double tt = (0.0 - pos0[a]) / d;
-                    if (tt < tmin) { tmin = tt; amin = a; wall = 0.0; }
+                if ((b0[a] == BC_REFLECT || ((fm >> (2 * a)) & 1)) && pos1[a] < FLO(a) && d < 0.0) {
+                    double tt = (FLO(a) - pos0[a]) / d;
+                    if (tt < tmin) { tmin = tt; amin = a; wall = FLO(a); }
                 }
-                if (((b1[a] == BC_REFLECT && pos1[a] > Lg[a]) || (((fm >> (2 * a + 1)) & 1) && pos1[a] >= Lg[a])) &&
+                if (((b1[a] == BC_REFLECT && pos1[a] > FHI(a)) || (((fm >> (2 * a + 1)) & 1) && pos1[a] >= FHI(a))) &&
                     d > 0.0) {
-                    double tt = (Lg[a] - pos0[a]) / d;
-                    if (tt < tmin) { tmin = tt; amin = a; wall = Lg[a]; }
+                    double tt = (FHI(a) - pos0[a]) / d;
+                    if (tt < tmin) { tmin = tt; amin = a; wall = FHI(a); }
                 }
             }
             if (amin < 0) break;
@@ -292,7 +292,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         // --- open boundaries: particle leaves and is removed ---
         bool dead = false;
         for (int a = 0; a < 3; a++) {
-            if ((b0[a] == BC_OPEN && pos1[a] < 0.0) || (b1[a] == BC_OPEN && pos1[a] >= Lg[a])) dead = true;
+            if ((b0[a] == BC_OPEN && pos1[a] < FLO(a)) || (b1[a] == BC_OPEN && pos1[a] >= FHI(a))) dead = true;
         }
 #ifdef BODY_SPHERE
         // --- absorbing body (PIC-D14): a particle that ends its step inside is removed; its whole
@@ -336,8 +336,8 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             // periodic wrap on non-decomposed axes (a step moves a particle by less than a cell,
             // so by at most one period); decomposed axes are wrapped after migration
             const int dec[3] = {DECX, DECY, DECZ};
-            const double slo[3] = {SX0, SY0, SZ0};
-            const double shi[3] = {SX1, SY1, SZ1};
+            const double slo[3] = {RX0, SY0, SZ0};
+            const double shi[3] = {RX1, SY1, SZ1};
             bool migrate = false;
             for (int a = 0; a < 3; a++) {
                 if (!dec[a]) {
@@ -417,8 +417,8 @@ extern "C" __global__ void displace_deposit(double* P, const int n, const long l
     // periodic wrap on non-decomposed axes; decomposed axes are wrapped after migration
     const double Lg[3] = {LX, LY, LZ};
     const int dec[3] = {DECX, DECY, DECZ};
-    const double slo[3] = {SX0, SY0, SZ0};
-    const double shi[3] = {SX1, SY1, SZ1};
+    const double slo[3] = {RX0, SY0, SZ0};
+    const double shi[3] = {RX1, SY1, SZ1};
     bool migrate = false;
     for (int a = 0; a < 3; a++) {
         if (!dec[a]) {
@@ -442,7 +442,7 @@ extern "C" __global__ void boris_kick(double* P, const int n, const long long ca
                                       const double tau) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
-    const double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    const double X = XIDX(PX(p)), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
     const double h = q * tau / (2.0 * m);
     double ex = h * interp(Ex, X, Y, Z, 0.5, 0.0, 0.0);
     double ey = h * interp(Ey, X, Y, Z, 0.0, 0.5, 0.0);
@@ -475,10 +475,10 @@ extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n
         const bool o1[3] = {BCX1 == BC_OPEN, BCY1 == BC_OPEN, BCZ1 == BC_OPEN};
         bool in = false;
         for (int a = 0; a < 3; a++)
-            in = in || (o0[a] && x[a] < shell * d[a]) || (o1[a] && x[a] >= Lg[a] - shell * d[a]);
+            in = in || (o0[a] && x[a] - FLO(a) < shell * d[a]) || (o1[a] && x[a] >= FHI(a) - shell * d[a]);
         if (!in) return;
     }
-    double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    double X = XIDX(PX(p)), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
     int i = (int)floor(X), j = (int)floor(Y), k = (int)floor(Z);
     double wx = X - i, wy = Y - j, wz = Z - k;
     double c = q * PW(p) * (1.0 / (DX * DY * DZ));
@@ -496,7 +496,7 @@ extern "C" __global__ void deposit_moment(const double* __restrict__ P, const in
                                           const double m, double* out) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
-    double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    double X = XIDX(PX(p)), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
     int i = (int)floor(X), j = (int)floor(Y), k = (int)floor(Z);
     double wx = X - i, wy = Y - j, wz = Z - k;
     double f = 1.0;
@@ -536,7 +536,7 @@ extern "C" __global__ void gather_at_particles(const double* __restrict__ P, con
     int t = blockIdx.x * blockDim.x + threadIdx.x;
     if (t >= m) return;
     long long p = sel[t];
-    const double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    const double X = XIDX(PX(p)), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
     out[t] = interp(Ex, X, Y, Z, 0.5, 0.0, 0.0);
     out[m + t] = interp(Ey, X, Y, Z, 0.0, 0.5, 0.0);
     out[2 * m + t] = interp(Ez, X, Y, Z, 0.0, 0.0, 0.5);
@@ -569,7 +569,7 @@ extern "C" __global__ void cell_index(const double* __restrict__ P, const int n,
                                       long long* key) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
-    int i = (int)floor((PX(p) - OX) * (1.0 / DX)), j = (int)floor((PY(p) - OY) * (1.0 / DY)),
+    int i = (int)floor(XIDX(PX(p))), j = (int)floor((PY(p) - OY) * (1.0 / DY)),
         k = (int)floor((PZ(p) - OZ) * (1.0 / DZ));
     key[p] = IDX(i, j, k);
 }
