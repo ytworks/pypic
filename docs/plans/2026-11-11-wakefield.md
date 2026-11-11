@@ -776,3 +776,27 @@ without the change of the diagnostics (checked once).
 
 Not shown by Stage 4: a production-size window run, the cost of a shift, the window with the
 mixed gather on a GPU (compiled only) — all three come with Stage 5 and the gates.
+
+### Stage 5 — the gate configurations as window runs (2026-11-12, 40edad6, 8 GPUs, FP64): all four pass
+
+| Run | Box | Amplitude (5 %) | Wavelength (2 %) | Radial (10 %) | Gauss (1e-10) |
+|---|---|---|---|---|---|
+| `laser_linear` | 1152×128², ranks (8,1,1), 2,024 shifts | −1.33 % | −0.02 % | +0.06 % | 6.6e-13 |
+| `beam_linear` | 384×192², ranks (4,1,2), 482 shifts | +0.51 % | −0.25 % | −0.77 % | 9.1e-14 |
+
+| Run without the driver | max \|E_x\| on the axis / predicted (1 %) | Density of the plateau (1 %) | Gauss |
+|---|---|---|---|
+| `laser_linear` | 0 | 1 exactly | 2.3e-15 |
+| `beam_linear` | 0 | 1 exactly | 2.2e-16 |
+
+Difference to the Stage 3 runs in the box at rest (68a3a29), last output, the same laboratory
+interval (laser: x = 40.74 to 48.04, 372 samples; bunch: x = 63.80 to 95.06, 250 samples; the
+outputs are float32): the E_x on the axis of the laser run differs by at most 1.9e-9 of its
+maximum, the one of the bunch run in no stored bit; the three fitted numbers of each run agree to
+the eight digits printed. The values of the laser run are the ones that the check of the short
+interval gave before the run (−1.33 %, −0.02 %, +0.06 %); the bunch keeps the numbers of Stage 3.
+The window changes nothing that the gates measure.
+
+Cost: 235 M particles at the load in both; laser 6,160 steps in 122 s (17 to 20 ms per step),
+bunch 1,416 steps in 27 s. The box at rest of Stage 3 holds 3.0 (laser) and 2.3 (bunch) times
+the cells.
