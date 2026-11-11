@@ -72,3 +72,59 @@ def test_runner_output_overrides_are_typed(capsys):
     with pytest.raises(KeyError):
         run_example("two_stream", plan_two_stream, params_from_dict,
                     argv=["--config", cfg, "--plan-only", "--set", "output.no_such_field=1"])
+
+
+def _example_planner(name):
+    """examples/<name>/plan.py as a module of its own name; its ``import theory`` must not meet the
+    theory module of another example."""
+    import importlib.util
+    import os
+    import sys
+
+    folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "examples", name))
+    spec = importlib.util.spec_from_file_location(f"plan_{name}", os.path.join(folder, "plan.py"))
+    mod = importlib.util.module_from_spec(spec)
+    other = sys.modules.pop("theory", None)
+    sys.modules[spec.name] = mod  # the dataclasses of the planner look their module up
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.modules.pop("theory", None)
+        if other is not None:
+            sys.modules["theory"] = other
+        if folder in sys.path:
+            sys.path.remove(folder)
+    return mod
+
+
+def test_bow_shock_planner_gives_a_configuration_the_engine_accepts():
+    import os
+
+    import yaml
+
+    from pypic import body, external, injection
+
+    P = _example_planner("bow_shock")
+    path = os.path.join(os.path.dirname(P.__file__), "configs", "gate.yaml")
+    with open(path) as f:
+        params = yaml.safe_load(f)
+    # an oblique IMF: the wind must not feel a force, E + v x B = 0, whatever the direction of B
+    for imf in ((0.0, 0.0, 1.0), (0.3, -1.0, 0.5)):
+        cfg, report, info = P.plan_bow_shock(P.params_from_dict({**params, "imf": imf}), n_gpus=8)
+        E, B = cfg.external_fields.E, cfg.external_fields.B
+        for s in cfg.species:
+            u = s.beams[0].drift
+            v = [c / math.sqrt(1.0 + sum(c * c for c in u)) for c in u]
+            force = [E[a] + v[(a + 1) % 3] * B[(a + 2) % 3] - v[(a + 2) % 3] * B[(a + 1) % 3] for a in range(3)]
+            assert max(abs(c) for c in force) < 1e-15, (imf, s.name)
+        # the checks that Simulation makes at construction (no GPU needed for them)
+        reach = cfg.current_filter.passes + int(cfg.current_filter.compensate)
+        assert external.check_config(cfg) and injection.check_config(cfg) and body.check_config(cfg, reach)
+        assert math.prod(cfg.dims) == 8 and "bow-shock planner" in report
+    assert abs(info["r_mp"] - 20.0) < 1e-12  # 5 d_i with m_i / m_e = 16
+    # a body so small that the dipole field at its surface cannot be resolved in time is refused
+    with pytest.raises(ValueError, match="Omega_ce dt"):
+        P.plan_bow_shock(P.params_from_dict({**params, "body_radius": 0.4}))
+    # output blocks so large that none lies inside the upstream region: its gate could not be measured
+    with pytest.raises(ValueError, match="upstream region"):
+        P.plan_bow_shock(P.params_from_dict({**params, "coarse": 0.5}))

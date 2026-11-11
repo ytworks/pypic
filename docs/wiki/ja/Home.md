@@ -23,6 +23,7 @@
 | [真空へのプラズマ膨張](Plasma-Expansion-ja) | 膨張シースによるイオン加速（TNSA） | Mora（2003）の自己相似解 | 速度分布 {{ plasma_expansion:r.isothermal_hydrogen.velocity_profile_median_rel_error | .1% }}、E_max は {{ plasma_expansion:r.isothermal_hydrogen.E_max_median_rel_error | .0% }} 低い（運動論的電子） |
 | [相対論的電子陽電子衝撃波](Relativistic-Shock-ja) | γ₀ = 15 の無衝突衝撃波、フェルミ加速 | 相対論的ジャンプ条件（Synge 気体、2 次元・3 次元） | β_sh {{ relativistic_shock:r.pair_3d.beta_sh_rel_error | +.1% }}、n₂/n₁ {{ relativistic_shock:r.pair_3d.compression_rel_error | +.1% }}（3 次元） |
 | [相対論的磁気リコネクション](Magnetic-Reconnection-ja) | σ = 10 のペアプラズマのリコネクション、プラズモイド、べき乗則の粒子 | Harris 平衡、Werner et al.（2016） | p = {{ reconnection:r.pair_sigma10_large.power_law_index | .2f }}（Werner 2016 の値は {{ reconnection:r.pair_sigma10_large.werner2016_index | .2f }}） |
+| [磁化惑星のバウショック](Bow-Shock-ja) | 磁化した風の中の双極子の磁気圏界面とバウショック（開いた 3 次元の箱、吸収球） | 圧力平衡、垂直 MHD 衝撃波と Spreiter et al.（1966）の離れ距離 | 磁気圏界面 {{ bow_shock:r.gate.magnetopause | .2f }} R_mp、衝撃波 {{ bow_shock:r.gate.shock | .2f }}（参照値 {{ bow_shock:r.gate.shock_spreiter | .2f }}）R_mp |
 
 ## ギャラリー
 
@@ -30,6 +31,7 @@
 |---|---|---|
 | <img src="images/two_stream/ei.gif" width="280"><br>二流体: 位相空間の渦 | <img src="images/filamentation/pair.gif" width="280"><br>フィラメンテーション: 電流フィラメント | <img src="images/reconnection/pair_sigma10_large_run2.gif" width="280"><br>リコネクション: プラズモイド |
 | <img src="images/landau_damping/wavebreaking.gif" width="280"><br>砕波: シートの交差 | <img src="images/relativistic_shock/pair_2d.gif" width="280"><br>相対論的衝撃波 | <img src="images/particle_orbits/orbits.gif" width="280"><br>テスト粒子軌道 |
+| <img src="images/bow_shock/gate.gif" width="280"><br>バウショック: イオン密度 | | |
 
 ## ページの作り方
 

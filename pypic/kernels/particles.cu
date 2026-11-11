@@ -114,18 +114,77 @@ __device__ __forceinline__ void deposit_global(const double* p0, const double* p
               (p1[0] - OX) * (1.0 / DX), (p1[1] - OY) * (1.0 / DY), (p1[2] - OZ) * (1.0 / DZ), qw, Jx, Jy, Jz);
 }
 
+// Deposit of the part of a path that lies inside the open faces of the box (PIC-D15): the current
+// beyond an open face is not deposited. A particle that leaves through an open face leaves its
+// charge on the nodes of the face, one that enters leaves the opposite charge there; nothing is
+// deposited in the absorbing layer. Inside means 0 <= x < L, as for the removal. Without an open
+// face this is deposit_global.
+__device__ __forceinline__ void deposit_cut(const double* p0, const double* p1, double qw, double* Jx,
+                                            double* Jy, double* Jz) {
+    const double Lg[3] = {LX, LY, LZ};
+    const bool o0[3] = {BCX0 == BC_OPEN, BCY0 == BC_OPEN, BCZ0 == BC_OPEN};
+    const bool o1[3] = {BCX1 == BC_OPEN, BCY1 == BC_OPEN, BCZ1 == BC_OPEN};
+    double t0 = 0.0, t1 = 1.0;
+    for (int a = 0; a < 3; a++) {
+        const double d = p1[a] - p0[a];
+        if (o0[a]) {
+            if (p0[a] < 0.0 && p1[a] < 0.0) return;
+            if (p0[a] < 0.0) t0 = fmax(t0, (0.0 - p0[a]) / d);
+            else if (p1[a] < 0.0) t1 = fmin(t1, (0.0 - p0[a]) / d);
+        }
+        if (o1[a]) {
+            if (p0[a] >= Lg[a] && p1[a] >= Lg[a]) return;
+            if (p0[a] >= Lg[a]) t0 = fmax(t0, (Lg[a] - p0[a]) / d);
+            else if (p1[a] >= Lg[a]) t1 = fmin(t1, (Lg[a] - p0[a]) / d);
+        }
+    }
+    if (t0 == 0.0 && t1 == 1.0) {
+        deposit_global(p0, p1, qw, Jx, Jy, Jz);
+        return;
+    }
+    if (!(t0 < t1)) return;  // the path passes outside an edge of the box
+    double q0[3], q1[3];
+    for (int a = 0; a < 3; a++) {
+        const double d = p1[a] - p0[a];
+        q0[a] = t0 > 0.0 ? p0[a] + t0 * d : p0[a];
+        q1[a] = t1 < 1.0 ? p0[a] + t1 * d : p1[a];
+        if (o0[a]) { q0[a] = fmax(q0[a], 0.0); q1[a] = fmax(q1[a], 0.0); }
+        if (o1[a]) { q0[a] = fmin(q0[a], Lg[a]); q1[a] = fmin(q1[a], Lg[a]); }
+    }
+    deposit_global(q0, q1, qw, Jx, Jy, Jz);
+}
+
+// Injection at open faces (PIC-D13); defined with inject_face below.
+__device__ void sample_inflow(const double* rb, const int nb, const int axis, const double sgn,
+                              unsigned long long& s, double* u);
+__device__ __forceinline__ int bank_slot(const int* binfo, const int face, const int* gc);
+// salt of the random keys of the particles returned at a paired face: (seed, step, id, wall hit)
+static const unsigned long long RET_SALT = 0x14057B7EF767814FULL;
+
 // diag: [0] kinetic energy (time centred), [1..3] momentum, [4] kinetic energy lost
-// through open boundaries, [5] charge lost through open boundaries.
+// through open boundaries (net of the energy of the particles returned at a paired face),
+// [5] charge lost through open boundaries.
 // flag[0]: number of particles that must be removed or migrated.
 // h = q DT / (2 m): the half kick factor of the species.
+// fmask (PIC-D13; 0 without injection): bit f = this species is returned at the paired face f
+// instead of leaving (face f = 2 * axis + side); bit 8 + f = a particle of this species that
+// leaves through the paired face f is added to the bank of its face column (bank, binfo).
+// Only the faces of the compile-time mask PAIRED_FACES count: without a paired face the
+// compiler removes these paths (and, without a reflecting wall, the whole wall loop).
+// rb: inflow tables of this species, nrb rows of 6 per face (see sample_inflow).
 extern "C" __global__ void push_deposit(double* P, const int n, const long long cap, const gather_t* __restrict__ Ex,
                                         const gather_t* __restrict__ Ey, const gather_t* __restrict__ Ez,
                                         const gather_t* __restrict__ Bx, const gather_t* __restrict__ By,
                                         const gather_t* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
                                         const double h, const double m, const double qdep, double* diag, int* flag,
-                                        int* list, const int listcap, const int do_diag) {
+                                        int* list, const int listcap, const int do_diag,
+                                        const unsigned long long seed, const long long step, const int fmask,
+                                        const double* rb, const int nrb, double* bank, const int* binfo) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     double ke = 0.0, mx = 0.0, my = 0.0, mz = 0.0, lke = 0.0, lq = 0.0;
+#ifdef BODY_SPHERE
+    double ake = 0.0, aq = 0.0, an = 0.0;  // absorbed by the body: kinetic energy, charge, particles
+#endif
     if (p < n) {
         const double w = PW(p);
         double pos0[3] = {PX(p), PY(p), PZ(p)};
@@ -179,22 +238,28 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             mz = 0.5 * w * m * (PUZ(p) + u[2]);
         }
         // --- reflecting walls: split the path at the wall so the deposited current
-        //     follows the real (folded) trajectory and charge stays conserved ---
+        //     follows the real (folded) trajectory and charge stays conserved. A paired face
+        //     returns its neutraliser the same way, with a velocity of the inflow distribution.
+        //     Three hits are enough: a reflecting wall is hit once per axis and step, and a returned
+        //     neutraliser meets no second paired face (they lie on one axis, injection.check_config) ---
         const double Lg[3] = {LX, LY, LZ};
         const int b0[3] = {BCX0, BCY0, BCZ0};
         const int b1[3] = {BCX1, BCY1, BCZ1};
         // deposit charge: q for plasma species, 0 for test species (they feel the fields only)
         const double qw = qdep * w;
+        double trem = 1.0;  // fraction of the step left after the wall hits so far
+        const int fm = fmask & (PAIRED_FACES | (PAIRED_FACES << 8));
         for (int it = 0; it < 3; it++) {
             double tmin = 2.0, wall = 0.0;
             int amin = -1;
             for (int a = 0; a < 3; a++) {
                 double d = pos1[a] - pos0[a];
-                if (b0[a] == BC_REFLECT && pos1[a] < 0.0 && d < 0.0) {
+                if ((b0[a] == BC_REFLECT || ((fm >> (2 * a)) & 1)) && pos1[a] < 0.0 && d < 0.0) {
                     double tt = (0.0 - pos0[a]) / d;
                     if (tt < tmin) { tmin = tt; amin = a; wall = 0.0; }
                 }
-                if (b1[a] == BC_REFLECT && pos1[a] > Lg[a] && d > 0.0) {
+                if (((b1[a] == BC_REFLECT && pos1[a] > Lg[a]) || (((fm >> (2 * a + 1)) & 1) && pos1[a] >= Lg[a])) &&
+                    d > 0.0) {
                     double tt = (Lg[a] - pos0[a]) / d;
                     if (tt < tmin) { tmin = tt; amin = a; wall = Lg[a]; }
                 }
@@ -204,26 +269,69 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             double pw[3];
             for (int a = 0; a < 3; a++) pw[a] = pos0[a] + tmin * (pos1[a] - pos0[a]);
             pw[amin] = wall;
-            if (qw != 0.0) deposit_global(pos0, pw, qw, Jx, Jy, Jz);
-            pos1[amin] = 2.0 * wall - pos1[amin];
-            u[amin] = -u[amin];
+            if (qw != 0.0) deposit_cut(pos0, pw, qw, Jx, Jy, Jz);
+            trem *= 1.0 - tmin;
+            const int face = 2 * amin + (wall > 0.0 ? 1 : 0);
+            if ((fm >> face) & 1) {
+                unsigned long long sr = hash_key(hash_key(seed ^ RET_SALT, (unsigned long long)step, 0ULL),
+                                                 (unsigned long long)PID(p), (unsigned long long)it);
+                lke += w * m * (g1 - 1.0);
+                sample_inflow(rb + (long long)face * nrb * 6, nrb, amin, wall > 0.0 ? -1.0 : 1.0, sr, u);
+                g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+                lke -= w * m * (g1 - 1.0);
+                for (int a = 0; a < 3; a++) pos1[a] = pw[a] + (trem * DT / g1) * u[a];
+                if (wall > 0.0 && pos1[amin] >= wall) pos1[amin] = nextafter(wall, 0.0);
+            } else {
+                pos1[amin] = 2.0 * wall - pos1[amin];
+                u[amin] = -u[amin];
+            }
             for (int a = 0; a < 3; a++) pos0[a] = pw[a];
         }
-        if (qw != 0.0) deposit_global(pos0, pos1, qw, Jx, Jy, Jz);
+        if (qw != 0.0) deposit_cut(pos0, pos1, qw, Jx, Jy, Jz);
 
         // --- open boundaries: particle leaves and is removed ---
         bool dead = false;
         for (int a = 0; a < 3; a++) {
             if ((b0[a] == BC_OPEN && pos1[a] < 0.0) || (b1[a] == BC_OPEN && pos1[a] >= Lg[a])) dead = true;
         }
+#ifdef BODY_SPHERE
+        // --- absorbing body (PIC-D14): a particle that ends its step inside is removed; its whole
+        //     path was deposited, so its charge stays at the nodes of the body ---
+        const double rbx = pos1[0] - BODY_CX, rby = pos1[1] - BODY_CY, rbz = pos1[2] - BODY_CZ;
+        if (!dead && rbx * rbx + rby * rby + rbz * rbz < BODY_R2) {
+            if (do_diag) {
+                ke = 0.0; mx = my = mz = 0.0;
+            }
+            ake = w * m * (g1 - 1.0);
+            aq = qw;  // zero for test species
+            an = 1.0;
+            PW(p) = 0.0;
+            { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+        } else
+#endif
         if (dead) {
             if (do_diag) {
                 ke = 0.0; mx = my = mz = 0.0;
             }
-            lke = w * m * (g1 - 1.0);
+            lke += w * m * (g1 - 1.0);
             lq = qw;  // charge lost: zero for test species
             PW(p) = 0.0;
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+            if (fm & 0x3f00) {  // a carrier that leaves through a paired face: the column owes one
+                const double D[3] = {DX, DY, DZ};
+                for (int a = 0; a < 3; a++) {
+                    const int face = pos1[a] < 0.0 ? 2 * a : (pos1[a] >= Lg[a] ? 2 * a + 1 : -1);
+                    if (face < 0 || !((fm >> (8 + face)) & 1)) continue;
+                    int gc[3];
+                    for (int b = 0; b < 3; b++) {
+                        gc[b] = (int)floor(pos0[b] / D[b]);
+                        gc[b] = min(max(gc[b], binfo[6 + b]), binfo[6 + b] + binfo[9 + b] - 1);
+                    }
+                    const int col = bank_slot(binfo, face, gc);
+                    if (col >= 0) atomicAdd(&bank[col], fabs(qw));
+                    break;
+                }
+            }
         } else {
             // periodic wrap on non-decomposed axes (a step moves a particle by less than a cell,
             // so by at most one period); decomposed axes are wrapped after migration
@@ -258,6 +366,30 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
     }
     warp_atomic_add(&diag[4], lke);
     warp_atomic_add(&diag[5], lq);
+#ifdef BODY_SPHERE
+    warp_atomic_add(&diag[9], ake);
+    warp_atomic_add(&diag[10], aq);
+    warp_atomic_add(&diag[11], an);
+#endif
+}
+
+// Set-up of a body (PIC-D14): the particles loaded inside it get weight zero. The beams of all
+// species share their positions, so what is left is as neutral as what was loaded.
+extern "C" __global__ void mark_body(double* P, const int n, const long long cap) {
+#ifdef BODY_SPHERE
+    int p = blockIdx.x * blockDim.x + threadIdx.x;
+    if (p >= n) return;
+    const double rx = PX(p) - BODY_CX, ry = PY(p) - BODY_CY, rz = PZ(p) - BODY_CZ;
+    if (rx * rx + ry * ry + rz * rz < BODY_R2) PW(p) = 0.0;
+#endif
+}
+
+// The particles of weight zero, into the list that migrate() takes out.
+extern "C" __global__ void flag_dead(const double* __restrict__ P, const int n, const long long cap, int* flag,
+                                     int* list, const int listcap) {
+    int p = blockIdx.x * blockDim.x + threadIdx.x;
+    if (p >= n) return;
+    if (PW(p) == 0.0) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
 }
 
 // ---- Initial perturbation (PIC-D9): virtual, charge-conserving displacement. The remaining
@@ -331,11 +463,21 @@ extern "C" __global__ void boris_kick(double* P, const int n, const long long ca
     PUZ(p) = umz + (upx * sy - upy * sx) + ez;
 }
 
-// CIC charge density at nodes (diagnostic / Gauss check).
+// CIC charge density at nodes (diagnostic / Gauss check). shell > 0: only the particles within `shell`
+// cells of an open face, which is all that the Marder zone needs (PIC-D16).
 extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n, const long long cap, const double q,
-                                       double* rho) {
+                                       const double shell, double* rho) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
+    if (shell > 0.0) {
+        const double x[3] = {PX(p), PY(p), PZ(p)}, Lg[3] = {LX, LY, LZ}, d[3] = {DX, DY, DZ};
+        const bool o0[3] = {BCX0 == BC_OPEN, BCY0 == BC_OPEN, BCZ0 == BC_OPEN};
+        const bool o1[3] = {BCX1 == BC_OPEN, BCY1 == BC_OPEN, BCZ1 == BC_OPEN};
+        bool in = false;
+        for (int a = 0; a < 3; a++)
+            in = in || (o0[a] && x[a] < shell * d[a]) || (o1[a] && x[a] >= Lg[a] - shell * d[a]);
+        if (!in) return;
+    }
     double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
     int i = (int)floor(X), j = (int)floor(Y), k = (int)floor(Z);
     double wx = X - i, wy = Y - j, wz = Z - k;
@@ -370,6 +512,17 @@ extern "C" __global__ void deposit_moment(const double* __restrict__ P, const in
                 double s = (a ? wx : 1 - wx) * (b ? wy : 1 - wy) * (d ? wz : 1 - wz);
                 if (s != 0.0) atomicAdd(&out[IDX(i + a, j + b, k + d)], c * s);
             }
+}
+
+// Field the particles gather with external fields (PIC-D12): Yee (difference) field + external
+// array (if has_ext) + uniform value, in the type of the gather (float32 with MIXED_GATHER).
+extern "C" __global__ void ext_sum(const double* d, const double* ext, const int has_ext, const double uni,
+                                   gather_t* __restrict__ out, const long long n) {
+    const long long i = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    double v = d[i] + uni;
+    if (has_ext) v += ext[i];
+    out[i] = (gather_t)v;
 }
 
 // Fields at the positions of selected particles (track output): out[c * m + t] for
@@ -486,6 +639,29 @@ __device__ void sample_mj(double theta, unsigned long long& s, double* u) {
     u[2] = ur * ct;
 }
 
+// Lorentz boost of a rest-frame sample with the drift ud (flipping method of Zenitani 2015).
+__device__ __forceinline__ void boost_drift(double* u, const double udx, const double udy, const double udz,
+                                            unsigned long long& sm) {
+    double ud2 = udx * udx + udy * udy + udz * udz;
+    if (ud2 > 0.0) {
+        double Gd = sqrt(1.0 + ud2);
+        double udn = sqrt(ud2);
+        double nx = udx / udn, ny = udy / udn, nz = udz / udn;
+        double beta = udn / Gd;
+        double g = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+        double upar = u[0] * nx + u[1] * ny + u[2] * nz;
+        if (-beta * upar / g > urand(sm)) upar = -upar;  // flip
+        // recompute perpendicular part (unchanged) and boost the parallel part
+        double uperpx = u[0] - (u[0] * nx + u[1] * ny + u[2] * nz) * nx;
+        double uperpy = u[1] - (u[0] * nx + u[1] * ny + u[2] * nz) * ny;
+        double uperpz = u[2] - (u[0] * nx + u[1] * ny + u[2] * nz) * nz;
+        double upar_b = Gd * (upar + beta * g);
+        u[0] = uperpx + upar_b * nx;
+        u[1] = uperpy + upar_b * ny;
+        u[2] = uperpz + upar_b * nz;
+    }
+}
+
 extern "C" __global__ void load_particles(double* P, const long long cap, const long long offset, const int ppc,
                                           const int nlx, const int nly, const int nlz, const int gx0,
                                           const int gy0, const int gz0, const int gnx, const int gny,
@@ -511,25 +687,7 @@ extern "C" __global__ void load_particles(double* P, const long long cap, const 
                                      (unsigned long long)slot);
     double u[3];
     sample_mj(theta, sm, u);
-    // Lorentz boost with drift (flipping method of Zenitani 2015)
-    double ud2 = udx * udx + udy * udy + udz * udz;
-    if (ud2 > 0.0) {
-        double Gd = sqrt(1.0 + ud2);
-        double udn = sqrt(ud2);
-        double nx = udx / udn, ny = udy / udn, nz = udz / udn;
-        double beta = udn / Gd;
-        double g = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
-        double upar = u[0] * nx + u[1] * ny + u[2] * nz;
-        if (-beta * upar / g > urand(sm)) upar = -upar;  // flip
-        // recompute perpendicular part (unchanged) and boost the parallel part
-        double uperpx = u[0] - (u[0] * nx + u[1] * ny + u[2] * nz) * nx;
-        double uperpy = u[1] - (u[0] * nx + u[1] * ny + u[2] * nz) * ny;
-        double uperpz = u[2] - (u[0] * nx + u[1] * ny + u[2] * nz) * nz;
-        double upar_b = Gd * (upar + beta * g);
-        u[0] = uperpx + upar_b * nx;
-        u[1] = uperpy + upar_b * ny;
-        u[2] = uperpz + upar_b * nz;
-    }
+    boost_drift(u, udx, udy, udz, sm);
     long long p = offset + t;
     PX(p) = x;
     PY(p) = y;
@@ -541,4 +699,212 @@ extern "C" __global__ void load_particles(double* P, const long long cap, const 
     // persistent id (PIC-D8): id_base + linear global cell * ppc + slot (exact below 2^53)
     const long long lin = ((long long)(gx0 + i) * gny + (gy0 + j)) * (long long)gnz + (gz0 + k);
     PID(p) = id_base + (double)(lin * ppc + slot);
+}
+
+// ---- Injection at open faces (PIC-D13) ----
+// Velocity of a particle that crosses a face inwards, of a species with nb beams: distributed as
+// v_n f(u), v_n = sgn * v[axis] > 0. rb: per beam [cumulative density * vcap, theta, udx, udy, udz,
+// vcap], vcap an upper bound of v_n for the beam (pypic.injection.inflow_table). A beam is picked
+// with probability density * vcap and its sample accepted with probability v_n / vcap.
+__device__ void sample_inflow(const double* rb, const int nb, const int axis, const double sgn,
+                              unsigned long long& s, double* u) {
+    const double tot = rb[6 * (nb - 1)];
+    for (int it = 0; it < 4096; it++) {
+        const double r = urand(s) * tot;
+        int b = 0;
+        while (b < nb - 1 && r >= rb[6 * b]) b++;
+        const double* q = rb + 6 * b;
+        sample_mj(q[1], s, u);
+        boost_drift(u, q[2], q[3], q[4], s);
+        const double vn = sgn * u[axis] / sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+        if (vn > 0.0 && urand(s) * q[5] <= vn) return;
+    }
+    u[axis] = sgn * fabs(u[axis]);  // practically unreachable: an inward velocity all the same
+}
+
+// Bank of a paired face: one entry per face column of the rank (a column = a physical cell of the
+// two axes of the face). binfo: [0..5] offset of the bank of face f (-1: none), [6..8] first
+// physical cell of the rank per axis, [9..11] number of physical cells. gc: global cell.
+// Returns -1 for a cell outside the columns of the rank (an edge or corner cell of the layer).
+__device__ __forceinline__ int bank_slot(const int* binfo, const int face, const int* gc) {
+    const int a = face >> 1, b = a == 0 ? 1 : 0, c = a == 2 ? 1 : 2;
+    const int jb = gc[b] - binfo[6 + b], jc = gc[c] - binfo[6 + c];
+    if (binfo[face] < 0 || jb < 0 || jb >= binfo[9 + b] || jc < 0 || jc >= binfo[9 + c]) return -1;
+    return binfo[face] + jb * binfo[9 + c] + jc;
+}
+
+// salt of the random keys of the injected particles: (seed, step, global cell, slot); the keys of
+// the loader are (seed, global cell, slot)
+static const unsigned long long INJ_SALT = 0x5851F42D4C957F2DULL;
+
+// One sample of the layer outside the box (PIC-D13): the position r0 of (cell gc, slot), shared by
+// all species and beams (key: seed, step, cell, slot), the momentum u of the beam row tb, drawn per
+// stream as in load_particles, and the end point r1 of its first step. True if the particle ends
+// that step inside the box. sm: the random stream of the momentum, left after the sample.
+__device__ bool layer_sample(const unsigned long long ks, const unsigned long long gcell, const int* gc, const int slot,
+                             const double* tb, double* r0, double* u, double* r1, double& g, unsigned long long& sm) {
+    unsigned long long sp = hash_key(ks, gcell, (unsigned long long)slot);
+    r0[0] = (gc[0] + urand(sp)) * DX;
+    r0[1] = (gc[1] + urand(sp)) * DY;
+    r0[2] = (gc[2] + urand(sp)) * DZ;
+    sm = hash_key(ks ^ ((unsigned long long)tb[5] * 0x2545F4914F6CDD1DULL + 77ULL), gcell, (unsigned long long)slot);
+    sample_mj(tb[1], sm, u);
+    boost_drift(u, tb[2], tb[3], tb[4], sm);
+    g = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+    const double Lg[3] = {LX, LY, LZ};
+    const int b0[3] = {BCX0, BCY0, BCZ0};
+    bool inside = true;
+    for (int a = 0; a < 3; a++) {
+        r1[a] = r0[a] + (DT / g) * u[a];
+        if (b0[a] != BC_PERIODIC && (r1[a] < 0.0 || r1[a] >= Lg[a])) inside = false;
+    }
+    return inside;
+}
+
+// Fill a block of cells outside the box (nlx x nly x nlz cells from the global cell gx0, gy0, gz0;
+// one thread per cell, slot and beam) with the beams of one species and keep the particles that
+// end their first step inside the box (layer_sample). The particle is appended at
+// n0 + ninj[0]++ (the caller made room) at the end of its step, and flagged if it belongs to
+// another rank. bt: per beam [weight, theta, udx, udy, udz, stream, id offset, partner id offset];
+// id = id_step + id offset + (cell of the extended grid (gn + 2)^3) * ppc + slot.
+//   paired = 0 (flux face): the current of the whole path, from the cell outside, is deposited.
+//   paired = 1: the particle enters together with a particle of the neutraliser species (Pe, qe,
+//     ...) born at the same point with the opposite charge: the pair appears inside the box,
+//     nothing is deposited. The partner gets its momentum from inject_partners, which must run
+//     before anything else reads Pe: pstate / pface (one entry per particle appended to Pe in
+//     this step) keep the random stream and the face + 1 of the partner until then. What
+//     its face column owed before this launch (bank0, a copy of bank; see push_deposit) is paid
+//     by the first particles that enter from the cell, in the order (slot, beam): such a particle
+//     enters alone, deposits its path and pays the bank. A thread of a column that owes replays
+//     the samples before its own to find its turn, so the result does not depend on the order
+//     of the threads.
+// diag (per species): [6] kinetic energy, [7] charge, [8] number of the injected particles; with
+// do_diag their kinetic energy and momentum are added to [0..3], as they are part of the plasma
+// from this step on.
+extern "C" __global__ void inject_face(double* P, const long long cap, const int n0, int* ninj, double* diag, int* flag,
+                                       int* list, const int listcap, double* Jx, double* Jy, double* Jz,
+                                       const double q, const double m, const int gx0, const int gy0, const int gz0,
+                                       const int nlx, const int nly, const int nlz, const int gnx, const int gny,
+                                       const int gnz, const int ppc, const unsigned long long seed,
+                                       const long long step, const double id_step, const double* bt,
+                                       const int nbeam, const int face, const int paired, double* Pe,
+                                       const long long cape, const int ne0, int* ninje, double* diage, int* flage,
+                                       int* liste, const int listcape, const double qe,
+                                       unsigned long long* pstate, int* pface, double* bank,
+                                       const double* bank0, const int* binfo, const int do_diag) {
+    const long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    const long long per = (long long)ppc * nbeam;
+    if (t >= (long long)nlx * nly * nlz * per) return;
+    const long long cell = t / per;
+    const int turn = (int)(t % per), slot = turn / nbeam;
+    const int k = (int)(cell % nlz), j = (int)((cell / nlz) % nly), i = (int)(cell / nlz / nly);
+    const int gc[3] = {gx0 + i, gy0 + j, gz0 + k};
+    const unsigned long long ks = hash_key(seed ^ INJ_SALT, (unsigned long long)step, 0ULL);
+    const unsigned long long gcell =
+        ((unsigned long long)(gc[0] + 1) * (gny + 2) + (gc[1] + 1)) * (1ULL << 30) + (gc[2] + 1);
+    const long long lin = ((long long)(gc[0] + 1) * (gny + 2) + (gc[1] + 1)) * (long long)(gnz + 2) + (gc[2] + 1);
+    const double* tb = bt + 8 * (turn % nbeam);
+    double r0[3], u[3], r1[3], g;
+    unsigned long long sm;
+    if (!layer_sample(ks, gcell, gc, slot, tb, r0, u, r1, g, sm)) return;
+    const double w = tb[0], qw = q * w;
+    bool pair = paired != 0;
+    const int column = pair ? bank_slot(binfo, face, gc) : -1;
+    if (column >= 0 && bank0[column] > 0.0) {
+        double rem = bank0[column];  // what is left for this particle after those before it
+        for (int o = 0; o < turn && rem > 0.0; o++) {
+            const double* to = bt + 8 * (o % nbeam);
+            const double co = fabs(q * to[0]);
+            double a0[3], au[3], a1[3], ag;
+            unsigned long long as;
+            if (rem >= co * (1.0 - 1e-9) && layer_sample(ks, gcell, gc, o / nbeam, to, a0, au, a1, ag, as))
+                rem = fmax(rem - co, 0.0);
+        }
+        if (rem >= fabs(qw) * (1.0 - 1e-9)) {
+            atomicAdd(&bank[column], -fmin(fabs(qw), rem));
+            pair = false;
+        }
+    }
+    if (!pair) deposit_cut(r0, r1, qw, Jx, Jy, Jz);
+    const double Lg[3] = {LX, LY, LZ};
+    const int b0[3] = {BCX0, BCY0, BCZ0};
+    const int dec[3] = {DECX, DECY, DECZ};
+    const double slo[3] = {SX0, SY0, SZ0};
+    const double shi[3] = {SX1, SY1, SZ1};
+    bool migrate = false;
+    for (int a = 0; a < 3; a++) {
+        if (!dec[a]) {
+            if (b0[a] == BC_PERIODIC) {
+                if (r1[a] < 0.0) r1[a] += Lg[a];
+                else if (r1[a] >= Lg[a]) r1[a] -= Lg[a];
+            }
+        } else if (r1[a] < slo[a] || r1[a] >= shi[a]) {
+            migrate = true;
+        }
+    }
+    const double cellslot = (double)(lin * ppc + slot);
+    {
+        const long long p = n0 + atomicAdd(ninj, 1);
+        PX(p) = r1[0];
+        PY(p) = r1[1];
+        PZ(p) = r1[2];
+        PUX(p) = u[0];
+        PUY(p) = u[1];
+        PUZ(p) = u[2];
+        PW(p) = w;
+        PID(p) = id_step + tb[6] + cellslot;
+        if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = (int)p; }
+    }
+    const double ke = w * m * (g - 1.0);
+    atomicAdd(&diag[6], ke);
+    atomicAdd(&diag[7], qw);
+    atomicAdd(&diag[8], 1.0);
+    if (do_diag) {
+        atomicAdd(&diag[0], ke);
+        for (int a = 0; a < 3; a++) atomicAdd(&diag[1 + a], w * m * u[a]);
+    }
+    if (pair) {
+        const int ie = atomicAdd(ninje, 1);
+        const long long p = ne0 + ie;
+        Pe[p] = r1[0];
+        Pe[cape + p] = r1[1];
+        Pe[2 * cape + p] = r1[2];
+        Pe[3 * cape + p] = Pe[4 * cape + p] = Pe[5 * cape + p] = 0.0;
+        Pe[6 * cape + p] = -qw / qe;
+        Pe[7 * cape + p] = id_step + tb[7] + cellslot;
+        if (migrate) { int sl = atomicAdd(flage, 1); if (sl < listcape) liste[sl] = (int)p; }
+        pstate[ie] = sm;
+        pface[ie] = face + 1;
+    }
+}
+
+// Momenta of the partners that inject_face appended to the neutraliser species at paired faces:
+// one thread per particle appended to Pe in this step (ninje[0] of them, from ne0), drawn from the
+// neutraliser's inflow distribution at the face (rb, see sample_inflow) with the stream the
+// carrier left. A kernel of its own because the sampler is a rejection loop: here every thread of
+// a warp runs it. diage: as diag of inject_face.
+extern "C" __global__ void inject_partners(double* Pe, const long long cape, const int ne0, const int* ninje,
+                                           double* diage, const double qe, const double me, const double* rb,
+                                           const int nrb, const unsigned long long* pstate, int* pface,
+                                           const int do_diag) {
+    const int ie = blockIdx.x * blockDim.x + threadIdx.x;
+    if (ie >= ninje[0] || pface[ie] == 0) return;
+    const int face = pface[ie] - 1;
+    pface[ie] = 0;
+    unsigned long long sm = pstate[ie];
+    double ue[3];
+    sample_inflow(rb + (long long)face * nrb * 6, nrb, face >> 1, (face & 1) ? -1.0 : 1.0, sm, ue);
+    const long long p = ne0 + ie;
+    Pe[3 * cape + p] = ue[0];
+    Pe[4 * cape + p] = ue[1];
+    Pe[5 * cape + p] = ue[2];
+    const double we = Pe[6 * cape + p];
+    const double eke = we * me * (sqrt(1.0 + ue[0] * ue[0] + ue[1] * ue[1] + ue[2] * ue[2]) - 1.0);
+    atomicAdd(&diage[6], eke);
+    atomicAdd(&diage[7], qe * we);
+    atomicAdd(&diage[8], 1.0);
+    if (do_diag) {
+        atomicAdd(&diage[0], eke);
+        for (int a = 0; a < 3; a++) atomicAdd(&diage[1 + a], we * me * ue[a]);
+    }
 }

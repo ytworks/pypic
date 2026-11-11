@@ -79,10 +79,116 @@ class CurrentFilter:
     (-N/4, 1 + N/2, -N/4) that restores the long-wavelength response to fourth order. Suppresses
     the numerical Cherenkov instability of relativistic flows. Gauss's law stays exact (the charge
     density in the check is filtered identically) and the implicit energy stays exact (particles
-    gather the filtered field). Periodic and reflecting faces only."""
+    gather the filtered field). An open face is a wall of the filter at the face of the box and
+    the Gauss check leaves out the nodes the charge left there reaches (PIC-D15, explicit solver);
+    an open flow with a filter needs ``marder_zone`` to stay stationary."""
 
     passes: int = 0
     compensate: bool = False
+
+
+@dataclass
+class Dipole:
+    """Magnetic dipole of the external field (PIC-D12): B = (3 (m.n) n - m) / r^3 for r >> core,
+    regular inside ``core`` (B = 2 m / core^3 at the centre). ``center`` in c/omega_pe."""
+
+    moment: tuple
+    center: tuple
+    core: float
+
+    def __post_init__(self):
+        self.moment = tuple(float(v) for v in self.moment)
+        self.center = tuple(float(v) for v in self.center)
+        self.core = float(self.core)
+        if len(self.moment) != 3 or len(self.center) != 3:
+            raise ValueError("dipole moment and center need three components")
+        if not self.core > 0.0:
+            raise ValueError("dipole core must be > 0")
+
+
+@dataclass
+class ExternalFields:
+    """Static fields the particles feel in addition to the Yee fields (PIC-D12): a uniform E, a
+    uniform B and dipoles. The Yee fields are then the difference to them, so an external field
+    may be normal or tangential to any face, unlike B0 / E0. Explicit solver only."""
+
+    E: tuple = (0.0, 0.0, 0.0)
+    B: tuple = (0.0, 0.0, 0.0)
+    dipoles: list = field(default_factory=list)  # list[Dipole]
+
+    def __post_init__(self):
+        self.E = tuple(float(v) for v in self.E)
+        self.B = tuple(float(v) for v in self.B)
+        if len(self.E) != 3 or len(self.B) != 3:
+            raise ValueError("external_fields.E and .B need three components")
+        self.dipoles = [d if isinstance(d, Dipole) else Dipole(**d) for d in self.dipoles]
+
+    @property
+    def active(self) -> bool:
+        return any(self.E) or any(self.B) or bool(self.dipoles)
+
+
+@dataclass
+class Body:
+    """Absorbing body inside the box (PIC-D14): a particle that ends a step inside it is removed and
+    its charge stays where the deposit left it, so the body charges up like an insulator; no
+    particle is loaded inside. ``center`` and ``radius`` in c/omega_pe. ``relax`` (in omega_pe,
+    0 = off) is the rate at which the electric field of the grid decays on the edges inside the
+    body: the charge of the body then moves to its surface and the inside becomes an
+    equipotential, with the total charge unchanged; not for use with a dipole (PIC-D14, measured).
+    Explicit solver only."""
+
+    center: tuple
+    radius: float
+    shape: str = "sphere"
+    relax: float = 0.0
+
+    def __post_init__(self):
+        self.center = tuple(float(v) for v in self.center)
+        self.radius = float(self.radius)
+        if self.shape != "sphere":
+            raise ValueError("body.shape must be sphere")
+        if len(self.center) != 3:
+            raise ValueError("body.center needs three components")
+        if not self.radius > 0.0:
+            raise ValueError("body.radius must be > 0")
+        self.relax = float(self.relax)
+        if not self.relax >= 0.0:
+            raise ValueError("body.relax must be >= 0")
+
+
+FACES = ("x-", "x+", "y-", "y+", "z-", "z+")  # face index = 2 * axis + side
+ID_LIMIT = 2 ** 53  # particle ids (PIC-D8): float64 represents every integer below this exactly
+
+
+@dataclass
+class Injection:
+    """Plasma entering through open faces every step (PIC-D13). ``faces`` maps a face name
+    (``x-`` .. ``z+``) to its mode: ``flux`` launches every species from the cell layer outside
+    the face; ``paired`` is for an inflow face of a flow: the ``neutralizer`` species (the
+    electrons) is returned at the face instead of leaving, and every other injected species
+    enters together with a neutralizer particle at the same point, so the face collects no
+    charge. The distribution is that of the species' own beams. Explicit solver only."""
+
+    faces: dict = field(default_factory=dict)  # {"x-": "paired", "y-": "flux", ...}
+    species: tuple | None = None  # injected species names; None: every plasma species with beams
+    neutralizer: str | None = None  # needed by a paired face
+
+    def __post_init__(self):
+        if not isinstance(self.faces, dict):
+            raise ValueError("injection.faces maps a face name to its mode, e.g. {'x-': 'paired', 'y-': 'flux'}")
+        self.faces = {str(k): str(v) for k, v in self.faces.items()}
+        for k, v in self.faces.items():
+            if k not in FACES:
+                raise ValueError(f"injection.faces: unknown face {k!r} (one of {FACES})")
+            if v not in ("flux", "paired"):
+                raise ValueError(f"injection.faces[{k!r}]: mode must be flux or paired")
+        if self.species is not None:
+            self.species = (self.species,) if isinstance(self.species, str) else tuple(self.species)
+
+    @property
+    def active(self) -> bool:
+        return bool(self.faces)
 
 
 @dataclass
@@ -251,7 +357,25 @@ class SimConfig:
     precision: str = "fp64"
     implicit: ImplicitConfig = field(default_factory=ImplicitConfig)
     current_filter: CurrentFilter = field(default_factory=CurrentFilter)
+    # static fields felt by the particles on top of the Yee fields (PIC-D12); not together with B0 / E0
+    external_fields: ExternalFields = field(default_factory=ExternalFields)
+    injection: Injection = field(default_factory=Injection)  # plasma entering through open faces (PIC-D13)
+    body: Body | None = None  # absorbing sphere (PIC-D14)
+    # Marder number (0 < nu <= 1/6; 0 = off) of the zone at the open faces (PIC-D16): every step
+    # div E - rho diffuses in the absorbing layer and the first nodes inside, where the removed and
+    # the entering particles leave charge that no deposit balances. Explicit solver only.
+    marder_zone: float = 0.0
+    # particle array capacity = capacity_factor x the particles loaded on the rank: the room for the
+    # density to pile up on one rank. Growing the arrays in a run holds the old and the new array
+    # at once, so set this (and watch the ``fill`` history) rather than rely on it.
+    capacity_factor: float = 1.3
     output: OutputConfig = field(default_factory=OutputConfig)
+
+    def __post_init__(self):
+        if not float(self.capacity_factor) >= 1.0:
+            raise ValueError("capacity_factor must be >= 1")
+        if not 0.0 <= float(self.marder_zone) <= 1.0 / 6.0:
+            raise ValueError("marder_zone is a Marder number: 0 (off) or 0 < nu <= 1/6")
 
     def to_dict(self):
         return asdict(self)
@@ -270,9 +394,16 @@ class SimConfig:
         out = OutputConfig.from_dict(d.pop("output", {}))
         flt = d.pop("current_filter", {})
         flt = flt if isinstance(flt, CurrentFilter) else CurrentFilter(**flt)
+        ext = d.pop("external_fields", {})
+        ext = ext if isinstance(ext, ExternalFields) else ExternalFields(**ext)
+        inj = d.pop("injection", {})
+        inj = inj if isinstance(inj, Injection) else Injection(**inj)
+        body = d.pop("body", None)
+        body = body if body is None or isinstance(body, Body) else Body(**body)
         for k in ("n_cells", "dx", "B0", "E0", "dims"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:
             d["boundaries"] = tuple(tuple(b) for b in d["boundaries"])
-        return cls(species=sp, implicit=imp, output=out, current_filter=flt, **d)
+        return cls(species=sp, implicit=imp, output=out, current_filter=flt, external_fields=ext,
+                   injection=inj, body=body, **d)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .body import defines as body_defines
 from .parallel.decomp import BC_CODES, Decomposition
 
 KERNEL_DIR = Path(__file__).parent / "kernels"
@@ -61,14 +62,18 @@ def grid_defines(decomp: Decomposition, dx, dt: float, ghost: int, use_pml: bool
     return D
 
 
-def particle_defines(grid_defs: dict, mixed: bool = False) -> dict:
+def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0, body=None) -> dict:
     """Particle kernels share the grid constants (no CPML terms) plus the path-segment bound.
     ``mixed`` (PIC-D11): the explicit push gathers E and B from float32 copies; OXI.. are the
     global cell indices of local index 0, so the gather weights come from global coordinates and
-    are the same on every rank layout."""
+    are the same on every rank layout. ``paired_faces`` (PIC-D13): bit ``2 * axis + side`` per
+    paired injection face; 0 compiles the push without the return of the neutraliser. ``body``
+    (PIC-D14): the absorbing sphere of the configuration, or None."""
     D = dict(grid_defs)
     D.pop("USE_PML", None)
     D["MAXSEG"] = 3 * (D["GH"] + 2) + 4
+    D["PAIRED_FACES"] = int(paired_faces)
+    D.update(body_defines(body))
     if mixed:
         D["MIXED_GATHER"] = 1
         for c in "XYZ":

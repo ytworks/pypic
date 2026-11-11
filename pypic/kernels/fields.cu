@@ -352,6 +352,43 @@ extern "C" __global__ void div_E(const double* __restrict__ Ex, const double* __
              (Ez[c] - Ez[IDX(i, j, k - 1)]) * (1.0 / DZ);
 }
 
+// ---- Marder zone at open faces (PIC-D16). The zone is the set of nodes with a local index
+// <= zl[a] or >= zh[a] along some axis a (zb = zl[0..2], zh[0..2]).
+__device__ __forceinline__ bool in_zone(const int i, const int j, const int k, const int* zb) {
+    return i <= zb[0] || i >= zb[3] || j <= zb[1] || j >= zb[4] || k <= zb[2] || k >= zb[5];
+}
+
+// F = div E - rho at the nodes of the zone, 0 at the other nodes; rho is overwritten by F.
+extern "C" __global__ void marder_residual(const double* __restrict__ Ex, const double* __restrict__ Ey,
+                                           const double* __restrict__ Ez, double* F,
+                                           const int* __restrict__ zb) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    int i, j, k;
+    if (!range_index(t, i, j, k)) return;
+    long long c = IDX(i, j, k);
+    if (!in_zone(i, j, k, zb)) {
+        F[c] = 0.0;
+        return;
+    }
+    F[c] = (Ex[c] - Ex[IDX(i - 1, j, k)]) * (1.0 / DX) + (Ey[c] - Ey[IDX(i, j - 1, k)]) * (1.0 / DY) +
+           (Ez[c] - Ez[IDX(i, j, k - 1)]) * (1.0 / DZ) - F[c];
+}
+
+// E += c grad F on the edges whose two nodes are in the zone (cx = nu h^2 / DX, ...): div E - rho
+// diffuses inside the zone and is left as it is at every other node.
+extern "C" __global__ void marder_apply(double* Ex, double* Ey, double* Ez, const double* __restrict__ F,
+                                        const double cx, const double cy, const double cz,
+                                        const int* __restrict__ zb) {
+    long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    int i, j, k;
+    if (!range_index(t, i, j, k)) return;
+    if (!in_zone(i, j, k, zb)) return;
+    long long c = IDX(i, j, k);
+    if (in_zone(i + 1, j, k, zb)) Ex[c] += cx * (F[IDX(i + 1, j, k)] - F[c]);
+    if (in_zone(i, j + 1, k, zb)) Ey[c] += cy * (F[IDX(i, j + 1, k)] - F[c]);
+    if (in_zone(i, j, k + 1, zb)) Ez[c] += cz * (F[IDX(i, j, k + 1)] - F[c]);
+}
+
 // div B (at cell centres i+1/2,j+1/2,k+1/2)
 extern "C" __global__ void div_B(const double* __restrict__ Bx, const double* __restrict__ By,
                                  const double* __restrict__ Bz, double* out) {

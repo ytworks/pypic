@@ -1,0 +1,85 @@
+{
+  "type": "example",
+  "date": "2026-11-11",
+  "commit": "9ba2a65185cd59bceecdfc4000b57587e924353e",
+  "dirty": false,
+  "run_id": "b3d1c288",
+  "run_started": "2026-11-11T05:59:22+09:00",
+  "gpus": 8,
+  "analysis_commit": "41b7d10d9d9d064e821216966827300fbc9227c3",
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "example": "bow_shock",
+  "config": "full",
+  "params": {
+    "mass_ratio": 100,
+    "mach_alfven": 5,
+    "wpe_wce": 4,
+    "vte": 0.1,
+    "dp": 5,
+    "box": [
+      6,
+      6,
+      6
+    ],
+    "ppc": 8,
+    "crossings": 3,
+    "coarse": 0.1,
+    "slice_coarsen": 2
+  },
+  "run": {
+    "wall_time_s": 10267.914665356046,
+    "ns_per_particle_step": 0.7600320048930613,
+    "gpus": 8,
+    "steps": 28800
+  },
+  "passed": true,
+  "metrics": {
+    "gauss_max": 7.713274463583275e-14,
+    "r_mp": 50.0,
+    "upstream_deviation": 0.001665433623448287,
+    "upstream": {
+      "e": {
+        "density": 0.0015861990369230305,
+        "u_x": 0.001534363068039446,
+        "n_end": 1.001586199036923,
+        "u_x_end": 0.9984660944404218
+      },
+      "i": {
+        "density": 0.001665433623448287,
+        "u_x": 0.0015133533670329546,
+        "n_end": 1.0016654336234483,
+        "u_x_end": 0.998486646632967
+      }
+    },
+    "compression": 4.273425633364738,
+    "x_compression": 67.25,
+    "compression_mhd": 3.2544432806376653,
+    "x_magnetopause": 77.8560714545358,
+    "magnetopause": 0.9428785709092842,
+    "x_shock": 59.18631144304909,
+    "shock": 1.3162737711390182,
+    "shock_spreiter": 1.3379994380435076,
+    "sheath": 0.3960162122145196,
+    "sheath_spreiter": 0.33799943804350757,
+    "magnetopause_magnetic": 0.9413190315616896,
+    "wind_density": 0.9968417903025945,
+    "body_charge": 7119.84375,
+    "absorbed_per_step": [
+      4243.47875,
+      1459.4455208333334,
+      839.9888421052632
+    ],
+    "fill_max": 0.618220969367846,
+    "particles_start": 3436119997.0,
+    "particles_end": 3752477200.0,
+    "checks": {
+      "gauss": true,
+      "upstream": true,
+      "compression": true,
+      "magnetopause": true,
+      "shock_upstream": true
+    },
+    "passed": true
+  },
+  "note": "Peak device memory 79.8 GB per GPU (nvidia-smi every 30 s; planner bound 86.2 GB). Mean step time 318 ms over the first 1200 steps, 357 ms over all 28800."
+}

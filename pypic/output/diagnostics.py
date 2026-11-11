@@ -34,13 +34,16 @@ class FieldSource:
         if comp in self.cache:
             return self.cache[comp]
         sim, g = self.sim, self.sim.grid
-        if comp in STAGGER or comp in ("Jx", "Jy", "Jz"):
+        if comp in STAGGER:  # E and B are the fields the particles feel (with the external fields, PIC-D12)
+            arr = sim.total_field(comp)
+        elif comp in ("Jx", "Jy", "Jz"):
             arr = getattr(g, comp)
         elif comp == "rho":
             arr = cp.zeros(g.shape)
             for sp in sim.species:
                 if not getattr(sp, "test", False):
-                    launch(sim.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q), arr))
+                    launch(sim.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q),
+                                             np.float64(0.0), arr))
             g.reduce_ghosts((arr,))
         else:
             base, name = comp.split(":", 1)
@@ -569,10 +572,9 @@ class TracksDiag(Diag):
                 Q[:6] = sp.P[:6][:, sel]
                 Q[nq] = sp.P[7][sel]
                 if self.d.with_fields:
-                    g = sim.grid
                     f = cp.empty((6, m))
                     launch(sim.k_gather, m, (sp.P, np.int64(sp.cap), sel.astype(cp.int64), np.int32(m),
-                                             g.Ex, g.Ey, g.Ez, g.Bx, g.By, g.Bz, f))
+                                             *(src.get(c) for c in self.FIELDQ), f))
                     Q[6:12] = f
             Q = gather_columns(sim.comm, Q)
             if not self.root:

@@ -33,6 +33,17 @@ acceleration, with animations; one example per classic problem with an analytic 
 - `run.json`: configuration, resolved schedule, layout of every diagnostic, time centering, units,
   ED-PIC attributes, git commit, run id and start time (both fixed at start-up), rank grid, and
   experiment metadata (`meta`: planner theory, run statistics). The reader (`pypic.analysis.open_run`) relies only on these files.
+- Field convention (`run.json: field_convention`): `E` and `B` of every diagnostic (dumps, slices, lineouts,
+  modes, spectra, fields of the tracks) are the fields the particles feel. With external fields
+  (PIC-D12) that is Yee field + external field, while the energies `electric` / `magnetic` of the
+  scalar history are those of the Yee fields alone.
+- Scalar history, particles crossing open faces (PIC-D13): `lost_kinetic`, `lost_charge`,
+  `injected_kinetic`, `injected_charge` and `n_injected` are cumulative sums over the run;
+  `fill` is the largest particles / capacity ratio over ranks and species at the record. It
+  describes the ranks' arrays, so it is the one history quantity that depends on the decomposition.
+- Scalar history, particles absorbed by the body (PIC-D14): `absorbed_kinetic`, `absorbed_charge`
+  and `n_absorbed` are cumulative sums over the run. `n_absorbed` counts every species; test
+  species carry no charge and no energy into the other two. Particles left out at load are not counted.
 Why: openPMD is the community standard for PIC data, so other tools read it; reduced
 diagnostics have no standard, so their schema is documented here and in `run.json`.
 
@@ -90,6 +101,7 @@ gate configs and also requires Gauss ≤ 1e-10. Criteria (fixed before the gate 
 | plasma_expansion:isothermal_hydrogen | self-similar ion velocity within 10 %, E_max within 20 % (median) |
 | relativistic_shock:pair_2d | shock speed and compression within 10 % of the Synge-gas jump conditions |
 | reconnection:pair_sigma10 | B_x(y) within 5 % of B0 of the Harris sheet before the onset |
+| bow_shock:gate | upstream density and u_x within 5 % of the wind over the last crossing; sheath compression ≥ 2; magnetopause within 25 % of the pressure-balance distance; shock upstream of it (definitions in docs/plans/2026-11-10-bow-shock.md) |
 
 Why: agreement with analytic and linear theory is the test policy's observable result.
 - Where the model and collisionless PIC differ physically, the tolerance sits above the measured, explained offset. The case is Mora's isothermal electrons; see examples/plasma_expansion/README.md.

@@ -1,0 +1,10 @@
+# Gate: m_i/m_e = 16, M_A = 4 (v_sw = 0.25 c), magnetopause at 5 d_i = 40 cells. 240 x 320 x 320 cells,
+# 3.9e8 particles, 5760 steps (3 crossings = 22 / Omega_ci); a few minutes on 8 GPUs.
+mass_ratio: 16
+mach_alfven: 4
+wpe_wce: 4
+vte: 0.1
+dp: 5
+box: [6, 8, 8]
+ppc: 8
+crossings: 3

@@ -1,6 +1,132 @@
 {
   "entries": [
     {
+      "file": "2026-11-11-9b901c14a-gpu-gates-mixed.json",
+      "date": "2026-11-11",
+      "commit": "9b901c14aeb7575cc5cf2771fe9508940a142264",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true,
+      "precision": "mixed"
+    },
+    {
+      "file": "2026-11-11-9b901c14a-gpu-gates.json",
+      "date": "2026-11-11",
+      "commit": "9b901c14aeb7575cc5cf2771fe9508940a142264",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true
+    },
+    {
+      "file": "2026-11-11-9ba2a6518-example-bow_shock-full-run-b3d1c288.json",
+      "type": "example",
+      "date": "2026-11-11",
+      "commit": "9ba2a65185cd59bceecdfc4000b57587e924353e",
+      "dirty": false,
+      "run_id": "b3d1c288",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "bow_shock",
+      "config": "full"
+    },
+    {
+      "file": "2026-11-11-39acb7fca-gpu-gates-mixed.json",
+      "date": "2026-11-11",
+      "commit": "39acb7fca29d7db2fd79dda76526966edb93308d",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true,
+      "precision": "mixed"
+    },
+    {
+      "file": "2026-11-11-39acb7fca-gpu-gates.json",
+      "date": "2026-11-11",
+      "commit": "39acb7fca29d7db2fd79dda76526966edb93308d",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true
+    },
+    {
+      "file": "2026-11-11-98e626b05-gpu-gates-mixed.json",
+      "date": "2026-11-11",
+      "commit": "98e626b05c7f2c0ed8e1a2515e0573b34963acf7",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true,
+      "precision": "mixed"
+    },
+    {
+      "file": "2026-11-11-98e626b05-gpu-gates.json",
+      "date": "2026-11-11",
+      "commit": "98e626b05c7f2c0ed8e1a2515e0573b34963acf7",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true
+    },
+    {
+      "file": "2026-11-11-7893fecaf-gpu-gates-mixed.json",
+      "date": "2026-11-11",
+      "commit": "7893fecafb77ef4d06f6baf14725d8fcb0c2aa24",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true,
+      "precision": "mixed"
+    },
+    {
+      "file": "2026-11-11-7893fecaf-gpu-gates.json",
+      "date": "2026-11-11",
+      "commit": "7893fecafb77ef4d06f6baf14725d8fcb0c2aa24",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true
+    },
+    {
+      "file": "2026-11-11-84f58082d-gpu-gates-mixed.json",
+      "date": "2026-11-11",
+      "commit": "84f58082d595b5341a679e2be4f11ad997bc8f88",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true,
+      "precision": "mixed"
+    },
+    {
+      "file": "2026-11-11-84f58082d-gpu-gates.json",
+      "date": "2026-11-11",
+      "commit": "84f58082d595b5341a679e2be4f11ad997bc8f88",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true
+    },
+    {
+      "file": "2026-11-11-d2ac1d90e-gpu-gates-mixed.json",
+      "date": "2026-11-11",
+      "commit": "d2ac1d90ec9d3d96237383e5cb25dccff3f41981",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true,
+      "precision": "mixed"
+    },
+    {
+      "file": "2026-11-11-d2ac1d90e-gpu-gates.json",
+      "date": "2026-11-11",
+      "commit": "d2ac1d90ec9d3d96237383e5cb25dccff3f41981",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true
+    },
+    {
       "file": "2026-11-10-158bc20b8-gpu-gates-mixed.json",
       "date": "2026-11-10",
       "commit": "158bc20b8fa0bf606f7599e142cf5155fbc32125",

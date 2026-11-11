@@ -13,6 +13,8 @@ import numpy as np
 import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
+from pypic.body import relax_edges
+from pypic.config import Body, CurrentFilter, ExternalFields, Injection
 from pypic.parallel.comm import SelfComm
 from pypic.simulation import Simulation
 
@@ -82,6 +84,26 @@ def test_exb_drift():
     xs = np.unwrap(np.array(xs) / sim.grid.L[0] * 2 * np.pi) * sim.grid.L[0] / (2 * np.pi)
     vd = (xs[-1] - x0) / (nst * cfg.dt)
     assert abs(vd - E / B) < 0.01 * E / B
+
+
+@pytest.mark.parametrize("precision", ["fp64", "mixed"])
+def test_external_uniform_fields_give_the_orbits_of_grid_fields(precision):
+    """Test particles in external uniform E and B (PIC-D12) move bit for bit as in the same
+    fields held by the grid (B0, E0): the initial half kick and the gather use the total field."""
+    E, B = (0.0, 0.03, 0.01), (0.02, 0.0, 0.5)
+    rng = np.random.default_rng(3)
+    pts = [[*rng.uniform(0.5, 3.5, 3), *rng.uniform(-2.0, 2.0, 3)] for _ in range(50)]
+    orbits = []
+    for fields in (dict(B0=B, E0=E), dict(external_fields=ExternalFields(E=E, B=B))):
+        cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, precision=precision, diag_interval=0,
+                        gauss_interval=0, species=[SpeciesConfig("t", -1, 1, [], test=True, particles=pts)], **fields)
+        sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+        for _ in range(200):
+            sim.step()
+        orbits.append(cp.asnumpy(sim.species[0].P[:6, :50]))
+        sim.close()
+    assert np.array_equal(*orbits)
+    assert np.max(np.abs(orbits[0][3:] - np.asarray(pts).T[3:])) > 0.1  # the fields did act
 
 
 # ------------------------------------------------------------ conservation laws
@@ -343,8 +365,6 @@ def test_current_filter_kernels_match_the_array_expressions(bc):
 def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
     """With a 4-pass compensated current filter (PIC-D10) and particles bouncing at the walls,
     Gauss's law (against the identically filtered rho) and the implicit energy stay exact."""
-    from pypic.config import CurrentFilter
-
     cfg = SimConfig(n_cells=(16, 8, 8), dx=(0.2,) * 3, dt=0.08 if solver == "explicit" else 0.3, solver=solver,
                     boundaries=((bc, bc), ("periodic",) * 2, (bc, bc)),
                     species=[SpeciesConfig("e", -1, 1, [Beam(0.5, (0.5, 0.1, 0), 0.05),
@@ -359,7 +379,141 @@ def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
         assert np.max(np.abs(e - e[0])) / e[0] < 1e-11
 
 
+@pytest.mark.parametrize("marder", [0.0, 0.125])
+def test_filter_and_marder_zone_at_open_faces_keep_gauss(marder):
+    """A drifting plasma leaves through open faces with the current filter on (PIC-D15), without
+    and with the Marder zone (PIC-D16): the charge left on the face nodes spreads through the
+    filter and the zone works on it, and Gauss's law stays exact at every node behind them."""
+    cfg = SimConfig(n_cells=(16, 16, 12), dx=(0.5,) * 3, dt=0.2, npml=6,
+                    boundaries=(("open", "open"), ("open", "open"), ("periodic", "periodic")),
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.1, 0.05, 0), 0.02)]),
+                             SpeciesConfig("i", 1, 16, [Beam(1.0, (0.1, 0.05, 0), 0.001)])],
+                    ppc=4, diag_interval=5, gauss_interval=5, current_filter=CurrentFilter(1, True),
+                    marder_zone=marder)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(40)
+    assert sim.history["lost_charge"][-1] != 0.0
+    assert np.nanmax(sim.history["gauss"]) < 1e-12
+    if marder:  # the zone deposits the charge of the particles near the open faces only: the same there
+        g = sim.grid
+        i = np.arange(g.shape[0]) - (g.g + cfg.npml)  # node index from the face x = 0 (y alike)
+        near = cp.asarray((i <= sim.zone_depth) | (i >= 16 - sim.zone_depth))
+        zone = near[:, None, None] | near[None, :, None]
+        assert float((cp.abs(sim._charge_density(zone=True) - sim._charge_density()) * zone).max()) < 1e-12
+
+
+def test_marder_zone_takes_the_charge_left_at_an_open_face():
+    """A static field with div E - rho != 0 around one node of an open face and no charge
+    (PIC-D16): one step of the zone diffuses it with the Marder number, the conducting wall behind
+    the layer takes it all in the end, and div E never changes outside the zone."""
+    nu, npml = 0.125, 3
+    cfg = SimConfig(n_cells=(8, 6, 6), dx=(0.5, 0.4, 0.25), dt=0.1, npml=npml, species=[], diag_interval=0,
+                    gauss_interval=0, boundaries=(("open", "open"), ("periodic",) * 2, ("periodic",) * 2),
+                    marder_zone=nu)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    g = sim.grid
+    face = g.g + npml  # local index of the node plane x = 0
+    node = (face, g.g + 2, g.g + 3)
+    # E = -grad phi with phi at one node: curl-free, div E = 0 away from the node and its neighbours
+    for a, E in enumerate((g.Ex, g.Ey, g.Ez)):
+        lo = list(node)
+        lo[a] -= 1
+        E[node] = 1.0 / g.dx[a]
+        E[tuple(lo)] = -1.0 / g.dx[a]
+    g.fill_ghosts((g.Ex, g.Ey, g.Ez))
+    inside = (slice(face + sim.zone_depth + 1, face + 8 - sim.zone_depth), slice(None), slice(None))
+    own = tuple(slice(g.g, g.g + ax.n_int) for ax in g.d.axes)
+    d0 = g.div_E()
+    peak = float(d0[node])
+    assert not bool(cp.any(d0[inside]))
+    g.marder_zone(cp.zeros(g.shape), sim.zone_depth, nu)
+    h2 = 3.0 / sum(1.0 / d ** 2 for d in g.dx)
+    d1 = g.div_E()
+    expect = peak + nu * h2 * sum(
+        (float(d0[tuple(n + (b == a) for b, n in enumerate(node))]) - 2.0 * peak
+         + float(d0[tuple(n - (b == a) for b, n in enumerate(node))])) / g.dx[a] ** 2 for a in range(3))
+    assert abs(float(d1[node]) - expect) < 1e-12 * abs(peak)
+    for _ in range(1500):
+        g.marder_zone(cp.zeros(g.shape), sim.zone_depth, nu)
+    d = g.div_E()
+    assert float(cp.abs(d[own]).max()) < 1e-6 * float(cp.abs(d0[own]).max())
+    assert not bool(cp.any(d[inside]))
+
+
 # ------------------------------------------------------------------- storage
+@pytest.mark.parametrize("passes", [0, 1])
+def test_absorbing_sphere_keeps_the_charge_of_the_particles_it_took(passes):
+    """A drifting plasma meets an absorbing sphere (PIC-D14), without and with the current filter.
+    The load leaves no particle inside and stays neutral; every particle that ends a step inside is
+    removed and counted; the charge the sphere holds (div E - rho summed over the nodes left out of
+    the Gauss check) is the absorbed charge; and Gauss's law is exact at every other node."""
+    sphere = Body(center=(2.0, 2.1, 1.9), radius=0.5)
+    kw = {"current_filter": CurrentFilter(passes, True)} if passes else {}
+    cfg = SimConfig(n_cells=(20, 20, 20), dx=(0.2,) * 3, dt=0.08, body=sphere, ppc=4, diag_interval=5,
+                    gauss_interval=5, species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.2, 0, 0), 0.01)]),
+                                               SpeciesConfig("i", 1, 25, [Beam(1.0, (0.2, 0, 0), 0.0004)])], **kw)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+
+    def inside():
+        r2 = [sum((sp.P[a, : sp.n] - sphere.center[a]) ** 2 for a in range(3)) for sp in sim.species]
+        return sum(int((v < sphere.radius**2).sum()) for v in r2)
+
+    n0 = sim.total_particles()
+    assert inside() == 0 and 0 < 2 * 4 * 20**3 - n0 < 0.01 * 2 * 4 * 20**3  # the sphere holds 0.8 % of the box
+    assert float(cp.abs(sim._charge_density()).max()) < 1e-13
+    sim.run(41)  # the record of step 40 holds what this last step absorbed
+    h, g = sim.history, sim.grid
+    assert h["n_absorbed"][-1] == n0 - sim.total_particles() > 100 and inside() == 0
+    excess = (g.div_E() - sim._charge_density())[g.gauss_slice(sim.gauss_retreat)]
+    assert float(cp.abs(excess).max()) > 0.1  # the sphere is charged
+    assert h["absorbed_charge"][-1] != 0.0
+    assert abs(float(excess.sum()) * 0.2**3 - h["absorbed_charge"][-1]) < 1e-12
+    assert np.nanmax(h["gauss"]) < 1e-12
+
+
+def test_body_relax_removes_the_field_inside_the_sphere_and_keeps_its_charge():
+    """``body.relax`` (PIC-D14) lets the field decay on the edges inside the sphere: the inside
+    becomes an equipotential, while the sphere as a whole still holds exactly the absorbed charge
+    and Gauss's law stays exact at every node outside."""
+    inner = {}
+    for rate in (0.0, 30.0):  # exp(-rate dt) = 0.09 per step
+        sphere = Body(center=(2.0, 2.1, 1.9), radius=0.7, relax=rate)
+        cfg = SimConfig(n_cells=(20, 20, 20), dx=(0.2,) * 3, dt=0.08, body=sphere, ppc=4, diag_interval=5,
+                        gauss_interval=5, species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.2, 0, 0), 0.01)]),
+                                                   SpeciesConfig("i", 1, 25, [Beam(1.0, (0.2, 0, 0), 0.0004)])])
+        sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+        sim.run(41)
+        h, g = sim.history, sim.grid
+        edges = relax_edges(cp, [g.global_positions(a, 0.0) * 0.2 for a in range(3)], sphere, g.dx)
+        inner[rate] = sum(float((e[m] ** 2).sum()) for e, m in zip((g.Ex, g.Ey, g.Ez), edges))
+        excess = (g.div_E() - sim._charge_density())[g.gauss_slice(sim.gauss_retreat)]
+        assert h["n_absorbed"][-1] > 100
+        assert abs(float(excess.sum()) * 0.2**3 - h["absorbed_charge"][-1]) < 1e-12
+        assert np.nanmax(h["gauss"]) < 1e-12
+    assert 0.0 < inner[30.0] < 0.01 * inner[0.0]
+
+
+def test_absorbed_particle_is_booked_with_its_energy_and_charge():
+    """One electron and one test particle fly into the sphere (PIC-D14): each is counted once, the
+    electron's kinetic energy and charge go to the absorbed totals, the test particle adds no
+    charge and no energy, and a particle that passes outside the sphere stays."""
+    cfg = SimConfig(n_cells=(16, 16, 16), dx=(0.5,) * 3, dt=0.2, diag_interval=1, gauss_interval=0,
+                    body=Body(center=(4.0, 4.0, 4.0), radius=1.0),
+                    species=[SpeciesConfig("e", -1, 1, []), SpeciesConfig("t", 1, 4, [], test=True)])
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    e, t = sim.species
+    w, u = 1e-20, 0.5
+    inject(e, [[2.6, 4.0, 4.1], [2.6, 5.3, 4.0]], [[u, 0, 0], [u, 0, 0]], w=w)  # the second one misses
+    inject(t, [4.1, 2.7, 3.9], [0, u, 0], w=w)
+    ke = w * (math.sqrt(1.0 + u * u) - 1.0)
+    sim.run(6)  # 0.089 per step: both are inside after 5 steps
+    h = sim.history
+    assert (e.n, t.n) == (1, 0) and abs(float(e.P[1, 0]) - 5.3) < 1e-12
+    assert h["n_absorbed"][0] == 0 and h["n_absorbed"][-1] == 2
+    assert abs(h["absorbed_kinetic"][-1] - ke) < 1e-12 * ke and abs(h["absorbed_charge"][-1] + w) < 1e-12 * w
+    assert abs(h["kinetic"][-1] - ke) < 1e-12 * ke  # of the electron that is left
+
+
 def test_sort_orders_by_cell_and_keeps_every_particle():
     """The sort moves whole particles: every row of the particle array and of the implicit work
     array follows the same order, and the cells come out ascending."""
@@ -379,6 +533,21 @@ def test_sort_orders_by_cell_and_keeps_every_particle():
         key = cp.empty(n, dtype=cp.int64)
         launch(sim.k_cell, n, (sp.P, np.int32(n), np.int64(sp.cap), key))
         assert bool((key[1:] >= key[:-1]).all())
+
+
+def test_sort_of_a_growing_species_does_not_grow_the_memory_pool():
+    """Regression: CuPy's pool keeps a freed block only for requests that fit, so the temporaries of
+    the sorts of a species that gains particles (injection) piled up until the device was full."""
+    sim = plasma("explicit", sort_interval=0)
+    sp = sim.species[0]
+    pool = cp.get_default_memory_pool()
+    pool.free_all_blocks()
+    n, held = sp.n, []
+    for part in (0.5, 0.75, 1.0):
+        sp.n = int(part * n)
+        sp.sort(sim.k_cell)
+        held.append(pool.total_bytes())
+    assert held[1] == held[0] and held[2] == held[0], held
 
 
 BIG_CAP = 360_000_000  # 6 * cap > 2**31: the weight row starts beyond int32 offsets (issue #11)
@@ -429,6 +598,95 @@ def test_open_boundary_removes_particles():
     sim.run(60)
     assert sim.total_particles() < n0
     assert sim.history["lost_kinetic"][-1] > 0
+
+
+# ------------------------------------------------------------------ injection
+def inflow_moments(u_d, theta, n=3001):
+    """A drifting Maxwell-Juttner beam crossing a plane normal to its drift, by quadrature over
+    (u_n, u_perp): ``E[max(v_n, 0)]`` of the beam, and the mean and the variance of ``gamma - 1``
+    of the particles that cross (weight ``v_n f``)."""
+    gd, s = math.sqrt(1 + u_d * u_d), math.sqrt(theta)
+    un, up = np.meshgrid(u_d + np.linspace(-14, 14, n) * s * gd, np.linspace(0, 14, n // 2) * s, indexing="ij")
+    g = np.sqrt(1 + un ** 2 + up ** 2)
+    e = (gd * g - u_d * un - 1.0) / theta
+    f = np.exp(e.min() - e) * up
+    fw = np.maximum(un / g, 0.0) * f
+    mean = (fw * (g - 1)).sum() / fw.sum()
+    return fw.sum() / f.sum(), mean, (fw * (g - 1) ** 2).sum() / fw.sum() - mean * mean
+
+
+def test_injected_flux_is_the_inflow_of_the_drifting_maxwell_juttner_beams():
+    """An injecting open face (PIC-D13) lets in ``n E[max(v_n, 0)]`` particles per area and time of
+    each species, and Gauss's law holds while particles enter and leave."""
+    bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    drift, thetas, steps = 0.3, (0.01, 0.001), 50
+    cfg = SimConfig(n_cells=(16, 12, 12), dx=(0.5,) * 3, dt=0.2, boundaries=bc, ppc=8, npml=6,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (drift, 0, 0), thetas[0])]),
+                             SpeciesConfig("i", 1, 16, [Beam(1.0, (drift, 0, 0), thetas[1])])],
+                    injection=Injection(faces={"x-": "flux"}), diag_interval=10, gauss_interval=10)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(steps)
+    trials = 12 * 12 * cfg.ppc * steps  # one per slot of the cell layer outside the face and step
+    for d, theta in zip(sim.sdiag, thetas):
+        p = inflow_moments(drift, theta)[0] * cfg.dt / 0.5
+        assert abs(float(d[8]) - trials * p) < 5 * math.sqrt(trials * p * (1 - p))
+    assert np.nanmax(sim.history["gauss"]) < 1e-10
+
+
+def test_cold_diagonal_inflow_through_two_faces_fills_the_edge_once():
+    """A cold electron-ion beam along the x-y diagonal enters through x- and y-: the entering
+    number is the volume swept into the box, the cells outside both faces are sampled once, the
+    ids stay unique, and the two species enter at the same points (no field appears)."""
+    v, steps = 0.5, 30  # 30 steps: nothing that entered through the edge has crossed the box yet
+    u = v / math.sqrt(1 - 2 * v * v)
+    bc = (("open", "open"), ("open", "open"), ("periodic", "periodic"))
+    cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.2, boundaries=bc, ppc=8, npml=6,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (u, u, 0), 0.0)]),
+                             SpeciesConfig("i", 1, 16, [Beam(1.0, (u, u, 0), 0.0)])],
+                    injection=Injection(faces={"x-": "flux", "y-": "flux"}), diag_interval=10, gauss_interval=10)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(steps)
+    a, (lx, ly, lz) = v * cfg.dt, sim.grid.L
+    swept = steps * (lx * ly - (lx - a) * (ly - a)) * lz * cfg.ppc / sim.grid.cell_volume
+    edge_trials = 8 * cfg.ppc * steps  # slots of the cells outside both faces
+    p = (a / 0.5) ** 2
+    for sp, d in zip(sim.species, sim.sdiag):
+        assert abs(float(d[8]) - swept) < 5 * math.sqrt(swept)
+        # straight orbits: floor(x / a) counts the steps since the particle crossed x = 0
+        kx, ky = (np.floor(cp.asnumpy(sp.P[c, : sp.n]) / a) for c in (0, 1))
+        entered = np.minimum(kx, ky) < steps
+        assert abs(np.count_nonzero(entered & (kx == ky)) - edge_trials * p) < 5 * math.sqrt(edge_trials * p * (1 - p))
+    ids = cp.concatenate([sp.P[7, : sp.n] for sp in sim.species])
+    assert int(cp.unique(ids).size) == int(ids.size)
+    assert max(sim.history["electric"]) < 1e-20
+
+
+def test_paired_face_keeps_the_charge_that_crossed_it_at_zero():
+    """At a paired face the neutraliser never leaves, a carrier enters with a neutraliser born at
+    the same point, and a carrier that left is paid for by the next one entering without a partner:
+    the charge that crossed the face is the unpaid rest in the bank, and Gauss's law holds. The
+    partners have the energy of the neutraliser's inflow."""
+    bc = (("open", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
+    drift, theta = 0.1, 0.01
+    cfg = SimConfig(n_cells=(16, 12, 12), dx=(0.5,) * 3, dt=0.2, boundaries=bc, ppc=8, npml=6,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (drift, 0, 0), theta)]),
+                             SpeciesConfig("i", 1, 4, [Beam(1.0, (drift, 0, 0), theta)])],
+                    injection=Injection(faces={"x-": "paired"}, neutralizer="e"),
+                    diag_interval=10, gauss_interval=10)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(50)
+    h, (e, i) = sim.history, (cp.asnumpy(d) for d in sim.sdiag)
+    bank = float(sim.bank.sum())
+    crossed = e[7] + i[7] - e[5] - i[5]  # injected - lost charge, up to the last step
+    assert e[5] == 0.0
+    assert i[5] > 0.0 and bank < 0.25 * i[5]  # ions left through the face and most were paid for
+    assert float(sim.bank.min()) >= 0.0  # and none was paid for twice
+    assert abs(crossed + bank) < 1e-9
+    assert abs(sum(float(sp.q * sp.P[6, : sp.n].sum()) for sp in sim.species) - crossed) < 1e-9
+    assert np.nanmax(h["gauss"]) < 1e-10
+    _, mean, var = inflow_moments(drift, theta)
+    w = sim.grid.cell_volume / cfg.ppc
+    assert abs(e[6] / (w * e[8]) - mean) < 5 * math.sqrt(var / e[8])
 
 
 # --------------------------------------------------------------------- fields
@@ -578,6 +836,48 @@ def test_mixed_gather_is_decomposition_independent():
     assert np.nanmax(np.asarray(outs[(4, "mixed")]["gauss"], dtype=float)) < 1e-12
     f = np.asarray(outs[(1, "plain")]["kinetic"])
     assert np.max(np.abs(a - f) / np.abs(f)) < 1e-5
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_external_dipole_is_decomposition_independent():
+    """A dipole and uniform external fields (PIC-D12) with the float32 gather: 1 GPU and a 2x2 rank
+    grid give the same run (the dipole is computed from global indices), and Gauss's law holds."""
+    script = os.path.join(HERE, "mgpu_migrate.py")
+    outs = {}
+    for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, "dipole"],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    a, b = (np.asarray(outs[n]["kinetic"]) for n in (1, 4))
+    assert np.max(np.abs(a - b) / np.abs(a)) < 1e-10
+    assert np.nanmax(np.asarray(outs[4]["gauss"], dtype=float)) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+@pytest.mark.parametrize("variant", ["inject", "inject_filter", "body", "mixed"])
+def test_open_flow_is_decomposition_independent(variant):
+    """A magnetised oblique flow through six open faces, one paired and four flux (PIC-D13): what
+    enters depends on (seed, step, global cell, slot) only, so 1 GPU and a 2x2 rank grid give the
+    same run, the same particles and the same charge in the bank, and Gauss's law holds. With the
+    current filter and the Marder zone too (``inject_filter``, PIC-D15 and PIC-D16), with an absorbing
+    sphere on the edge shared by the ranks (``body``, PIC-D14), and with all of them, a dipole in the
+    sphere and the float32 gather (``mixed``)."""
+    script = os.path.join(HERE, "mgpu_open_flow.py")
+    outs = {}
+    for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, variant],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    ref, o = outs[1], outs[4]
+    assert o["ids"] == ref["ids"] and o["n_injected"] == ref["n_injected"] and o["n_absorbed"] == ref["n_absorbed"]
+    assert ref["n_injected"][-1] > 0 and ref["bank"] > 0.0
+    assert (ref["n_absorbed"][-1] > 0) == (variant in ("body", "mixed"))
+    for k in ("kinetic", "electric", "lost_charge", "injected_charge", "absorbed_kinetic", "absorbed_charge", "bank"):
+        a, b = np.asarray(ref[k]), np.asarray(o[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-12
 
 
 def test_mixed_precision_is_explicit_only():

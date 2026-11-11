@@ -143,6 +143,13 @@ EXAMPLES: dict[str, dict] = {
         "figures": [("pair_sigma10_large_run2", "fieldlines", "fieldlines.png")],
         "summary": {"kind": "results", "file": "power_law.png"},
     },
+    "bow_shock": {
+        "page": "Bow-Shock",
+        "title": {"en": "Bow shock of a magnetised planet", "ja": "磁化惑星のバウショック"},
+        "cases": {"gate": fresh("gate", gpus=8)},
+        "movies": ["gate"],
+        "summary": {"kind": "results", "file": "standoff.png"},
+    },
 }
 
 
@@ -229,6 +236,10 @@ def _species(sp: dict) -> str:
     return head + ": " + "; ".join(beams)
 
 
+def _vec(v) -> str:
+    return "(" + ", ".join(f"{x:.4g}" for x in v) + ")"
+
+
 def conditions(d: Path) -> dict:
     """Experimental conditions of a run, from its run.json and the particle count at t = 0."""
     from pypic.analysis import open_run
@@ -240,14 +251,26 @@ def conditions(d: Path) -> dict:
     except (OSError, KeyError, IndexError):  # test-particle runs write no scalars
         npart = sum(len(s.get("particles", [])) for s in cfg["species"]) or None
     bnd = []
+    inflow = (cfg.get("injection") or {}).get("faces") or {}
     for ax, (lo, hi) in zip("xyz", cfg["boundaries"]):
+        lo, hi = (k + (f" + {inflow[ax + side]} inflow" if ax + side in inflow else "")
+                  for k, side in ((lo, "-"), (hi, "+")))
         bnd.append(f"{ax}: {lo}" if lo == hi else f"{ax}: {lo}/{hi}")
+    body = cfg.get("body")
+    if body:
+        bnd.append(f"absorbing {body['shape']}: radius {body['radius']:.4g} at " + _vec(body["center"]))
     filt = cfg.get("current_filter") or {}
     fields = []
     if any(abs(x) > 0 for x in cfg.get("B0", [0, 0, 0])):
-        fields.append("B0=(" + ", ".join(f"{x:.4g}" for x in cfg["B0"]) + ")")
+        fields.append("B0=" + _vec(cfg["B0"]))
     if any(abs(x) > 0 for x in cfg.get("E0", [0, 0, 0])):
-        fields.append("E0=(" + ", ".join(f"{x:.4g}" for x in cfg["E0"]) + ")")
+        fields.append("E0=" + _vec(cfg["E0"]))
+    ext = cfg.get("external_fields") or {}
+    for k in ("E", "B"):
+        if any(abs(x) > 0 for x in ext.get(k) or []):
+            fields.append(f"external {k}=" + _vec(ext[k]))
+    for dip in ext.get("dipoles") or []:
+        fields.append(f"external dipole m={_vec(dip['moment'])} at {_vec(dip['center'])}")
     for f in cfg.get("initial_fields") or []:
         fields.append(f"{f.get('component', '')} {f.get('kind', '')} {f.get('shape', '')}".strip())
     meta_run = r["meta"].get("run", {})

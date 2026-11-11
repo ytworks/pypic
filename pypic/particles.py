@@ -8,7 +8,6 @@ from .backend import launch
 from .config import Beam  # noqa: F401  (re-exported for backwards compatibility)
 
 NROW = 8  # x y z ux uy uz w id   (id: integer-valued float64, PIC-D8)
-ID_LIMIT = 2 ** 53  # float64 represents every integer below this exactly
 
 
 # The kernels index particles with int (thread index, n); row offsets row * cap are 64-bit.
@@ -32,6 +31,7 @@ class Species:
         self.cap = check_capacity(capacity)
         self.P = cp.zeros((NROW, self.cap), dtype=cp.float64)
         self.n = 0
+        self._sorted = 0  # the largest n sorted so far
         self.Pn = None  # implicit scheme work array
         self.test = False  # test species: no charge deposit, not in the energy budget (PIC-D9)
         self.qdep = self.q
@@ -89,6 +89,14 @@ class Species:
                 for r in range(A.shape[0]):
                     cp.take(A[r], order, out=buf)
                     A[r, : self.n] = buf
+        # After a sort larger than any before, the temporaries (40 bytes per particle) go back to
+        # the device, not only to CuPy's pool: a free block serves only requests that fit, so with a
+        # growing n (injection) every sort would allocate new blocks and keep the old ones. With a
+        # constant n the pool keeps the blocks and the next sort reuses them.
+        del key, order, buf
+        if self.n > self._sorted:
+            self._sorted = self.n
+            cp.get_default_memory_pool().free_all_blocks()
 
     # --------------------------------------------------------- remove/migrate
     def flag_list(self):
@@ -194,7 +202,8 @@ def ascending(a, k_rank):
 
 def migrate(species, grid, comm, flag, kernels):
     """Take the particles flagged by the push kernels (flag[s] of them for species s, indices in
-    its flag list) out of every species, drop the dead ones (w == 0) and send the rest to the
+    its flag list; flag[S + s] counts the particles appended behind the n of species s, which
+    are taken in first) out of every species, drop the dead ones (w == 0) and send the rest to the
     neighbour ranks, axis by axis, all species in one message group per axis (issue #7).
     ``kernels``: the functions MIGRATE_KERNELS of the particle module (issue #19).
 
@@ -203,7 +212,10 @@ def migrate(species, grid, comm, flag, kernels):
     species whose flag list overflowed has all its particles taken out (the former compaction)."""
     k_take, k_fill, k_classify, k_pack, k_append, k_rank32, k_rank64 = kernels
     S = len(species)
-    h = cp.asnumpy(flag[:S])
+    h = cp.asnumpy(flag)
+    for sp, k in zip(species, h[S:]):  # particles the injection appended this step (PIC-D13)
+        sp.n += int(k)
+    h = h[:S]
     if comm.size == 1 and not h.any():
         return
     # 1. take the flagged particles out; fill the holes below n - k from the tail
