@@ -410,6 +410,42 @@ The gate configurations become window runs (laser 1152×128², about 1.5 min). P
 1536×320², 2.5e9 particles, 19,000 steps, about 80 min, 25 GB per GPU): bubble radius, peak E_x,
 trapped charge and spectrum are reported (ANA-D3). Wiki page, README, roadmap R8.
 
+Design (2026-11-12, fixed before the first window run of the example).
+
+- **Planner:** `window_lead` (a length; none: the box at rest of Stage 3) and `window_margin`.
+  With it the x faces are (open, reflecting) and the window starts at the time at which the driver
+  is `window_lead` behind the x+ wall, so the driver keeps that place in the window (it falls back
+  by (1 − v) per unit of path). The ramp, the focus, the start of the bunch, `x_end` and the run
+  time are laboratory values as before.
+- **Gate configurations** (same names, same driver, plasma, cells, lattice, limits):
+  `laser_linear` 1152×128² (22.6 c/ω_pe; the focus stays at x = 10π, the centre of the box of
+  Stage 3), `window_lead` 8; `beam_linear` 384×192² (48 c/ω_pe), `window_lead` 8.
+- **Measurement:** as in Stage 3, on the laboratory x of the output (OUT-D5), with one rule added
+  for every run: the interval of the fit and of the density starts no closer than 1 c/ω_pe to the
+  lower face of the box (for a box at rest this changes nothing: the intervals start at x = 9 and
+  beyond 42). The density of the plateau is the mean up to 1 c/ω_pe behind the front of the
+  plasma. Consequence: the laser fit has 7 to 8 c/ω_pe (1.2 wavelengths) instead of 39; the bunch
+  fit keeps its five wavelengths.
+- **Check of the short interval, done before the window run** on the Stage 3 run in the box at
+  rest (68a3a29, last output): the fit on the last 7.3 c/ω_pe before the pulse gives the amplitude
+  −1.33 % (whole plateau: −1.91 %), the wavelength −0.02 % (+0.07 %), E_r / E_x +0.06 % (+0.04 %);
+  on 8.3, 12 and 16 c/ω_pe the same within 0.02 % (amplitude), 0.01 % (wavelength) and 0.2 %
+  (ratio). The short interval measures the same wake.
+- **Criteria of the four window runs:** the gate limits (amplitude 5 %, wavelength 2 %, radial
+  10 %; without a driver |E_x| ≤ 1 % and density within 1 %), Gauss ≤ 1e-10. Reported: the
+  difference to the fit of the Stage 3 run on the same laboratory interval.
+- **Production** (`laser_bubble`; reported, ANA-D3): a0 = 4, ω0 = 10 ω_pe, duration 2, waist 4
+  focused at the top of the ramp (x = 8), 1536×320² cells (30.2 × 40² c/ω_pe, dx = λ0 / 32,
+  dy = dz = 0.125), periodic across, 8 per cell on the 2 × 2 × 2 lattice, ions of the mass 1836,
+  `window_lead` 8, to `x_end` = 180 (about 19,000 steps). Outputs: the plane through the axis
+  (E_x, E_y, E_z, electron density), the electron histograms (x, u_x) and u_x. Reported at the
+  last output: the radius of the cavity (largest half-width across of the region with electron
+  density below 0.5 n0 behind the pulse), max and min of E_x on the axis behind the pulse and its
+  slope at the zero inside the cavity (Lu et al. 2007: k_p R ≈ 2 √a0 = 4, slope 1 / 2), the charge
+  and the largest u_x of the electrons with u_x > 20 (twice the γ of the wake), the spectrum. A
+  200-step probe first (ms per step, device memory); an estimate above 3 h is reported instead of
+  run.
+
 ## Invariants
 
 - Charge conservation stays with the deposition: the antenna current is a discrete curl, the
