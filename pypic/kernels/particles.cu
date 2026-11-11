@@ -392,6 +392,155 @@ extern "C" __global__ void flag_dead(const double* __restrict__ P, const int n, 
     if (PW(p) == 0.0) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
 }
 
+#ifdef MOVING_WINDOW
+// ---- Moving window (PIC-D22). window_state: the shift in cells, the two faces of the window along
+//      x and the two bounds of this rank along x, in laboratory coordinates (the doubles that the
+//      migration gets).
+extern "C" __global__ void window_set(const double s, const double lo, const double hi, const double r0,
+                                      const double r1) {
+    if (blockIdx.x || threadIdx.x) return;
+    window_state[0] = s;
+    window_state[1] = lo;
+    window_state[2] = hi;
+    window_state[3] = r0;
+    window_state[4] = r1;
+}
+
+// After a shift: the list that migrate() takes out, from the particles alone (the lists of the
+// step are void, the bounds have moved). Dead slots; the particles below the new x- face, which
+// leave with their plane: kinetic energy, charge and number into wd[0..2], weight zero, nothing
+// deposited (their charge stays on the nodes that the Gauss check leaves out at an open face,
+// PIC-D15); the particles outside this rank. wd[3] counts the charged particles at x >= xnear,
+// within the reach of the x+ wall, where the rule for the field of the new wall cell does not hold.
+extern "C" __global__ void window_drop(double* P, const int n, const long long cap, const double m,
+                                       const double qdep, const double xnear, double* wd, int* flag, int* list,
+                                       const int listcap) {
+    int p = blockIdx.x * blockDim.x + threadIdx.x;
+    double ke = 0.0, q = 0.0, gone = 0.0, near = 0.0;
+    if (p < n) {
+        const double w = PW(p);
+        bool take = w == 0.0;
+        if (!take) {
+            const double pos[3] = {PX(p), PY(p), PZ(p)};
+            if (pos[0] < FLO(0)) {
+                const double ux = PUX(p), uy = PUY(p), uz = PUZ(p);
+                ke = w * m * (sqrt(1.0 + ux * ux + uy * uy + uz * uz) - 1.0);
+                q = qdep * w;
+                gone = 1.0;
+                PW(p) = 0.0;
+                take = true;
+            } else {
+                if (qdep != 0.0 && pos[0] >= xnear) near = 1.0;
+                const int dec[3] = {DECX, DECY, DECZ};
+                const double slo[3] = {RX0, SY0, SZ0};
+                const double shi[3] = {RX1, SY1, SZ1};
+                for (int a = 0; a < 3; a++) {
+                    if (dec[a] && (pos[a] < slo[a] || pos[a] >= shi[a])) take = true;
+                }
+            }
+        }
+        if (take) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+    }
+    warp_atomic_add(&wd[0], ke);
+    warp_atomic_add(&wd[1], q);
+    warp_atomic_add(&wd[2], gone);
+    warp_atomic_add(&wd[3], near);
+}
+
+// A plane that enters the window is loaded as it was at the shift before. One round of its move
+// to the present: the particles [n0, n) go on for the time tau (less than a cell on every axis)
+// and are reflected at the upper face xw of the plane, as the plane ahead, which is loaded later
+// in the same state, holds them back. The current of the move is deposited like that of a step
+// (the caller sets E -= DT J after the last round); the walls and open faces across the window
+// act as in the push, with the lost energy and charge in diag[4..5]; a particle that crosses a
+// rank bound is listed for migrate(), which the caller runs after every round. first: the kinetic
+// energy of the plane into wd[4] (a particle lost in the same round is in both sums). tau = 0:
+// nothing moves (a cold plane is loaded where it stands).
+extern "C" __global__ void window_move(double* P, const int n0, const int n, const long long cap, const double tau,
+                                       const double xw, double* Jx, double* Jy, double* Jz, const double m,
+                                       const double qdep, const int first, double* wd, double* diag, int* flag,
+                                       int* list, const int listcap) {
+    int p = n0 + blockIdx.x * blockDim.x + threadIdx.x;
+    double kin = 0.0, lke = 0.0, lq = 0.0;
+    if (p < n && PW(p) != 0.0) {
+        const double w = PW(p), qw = qdep * w;
+        double u[3] = {PUX(p), PUY(p), PUZ(p)};
+        const double g = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+        if (first) kin = w * m * (g - 1.0);
+        if (tau != 0.0) {
+            const double tg = tau / g;
+            double pos0[3] = {PX(p), PY(p), PZ(p)};
+            double pos1[3] = {pos0[0] + tg * u[0], pos0[1] + tg * u[1], pos0[2] + tg * u[2]};
+            const double Lg[3] = {LX, LY, LZ};
+            const int b0[3] = {BCX0, BCY0, BCZ0};
+            const int b1[3] = {BCX1, BCY1, BCZ1};
+            // the path is split at a wall as in the push; each of the three walls is hit once at most
+            for (int it = 0; it < 3; it++) {
+                double tmin = 2.0, wall = 0.0;
+                int amin = -1;
+                for (int a = 0; a < 3; a++) {
+                    const double d = pos1[a] - pos0[a];
+                    const double hi = a == 0 ? xw : Lg[a];
+                    if (a > 0 && b0[a] == BC_REFLECT && pos1[a] < 0.0 && d < 0.0) {
+                        const double tt = -pos0[a] / d;
+                        if (tt < tmin) { tmin = tt; amin = a; wall = 0.0; }
+                    }
+                    if ((a == 0 || b1[a] == BC_REFLECT) && pos1[a] > hi && d > 0.0) {
+                        const double tt = (hi - pos0[a]) / d;
+                        if (tt < tmin) { tmin = tt; amin = a; wall = hi; }
+                    }
+                }
+                if (amin < 0) break;
+                tmin = fmin(fmax(tmin, 0.0), 1.0);
+                double pw[3];
+                for (int a = 0; a < 3; a++) pw[a] = pos0[a] + tmin * (pos1[a] - pos0[a]);
+                pw[amin] = wall;
+                if (qw != 0.0) deposit_cut(pos0, pw, qw, Jx, Jy, Jz);
+                pos1[amin] = 2.0 * wall - pos1[amin];
+                u[amin] = -u[amin];
+                for (int a = 0; a < 3; a++) pos0[a] = pw[a];
+            }
+            if (qw != 0.0) deposit_cut(pos0, pos1, qw, Jx, Jy, Jz);
+            bool dead = false;
+            for (int a = 1; a < 3; a++) {
+                if ((b0[a] == BC_OPEN && pos1[a] < 0.0) || (b1[a] == BC_OPEN && pos1[a] >= Lg[a])) dead = true;
+            }
+            if (dead) {
+                lke = w * m * (g - 1.0);
+                lq = qw;
+                PW(p) = 0.0;
+                { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+            } else {
+                const int dec[3] = {DECX, DECY, DECZ};
+                const double slo[3] = {RX0, SY0, SZ0};
+                const double shi[3] = {RX1, SY1, SZ1};
+                bool migrate = false;
+                for (int a = 0; a < 3; a++) {
+                    if (!dec[a]) {
+                        if (b0[a] == BC_PERIODIC) {
+                            if (pos1[a] < 0.0) pos1[a] += Lg[a];
+                            else if (pos1[a] >= Lg[a]) pos1[a] -= Lg[a];
+                        }
+                    } else if (pos1[a] < slo[a] || pos1[a] >= shi[a]) {
+                        migrate = true;
+                    }
+                }
+                if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+            }
+            PX(p) = pos1[0];
+            PY(p) = pos1[1];
+            PZ(p) = pos1[2];
+            PUX(p) = u[0];
+            PUY(p) = u[1];
+            PUZ(p) = u[2];
+        }
+    }
+    warp_atomic_add(&wd[4], kin);
+    warp_atomic_add(&diag[4], lke);
+    warp_atomic_add(&diag[5], lq);
+}
+#endif
+
 // ---- Initial perturbation (PIC-D9): virtual, charge-conserving displacement. The remaining
 //      displacement of each particle is stored in rows 8..10 (present only during set-up). One
 //      call moves every particle by at most h_a (< 1 cell) per axis and deposits the current of

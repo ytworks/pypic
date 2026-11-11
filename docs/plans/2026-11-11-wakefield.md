@@ -372,6 +372,38 @@ What changes in the design:
   run, and every rank raises. The margin of at least 4 cells plus the reach keeps the loaded
   plasma away; nothing that starts behind the front catches up with a wall that moves at c.
 
+Amendment (2026-11-12, with the kernels of Stage 4, before the shift is coded) — the move of a
+plane goes in rounds. New fact: the arrays of a rank hold the nodes −2 .. n + 1 of each axis
+(ghost width 2). A particle of the cell c reaches the nodes c and c + 1, so the deposit of a
+push, which starts in an owned cell and is shorter than a cell, ends at the node n + 1 at most.
+The move of fact 1 above is up to `dx + dt` long. Along x upwards the upper face of the plane
+bounds it, and downwards two ghost nodes are enough; but across the plane a particle of the last
+cell of a rank can go on for more than a cell (1.5 cells with cubic cells and dt = dx / 2) and
+its second half would be deposited on the node n + 2, outside the array. The sentence "with the
+ghost width 2 the current ... stays inside the arrays" of fact 1 holds for the downward
+directions only. What changes:
+
+- The move is done in `R = floor(T / min(dx, dy, dz)) + 1` rounds of the time `T / R` each (two
+  rounds in the runs of R8), every round shorter than a cell on every axis, with a migration
+  after each round: the way the initial perturbation is applied (PIC-D9,
+  `Simulation._apply_perturbations`). The current of all rounds is collected and then reduced,
+  filtered and applied once, as fixed in fact 1. The kernel is `window_move`.
+- Order within a shift, so that the particles of the new plane are the last ones of a rank's
+  arrays while they are moved: fields (copy, wall rule, exchanges) → `window_set` → `window_drop`
+  on the particles of before the shift and their migration → load of the plane → the rounds of
+  the move, each followed by a migration (`migrate` appends what stays and what arrives at the
+  end of the arrays, so the plane stays one block) → the current of the move into E.
+- The record of a step is taken before the shift at its end: the history of the step n holds the
+  shifts up to the one that made the state at t^n, like the fields and the particles it records.
+- `window_drop` and `window_move` sum into a buffer of their own per species (kinetic energy,
+  charge and number of the dropped particles; the count of charged particles within the reach of
+  the x+ wall; kinetic energy of the loaded particles), reduced with the record. A particle of a
+  plane that leaves through an open face across the window during its move is counted as loaded
+  and as lost, like a particle lost in a push.
+
+What does not change: the state that a plane is loaded in, the reflection at its upper face, the
+criteria of W1 to W4.
+
 ### Stage 5 — window runs
 
 The gate configurations become window runs (laser 1152×128², about 1.5 min). Production (a0 = 4,
