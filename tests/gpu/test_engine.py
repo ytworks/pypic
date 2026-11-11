@@ -3,6 +3,7 @@ Skipped as a whole without CuPy or a CUDA device (tests/gpu/conftest.py)."""
 from __future__ import annotations
 
 import functools
+import gc
 import json
 import math
 import os
@@ -539,17 +540,22 @@ def test_sort_orders_by_cell_and_keeps_every_particle():
 
 def test_sort_of_a_growing_species_does_not_grow_the_memory_pool():
     """Regression: CuPy's pool keeps a freed block only for requests that fit, so the temporaries of
-    the sorts of a species that gains particles (injection) piled up until the device was full."""
+    the sorts of a species that gains particles piled up until the device was full: with injection
+    (n above every earlier one), and on a rank that refills after it lost particles (moving window:
+    n rises from sort to sort but stays below its largest value)."""
+    pool = cp.get_default_memory_pool()
+    gc.collect()  # the pool starts empty: the free part of a block that an earlier test left
+    pool.free_all_blocks()  # half used would serve the sorts
     sim = plasma("explicit", sort_interval=0)
     sp = sim.species[0]
-    pool = cp.get_default_memory_pool()
     pool.free_all_blocks()
     n, held = sp.n, []
-    for part in (0.5, 0.75, 1.0):
+    for part in (0.5, 0.75, 1.0, 0.5, 0.6, 0.7, 0.8):
         sp.n = int(part * n)
         sp.sort(sim.k_cell)
         held.append(pool.total_bytes())
     assert held[1] == held[0] and held[2] == held[0], held
+    assert max(held[4:]) <= held[3], held  # after the fall: never more than the blocks of one sort
 
 
 BIG_CAP = 360_000_000  # 6 * cap > 2**31: the weight row starts beyond int32 offsets (issue #11)
