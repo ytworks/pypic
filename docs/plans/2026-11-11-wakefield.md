@@ -250,7 +250,7 @@ a speed other than c; the window with `precision: compact`; boosted frame; ionis
 ### Stage 1 — antenna, test A1 (2026-11-11): the criteria of the table hold
 
 `tests/gpu/test_engine.py::test_laser_antenna_emits_the_paraxial_beam` (336×96², dx = λ/12,
-dy = dz = λ/6, dt = λ/16, six open faces, w0 = 2λ, the plane 12.7 λ before the focus, steady
+dy = dz = λ/6, dt = λ/16, six open faces, w0 = 2λ, the plane 12.6 λ before the focus, steady
 beam; one GPU, FP64). E along y and E along z give the same numbers to 15 digits.
 
 | Criterion | Limit | Measured |
