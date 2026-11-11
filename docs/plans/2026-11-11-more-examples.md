@@ -174,3 +174,23 @@ cut-off against the box size.
 ## Results
 
 (Filled in stage by stage.)
+
+### Stage 1 — O1, null test of the oblique wind (2026-11-11): passed
+
+`bow_shock/oblique` with `planet: false`, 8 GPUs, FP64, 7680 steps (four crossings), 3.93e8
+particles, 41 ms per step. Evaluated by `null_test` of `examples/bow_shock/analyze.py`
+(17 samples, 5 of them in the last crossing).
+
+| Criterion | Limit | Measured | |
+|---|---|---|---|
+| Gauss, every check | 1e-10 | 2.7e-15 | pass |
+| Density, last crossing, worst region | 5 % | e 0.42 %, i 0.41 % (slab y+, last sample) | pass |
+| Mean velocity per component, worst region | 0.05 \|v\| | e 8.2e-4, i 7.6e-4 (slab z+); the same over all samples | pass |
+| T_e of the interior at the end | 1.5 T0 | 1.003 (ions 1.001) | pass |
+| Electric energy, last crossing over the one before | 1.5 | 0.99987 | pass |
+| Magnetic energy, last crossing over the one before | 1.5 | 0.99962 | pass |
+
+Reported: slope of the magnetic energy over the last crossing −3.8e-4 of its mean per 480 steps
+(levelled; it had not in M2 after three crossings); largest T_e of any region at the end 1.021
+(slab y+); the energy monitor of the explicit scheme drifts by +8.3e-3 over the run (monitored
+only); particles 393,216,311 → 393,126,101. `oblique` is therefore a gate.
