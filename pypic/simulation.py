@@ -82,7 +82,8 @@ class Simulation:
         self.injection = injection.check_config(cfg)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
             self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body,
-            window=next(_WINDOW_MODULES) if self.window else 0, lattice=cfg.lattice))
+            window=next(_WINDOW_MODULES) if self.window else 0, x_low=self.decomp.x_low(ghost),
+            lattice=cfg.lattice))
         self.k_push = self.pmod.get_function("push_deposit")
         self.k_rho = self.pmod.get_function("deposit_rho")
         self.k_kin = self.pmod.get_function("kinetic")

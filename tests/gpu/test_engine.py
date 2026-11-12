@@ -1233,7 +1233,10 @@ def test_moving_window_is_decomposition_independent(dims):
     assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
     ref, o = _window_run("1,1,1", "tracers"), _window_run(dims, "tracers")
     assert ref["shift"] == 400 and ref["n"] > 0
-    assert o == ref
+    assert {**o, "probe_ranks": 1} == ref
+    # the two ranks that share the middle plane along x give one particle the same charge on
+    # every node, bit for bit (a difference there moves charge without a current)
+    assert o["probe_ranks"] == int(dims[0]) and o["probe_spread"] == 0.0 and o["probe_charge"] > 0
 
 
 @pytest.mark.parametrize("dims", ["1,1,1", "2,2,1"])

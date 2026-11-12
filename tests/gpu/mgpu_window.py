@@ -11,7 +11,12 @@ thermal: electrons and ions. Prints the histories and, per slab of eight cells o
          electron density, the mean of u_x and the mean of u^2.
 tracers: one species of test particles and no field at all: the particles move on straight lines,
          so their bits do not depend on the layout of the ranks. Prints the number of particles and
-         a sum over the particles of a hash of (id, position, momentum), exact in any order.
+         a sum over the particles of a hash of (id, position, momentum), exact in any order. At the
+         end every rank whose arrays hold the nodes around the middle of the window along x (two
+         ranks, when x is split) deposits the charge of 32 single particles there, one at a time:
+         prints the largest difference between two ranks at a node, the sum of the charge and the
+         number of ranks. The cells of this case are 0.0999 long: with 0.1 the inverse is the round
+         number 10 and the index coordinate of a particle has no rounding to differ by.
 
 laser:   a focused pulse in a cold plasma, open faces across the window (absorbing layers that
          the shift moves through every rank), 200 shifts. Writes E on the cells of the window
@@ -35,6 +40,7 @@ import cupy as cp
 import numpy as np
 
 from pypic import Beam, SimConfig, SpeciesConfig, window
+from pypic.backend import launch
 from pypic.config import Diagnostic, Laser, OutputConfig, Window
 from pypic.simulation import Simulation
 
@@ -109,7 +115,7 @@ def pulse_run():
 if case in ("laser", "static", "pulse", "pulse_static"):
     pulse_run() if case.startswith("pulse") else laser_run()
     sys.exit(0)
-n, dx, theta, slab = (64, 24, 24), 0.1, 4e-3, 8
+n, dx, theta, slab = (64, 24, 24), 0.1 if case == "thermal" else 0.0999, 4e-3, 8
 species = ([SpeciesConfig("e", -1, 1, [Beam(1.0, theta=theta)]), SpeciesConfig("i", 1, 100, [Beam(1.0, theta=theta)])]
            if case == "thermal" else [SpeciesConfig("t", -1, 1, [Beam(1.0, theta=theta)], test=True)])
 cfg = SimConfig(n_cells=n, dx=(dx,) * 3, dt=0.045, n_steps=889, dims=dims, npml=8, ppc=16, species=species,
@@ -141,5 +147,23 @@ else:
     parts = cp.stack([((h >> cp.uint64(16 * k)) & cp.uint64(0xFFFF)).astype(cp.float64).sum() for k in range(4)])
     out["hash"] = cp.asnumpy(sim.comm.allreduce(parts)).tolist()
     out["id_max"] = sim.comm.allreduce_scalar(float(P[7].max()) if e.n else 0.0, "max")
+    # one particle at a time (no order of a sum), in the two cells at the middle plane of the
+    # window along x, on the nodes of these cells
+    g, K, mid, cy, cz = sim.grid, 32, n[0] // 2, 5, 6  # the cell (cy, cz): far from the rank faces along y and z
+    lo = [c + g.g + a.pml_lo - a.phys_lo for c, a in zip((mid - 1, cy, cz), sim.decomp.axes)]
+    sl = tuple(slice(i, i + m) for i, m in zip(lo, (3, 2, 2)))
+    held = all(i >= 0 and i + m <= s for i, m, s in zip(lo, (3, 2, 2), g.shape))
+    vals = cp.zeros((K, 3, 2, 2))
+    one = cp.zeros((8, 1))
+    one[1], one[2], one[6] = (cy + 0.3) * dx, (cz + 0.7) * dx, 1.0
+    for k in range(K if held else 0):
+        one[0] = (sim.window_shift + mid - 1.0 + 2.0 * ((0.137 + 0.6180339887 * k) % 1.0)) * dx
+        rho = cp.zeros(g.shape)
+        launch(sim.k_rho, 1, (one, np.int32(1), np.int64(1), np.float64(1.0), np.float64(0.0), rho))
+        vals[k] = rho[sl]
+    top = sim.comm.allreduce(vals if held else cp.full(vals.shape, -cp.inf), "max")
+    low = sim.comm.allreduce(vals if held else cp.full(vals.shape, cp.inf), "min")
+    out["probe_spread"], out["probe_charge"] = float(cp.max(top - low)), float(top.sum())
+    out["probe_ranks"] = int(sim.comm.allreduce_scalar(float(held)))
 if sim.rank == 0:
     print(json.dumps(out))

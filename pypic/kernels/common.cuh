@@ -27,12 +27,24 @@
 // the bounds of the rank along x. Without a window they are the compile-time constants. With a
 // window they read window_state, which the kernel window_set writes after every shift:
 // [0] the shift s in cells, [1] [2] the faces x- and x+, [3] [4] the bounds of the rank along x
-// (the doubles that the migration compares with). s is an integer below 2^53, so XIDX loses
-// nothing by the subtraction. Not window-aware (refused with a window): the injection kernels
-// and the bank, the body, implicit.cu.
+// (the doubles that the migration compares with).
+//
+// XIDX with a window does not depend on the rank or on s but for a whole number of cells, bit for
+// bit: the deposit of a path starts exactly where the deposit of the step before has ended, also
+// when the particle has changed rank or the window has shifted in between. It is built in three
+// steps. The product x * (1 / dx) is rounded by itself (__dmul_rn: the compiler would otherwise
+// fuse it with the subtraction). XLOW, the cells that the arrays of the first rank hold below the
+// box, is added: the sum is the same on every rank and is not negative for a position inside the
+// arrays. Then an integer is taken away, the global cell OXI of local index 0 plus XLOW plus s;
+// it is not negative on any rank, so this subtraction is exact. (The form (x - OX) / dx - s of a
+// box at rest rounds x - OX with the origin of the rank. Two ranks then give one position index
+// coordinates that differ by a constant part of the rounding unit of x, which grows with the
+// place of the window, and a particle that changes rank moves its charge by that much without a
+// current.) Not window-aware (refused with a window): the injection kernels and the bank, the
+// body, implicit.cu.
 #ifdef MOVING_WINDOW
 __device__ double window_state[5];
-#define XIDX(x) (((x) - OX) * (1.0 / DX) - window_state[0])
+#define XIDX(x) ((__dmul_rn((x), 1.0 / DX) + XLOW) - ((double)(OXI + XLOW) + window_state[0]))
 #define FLO(a) ((a) == 0 ? window_state[1] : 0.0)
 #define FHI(a) ((a) == 0 ? window_state[2] : Lg[a])
 #define RX0 window_state[3]

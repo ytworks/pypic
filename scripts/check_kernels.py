@@ -111,7 +111,7 @@ def main() -> int:
         decomp = Decomposition.build(n_cells, dims, rank, bc, npml=6)
         gdef = grid_defines(decomp, (h, h, h), dt, ghost, use_pml=not implicit and any(O in b for b in bc))
         pdef = particle_defines(gdef, mixed=solver == "mixed", paired_faces=paired, body=body, window=int(window),
-                                lattice=lattice[0] if lattice else None)
+                                x_low=decomp.x_low(ghost), lattice=lattice[0] if lattice else None)
         units = [("fields", FIELD_SOURCES, gdef), ("particles", PARTICLE_SOURCES, pdef)]
         for unit, sources, defs in units:
             src = assemble_source(sources, defs)

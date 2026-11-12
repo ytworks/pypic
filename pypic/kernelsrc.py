@@ -63,7 +63,7 @@ def grid_defines(decomp: Decomposition, dx, dt: float, ghost: int, use_pml: bool
 
 
 def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0, body=None,
-                     window: int = 0, lattice=None) -> dict:
+                     window: int = 0, x_low: int = 0, lattice=None) -> dict:
     """Particle kernels share the grid constants (no CPML terms) plus the path-segment bound.
     ``mixed`` (PIC-D11): the explicit push gathers E and B from float32 copies; OXI.. are the
     global cell indices of local index 0, so the gather weights come from global coordinates and
@@ -72,7 +72,10 @@ def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0
     (PIC-D14): the absorbing sphere of the configuration, or None. ``window`` (PIC-D22): 0 compiles
     the kernels of a box at rest; a moving window passes the number of its simulation, because the
     kernels then read the shift and the faces along x from the device array ``window_state`` of
-    their module, and two simulations of one process must not share a module. ``lattice``
+    their module, and two simulations of one process must not share a module. ``x_low`` (with a
+    window): the cells that the arrays of the first rank hold below the box along x, the same
+    number on every rank; with OXI it gives the kernels an index coordinate along x that depends on
+    the rank only by a whole number of cells (XIDX in ``common.cuh``). ``lattice``
     (PIC-D23): the places per axis of the particles of a cell, or None for random places."""
     D = dict(grid_defs)
     D.pop("USE_PML", None)
@@ -81,6 +84,10 @@ def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0
     D.update(body_defines(body))
     if window:
         D["MOVING_WINDOW"] = int(window)
+        D["OXI"] = int(round(D["OX"] / D["DX"]))  # the global cell of local index 0
+        D["XLOW"] = int(x_low)
+        if D["OXI"] + D["XLOW"] < 0:
+            raise ValueError("x_low is below the cells that this rank holds below the box along x")
     if lattice is not None:
         for c, v in zip("XYZ", lattice):
             D[f"LATTICE_{c}"] = int(v)
