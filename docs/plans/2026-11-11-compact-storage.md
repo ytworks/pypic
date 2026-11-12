@@ -304,3 +304,40 @@ The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the meth
   the order of the atomic deposits differs between two runs of the same code (ANA-D3), so later
   steps agree only to the last bits. (2) The FP64 and mixed gates on the A1 commit, every value
   beside its value in the records of 17f1b5f. Result: pending.
+
+## A2 — the compact mode as designed
+
+Written before the code; what the code ends up doing differently is noted here with its reason.
+
+- Arrays of one species (44 B per slot): `W` (2, cap) float64 = weight, id; `C` (cap) int32 =
+  local linear cell `IDX(i, j, k)`; `F` (3, cap) uint32 = position within the cell in 2^-32 of
+  the cell; `U` (3, cap) float32 = momenta. The id stays the integer-valued double of PIC-D8
+  (the same 8 bytes as the int64 of the design table; no kernel or reader changes its type).
+  `PSTORE` is these four pointers; `Species.store` returns them.
+- Index coordinate: `XI(p) = (double)i + (double)F * 2^-32` is exact (at most 31 + 32 bits), so
+  the kernels that work from `XI / YI / ZI` (`deposit_rho`, `deposit_moment`,
+  `gather_at_particles`, `boris_kick`, `cell_index`) need no compact body, and the charge density
+  of the Gauss check is the CIC density of the stored lattice points.
+- Physical position: `PX(p) = (XI(p) + OXI) * DX` — the global index first (exact), then one
+  rounding, so the value does not depend on the rank layout. Used by the readers, the body test
+  and the diagnostics; never by the deposit.
+- `push_deposit` works in local index coordinates: start `c0 + q0 * 2^-32`; the end point is
+  snapped before anything uses it, `s = round((w0 + dX) * 2^32)`; walls are the integers `-OXI`
+  and `GN - OXI`; the reflection `2 * wall - x` and the periodic wrap `x ± N` are exact in
+  double for lattice points; a returned particle of a paired face gets a snapped end point and
+  `wall - 2^-32` in place of `nextafter`; `deposit_cut` clips in index coordinates. A path
+  without wall and cut takes the integer shape functions of the A0 prototype; the general path
+  hands the two exact end points to the Esirkepov core.
+- Boris rotation in FP32 (A0: 27 % of the step); the energy record takes `u² / (γ + 1)` in FP64.
+  Kept only under owner decision 2 (all explicit gates in the mode, gyration drift).
+- Loader: the cell is the cell of the loop and `F` the upper 32 bits of the same 53-bit random
+  number, written directly — not through the physical position, whose rounding could land in
+  the neighbouring cell. Face injection and its partners snap their end point the same way.
+  The set-up displacement keeps its remaining part in an array of its own (three float64), which
+  migrates with the particle during the set-up only.
+- Migration record: 7 words of 8 bytes (weight, id, three words of global cell and fraction,
+  two words of three float32). Classification by the global cell against the integer range of
+  the rank, the periodic wrap `± GN` in integers; the receiver turns the global cell into its
+  local linear cell.
+- New defines: `COMPACT_STORE`, `GNX / GNY / GNZ` (global cells per axis); `OXI ..` also in
+  compact.
