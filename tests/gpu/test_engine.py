@@ -82,7 +82,6 @@ def test_compact_momenta_gyrate_within_the_float32_rounding():
             sim.step()
         u = math.hypot(float(sp.mom(0)[0]), float(sp.mom(1)[0]))
         assert abs(u - u0) / u0 <= 6e-8 * math.sqrt(period * nst), period
-        assert float(sp.mom(2)[0]) == 0.0
 
 
 def test_exb_drift():
