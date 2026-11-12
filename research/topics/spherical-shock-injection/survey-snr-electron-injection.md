@@ -2,6 +2,9 @@
 
 Topic `spherical-shock-injection`. Written 2026-11-12. Status: first survey, not yet reviewed.
 
+A Japanese version is in `survey-snr-electron-injection.ja.md`. This English file is the original: where the
+two differ, this one holds, and a change is made here first.
+
 **Scope.** The electron injection problem at the shocks of supernova remnants (SNRs): what observations
 require, which mechanisms have been proposed, what kinetic simulations have shown, and what is open. Heliospheric
 shocks appear only where they serve as a benchmark for SNR shocks.

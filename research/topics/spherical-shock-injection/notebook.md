@@ -3,6 +3,14 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-12 — Japanese version of the survey
+- Asked by the owner. `survey-snr-electron-injection.ja.md` has the same sections as the English survey, which
+  stays the original.
+- Its reference lists (Sect. 10) are taken from the English file by script; only headings and remarks are
+  translated.
+- Checked by script, section by section: the citekeys are identical, and no number of the English version is
+  missing.
+
 ## 2026-11-12 — Survey: electron injection at supernova remnant shocks
 - Asked by the owner: survey the prior work on the electron injection problem at SNR shocks, in markdown, with
   the citations kept.
