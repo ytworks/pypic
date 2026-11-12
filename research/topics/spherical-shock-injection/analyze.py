@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import census  # noqa: E402
 import shockkin as sk  # noqa: E402
 
 GAMMA_EDGES = [1.5, 2.0, 3.0, 5.0, np.inf]  # one threshold for all runs: gamma >= 1.5
@@ -292,6 +293,7 @@ def selftest() -> int:
     check("birth cell", all((a == b).all() for a, b in zip(back, cells)) and np.allclose(rad, want)
           and org.tolist() == [0, 0, 2, 1], "1000 ids decoded; origins ambient / face-injected / other")
 
+    census.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
@@ -1027,9 +1029,14 @@ def main(argv=None) -> int:
     p.add_argument("run", type=Path)
     p = sub.add_parser("cadence", help="work closure of tracks read every 1-4 steps (fixes the track cadence)")
     p.add_argument("run", type=Path)
+    p = sub.add_parser("census", help="energetic electrons by origin, class, band and result (protocol Sect. 6)")
+    p.add_argument("run", type=Path)
+    p.add_argument("--null", type=Path, help="null.json of the run without a driver (floors N1, N3, N5)")
     p = sub.add_parser("null", help="numerical floor N1, N2, N3, N5 of a run without a driver")
     p.add_argument("run", type=Path)
     args = ap.parse_args(argv)
+    if args.cmd == "census":
+        return census.cmd_census(args)
     if args.cmd == "selftest":
         return selftest()
     if args.cmd == "front":
