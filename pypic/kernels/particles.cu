@@ -1,16 +1,46 @@
 // Explicit particle kernels: relativistic Buneman-Boris push fused with
 // Esirkepov charge-conserving current deposition (CIC = cubic super-particles).
-// Particle storage: P[row * cap + p], rows = x, y, z, ux, uy, uz, w, id  (u = gamma v, c = 1).
+//
+// Particle storage. A kernel of this file reaches a particle only through the accessors below, so
+// the layout behind them can change with the build (PIC-D19). This layout: S[row * cap + p],
+// rows = x, y, z, ux, uy, uz, w, id (u = gamma v, c = 1; the id is an integer-valued double).
 // cap is 64-bit (row * cap exceeds 2^31 for large species); n and p stay int.
+// Exceptions: the remaining displacement of displace_deposit (rows 8..10, set-up only), and the
+// row copies of migrate.cu.
 
-#define PX(p) P[(p)]
-#define PY(p) P[cap + (p)]
-#define PZ(p) P[2 * cap + (p)]
-#define PUX(p) P[3 * cap + (p)]
-#define PUY(p) P[4 * cap + (p)]
-#define PUZ(p) P[5 * cap + (p)]
-#define PW(p) P[6 * cap + (p)]
-#define PID(p) P[7 * cap + (p)]
+#define PSTORE double* P                           // the storage of a species as kernel parameters
+#define PSTORE_RO const double* __restrict__ P
+// values of particle p of the storage (S, cap): physical position, momentum, weight, id
+#define S_X(S, cap, p) (+(S)[(p)])
+#define S_Y(S, cap, p) (+(S)[(cap) + (p)])
+#define S_Z(S, cap, p) (+(S)[2 * (cap) + (p)])
+#define S_UX(S, cap, p) (+(S)[3 * (cap) + (p)])
+#define S_UY(S, cap, p) (+(S)[4 * (cap) + (p)])
+#define S_UZ(S, cap, p) (+(S)[5 * (cap) + (p)])
+#define S_W(S, cap, p) (+(S)[6 * (cap) + (p)])
+#define S_ID(S, cap, p) (+(S)[7 * (cap) + (p)])
+#define S_SET_POS(S, cap, p, x, y, z) { (S)[(p)] = (x); (S)[(cap) + (p)] = (y); (S)[2 * (cap) + (p)] = (z); }
+#define S_SET_MOM(S, cap, p, ux, uy, uz) \
+    { (S)[3 * (cap) + (p)] = (ux); (S)[4 * (cap) + (p)] = (uy); (S)[5 * (cap) + (p)] = (uz); }
+#define S_SET_W(S, cap, p, w) { (S)[6 * (cap) + (p)] = (w); }
+#define S_SET_ID(S, cap, p, id) { (S)[7 * (cap) + (p)] = (id); }
+// the same for the storage (P, cap) of the kernel
+#define PX(p) S_X(P, cap, p)
+#define PY(p) S_Y(P, cap, p)
+#define PZ(p) S_Z(P, cap, p)
+#define PUX(p) S_UX(P, cap, p)
+#define PUY(p) S_UY(P, cap, p)
+#define PUZ(p) S_UZ(P, cap, p)
+#define PW(p) S_W(P, cap, p)
+#define PID(p) S_ID(P, cap, p)
+#define SET_POS(p, x, y, z) S_SET_POS(P, cap, p, x, y, z)
+#define SET_MOM(p, ux, uy, uz) S_SET_MOM(P, cap, p, ux, uy, uz)
+#define SET_W(p, w) S_SET_W(P, cap, p, w)
+#define SET_ID(p, id) S_SET_ID(P, cap, p, id)
+// index coordinate: cells from the first one of the arrays of this rank
+#define XI(p) ((PX(p) - OX) * (1.0 / DX))
+#define YI(p) ((PY(p) - OY) * (1.0 / DY))
+#define ZI(p) ((PZ(p) - OZ) * (1.0 / DZ))
 
 // CIC weights of the two ends of a move along one axis, on the 3 nodes from n = min(floor X0, floor X1)
 // (|X1 - X0| < 1): (1 - w, w, 0) for an end in cell n, (0, 1 - w, w) for an end in cell n + 1, with
@@ -172,7 +202,7 @@ static const unsigned long long RET_SALT = 0x14057B7EF767814FULL;
 // Only the faces of the compile-time mask PAIRED_FACES count: without a paired face the
 // compiler removes these paths (and, without a reflecting wall, the whole wall loop).
 // rb: inflow tables of this species, nrb rows of 6 per face (see sample_inflow).
-extern "C" __global__ void push_deposit(double* P, const int n, const long long cap, const gather_t* __restrict__ Ex,
+extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap, const gather_t* __restrict__ Ex,
                                         const gather_t* __restrict__ Ey, const gather_t* __restrict__ Ez,
                                         const gather_t* __restrict__ Bx, const gather_t* __restrict__ By,
                                         const gather_t* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
@@ -305,7 +335,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             ake = w * m * (g1 - 1.0);
             aq = qw;  // zero for test species
             an = 1.0;
-            PW(p) = 0.0;
+            SET_W(p, 0.0);
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
         } else
 #endif
@@ -315,7 +345,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             }
             lke += w * m * (g1 - 1.0);
             lq = qw;  // charge lost: zero for test species
-            PW(p) = 0.0;
+            SET_W(p, 0.0);
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
             if (fm & 0x3f00) {  // a carrier that leaves through a paired face: the column owes one
                 const double D[3] = {DX, DY, DZ};
@@ -351,12 +381,8 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             }
             if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
         }
-        PX(p) = pos1[0];
-        PY(p) = pos1[1];
-        PZ(p) = pos1[2];
-        PUX(p) = u[0];
-        PUY(p) = u[1];
-        PUZ(p) = u[2];
+        SET_POS(p, pos1[0], pos1[1], pos1[2]);
+        SET_MOM(p, u[0], u[1], u[2]);
     }
     if (do_diag) {
         warp_atomic_add(&diag[0], ke);
@@ -375,17 +401,17 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
 
 // Set-up of a body (PIC-D14): the particles loaded inside it get weight zero. The beams of all
 // species share their positions, so what is left is as neutral as what was loaded.
-extern "C" __global__ void mark_body(double* P, const int n, const long long cap) {
+extern "C" __global__ void mark_body(PSTORE, const int n, const long long cap) {
 #ifdef BODY_SPHERE
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
     const double rx = PX(p) - BODY_CX, ry = PY(p) - BODY_CY, rz = PZ(p) - BODY_CZ;
-    if (rx * rx + ry * ry + rz * rz < BODY_R2) PW(p) = 0.0;
+    if (rx * rx + ry * ry + rz * rz < BODY_R2) SET_W(p, 0.0);
 #endif
 }
 
 // The particles of weight zero, into the list that migrate() takes out.
-extern "C" __global__ void flag_dead(const double* __restrict__ P, const int n, const long long cap, int* flag,
+extern "C" __global__ void flag_dead(PSTORE_RO, const int n, const long long cap, int* flag,
                                      int* list, const int listcap) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
@@ -396,7 +422,7 @@ extern "C" __global__ void flag_dead(const double* __restrict__ P, const int n, 
 //      displacement of each particle is stored in rows 8..10 (present only during set-up). One
 //      call moves every particle by at most h_a (< 1 cell) per axis and deposits the current of
 //      that move with Esirkepov; the caller sets E -= DT * J after all rounds, so div E = rho.
-extern "C" __global__ void displace_deposit(double* P, const int n, const long long cap, const double hx,
+extern "C" __global__ void displace_deposit(PSTORE, const int n, const long long cap, const double hx,
                                             const double hy, const double hz, double* Jx, double* Jy, double* Jz,
                                             const double qdep, int* flag, int* list, const int listcap) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
@@ -428,21 +454,19 @@ extern "C" __global__ void displace_deposit(double* P, const int n, const long l
         }
     }
     if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
-    PX(p) = p1[0];
-    PY(p) = p1[1];
-    PZ(p) = p1[2];
+    SET_POS(p, p1[0], p1[1], p1[2]);
 }
 
 // Boris velocity step of length tau without moving the particle: with tau = -DT/2 it turns
 // momenta given at t = 0 into the u^{-1/2} of the explicit leapfrog when E or B is non-zero.
-extern "C" __global__ void boris_kick(double* P, const int n, const long long cap, const double* __restrict__ Ex,
+extern "C" __global__ void boris_kick(PSTORE, const int n, const long long cap, const double* __restrict__ Ex,
                                       const double* __restrict__ Ey, const double* __restrict__ Ez,
                                       const double* __restrict__ Bx, const double* __restrict__ By,
                                       const double* __restrict__ Bz, const double q, const double m,
                                       const double tau) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
-    const double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    const double X = XI(p), Y = YI(p), Z = ZI(p);
     const double h = q * tau / (2.0 * m);
     double ex = h * interp(Ex, X, Y, Z, 0.5, 0.0, 0.0);
     double ey = h * interp(Ey, X, Y, Z, 0.0, 0.5, 0.0);
@@ -458,14 +482,13 @@ extern "C" __global__ void boris_kick(double* P, const int n, const long long ca
     double upx = umx + (umy * tz - umz * ty);
     double upy = umy + (umz * tx - umx * tz);
     double upz = umz + (umx * ty - umy * tx);
-    PUX(p) = umx + (upy * sz - upz * sy) + ex;
-    PUY(p) = umy + (upz * sx - upx * sz) + ey;
-    PUZ(p) = umz + (upx * sy - upy * sx) + ez;
+    SET_MOM(p, umx + (upy * sz - upz * sy) + ex, umy + (upz * sx - upx * sz) + ey,
+            umz + (upx * sy - upy * sx) + ez);
 }
 
 // CIC charge density at nodes (diagnostic / Gauss check). shell > 0: only the particles within `shell`
 // cells of an open face, which is all that the Marder zone needs (PIC-D16).
-extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n, const long long cap, const double q,
+extern "C" __global__ void deposit_rho(PSTORE_RO, const int n, const long long cap, const double q,
                                        const double shell, double* rho) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
@@ -478,7 +501,7 @@ extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n
             in = in || (o0[a] && x[a] < shell * d[a]) || (o1[a] && x[a] >= Lg[a] - shell * d[a]);
         if (!in) return;
     }
-    double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    double X = XI(p), Y = YI(p), Z = ZI(p);
     int i = (int)floor(X), j = (int)floor(Y), k = (int)floor(Z);
     double wx = X - i, wy = Y - j, wz = Z - k;
     double c = q * PW(p) * (1.0 / (DX * DY * DZ));
@@ -492,11 +515,11 @@ extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n
 
 // CIC moment of a species at nodes (output diagnostics): sum of w * f(u) / cell volume with
 // kind 0: f = 1 (number density), 1..3: f = v_x, v_y, v_z (particle flux), 4: f = m (gamma - 1).
-extern "C" __global__ void deposit_moment(const double* __restrict__ P, const int n, const long long cap, const int kind,
+extern "C" __global__ void deposit_moment(PSTORE_RO, const int n, const long long cap, const int kind,
                                           const double m, double* out) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
-    double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    double X = XI(p), Y = YI(p), Z = ZI(p);
     int i = (int)floor(X), j = (int)floor(Y), k = (int)floor(Z);
     double wx = X - i, wy = Y - j, wz = Z - k;
     double f = 1.0;
@@ -527,7 +550,7 @@ extern "C" __global__ void ext_sum(const double* d, const double* ext, const int
 
 // Fields at the positions of selected particles (track output): out[c * m + t] for
 // c = Ex Ey Ez Bx By Bz, interpolated exactly as in the explicit push.
-extern "C" __global__ void gather_at_particles(const double* __restrict__ P, const long long cap,
+extern "C" __global__ void gather_at_particles(PSTORE_RO, const long long cap,
                                                const long long* __restrict__ sel, const int m,
                                                const double* __restrict__ Ex, const double* __restrict__ Ey,
                                                const double* __restrict__ Ez, const double* __restrict__ Bx,
@@ -536,7 +559,7 @@ extern "C" __global__ void gather_at_particles(const double* __restrict__ P, con
     int t = blockIdx.x * blockDim.x + threadIdx.x;
     if (t >= m) return;
     long long p = sel[t];
-    const double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    const double X = XI(p), Y = YI(p), Z = ZI(p);
     out[t] = interp(Ex, X, Y, Z, 0.5, 0.0, 0.0);
     out[m + t] = interp(Ey, X, Y, Z, 0.0, 0.5, 0.0);
     out[2 * m + t] = interp(Ez, X, Y, Z, 0.0, 0.0, 0.5);
@@ -547,7 +570,7 @@ extern "C" __global__ void gather_at_particles(const double* __restrict__ P, con
 
 // Kinetic energy and momentum of particles at the current time level (used by the implicit
 // scheme where u is stored at integer time levels).
-extern "C" __global__ void kinetic(const double* __restrict__ P, const int n, const long long cap, const double m,
+extern "C" __global__ void kinetic(PSTORE_RO, const int n, const long long cap, const double m,
                                    double* diag) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     double ke = 0, mx = 0, my = 0, mz = 0;
@@ -565,12 +588,11 @@ extern "C" __global__ void kinetic(const double* __restrict__ P, const int n, co
 }
 
 // Cell index (for sorting) of each particle.
-extern "C" __global__ void cell_index(const double* __restrict__ P, const int n, const long long cap,
+extern "C" __global__ void cell_index(PSTORE_RO, const int n, const long long cap,
                                       long long* key) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
-    int i = (int)floor((PX(p) - OX) * (1.0 / DX)), j = (int)floor((PY(p) - OY) * (1.0 / DY)),
-        k = (int)floor((PZ(p) - OZ) * (1.0 / DZ));
+    int i = (int)floor(XI(p)), j = (int)floor(YI(p)), k = (int)floor(ZI(p));
     key[p] = IDX(i, j, k);
 }
 
@@ -662,7 +684,7 @@ __device__ __forceinline__ void boost_drift(double* u, const double udx, const d
     }
 }
 
-extern "C" __global__ void load_particles(double* P, const long long cap, const long long offset, const int ppc,
+extern "C" __global__ void load_particles(PSTORE, const long long cap, const long long offset, const int ppc,
                                           const int nlx, const int nly, const int nlz, const int gx0,
                                           const int gy0, const int gz0, const int gnx, const int gny,
                                           const int gnz, const unsigned long long seed,
@@ -699,16 +721,12 @@ extern "C" __global__ void load_particles(double* P, const long long cap, const 
     }
     boost_drift(u, vx, vy, vz, sm);
     long long p = offset + t;
-    PX(p) = x;
-    PY(p) = y;
-    PZ(p) = z;
-    PUX(p) = u[0];
-    PUY(p) = u[1];
-    PUZ(p) = u[2];
-    PW(p) = w;
+    SET_POS(p, x, y, z);
+    SET_MOM(p, u[0], u[1], u[2]);
+    SET_W(p, w);
     // persistent id (PIC-D8): id_base + linear global cell * ppc + slot (exact below 2^53)
     const long long lin = ((long long)(gx0 + i) * gny + (gy0 + j)) * (long long)gnz + (gz0 + k);
-    PID(p) = id_base + (double)(lin * ppc + slot);
+    SET_ID(p, id_base + (double)(lin * ppc + slot));
 }
 
 // ---- Injection at open faces (PIC-D13) ----
@@ -791,7 +809,7 @@ __device__ bool layer_sample(const unsigned long long ks, const unsigned long lo
 // diag (per species): [6] kinetic energy, [7] charge, [8] number of the injected particles; with
 // do_diag their kinetic energy and momentum are added to [0..3], as they are part of the plasma
 // from this step on.
-extern "C" __global__ void inject_face(double* P, const long long cap, const int n0, int* ninj, double* diag, int* flag,
+extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0, int* ninj, double* diag, int* flag,
                                        int* list, const int listcap, double* Jx, double* Jy, double* Jz,
                                        const double q, const double m, const int gx0, const int gy0, const int gz0,
                                        const int nlx, const int nly, const int nlz, const int gnx, const int gny,
@@ -855,14 +873,10 @@ extern "C" __global__ void inject_face(double* P, const long long cap, const int
     const double cellslot = (double)(lin * ppc + slot);
     {
         const long long p = n0 + atomicAdd(ninj, 1);
-        PX(p) = r1[0];
-        PY(p) = r1[1];
-        PZ(p) = r1[2];
-        PUX(p) = u[0];
-        PUY(p) = u[1];
-        PUZ(p) = u[2];
-        PW(p) = w;
-        PID(p) = id_step + tb[6] + cellslot;
+        SET_POS(p, r1[0], r1[1], r1[2]);
+        SET_MOM(p, u[0], u[1], u[2]);
+        SET_W(p, w);
+        SET_ID(p, id_step + tb[6] + cellslot);
         if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = (int)p; }
     }
     const double ke = w * m * (g - 1.0);
@@ -876,12 +890,10 @@ extern "C" __global__ void inject_face(double* P, const long long cap, const int
     if (pair) {
         const int ie = atomicAdd(ninje, 1);
         const long long p = ne0 + ie;
-        Pe[p] = r1[0];
-        Pe[cape + p] = r1[1];
-        Pe[2 * cape + p] = r1[2];
-        Pe[3 * cape + p] = Pe[4 * cape + p] = Pe[5 * cape + p] = 0.0;
-        Pe[6 * cape + p] = -qw / qe;
-        Pe[7 * cape + p] = id_step + tb[7] + cellslot;
+        S_SET_POS(Pe, cape, p, r1[0], r1[1], r1[2]);
+        S_SET_MOM(Pe, cape, p, 0.0, 0.0, 0.0);
+        S_SET_W(Pe, cape, p, -qw / qe);
+        S_SET_ID(Pe, cape, p, id_step + tb[7] + cellslot);
         if (migrate) { int sl = atomicAdd(flage, 1); if (sl < listcape) liste[sl] = (int)p; }
         pstate[ie] = sm;
         pface[ie] = face + 1;
@@ -905,10 +917,8 @@ extern "C" __global__ void inject_partners(double* Pe, const long long cape, con
     double ue[3];
     sample_inflow(rb + (long long)face * nrb * 6, nrb, face >> 1, (face & 1) ? -1.0 : 1.0, sm, ue);
     const long long p = ne0 + ie;
-    Pe[3 * cape + p] = ue[0];
-    Pe[4 * cape + p] = ue[1];
-    Pe[5 * cape + p] = ue[2];
-    const double we = Pe[6 * cape + p];
+    S_SET_MOM(Pe, cape, p, ue[0], ue[1], ue[2]);
+    const double we = S_W(Pe, cape, p);
     const double eke = we * me * (sqrt(1.0 + ue[0] * ue[0] + ue[1] * ue[1] + ue[2] * ue[2]) - 1.0);
     atomicAdd(&diage[6], eke);
     atomicAdd(&diage[7], qe * we);
