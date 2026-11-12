@@ -55,6 +55,8 @@ Coulomb heating only. Mach numbers are V_sh/c_s and V_sh/v_A, V_sh = shock speed
 - Limits: stationary NLDSA; quasi-parallel theory applied to the whole sphere; neutrals ignored;
   K_ep taken constant in time although "in principle" time dependent; the steep spectrum rests on
   taking the Alfven speed in the amplified field.
-- K_ep is degenerate with B: the synchrotron flux fixes K_ep only once B is set (rims, roll-over).
+- K_ep and B are separated in the model: when synchrotron losses dominate, the X-ray flux in the cut-off region
+  depends only on the electron density and fixes K_ep independently of B; the radio flux then needs
+  B_2 of at least about 200 μG (Sect. 4.3). (Corrected 2026-11-12: this line said K_ep is degenerate with B.)
 - Slips: Sect. 4.4 prints "A Kep smaller by a factor 20-30" where larger is meant; the last paragraph
   prints "500 GeV" for 500 TeV; 1/(gamma M_0^2) with M_0 = 443 is 3.1e-6, the text prints 5.6e-6.
