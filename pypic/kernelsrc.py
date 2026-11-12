@@ -85,8 +85,14 @@ def particle_defines(
             D[f"O{c}I"] = int(round(D[f"O{c}"] / D[f"D{c}"]))
     if compact:
         D["COMPACT_STORE"] = 1
+        if D["NX"] * D["NY"] * D["NZ"] >= 2 ** 31:
+            raise ValueError("precision='compact': the cells of one rank (with ghosts) must be fewer than 2**31, "
+                             "the range of the stored cell; use more ranks")
         for c in "XYZ":
             D[f"GN{c}"] = int(round(D[f"L{c}"] / D[f"D{c}"]))
+            if D[f"GN{c}"] + 2 * D["GH"] > 2 ** 20:
+                raise ValueError(f"precision='compact': more than 2**20 cells along {c.lower()} (with ghosts); the "
+                                 "index coordinate would not be exact in 2**-32 of a cell")
             D[f"S{c}0I"] = int(round(D[f"S{c}0"] / D[f"D{c}"]))
             D[f"S{c}1I"] = int(round(D[f"S{c}1"] / D[f"D{c}"]))
     return D

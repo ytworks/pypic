@@ -16,7 +16,7 @@ from .grid import FIELD_NAMES, YeeGrid
 from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
-from .particles import MIGRATE_KERNELS, Species, migrate
+from .particles import MIGRATE_KERNELS, CompactSpecies, Species, migrate
 from .profiles import CUT, evaluate, invert_cos_density, support
 
 NDIAG = 12  # entries of the diagnostics buffer of a species (Simulation.sdiag)
@@ -68,14 +68,16 @@ class Simulation:
         self.body = body.check_config(cfg, reach)
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
-        if cfg.precision not in ("fp64", "mixed"):
-            raise ValueError("precision must be 'fp64' or 'mixed'")
-        self.mixed = cfg.precision == "mixed"
+        if cfg.precision not in ("fp64", "mixed", "compact"):
+            raise ValueError("precision must be 'fp64', 'mixed' or 'compact'")
+        self.compact = cfg.precision == "compact"  # the storage of the particles (PIC-D19)
+        self.mixed = cfg.precision != "fp64"  # the push gathers from float32 copies of the fields (PIC-D11)
         if self.mixed and cfg.solver == "implicit":
-            raise ValueError("precision='mixed' is for the explicit solver only (PIC-D11)")
+            raise ValueError(f"precision='{cfg.precision}' is for the explicit solver only (PIC-D11, PIC-D19)")
         self.injection = injection.check_config(cfg)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
-            self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body))
+            self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body,
+            compact=self.compact))
         self.k_push = self.pmod.get_function("push_deposit")
         self.k_rho = self.pmod.get_function("deposit_rho")
         self.k_kin = self.pmod.get_function("kinetic")
@@ -218,7 +220,10 @@ class Simulation:
                 share = -(-math.prod(hi - lo for lo, hi in blk) // self.comm.size)
                 cells += cells_local if blk == box else max(mine, share)
             cap = int(cfg.capacity_factor * cells * cfg.ppc) + 4096 + len(sc.particles)
-            sp = Species(sc.name, sc.charge, sc.mass, cap)
+            if self.compact:
+                sp = CompactSpecies(sc.name, sc.charge, sc.mass, cap, self.grid)
+            else:
+                sp = Species(sc.name, sc.charge, sc.mass, cap)
             sp.test = bool(sc.test)
             sp.qdep = 0.0 if sp.test else sp.q
             for bi, b in enumerate(sc.beams):
@@ -280,15 +285,17 @@ class Simulation:
                     print("[pypic] WARNING: the plasma is not charge neutral (net charge density != 0)", flush=True)
 
     def _load_list(self, sp, particles, id0: float):
-        """Test particles given one by one: each rank keeps those inside its physical sub-domain."""
+        """Test particles given one by one: each rank keeps those inside its physical sub-domain,
+        decided from the position as the storage holds it."""
         arr = np.asarray(particles, dtype=float)
         L = self.grid.L
         if np.any(arr[:, :3] < 0) or np.any(arr[:, :3] >= np.asarray(L)):
             raise ValueError(f"species {sp.name}: test particles must lie inside [0, L)")
         mine = np.ones(len(arr), dtype=bool)
-        for a, ax in enumerate(self.decomp.axes):
-            lo, hi = ax.phys_lo * self.grid.dx[a], (ax.phys_lo + ax.n_phys) * self.grid.dx[a]
-            mine &= (arr[:, a] >= lo) & (arr[:, a] < hi)
+        for a in range(3):
+            lo, hi, _ = sp.frame(self.grid, a)
+            x = sp.snap(arr[:, a], a)
+            mine &= (x >= lo) & (x < hi)
         idx = np.nonzero(mine)[0]
         m = len(idx)
         if not m:
@@ -528,7 +535,7 @@ class Simulation:
             for i, sp in enumerate(self.species):
                 if sp.displacing:
                     lst = sp.flag_list()
-                    launch(self.k_displace, sp.n, (*sp.store, np.int32(sp.n), np.int64(sp.cap), np.float64(h[0]),
+                    launch(self.k_displace, sp.n, (*sp.disp_store, np.int32(sp.n), np.int64(sp.cap), np.float64(h[0]),
                                                    np.float64(h[1]), np.float64(h[2]), g.Jx, g.Jy, g.Jz,
                                                    np.float64(sp.qdep), self.flag[i:i + 1], lst, np.int32(lst.size)))
             self._migrate()

@@ -127,6 +127,10 @@ class Species:
         ax = grid.d.axes[a]
         return ax.phys_lo * grid.dx[a], (ax.phys_lo + ax.n_phys) * grid.dx[a], grid.L[a]
 
+    def snap(self, x, a, xp=np):
+        """The position x along axis a in the coordinate of ``frame``, as the storage will hold it."""
+        return x
+
     def _records(self):
         """All particles as rows of doubles, the first three in the coordinate of ``frame``."""
         return self.P[:, : self.n]
@@ -347,7 +351,7 @@ class CompactSpecies(Species):
         self.U[a, r] = (self.U[a, r].astype(cp.float64) + du).astype(cp.float32)
 
     def snap(self, x, a, xp=np):
-        """The index coordinate of the position x along axis a on the lattice of the storage. A
+        """The index coordinate of the position x along axis a, on the lattice of the storage. A
         position that rounds up to the end of the box is the first position of a periodic axis and
         the last one before a wall."""
         X = xp.rint(x / self.h[a] * TWO32) / TWO32

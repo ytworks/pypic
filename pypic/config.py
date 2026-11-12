@@ -376,8 +376,11 @@ class SimConfig:
     diag_interval: int = 10  # energy / momentum history (and the scalars output) every N steps
     gauss_interval: int = 100  # 0 disables the Gauss/divB check
     sort_interval: int = 50
-    # "fp64" | "mixed": mixed gathers E and B for the explicit push from float32 copies (PIC-D11,
-    # Proposed); positions, momenta, the pusher and the current deposit stay FP64
+    # "fp64" | "mixed" | "compact". mixed gathers E and B for the explicit push from float32 copies
+    # (PIC-D11, Proposed); positions, momenta, the pusher and the current deposit stay FP64.
+    # compact (PIC-D19, Proposed; explicit solver) also stores a particle in 44 bytes in place of
+    # 64: cell, position within the cell in 2^-32 of a cell, float32 momenta; the current deposit
+    # stays FP64
     precision: str = "fp64"
     implicit: ImplicitConfig = field(default_factory=ImplicitConfig)
     current_filter: CurrentFilter = field(default_factory=CurrentFilter)
