@@ -263,9 +263,20 @@ All on 8 GPUs, from a clean committed tree (`git status --porcelain` empty), wit
 
 ## 10. Novelty
 
-The direct predecessors on curved shocks are being read in parallel with the runs (Krauss-Varban & Burgess
-1991; Krauss-Varban 1994; Vandas 1995, 2001; Savoini & Lembège 2001 and later; Anderson et al. 1979). Each gets
-a note in `research/literature/`. A work that cannot be obtained is named as a limit.
+The direct predecessors on curved shocks were read on 2026-11-13, before the first run; `literature.md`,
+"Curved fronts", places them. What it means for the signatures of Sect. 7:
+
+- **S0** and the change of the foot-point θ_Bn in time are published. No novelty is claimed.
+- **K1 is published in part.** `savoini2010origin` shows, in a 2-D full-PIC run of a curved front, electrons that
+  enter near θ_Bn = 88° and leave near 48° (leakage from downstream). Seeing such electrons here is a
+  reproduction. A new statement would need one of: a different path (drift inside the ramp, shown by the
+  tracks), an energy compared with the one-reflection energy at the exit θ_Bn, or a property of the spherical,
+  slowing front.
+- **K2 is published where a bent field line or a non-convex front closes the path** (`kong2016electron`,
+  `liu2026efficient`, `pulupa2008structure`). On a straight field and a smooth convex front it was not found.
+- **Limit.** `kraussvarban1991electron` and `giacalone2017acceleration` could not be obtained in full; eleven
+  further works are known by abstract only. Until the two are read, criterion C5 cannot be met, and the verdict
+  is "candidate" at most.
 
 ## 11. Reviews
 

@@ -3,6 +3,30 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Curved-shock predecessors read before the first run
+- **Done:** 27 notes added to `research/literature/` (full text: 5; skimmed: 9; abstract only: 13).
+  `literature.md` has a new part, "Curved fronts"; the protocol's Sect. 10 says what it means for S0, K1, K2.
+- **Not obtained in full:** Krauss-Varban & Burgess 1991 (JGR 96, 143) and Giacalone 2017 (ApJ 848, 123), the
+  two that matter most. The publishers' hosts refused the requests and no open copy was found. Leroy &
+  Mangeney 1984 and Savoini & Lembège 1999 were not obtained at all. ADS refused requests, so the
+  forward-citation search used OpenAlex only.
+- **Found, against what the survey said** ("no kinetic simulation of a curved front was found"):
+  - two full-PIC studies of electrons at a curved front exist, in 2-D at bow-shock parameters
+    (`savoini2001twodimensional`, `savoini2010origin`; m_i/m_e = 42, M_A = 3);
+  - the second shows electrons that enter near θ_Bn = 88° and leave near 48°. This is signature K1 of the
+    protocol, so K1 as stated is not new;
+  - the sweep of the foot-point θ_Bn in time, the source just behind the tangent line, and repeated encounters
+    in closed geometries are all published.
+- **Not found in what could be reached:** electrons in a 3-D spherical, slowing front in full PIC; the energy
+  of an escaping electron against the one-reflection energy at its exit angle; a path across latitudes by
+  drift in the ramp.
+- **Consequence:** with the two key works unread, criterion C5 cannot be met; the best verdict of this
+  exercise is "candidate". The owner can lift this limit with a library copy of the two papers.
+- **Corrections to the survey's reference list** are kept in `literature.md` ("Vandas 1995" is two papers;
+  "Vandas 2001" is two papers; Schmidt & Cairns 2014 is marked retracted in OpenAlex).
+- The reading was done by a reader agent; five notes are from full texts. I checked the format of the notes,
+  not each statement against the papers.
+
 ## 2026-11-13 — 16-step check of L; protocol and baseline written before the first run
 - **Check run (run 0).** `configs/check-L.yaml`, 8 GPUs, commit `3e97c6c`, 16 steps in 18.8 s. All nine
   diagnostics wrote files; Gauss law 4 × 10⁻¹⁵, div B ≤ 1.3 × 10⁻¹⁶. Output:
