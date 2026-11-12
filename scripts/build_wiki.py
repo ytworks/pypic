@@ -160,9 +160,13 @@ EXAMPLES: dict[str, dict] = {
         "page": "Plasma-Wakefield",
         "title": {"en": "Plasma wakefield of a laser pulse and of an electron bunch",
                   "ja": "レーザーパルスと電子バンチのプラズマ航跡場"},
-        "cases": {"laser_linear": fresh("laser_linear", gpus=8), "beam_linear": fresh("beam_linear", gpus=8)},
-        "movies": ["laser_linear", "beam_linear"],
-        "gif": {"fps": 3},  # a gate run writes nine outputs
+        "cases": {
+            "laser_linear": fresh("laser_linear", gpus=8), "beam_linear": fresh("beam_linear", gpus=8),
+            "laser_bubble": recorded("output/wakefield/laser_bubble",
+                                     "bench/results/2026-11-12-61f454b3f-example-wakefield-laser_bubble-run-1c8c65d7.json"),
+        },
+        "movies": ["laser_linear", "beam_linear", "laser_bubble"],
+        "gif": {"fps": 3},  # a gate run writes nine outputs, the production run twenty
     },
 }
 
