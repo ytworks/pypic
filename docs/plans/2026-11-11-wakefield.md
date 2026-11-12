@@ -1,6 +1,6 @@
 # Wakefield: laser and beam drivers, the moving window, `examples/wakefield`
 
-Status: Done (PR #42) — PIC-D20, PIC-D21, PIC-D22 and OUT-D5 Accepted with the gate records on d523e3b in FP64 and with `precision: mixed`, ALL PASSED (Results, Gate records on d523e3b); PIC-D23 Proposed
+Status: In progress (PR #42) — PIC-D20, PIC-D21, PIC-D22 and OUT-D5 Accepted with the gate records on d523e3b in FP64 and with `precision: mixed`, ALL PASSED (Results, Gate records on d523e3b); after them the review fixes and the merge of PR #43 with PR #41 (Results, last two sections), whose gate records are open; PIC-D23 Proposed
 Refs: roadmap R8; PIC-D20, PIC-D21, PIC-D22, OUT-D5 (new); PIC-D17 (extended); ANA-D2, ANA-D3
 
 ## Context
@@ -1130,3 +1130,60 @@ With these records PIC-D20, PIC-D21, PIC-D22 and OUT-D5 are Accepted, and the cl
 R8 (Context) is met. PIC-D23 (lattice places) stays Proposed: it entered by an amendment and
 waits for the owner's decision; both wakefield gates use it. The window with the mixed gather
 has no test of its own; the two wakefield gates of the mixed record are its GPU evidence.
+
+### Review fixes (2026-11-12, after the gates on d523e3b)
+
+Four findings of the review of PR #42; the first changes the engine, the second the analysis
+package, the last two the example:
+
+- `pypic/grid.py`, `pypic/simulation.py` (PIC-D22, OUT-D5): a shift of the window left J, the
+  current of the step that the outputs read, one cell too far up, and zero after a shift that
+  loads a plane with a temperature (the move of that plane wrote its current into J). `shift_x`
+  now moves J one plane down with the fields, after an exchange of its x ghost planes, and the
+  current of the move of a warm plane has arrays of its own, allocated at the first such plane.
+- `pypic/analysis/animate.py`: `PhasePanel` shows the laboratory place of x on whichever axis of
+  the histogram x is (only a histogram with x on its first axis moved with the window).
+- `examples/wakefield/analyze.py`: a run with one output (`n_out = 1`) raised an IndexError: the
+  output before the last is the one at t = 0, with no interval behind the driver to fit. Its
+  amplitude is reported only where that interval holds a wavelength of the wake (nan otherwise);
+  the verdict is that of the last frame.
+- `examples/wakefield/analyze.py`: a blowout box with `drive: false` raised a KeyError (the report
+  of a cavity read E_y, which such a run does not write). It is the null test now, against the
+  largest E_x of the scaling, sqrt(a0); the movie of a run without the driver has no driver panel.
+
+Checks: a test per finding, each failing on the code before the fix. GPU: the current before and
+after a shift for a warm and for a cold plane (1 GPU), and J_y of the window dump on 2×2×1 GPUs
+against the box at rest. CPU: the movie of a histogram over (u_x, x); `analyze()` on a planted
+wake with two outputs; `analyze()` on `laser_bubble.yaml` with `drive: false`. Measured on
+0e34252 (diagnostic): J_y of the two dumps within 4.4e-13 and 9.4e-13 of its maximum in the
+window, E_y within 3.0e-15 and 5.0e-15 of the largest E_y of the box at rest.
+
+Not measured: the cost of a shift with the one more exchange and the three more arrays that go
+down. A run that loads warm planes holds three more grid arrays from the first such plane on; the
+wakefield configurations are cold and do not allocate them.
+
+### Amendment (2026-11-12): stacked on PR #43 and PR #41; `compact` refused with a window
+
+Owner instruction (2026-11-12): the three pull requests must merge without conflicts. They
+touched the same files (`particles.cu`, `kernelsrc.py`, `gpu_gates.py`, `PROGRESS.md`,
+`bench/results/index.json`, the design files), so they are stacked by merge commits, nothing is
+rebased: PR #41 into PR #43 (031851c), PR #43 into this branch (2263870). The merge order is
+fixed: #41, #43, #42; the base of each stays `main`.
+
+What the merge changed in this piece:
+
+- The window kernels `window_drop` and `window_move` read and write the particles through the
+  accessor layer of PIC-D19. In the float64 layout the index coordinate along x of that layer is
+  `XIDX` and the range of the rank along x is `RX0` to `RX1`, so every kernel has the window.
+- `precision: compact` with a moving window is refused (Context: the later of the two pull
+  requests adds the refusal; that is this one): `window.check_config`, with a case of the CPU
+  test of the refusals that fails without the check, and an `#error` in `particles.cu`.
+- Lattice places (PIC-D23) with the compact storage: the loader sets the place through `WPOINT`;
+  a case of `scripts/check_kernels.py` and a compact case of the lattice GPU test (2×2×1 GPUs).
+- Verification, amended: the one full gate run of this pull request is taken on the head that
+  holds both merges, in three precisions (FP64 with `pytest tests/gpu`, `mixed`, `compact`),
+  because PR #43 adds the third. `scripts/gpu_gates.py --precision compact` leaves out the two
+  wakefield gates, which run in a window; the window has no compact evidence and needs none.
+
+The records on d523e3b are those of this piece before the review fixes and the merge. The
+`pypic/` tree of the merged head is the tree of no record: its GPU tests and gates are open.

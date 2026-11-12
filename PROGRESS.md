@@ -91,6 +91,8 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D22 Accep
   that run (it rises through the run); div B there is 1.7e-12 to 2.7e-12 after the pulse has entered, above the absolute 1e-12 of
   the contract (one rounding unit of B = 50 over dx = 0.0196 is 3.6e-13; reported to the owner, contract unchanged); the amplitude
   beyond the gate window of `beam_linear`. Gate records on d523e3b: both gates pass in FP64 and mixed (−1.33 % / +0.51 % in both). PIC-D23 stays Proposed (owner's decision).
+  After those records: four review fixes (J follows a shift of the window; the analysis of a run with one
+  output and of a blowout box without the driver; the phase panel) and the merge of PR #43; gates open.
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`. The pair shock to
   t = 8000 / omega_pe (3.3e8 particles, 62 c/omega_pe across) has no extended tail: index 3.9–4.0 from t = 2000 on,

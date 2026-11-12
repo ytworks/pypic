@@ -44,7 +44,8 @@ configuration is excluded (mixed is explicit-only). Run it after the fp64 gates 
 `python scripts/gpu_gates.py --gpus 8 --precision compact` runs the same explicit gates with
 `precision: compact` and records them as `bench/results/<date>-<commit>-gpu-gates-compact.json`
 (`precision: compact` in the file and its index entry), under the same criteria. Run it after the fp64 and
-the mixed gates on the same commit.
+the mixed gates on the same commit. The two wakefield gates run in a moving window, which the compact
+storage refuses (PIC-D19, PIC-D22): they are not part of this set.
 
 ## Diagnostics
 
