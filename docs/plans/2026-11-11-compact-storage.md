@@ -316,9 +316,9 @@ The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the meth
     After 20 steps: mixed, the particle rows are still the same bits in all runs; FP64, they
     differ by 8.9e-16 to 3.6e-15 between the two runs of the base and by 8.9e-16 to 3.6e-15
     between base and A1.
-  - Perturbation: two runs of the base already differ at step 0 (E_x by 5.6e-17 in FP64 and 6.9e-17 in mixed, u_x of the
-    electrons by 2.8e-17: the field of the set-up displacement is made by atomic deposits and
-    the first half kick takes it), so this set-up cannot show bits. After one step the rows
+  - Perturbation: two runs of the base already differ at step 0 (E_x by 5.6e-17 in FP64 and
+    6.9e-17 in mixed, u_x of the electrons by 2.8e-17: the field of the set-up displacement is
+    made by atomic deposits and the first half kick takes it), so this set-up cannot show bits. After one step the rows
     differ by 4.4e-16 between the two runs of the base and by 2.8e-17 (FP64) and 4.4e-16
     (mixed) between base and A1.
   (1) holds where the base reproduces itself. Result of (2): pending.
@@ -341,23 +341,28 @@ Written before the code; what the code ends up doing differently is noted here w
   the cell; `U` (3, cap) float32 = momenta. The id stays the integer-valued double of PIC-D8
   (the same 8 bytes as the int64 of the design table; no kernel or reader changes its type).
   `PSTORE` is these four pointers; `Species.store` returns them.
-- Index coordinate: `XI(p) = (double)i + (double)F * 2^-32` is exact (at most 31 + 32 bits), so
-  the kernels that work from `XI / YI / ZI` (`deposit_rho`, `deposit_moment`,
+- Index coordinate: `XI(p) = (double)i + (double)F * 2^-32` is exact while `|i| < 2^21` (a
+  double holds 53 bits, the fraction takes 32), so the kernels that work from `XI / YI / ZI` (`deposit_rho`, `deposit_moment`,
   `gather_at_particles`, `boris_kick`, `cell_index`) need no compact body, and the charge density
   of the Gauss check is the CIC density of the stored lattice points.
+  Correction (2026-11-12): this item first read "exact (at most 31 + 32 bits)", which a double
+  cannot hold. The limit is 21 bits of cell index, and it also covers the global index
+  coordinate of the moving kernels and the points one step outside the box. `Simulation`
+  therefore refuses `precision: compact` when the global cells of an axis plus two ghost widths
+  exceed 2^20, or when the cells of one rank (with ghosts) do not fit the int32 of `C`.
 - Physical position: `PX(p) = (XI(p) + OXI) * DX` — the global index first (exact), then one
   rounding, so the value does not depend on the rank layout. Used by the readers, the body test
   and the diagnostics; never by the deposit.
 - Changed while writing the code: the moving kernels (`push_deposit`, `displace_deposit`, the
   injection) work in the *global* index coordinate (global cell plus fraction, exact in double),
-  not the local one of the next item. Reason: the walls (0 and `GN`), the points where a path
+  not the local one first planned. Reason: the walls (0 and `GN`), the points where a path
   meets a wall, the snap and the wrap `± GN` are then the same arithmetic on every rank layout,
   which the 1-GPU vs N-GPU contract needs; in local coordinates a wall hit point would be rounded
   at a different magnitude on each layout. The local cell enters only in the stored `C` and in
   the indices of the deposit and the gather.
-- `push_deposit` works in local index coordinates: start `c0 + q0 * 2^-32`; the end point is
-  snapped before anything uses it, `s = round((w0 + dX) * 2^32)`; walls are the integers `-OXI`
-  and `GN - OXI`; the reflection `2 * wall - x` and the periodic wrap `x ± N` are exact in
+- `push_deposit` (in the global index coordinate, see the item above): start
+  `c0 + q0 * 2^-32`; the end point is snapped before anything uses it,
+  `s = round((w0 + dX) * 2^32)`; walls are the integers `0` and `GN`; the reflection `2 * wall - x` and the periodic wrap `x ± GN` are exact in
   double for lattice points; a returned particle of a paired face gets a snapped end point and
   `wall - 2^-32` in place of `nextafter`; `deposit_cut` clips in index coordinates. A path
   without wall and cut takes the integer shape functions of the A0 prototype; the general path
