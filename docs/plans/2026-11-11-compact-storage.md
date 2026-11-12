@@ -1033,3 +1033,83 @@ run each.
   (`compact`) from the formula at production size, +1.3 % to −1.6 % at gate size.
 - Until the owner decides, R5 stays open and PIC-D19 Proposed, with the criterion recorded as
   not met by its letter.
+
+## A3 — speed in the open-boundary gate configurations, three runs each
+
+2026-11-12, 91de7e4 (`pypic/` as on ac90f90), 8 GPUs (rank grid (1, 2, 4)), no other job on
+them. `scripts/bench_step.py --example <ex> --config examples/<ex>/configs/gate.yaml --steps 100
+--warmup 20`, with `--set overrides.precision=…`; three repetitions of the sequence bow shock
+without `--phases` (`fp64`, `mixed`, `compact`), with `--phases` (the same order), then the
+blast wave alike. Both configurations have six open faces with injection, an absorbing sphere,
+the current filter (4 passes, compensated) and the Marder zone; neither has a reflecting wall or
+a periodic axis. The particle number is the one at the end of a run: 391,566,178 (bow shock) and
+943,083,394 or 943,083,395 (blast wave).
+
+Whole step without `--phases`, ms per step:
+
+| run | precision | three runs | median | against `fp64` | against `mixed` |
+|---|---|---|---|---|---|
+| bow shock | fp64 | 45.028, 42.517, 42.535 | 42.535 | — | |
+| bow shock | mixed | 39.874, 38.143, 38.119 | 38.143 | −10.3 % | — |
+| bow shock | compact | 36.502, 35.478, 35.520 | 35.520 | −16.5 % | −6.9 % |
+| blast wave | fp64 | 90.983, 90.978, 90.951 | 90.978 | — | |
+| blast wave | mixed | 82.408, 82.423, 82.415 | 82.415 | −9.4 % | — |
+| blast wave | compact | 75.812, 75.870, 75.713 | 75.812 | −16.7 % | −8.0 % |
+
+The ranges of the three precisions do not overlap in either configuration. In the bow shock the
+first run of every precision is 1.0 to 2.5 ms above the other two (not examined); with the
+ranges in place of the medians `compact` is 4.2 % to 11.0 % below `mixed` there, and 7.9 % to
+8.1 % in the blast wave.
+
+Parts of the step with `--phases` (synchronised), medians of the three runs in ms per step;
+the parts not listed are below 0.2 ms each:
+
+| part | bow shock fp64 | mixed | compact | blast wave fp64 | mixed | compact |
+|---|---|---|---|---|---|---|
+| whole step | 45.429 | 41.113 | 38.515 | 93.814 | 85.350 | 78.589 |
+| `kernel_push` | 26.307 | 21.792 | 18.313 | 59.456 | 51.032 | 42.895 |
+| `filter_J` | 5.357 | 5.374 | 5.367 | 10.597 | 10.593 | 10.631 |
+| `other` | 3.141 | 3.167 | 3.169 | 5.347 | 5.360 | 5.327 |
+| `field_push` | 2.098 | 2.103 | 2.114 | 4.281 | 4.262 | 4.262 |
+| `fill_ghosts` | 1.745 | 1.784 | 1.838 | 2.443 | 2.523 | 2.477 |
+| `kernel_rho` | 1.587 | 1.586 | 2.539 | 3.121 | 3.123 | 5.404 |
+| `reduce_ghosts` | 1.277 | 1.259 | 1.299 | 3.370 | 3.028 | 2.563 |
+| `migrate` | 0.885 | 0.928 | 0.958 | 1.205 | 1.196 | 1.196 |
+| `poynting_out` | 0.790 | 0.835 | 0.782 | 0.756 | 0.778 | 0.750 |
+| `kernel_inject` | 0.711 | 0.715 | 0.726 | 1.340 | 1.340 | 1.359 |
+| `kernel_partners` | 0.592 | 0.593 | 0.592 | — | — | — |
+| `sort` | 0.458 | 0.458 | 0.299 | 1.091 | 1.092 | 0.708 |
+| `kernel_extsum` | 0.295 | 0.374 | 0.373 | 0.472 | 0.687 | 0.687 |
+
+What the runs show:
+
+- `kernel_push` of `compact` is 3.479 ms (16.0 %) below `mixed` in the bow shock and 8.137 ms
+  (15.9 %) in the blast wave; the three runs of a precision agree within 0.01 ms. The sort is
+  0.159 and 0.384 ms lower. Judged as in the periodic benchmark (change of `kernel_push` plus
+  `sort` relative to the `mixed` step): −8.8 % and −10.0 % of the step (periodic, 8 GPUs:
+  −10.8 %).
+- The push is 57.9 %, 53.0 % and 47.5 % of the step in the bow shock (`fp64`, `mixed`,
+  `compact`) and 63.4 %, 59.8 % and 54.6 % in the blast wave.
+- **`kernel_rho` of `compact` is slower than that of `mixed`: +0.953 ms (+60 %) in the bow
+  shock, +2.281 ms (+73 %) in the blast wave**, 2.5 % and 2.9 % of the `compact` step. With the
+  Marder zone `deposit_rho` runs for every species in every step and tests every particle
+  against the shell of the open faces with its physical position, which the compact build
+  computes in double arithmetic from the stored cell and fractions.
+- `reduce_ghosts` in the blast wave differs between the precisions (3.370, 3.028, 2.563 ms;
+  the ranges do not overlap) although its code does not depend on the precision. Not examined.
+- `kernel_extsum` of `mixed` and `compact` is above `fp64` (the float32 copies of the fields,
+  PIC-D11).
+
+Not covered: a build with reflecting walls or periodic axes at this size, and 1 GPU.
+
+### Item: the shell test of `deposit_rho` from the stored cell (criterion fixed before the measurement)
+
+The shell is a whole number of cells (`2 * zone_depth`), and a stored position is a cell plus a
+fraction below one, so in the compact build the cell alone decides whether a particle is in the
+shell. The item does nothing in the A0 benchmark (periodic: no Marder zone, the kernel runs for
+the diagnostics only), so the A0 limit for adopting a speed item, 2 % of the `mixed` step, is
+applied in the two configurations above: the item is adopted if the median `compact` step
+without `--phases` (three runs, the sequence above) falls by at least 2 % of the median `mixed`
+step of this section in both configurations, 0.763 ms in the bow shock and 1.648 ms in the
+blast wave. If it does in neither, the kernel stays as it is; if in one only, that is reported
+to the owner and the kernel stays as it is.
