@@ -166,18 +166,15 @@ __device__ __forceinline__ void axis_shape(const double X0, const double X1, Axi
     s.dS[2] = (up1 ? w1 : 0.0) - s.S0[2];
 }
 
-// Esirkepov deposition of a straight segment (X0,Y0,Z0)->(X1,Y1,Z1) in local index
-// coordinates. |X1-X0| < 1 is required. qw = charge * weight.
+// Esirkepov deposition of a straight segment with the shapes x, y, z of its ends (axis_shape) in the
+// arrays of the rank; mx, my, mz: the ends differ along that axis. qw = charge * weight.
 // The current along an axis is the prefix sum of -c dS over its nodes: two faces carry current (the
 // second only for a wide move; the third sum is sum dS = 0), each times the transverse weight
 //   W(b, c) = S0 S0' + (dS S0' + S0 dS') / 2 + dS dS' / 3 = S0'[c] A[b] + dS'[c] B[b],
 // A = S0 + dS / 2, B = S0 / 2 + dS / 3. An axis without displacement carries no current.
-__device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, double X1, double Y1, double Z1, double qw,
-                                          double* Jx, double* Jy, double* Jz) {
-    AxisShape x, y, z;
-    axis_shape(X0, X1, x);
-    axis_shape(Y0, Y1, y);
-    axis_shape(Z0, Z1, z);
+__device__ __forceinline__ void esirkepov_shapes(const AxisShape& x, const AxisShape& y, const AxisShape& z,
+                                                 const bool mx, const bool my, const bool mz, const double qw,
+                                                 double* Jx, double* Jy, double* Jz) {
     const double third = 1.0 / 3.0;
     double Ax[3], Bx[3], Ay[3], By[3];
 #pragma unroll
@@ -188,7 +185,7 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
         By[a] = 0.5 * y.S0[a] + third * y.dS[a];
     }
     const long long base = IDX(x.n, y.n, z.n);
-    if (X1 != X0) {
+    if (mx) {
         const double cx = qw * (1.0 / (DY * DZ * DT));
         const double f0 = -cx * x.dS[0], f1 = f0 - cx * x.dS[1];
 #pragma unroll
@@ -204,7 +201,7 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
             }
         }
     }
-    if (Y1 != Y0) {
+    if (my) {
         const double cy = qw * (1.0 / (DX * DZ * DT));
         const double f0 = -cy * y.dS[0], f1 = f0 - cy * y.dS[1];
 #pragma unroll
@@ -220,7 +217,7 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
             }
         }
     }
-    if (Z1 != Z0) {
+    if (mz) {
         const double cz = qw * (1.0 / (DX * DY * DT));
         const double f0 = -cz * z.dS[0], f1 = f0 - cz * z.dS[1];
 #pragma unroll
@@ -236,6 +233,16 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
             }
         }
     }
+}
+
+// The same for the segment (X0,Y0,Z0)->(X1,Y1,Z1) in local index coordinates; |X1-X0| < 1 is required.
+__device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, double X1, double Y1, double Z1, double qw,
+                                          double* Jx, double* Jy, double* Jz) {
+    AxisShape x, y, z;
+    axis_shape(X0, X1, x);
+    axis_shape(Y0, Y1, y);
+    axis_shape(Z0, Z1, z);
+    esirkepov_shapes(x, y, z, X1 != X0, Y1 != Y0, Z1 != Z0, qw, Jx, Jy, Jz);
 }
 
 __device__ __forceinline__ void deposit_global(const double* p0, const double* p1, double qw, double* Jx,

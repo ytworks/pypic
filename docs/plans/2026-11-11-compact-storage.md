@@ -691,3 +691,16 @@ functions of the A0 prototype") was not carried out in the code of 5edc7f9.
 
 Next: give the path without wall and cut the integer route of the prototype and measure again.
 The criterion and its limit are not changed.
+
+### Integer route, step 1: the Esirkepov core takes the shapes
+
+`esirkepov` is split into `esirkepov_shapes` (the deposit from the three `AxisShape` and the
+"this axis moved" flags) and a wrapper that builds the shapes from the two end points, so that
+the integer route can hand over shapes made from the stored integers without a second copy of
+the core. This changes the particle PTX of every build, and the statement under "What changed
+in the code" above ("the PTX of the `fp64`, `mixed` and implicit builds is the one of A1")
+holds up to 5edc7f9 only. Compared for the eight cases of `scripts/check_kernels.py` (823aa67
+against the split): the field modules are identical; each particle module has the same number
+of lines; in the two periodic cases the lines are the same set in another order; in the six
+others two register names are exchanged in 6 or 16 lines and the rest is the same set in
+another order. No instruction is added, removed or changed in kind.
