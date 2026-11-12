@@ -651,3 +651,43 @@ storage with FP64 arithmetic was 7.9 to 8.0 % (no gain in speed over float64 sto
 12 bytes). Size of the trend where it was measured: 1e-11 per step or less at 2,301,952 steps
 with B = 0.5 (|u| = 1: 1.5e-5 in all), against a bound of 9.1e-5 there. Allowing float32
 momenta needs an amendment of owner decision 2 by the owner; nothing here assumes it.
+
+## A2 — speed of the product kernels
+
+### First measurement (2026-11-12, 5edc7f9, no other job on the GPUs): slower than `mixed`
+
+The benchmark of the A0 baseline (`two_stream/ei`, `cells_per_wavelength=64`, 256×64×64,
+50,331,648 particles, 100 steps after 20 of warm-up, `diag_interval=10`), three runs per
+precision; `kernel_push` and `sort` are the phases of the `--phases` runs (mean over the ranks),
+smallest to largest of the three.
+
+| GPUs | precision | ms / step, three runs | `kernel_push` ms | `sort` ms |
+|---|---|---|---|---|
+| 1 | fp64 | 23.16, 22.01, 22.02 | 20.866–20.869 | 0.442 |
+| 1 | mixed | 18.75, 18.20, 18.20 | 16.944–16.947 | 0.442 |
+| 1 | compact | 20.19, 19.95, 19.95 | 18.859–18.862 | 0.283–0.284 |
+| 8 | fp64 | 3.71, 3.69, 3.65 | 2.762–2.778 | 0.102–0.107 |
+| 8 | mixed | 3.32, 3.29, 3.32 | 2.306–2.310 | 0.103–0.111 |
+| 8 | compact | 3.41, 3.43, 3.44 | 2.477–2.483 | 0.071–0.080 |
+
+Judged as A0 fixed it (change of `kernel_push` plus `sort`, medians, relative to the `mixed`
+step of the baseline, 18.18 ms on 1 GPU and 3.38 ms on 8 GPUs): +1.915 − 0.158 = +1.757 ms on
+1 GPU, +9.7 % of the step; +0.172 − 0.028 = +0.144 ms on 8 GPUs, +4.3 % of the step. The
+product kernel of 5edc7f9 is slower than `mixed` by more than the 2 % of the A0 criterion
+("compact goes on: not more than 2 % slower than `mixed`"). Prototype (a) of A0, the same
+layout, was 9.7 % (8 GPUs) and 13.0 % (1 GPU) faster in the push. The difference between the
+prototype and the product kernel is therefore 0.5 ms (8 GPUs) and 4.3 ms (1 GPU) of
+`kernel_push`; where it comes from is not established yet.
+
+What differs in the code (read, not measured): the prototype decodes the linear cell once,
+takes the gather weights from the stored integers, snaps the end point with one integer
+rounding, deposits with integer shape functions, wraps in integers and stores cell and
+fraction directly. The product `push_deposit` of 5edc7f9 goes through the global index
+coordinate in double on every particle: three decodes of the cell through the accessors, Yee
+weights with `floor`, the snap with `rint`, the Esirkepov core with `floor` on both ends, the
+wrap in double, and `floor` again in the store (the wall loop and the cut are not in a
+periodic build). The design above ("a path without wall and cut takes the integer shape
+functions of the A0 prototype") was not carried out in the code of 5edc7f9.
+
+Next: give the path without wall and cut the integer route of the prototype and measure again.
+The criterion and its limit are not changed.
