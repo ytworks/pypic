@@ -1,7 +1,8 @@
 # Engine design
 
 Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12..D16 2026-11-11, bow-shock plan;
-PIC-D17 2026-11-11, blast-wave plan); PIC-D11 **Proposed** (2026-11-10, #10).
+PIC-D17 2026-11-11, blast-wave plan); PIC-D11 **Proposed** (2026-11-10, #10); PIC-D19 **Proposed**
+(2026-11-12, compact-storage plan).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -268,6 +269,27 @@ Measured (2026-11-11, RTX PRO 6000; diagnostic only):
 - **Decomposition:** an ambient plasma entering through six `flux` faces, an absorbing sphere and a drifting shell of two more species (two beams each) in 16×24×12 cells; with the 2×2 rank grid the block lies across the rank face along x, the sphere on it, and the two ranks of the high half of y load no shell particle. 1 GPU against 2×2: the same ids, the same counts (9748 shell particles loaded, 1264 of them in the high half after 40 steps, 44 absorbed, 5002 injected), histories within 1e-10, Gauss 1.9e-15.
 - **Gate** (`blast_wave:gate`, ae4bb69, 8 GPUs, FP64; `bench/results/2026-11-11-ae4bb69c6-gpu-gates.json`): a debris shell of two species with four beams each (about 37e6 of the 943e6 particles) in 384³ cells with six `flux` faces and the absorbing sphere, 1760 steps: Gauss 7.9e-15, div B 9.0e-15, largest `fill` 0.67 with `capacity_factor` 1.5; all criteria of the example passed, and the other 22 gates of the record with it.
 - **Gate with `precision: mixed`** (PIC-D11; 9bfa1a5, 8 GPUs; `bench/results/2026-11-11-9bfa1a537-gpu-gates-mixed.json`, after the FP64 record of the same commit): the same configuration passes all criteria: Gauss 6.9e-15, div B 8.6e-15, largest `fill` 0.67; the speed of the front and the debris extent have 7 digits or more in common with FP64.
+
+### PIC-D19 — Compact particle storage: the cell, the position within it in 2^-32 of a cell, float32 momenta (2026-11-12) — Status: Proposed
+Plan: `docs/plans/2026-11-11-compact-storage.md` (A0 to A2). The mode is written and compiles (`scripts/check_kernels.py`, two cases); it has not run on a GPU yet. What is below is the design, and under "Measured" the prototypes of A0, which are not the product kernels.
+- `precision: "compact"` (default stays `fp64`): explicit solver only, refused with the implicit one like `mixed`. The push gathers from the float32 field copies of `mixed` (PIC-D11). The Yee arrays, the current deposit, ρ and the field solver stay FP64.
+- **Storage, 44 bytes per slot in place of 64:** weight and id (two float64; the id stays the integer-valued double of PIC-D8), the cell of the particle in the arrays of its rank (int32, `IDX`), the position within that cell per axis in units of 2^-32 of a cell (uint32), the momenta (float32). `CompactSpecies` holds four arrays. A kernel reaches a particle only through the accessors at the head of `particles.cu`; `COMPACT_STORE` selects their compact bodies, and the builds of `fp64`, `mixed` and the implicit solver are unchanged by it.
+- **A position is a lattice point.** The index coordinate, cell + fraction · 2^-32, is exact in a double while the cell index stays below 2^21. Every end point is put on the lattice before anything uses it; the Esirkepov deposit, the wall loop and `deposit_cut` are then computed in FP64 from the two exact end points, so the deposited current is the one of the stored positions (the charge conservation of PIC-D2 comes from the deposit, as before; no correction is added).
+- **Moving kernels work in the global index coordinate** (cells from the lower corner of the box): the walls, the period and the range of the rank are integers there, so a reflection, a periodic wrap and a change of rank keep a lattice point exact, and the arithmetic of a path is the same on every rank layout. The local cell enters only in the stored cell and in the indices of the gather and the deposit.
+- **Readers** (`Species.pos`, `mom`, `rows`; outputs, diagnostics, the body test) get FP64 physical values: the global index coordinate times the cell size, one rounding, independent of the rank layout.
+- **Loader and injection:** the cell is the cell of the loop and the fraction the upper 32 bits of the random number that `fp64` takes for the position, written directly (not through the physical position, whose rounding could land in the neighbouring cell). The random numbers stay keyed by (seed, global cell, slot) (PIC-D6).
+- **Migration:** the record is the 8 doubles of `fp64` — global index coordinate, the momenta as the doubles of the stored floats, weight, id — and 3 more while the set-up displacement is applied, which is kept in an array of its own. The limits and the period are passed in cells; only `mig_take`, `mig_fill` and `mig_append` have a compact body.
+- **Sort:** `argsort` of the cell array; the rows are gathered one at a time through one buffer.
+- **Momenta:** stored as float32; the Boris arithmetic is FP64 on the stored values as written (2026-11-12). The energy records of the push take γ − 1 as `u² / (γ + 1)` in FP64 from the momentum that is stored. With float32 momenta `|u|` is kept by the rotation to FP32 rounding, not exactly. The owner allows this (2026-11-11) under two conditions fixed before the code: all explicit gates pass in the mode, and in the gyration test the relative drift of `|u|` stays within 6e-8·√N without a secular trend. If one fails, the momenta stay float64 (56 bytes).
+- **Refused at construction:** the implicit solver; a rank whose arrays (with ghosts) have 2^31 cells or more; a box with more than 2^20 cells along an axis including two ghost widths.
+
+Why: production runs are bound by memory (bow shock `full`: 79.8 GB per GPU) and the push kernel by FP64 (71 % of the 8-GPU step). A position as cell and fraction takes 16 bytes in place of 24 and makes the walls and the wrap integer operations; the roadmap item R10 (a fixed-point deposit) can build on the same lattice.
+
+Measured (2026-11-12, A0, 8× RTX PRO 6000; prototypes of the push, periodic only, one species pair; diagnostic only):
+- **Speed, of the whole `mixed` step (3.38 ms on 8 GPUs, 50,331,648 particles in 256×64×64):** compact positions with float64 momenta −9.7 %; float32 momenta stored with FP64 Boris −7.9 to −8.0 %; float32 momenta with FP32 Boris −27.0 to −27.3 %. The sort of the compact layouts takes 1.9 to 2.3 % of the step less.
+- **Gauss residual** over 400 steps on one rank: 4.4e-15 at most with the prototypes, 5.9e-13 with the engine.
+
+Not established: any run of the product mode on a GPU (gates, 1 vs N GPUs, the gyration condition, speed, memory of the sort); the planner still counts 64 bytes per slot.
 
 ## Review amendments
 

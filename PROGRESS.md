@@ -19,7 +19,7 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11 Proposed),
+Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12..D17 Accepted, PIC-D11 and PIC-D19 Proposed),
 `docs/design/output-analysis.md` (OUT-D1..D4, ANA-D1..D3, Accepted).
 
 | Milestone | Status |
@@ -91,6 +91,11 @@ Snapshot date: 2026-11-11. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-12 — [design] PIC-D19 compact particle storage (Proposed): 44 bytes per slot, written, not yet run on a GPU
+- What: `precision: compact` (explicit only): cell (int32), position within the cell in 2^-32 of a cell (uint32), float32 momenta, weight and id float64. Accessor layer in `particles.cu` (A1), compact bodies behind `COMPACT_STORE`, `CompactSpecies`, 8-double migration record, gate mode `--precision compact`. A0 prototypes: −9.7 % of the `mixed` step (compact positions) to −27 % (with FP32 Boris), Gauss 4.4e-15.
+- Why: production runs are memory-bound (79.8 GB per GPU) and the push is FP64-bound; lattice positions make walls and wraps integer operations and keep the deposit exact. Float32 momenta only under the owner's two conditions (all explicit gates in the mode; gyration drift ≤ 6e-8·√N).
+- Refs: PIC-D19; `docs/plans/2026-11-11-compact-storage.md` (A0 results, A1, A2); PR #43. Open: every GPU run of the mode, the A1 gates, planner bytes.
 
 ### 2026-11-11 — [progress] Blast wave, review of PR #40: shell mass from the centre, rings at the slice spacing; gates recorded on 17f1b5f
 - What: 17f1b5f: `theory.shell_peak_density` integrates the Gaussian shell over r ≥ 0 (it included r < 0: a shell with r_s = 0.1 R_m, w = 0.3 R_m held 18 % too few particles; gate and production shells: peak density +5.1e-9); `plane_history` and `body_potential` use rings as wide as the slice samples are apart (with `slice_coarsen` 3 or 4 the debris extent was nan, with 4 the body potential). Gates on 17f1b5f, 8 GPUs, ALL PASSED: FP64 (93 GPU tests, five two-stream gates, 17 example gates) and mixed (four, 17). `blast_wave:gate`, FP64 against 9bfa1a5: front speed and ring mean equal in 9 digits, ∆98 in 10; body charge +22.42 (was +22.49), potential 5.02 / 1.24 T_e/e (4.94 / 1.26).
