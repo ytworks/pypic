@@ -304,6 +304,15 @@ The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the meth
   the order of the atomic deposits differs between two runs of the same code (ANA-D3), so later
   steps agree only to the last bits. (2) The FP64 and mixed gates on the A1 commit, every value
   beside its value in the records of 17f1b5f. Result: pending.
+- Beside the null test, without a GPU: the PTX that NVRTC makes of the six cases of
+  `scripts/check_kernels.py` (target `compute_120`), on the tree of e883591 and on the A1 tree.
+  Field modules: the same text in all six cases. Particle modules: the text differs; with the
+  registers and labels renamed in order of appearance 80 to 106 lines per case differ, and the
+  sequence of instructions without the integer address arithmetic (`add.s64`, `sub.s64`,
+  `shl.b64`, `mul.lo.s64`, `mul.wide.s32`, `mul.wide.u32`, `cvt.s64.s32`, `cvt.u64.u32`,
+  `cvta.to.global.u64`) is the same in all six (16,112 to 19,168 instructions). The accessors
+  form the addresses of the partner stores of `inject_face` in another order; no other kind of
+  instruction was added, dropped or moved. This is not the criterion: the bits of (1) are.
 
 ## A2 — the compact mode as designed
 
@@ -321,6 +330,13 @@ Written before the code; what the code ends up doing differently is noted here w
 - Physical position: `PX(p) = (XI(p) + OXI) * DX` — the global index first (exact), then one
   rounding, so the value does not depend on the rank layout. Used by the readers, the body test
   and the diagnostics; never by the deposit.
+- Changed while writing the code: the moving kernels (`push_deposit`, `displace_deposit`, the
+  injection) work in the *global* index coordinate (global cell plus fraction, exact in double),
+  not the local one of the next item. Reason: the walls (0 and `GN`), the points where a path
+  meets a wall, the snap and the wrap `± GN` are then the same arithmetic on every rank layout,
+  which the 1-GPU vs N-GPU contract needs; in local coordinates a wall hit point would be rounded
+  at a different magnitude on each layout. The local cell enters only in the stored `C` and in
+  the indices of the deposit and the gather.
 - `push_deposit` works in local index coordinates: start `c0 + q0 * 2^-32`; the end point is
   snapped before anything uses it, `s = round((w0 + dX) * 2^32)`; walls are the integers `-OXI`
   and `GN - OXI`; the reflection `2 * wall - x` and the periodic wrap `x ± N` are exact in
