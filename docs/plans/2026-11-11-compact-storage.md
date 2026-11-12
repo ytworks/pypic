@@ -303,7 +303,25 @@ The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the meth
   loaded state, on the tree of 17f1b5f and on the A1 commit, FP64 and mixed; one step, because
   the order of the atomic deposits differs between two runs of the same code (ANA-D3), so later
   steps agree only to the last bits. (2) The FP64 and mixed gates on the A1 commit, every value
-  beside its value in the records of 17f1b5f. Result: pending.
+  beside its value in the records of 17f1b5f.
+- Result of (1) (2026-11-12, one GPU; base = tree of e883591, which has the `pypic/` of 17f1b5f,
+  run twice; A1 = e321bd2, which has the `pypic/` of c44d9e6; also a7497f5). Six set-ups: periodic,
+  current filter, set-up perturbation, paired injection at an open face, absorbing body with test
+  particles, shell of the Gauss check. Rows of all particles sorted by id and the six fields, at
+  steps 0, 1 and 20.
+  - Five set-ups (all but the perturbation): the loaded state is the same bits in every run, and
+    the particle rows after one step are the same bits on base, A1 and a7497f5, FP64 and mixed
+    (31,554 to 196,608 particles each). The fields after one step differ between the two runs of
+    the base by 4.9e-19 to 1.7e-17, and by the same size between base and A1 (4.9e-19 to 2.1e-17).
+    After 20 steps: mixed, the particle rows are still the same bits in all runs; FP64, they
+    differ by 8.9e-16 to 3.6e-15 between the two runs of the base and by 8.9e-16 to 3.6e-15
+    between base and A1.
+  - Perturbation: two runs of the base already differ at step 0 (E_x by 5.6e-17 in FP64 and 6.9e-17 in mixed, u_x of the
+    electrons by 2.8e-17: the field of the set-up displacement is made by atomic deposits and
+    the first half kick takes it), so this set-up cannot show bits. After one step the rows
+    differ by 4.4e-16 between the two runs of the base and by 2.8e-17 (FP64) and 4.4e-16
+    (mixed) between base and A1.
+  (1) holds where the base reproduces itself. Result of (2): pending.
 - Beside the null test, without a GPU: the PTX that NVRTC makes of the six cases of
   `scripts/check_kernels.py` (target `compute_120`), on the tree of e883591 and on the A1 tree.
   Field modules: the same text in all six cases. Particle modules: the text differs; with the
