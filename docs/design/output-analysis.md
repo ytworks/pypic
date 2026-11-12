@@ -1,7 +1,7 @@
 # Output and analysis design
 
 Status: **Accepted** (2026-11-09, PR #2). Plan: `docs/plans/2026-11-09-output-analysis-examples.md`.
-OUT-D5 **Proposed** (2026-11-12, wakefield plan).
+OUT-D5 **Accepted** (2026-11-12, wakefield plan).
 Decisions: OUT-D1..D5, ANA-D1..D3.
 Applies to: `pypic/output/` (schedule, writers, GPU diagnostics, manager), `pypic/analysis/`,
 `pypic/setup/runner.py`, every `examples/<name>/`.
@@ -77,8 +77,8 @@ time-averaged over the interval as an anti-aliasing filter; tracks: 16 per short
 dumps: a fixed number). Aliasing / under-sampling warnings and a storage table are part of the
 planner report; `budget_GB` widens only `auto` cadences and refuses fixed ones that do not fit.
 
-### OUT-D5 — Moving window: diagnostics are placed in the window, the files give laboratory places (2026-11-12) — Status: Proposed
-Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 4). The window itself: PIC-D22 (`docs/design/engine.md`).
+### OUT-D5 — Moving window: diagnostics are placed in the window, the files give laboratory places (2026-11-12) — Status: Accepted
+Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 4). Accepted with the gate records of d523e3b (FP64 and `precision: mixed`; `bench/results/2026-11-12-d523e3bbb-gpu-gates.json`, `-mixed.json`). The window itself: PIC-D22 (`docs/design/engine.md`).
 - **Placed in the window:** with `window:` the `region` of a diagnostic, the place of a slice plane and the x range and x bins of a histogram are coordinates of the window: the diagnostic follows the driver. A particle region and a histogram filter compare `x − window_shift · dx`.
 - **Written:** `window_shift`, the cells that the window has moved at the output (the record of a step precedes the shift at its end, PIC-D22). Field dumps: `gridGlobalOffset[0] = (region_lo + window_shift) dx` per iteration (openPMD). Reduced series (lineout, modes, slice, kspectrum, histogram): a dataset `window_shift` (int64) with one value per row, only in a run with a window. `scalars.h5`: `window_shift` per row. `run.json`: `window: {start, margin_cells, front_cell, window_shift_end}`, or null. Particle and track positions are laboratory positions as they are stored.
 - **Reader:** `Run.window`; `Series.window_shift` (zeros without a window); `Series.x(comp, i)`, `plane_axes(comp, i)` and `extent(comp, i)` give the laboratory x of the output i, and positions in the window without i. The edges of an x histogram stay those of the window (`edges + window_shift[i] dx` in the laboratory). `FieldSeries.get` and the XDMF index take the offset of the iteration.

@@ -1,6 +1,6 @@
 # Wakefield: laser and beam drivers, the moving window, `examples/wakefield`
 
-Status: In progress
+Status: Done (PR #42) — PIC-D20, PIC-D21, PIC-D22 and OUT-D5 Accepted with the gate records on d523e3b in FP64 and with `precision: mixed`, ALL PASSED (Results, Gate records on d523e3b); PIC-D23 Proposed
 Refs: roadmap R8; PIC-D20, PIC-D21, PIC-D22, OUT-D5 (new); PIC-D17 (extended); ANA-D2, ANA-D3
 
 ## Context
@@ -1098,3 +1098,35 @@ was occupied.
 
 Energy (monitored only): work of the antenna 1.004e5; the budget is off by 162 at the end (1.6e-3
 of the work) and by 743 at most; `window_out` 4,965.
+
+### Gate records on d523e3b (2026-11-12, 8 GPUs): FP64 and `precision: mixed` ALL PASSED
+
+One full gate run on the final code of the pull request, as fixed under Verification:
+`python scripts/gpu_gates.py --gpus 8`, then `--precision mixed`, on the clean commit d523e3b.
+
+| Record | Gates | Passed | GPU tests | Gauss max of all gates |
+|---|---|---|---|---|
+| `2026-11-12-d523e3bbb-gpu-gates.json` (FP64) | 25 | 25 | 110 passed, 0 failed, 0 skipped | 7.6e-12 |
+| `2026-11-12-d523e3bbb-gpu-gates-mixed.json` | 23 | 23 | (not part of this mode) | 7.6e-12 |
+
+The 25 are the GPU tests, five two-stream gates and 19 example gates; the mixed record has the
+four explicit two-stream gates and the same 19. Two-stream growth against linear theory: +3.0,
+−1.7, −2.3, +3.5 (implicit), −4.7 % (limit 10 %); implicit energy 1.9e-10 (limit 1e-8); these
+figures equal those of the record of 17f1b5f on main in the digits given.
+
+| Gate | Record | Amplitude (5 %) | Wavelength (2 %) | Radial (10 %) | Gauss (1e-10) |
+|---|---|---|---|---|---|
+| `wakefield:laser_linear` | FP64 | −1.33 % | −0.02 % | +0.06 % | 1.1e-13 |
+| `wakefield:laser_linear` | mixed | −1.33 % | −0.02 % | +0.06 % | 1.1e-13 |
+| `wakefield:beam_linear` | FP64 | +0.51 % | −0.25 % | −0.77 % | 3.9e-15 |
+| `wakefield:beam_linear` | mixed | +0.51 % | −0.25 % | −0.77 % | 3.9e-15 |
+
+The three measured ratios repeat the window runs of 40edad6 (Stage 5 above) in the digits given.
+The Gauss residual does not: 6.6e-13 and 9.1e-14 there. Between the two commits the index
+coordinate of the window (07c668c) and the steps of the Gauss check (2e7911e) changed; which of
+them accounts for the difference was not examined.
+
+With these records PIC-D20, PIC-D21, PIC-D22 and OUT-D5 are Accepted, and the close condition of
+R8 (Context) is met. PIC-D23 (lattice places) stays Proposed: it entered by an amendment and
+waits for the owner's decision; both wakefield gates use it. The window with the mixed gather
+has no test of its own; the two wakefield gates of the mixed record are its GPU evidence.

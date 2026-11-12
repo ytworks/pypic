@@ -1,6 +1,25 @@
 {
   "entries": [
     {
+      "file": "2026-11-12-d523e3bbb-gpu-gates-mixed.json",
+      "date": "2026-11-12",
+      "commit": "d523e3bbbaf72f75c9d49c3b287755c56898c58c",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true,
+      "precision": "mixed"
+    },
+    {
+      "file": "2026-11-12-d523e3bbb-gpu-gates.json",
+      "date": "2026-11-12",
+      "commit": "d523e3bbbaf72f75c9d49c3b287755c56898c58c",
+      "dirty": false,
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "all_passed": true
+    },
+    {
       "file": "2026-11-12-da4e27e2c-example-wakefield-laser_bubble-run-b738687c.json",
       "type": "example",
       "date": "2026-11-12",
