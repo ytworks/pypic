@@ -120,13 +120,15 @@ mechanisms to develop.
 ## Approach
 Draft; the criteria and null tests are to be fixed before any production run.
 
-**Exploratory runs (designed 2026-11-12, not run):** three trials to build hypotheses, recorded in
+**Exploratory runs (designed 2026-11-12, run 2026-11-13):** three trials to build hypotheses, recorded in
 `exploratory-conditions.md` with their configs in `configs/`.
 - They use the debris shell of `examples/blast_wave` in a 768³ box with 2 particles per cell, and differ in the
   field strength only: nominal M_A = 3.5, 6.0 and 8.7 at m_i/m_e = 16.
-- They are not evidence for a claim. Their checks are fixed in that record (Sect. 6).
-- Their main limit: the front is slower than the debris, so even the highest run is expected to stay at or
-  below the surfing threshold. A driver that holds its speed needs a planner of the topic's own.
+- They are not evidence for a claim. Their criteria, floors and null tests were fixed before the runs in
+  `exploratory-protocol.md`; the results and the verdict are in `exploratory-results.md`.
+- Their main limit, expected and now measured: the front is slower than the debris. Where the protocol finds
+  a shock, its fast Mach number is 1.5–2.5 in L and in M, and H forms none. A driver that holds its speed
+  needs a planner of the topic's own.
 
 The plan for the later, claim-bearing runs:
 - **Driver:** a spherical shock driven outwards into a uniform field. The existing debris shell
@@ -146,7 +148,18 @@ The plan for the later, claim-bearing runs:
   - scans of particles per cell, resolution and front radius.
 
 ## Claims and evidence
-None yet.
+No claim.
+
+Observations of the exploratory runs (2026-11-13). They are not claims: one seed, 2 particles per cell,
+m_i/m_e = 16. Limits and detail: `exploratory-results.md`.
+- No ambient electron population at γ ≥ 1.5 upstream of a front in L, M or H; the null runs hold none.
+  Records: `runs/2026-11-13-91f79ff1d-L.json`, `-ac33a41eb-M.json`, `-3f5c43715-H.json`, `-0114ef9ea-L-null.json`,
+  `-3f5c43715-M-null.json`.
+- The valid shocks of L and M are a decaying blast wave of fast Mach 1.5–2.5 and compression about 2; the
+  debris stalls at 1.3–1.5 R_m (records of L and M, `front`).
+- The adiabatic mirror in a static potential does not describe the electrons that return upstream, in number,
+  energy or magnetic moment (records of L and M, `baseline`, `tracks`). Numerical scattering is not excluded
+  as the cause.
 
 ## Publication
 Open.
@@ -166,10 +179,16 @@ m_i/m_e and β_e. That decision is the owner's and is open.
 
 Surveyed 2026-11-12: electron injection at supernova remnant shocks (`survey-snr-electron-injection.md`).
 
-Designed 2026-11-12: three exploratory runs (`exploratory-conditions.md`); not run.
+Designed 2026-11-12: three exploratory runs (`exploratory-conditions.md`).
+
+Run and analysed 2026-11-13: L-null, L, M, M-null, H, against the protocol fixed before them
+(`exploratory-protocol.md`; reviews in `reviews/`). **Verdict: no hypothesis was obtained from these runs**
+(`exploratory-results.md`): no signal at the registered threshold, and the runs sampled a weak, decaying shock
+instead of the designed Mach numbers.
 
 Next:
 - the owner's decision on the question;
-- the curved-shock works for the bow shock, which need access beyond arXiv;
-- a research-reviewer review of the survey and of the exploratory conditions;
-- before the exploratory runs: the run-recording tools of the research harness, and the topic's `analyze.py`.
+- reading `kraussvarban1991electron` and `giacalone2017acceleration` in full (access beyond arXiv);
+- a test-particle baseline in the measured fields of L and M (no GPU), to decide whether the returns beyond
+  the mirror baseline are known kinematics;
+- only then a further run, whose conditions are in `exploratory-results.md`, Sect. 8.
