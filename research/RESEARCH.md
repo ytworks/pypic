@@ -20,6 +20,13 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 
 ## Change Log
 
+### 2026-11-12 — [amendment] Pull requests are allowed between research branches
+- What: a pull request may be opened when its base is `research/*` (a work or session branch into its topic, a topic into trunk). It is merged with a merge commit, never by squash or rebase. A pull request into main or any other non-research branch stays forbidden.
+  - The guard checks the base of every PR creation (GitHub MCP tool and the gh CLI).
+  - CI runs the branch rules, lint and tool tests on a pull request into a research branch, and fails one into any other branch.
+- Why: owner's instruction (2026-11-12): the survey of a topic is reviewed through a PR whose base is the topic branch. The entry "Research branches use no pull requests" went further than the owner's point, which was that a PR into main is pointless.
+- Refs: `.claude/rules/research/branching.md`, `research/tools/hooks/guard.py`, `.github/workflows/research.yml`; amends the entry "Research branches use no pull requests".
+
 ### 2026-11-12 — [amendment] Guard: other branches may be deleted; research branches and main may not
 - What: the PreToolUse guard used to block every branch delete. It now blocks only deletes of `research/*` and of main.
 - Why: the owner asked to delete merged branches that are neither main nor research. The rule protects research history only.
