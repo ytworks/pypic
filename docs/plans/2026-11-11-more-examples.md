@@ -1,6 +1,6 @@
 # More examples: the seven open items of R6
 
-Status: Done (PR #41) — the seven items have a gated or a recorded configuration; gate records on c54e5d1 in FP64 and with `precision: mixed`, ALL PASSED (Results, Gate records on c54e5d1); PIC-D18 Accepted
+Status: Done (in PR #42; PR #41 closed) — the seven items have a gated or a recorded configuration; gate records on c54e5d1 in FP64 and with `precision: mixed`, ALL PASSED (Results, Gate records on c54e5d1); gated again with the second review fix in the one pull request, on 300c1a4 (`2026-11-11-wakefield.md`, Results, last section); PIC-D18 Accepted
 Refs: roadmap R6 (R11 stays open); PIC-D18 (new); ANA-D2, ANA-D3; PIC-D12..D17 (used as they are)
 
 ## Context

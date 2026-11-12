@@ -1,7 +1,8 @@
 # Compact particle storage: closing R3 and R5
 
-Status: Done (PR #43) — R3 and R5 are closed by the owner's decisions (2026-11-12); the head with
-PR #41 merged into it is gated in the three precisions, ALL PASSED (a213c5d, last section)
+Status: Done (in PR #42; PR #43 closed) — R3 and R5 are closed by the owner's decisions
+(2026-11-12); the head with PR #41 merged into it is gated in the three precisions, ALL PASSED
+(a213c5d, last section), and so is the one pull request, on 300c1a4 (`2026-11-11-wakefield.md`)
 Refs: roadmap R3, R5 (R10 stays open); PIC-D19 (new); PIC-D11 (default `fp64`, owner decision 2026-11-12)
 
 ## Context
