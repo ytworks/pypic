@@ -1,6 +1,8 @@
 """Particle species storage (SoA on GPU), loading, sorting and inter-rank migration."""
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import cupy as cp
 import numpy as np
 
@@ -20,6 +22,40 @@ def check_capacity(cap: int) -> int:
     return cap
 
 
+class SortMemory:
+    """The temporaries of the particle sort (`SORT_BYTES` per particle) in a memory pool of their own.
+
+    In CuPy's default pool the argsort of a sort took new device memory while the pool held more
+    free bytes than the request, and the pool kept both (measured: blast wave, every rank). In this
+    pool the blocks of a sort meet only the next sort: one of fewer particles fits them, and one
+    of more particles than any before returns them to the device first. So the pool holds the
+    temporaries of the largest sort and nothing else. One process drives one device."""
+
+    def __init__(self):
+        self.pool = cp.cuda.MemoryPool()
+        self.n = 0  # particles of the sort that the blocks were allocated for
+
+    def release(self):
+        self.pool.free_all_blocks()
+        self.n = 0
+
+    @contextmanager
+    def __call__(self, n: int):
+        """Allocate inside the block from the pool of the sort; nothing allocated may outlive it."""
+        if n > self.n:
+            self.pool.free_all_blocks()
+            cp.get_default_memory_pool().free_all_blocks()  # what the set-up and the steps before left free
+            self.n = n
+        held = self.pool.total_bytes()
+        with cp.cuda.using_allocator(self.pool.malloc):
+            yield
+        if self.pool.total_bytes() > held > 0:  # the kept blocks did not fit: the next sort starts again
+            self.n = 0
+
+
+sort_memory = SortMemory()
+
+
 class Species:
     def __init__(self, name: str, charge: float, mass: float, capacity: int):
         self.name = name
@@ -28,7 +64,6 @@ class Species:
         self.cap = check_capacity(capacity)
         self._allocate()
         self.n = 0
-        self._sorted = 0  # the largest n sorted so far
         self.Pn = None  # implicit scheme work array
         self.test = False  # test species: no charge deposit, not in the energy budget (PIC-D9)
         self.qdep = self.q
@@ -173,26 +208,17 @@ class Species:
         which is free once the order is known: no second copy of the particle arrays."""
         if self.n == 0:
             return
-        key = cp.empty(self.n, dtype=cp.int64)
-        launch(kernel, self.n, (*self.store, np.int32(self.n), np.int64(self.cap), key))
-        order = cp.argsort(key)
-        buf = key.view(cp.float64)
-        for A in (self.P, self.Pn):
-            if A is not None:
-                for r in range(A.shape[0]):
-                    cp.take(A[r], order, out=buf)
-                    A[r, : self.n] = buf
-        del key, order, buf
-        self._release_sort()
-
-    def _release_sort(self):
-        # After a sort larger than any before, the temporaries (40 bytes per particle) go back to
-        # the device, not only to CuPy's pool: a free block serves only requests that fit, so with a
-        # growing n (injection) every sort would allocate new blocks and keep the old ones. With a
-        # constant n the pool keeps the blocks and the next sort reuses them.
-        if self.n > self._sorted:
-            self._sorted = self.n
-            cp.get_default_memory_pool().free_all_blocks()
+        with sort_memory(self.n):
+            key = cp.empty(self.n, dtype=cp.int64)
+            launch(kernel, self.n, (*self.store, np.int32(self.n), np.int64(self.cap), key))
+            order = cp.argsort(key)
+            buf = key.view(cp.float64)
+            for A in (self.P, self.Pn):
+                if A is not None:
+                    for r in range(A.shape[0]):
+                        cp.take(A[r], order, out=buf)
+                        A[r, : self.n] = buf
+            del key, order, buf
 
     # --------------------------------------------------------- remove/migrate
     def flag_list(self):
@@ -427,15 +453,15 @@ class CompactSpecies(Species):
         n = self.n
         if n == 0:
             return
-        order = cp.argsort(self.C[:n])
-        buf = cp.empty(n, dtype=cp.float64)
-        for _, A in self._arrays():
-            out = buf.view(A.dtype)[:n]
-            for row in A.reshape(-1, self.cap):
-                cp.take(row, order, out=out)
-                row[:n] = out
-        del order, buf, out
-        self._release_sort()
+        with sort_memory(n):
+            order = cp.argsort(self.C[:n])
+            buf = cp.empty(n, dtype=cp.float64)
+            for _, A in self._arrays():
+                out = buf.view(A.dtype)[:n]
+                for row in A.reshape(-1, self.cap):
+                    cp.take(row, order, out=out)
+                    row[:n] = out
+            del order, buf, out
 
 
 MIGRATE_KERNELS = ("mig_take", "mig_fill", "mig_classify", "mig_pack", "mig_append", "mig_rank32", "mig_rank64")

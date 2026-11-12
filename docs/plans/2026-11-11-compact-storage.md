@@ -901,3 +901,37 @@ frames that made it.
 - The used bytes are 3.3 GB (fp64) and 2.6 GB (compact) below the planner's figure without its
   1 GB for the context. The planner counts the sort of a full species (the fill is 0.67) and
   31 + n_out grid arrays; which of its terms is too large was not measured here.
+
+### The sort keeps its temporaries in a pool of their own
+
+2026-11-12. Two ways to stop the growth were measured in the benchmark of A0 (two-stream,
+256×64×64 cells, 50,331,648 particles, 8 GPUs: 3.1e6 particles per species and rank, a sort every
+50 steps, 200 steps after 20; ms per step). Rows 1 and 2 are one series of alternating runs,
+rows 3 and 4 another.
+
+| sort | `mixed` runs | median | `compact` runs | median |
+|---|---|---|---|---|
+| bad2803 (release after a sort larger than any before) | 3.213, 3.104, 3.126 | 3.126 | 2.886, 2.773, 2.761 | 2.773 |
+| default pool emptied after every sort | 3.369, 3.262, 3.369 | 3.369 | 3.002, 2.980, 3.013 | 3.002 |
+| bad2803, second series | 3.219, 3.324, 3.254 | 3.254 | 2.863, 2.858, 2.826 | 2.858 |
+| pool of the sort (adopted) | 3.233, 3.301, 3.197 | 3.233 | 2.881, 2.829, 2.795 | 2.829 |
+
+- **Emptying the default pool after every sort: not adopted.** +7.8 % (`mixed`) and +8.3 %
+  (`compact`) of the step in the medians; every run is slower than every run of bad2803 in its
+  series. In a
+  loop of the sort alone (one GPU, 3.1e6 particles, an argsort and eight row gathers, median of 9)
+  a sort takes 0.88 ms with the blocks kept and 5.08 ms with the default pool emptied each time;
+  with 5.7e7 particles 49.7 and 58.0 ms.
+- **Adopted: `pypic.particles.sort_memory`.** The temporaries of a sort are allocated from a
+  memory pool that nothing else uses. A sort of more particles than any before first returns the
+  blocks of that pool (and, as before, the free blocks of the default pool) to the device; a
+  sort of fewer particles is served from the blocks of the largest one. If the blocks kept do
+  not serve a sort (the pool grows), the next sort starts from an empty pool. In the benchmark
+  the ranges of the three runs overlap those of bad2803 in both precisions: no difference shown.
+- Regression test (`test_sorts_of_a_changing_particle_number_hold_the_memory_of_the_largest_sort`,
+  `fp64` and `compact`): after sorts of 0.5, 0.75, 1, 0.6, 0.7 and 0.8 of the particles the two
+  pools hold what they hold after one sort of all particles from empty pools. It fails on the
+  code of bad2803 (the held bytes grow at each sort of more particles than the one before:
+  1,789,952 → 1,971,712 → 2,187,264 → 2,402,816 in `fp64`) and passes with the pool of the sort,
+  which then holds 42.3 (`fp64`) and 25.3 (`compact`) bytes per particle of the 8,192 of the test.
+- Not measured yet: the device memory of the gate-size and production-size runs with it.

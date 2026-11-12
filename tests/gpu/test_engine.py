@@ -549,19 +549,29 @@ def test_compact_sort_orders_by_the_stored_cell_and_keeps_every_particle():
 
 
 @pytest.mark.parametrize("precision", ["fp64", "compact"])
-def test_sort_of_a_growing_species_does_not_grow_the_memory_pool(precision):
-    """Regression: CuPy's pool keeps a freed block only for requests that fit, so the temporaries of
-    the sorts of a species that gains particles (injection) piled up until the device was full."""
+def test_sorts_of_a_changing_particle_number_hold_the_memory_of_the_largest_sort(precision):
+    """Regression: the temporaries of the sorts piled up in CuPy's pool when a species gained
+    particles (injection), and also when its number fell and rose again below its largest (a rank
+    of the blast wave)."""
+    from pypic.particles import sort_memory
+
     sim = plasma("explicit", sort_interval=0, precision=precision)
     sp = sim.species[0]
-    pool = cp.get_default_memory_pool()
-    pool.free_all_blocks()
-    n, held = sp.n, []
-    for part in (0.5, 0.75, 1.0):
-        sp.n = int(part * n)
-        sp.sort(sim.k_cell)
-        held.append(pool.total_bytes())
-    assert held[1] == held[0] and held[2] == held[0], held
+    pools = cp.get_default_memory_pool(), sort_memory.pool
+    n = sp.n
+
+    def held_after(parts):
+        sort_memory.release()
+        held = []
+        for part in parts:
+            sp.n = int(part * n)
+            sp.sort(sim.k_cell)
+            held.append(sum(pool.total_bytes() for pool in pools))
+        return held
+
+    (one,) = held_after([1.0])
+    held = held_after([0.5, 0.75, 1.0, 0.6, 0.7, 0.8])
+    assert held[2:] == [one] * 4, (one, held)  # as after one sort of all particles from empty pools
 
 
 BIG_CAP = 360_000_000  # 6 * cap > 2**31: the weight row starts beyond int32 offsets (issue #11)
