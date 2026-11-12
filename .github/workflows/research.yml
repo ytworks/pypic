@@ -11,23 +11,28 @@ permissions:
   contents: read
 
 jobs:
-  no-pull-requests:
+  only-into-research:
     # GitHub reads a pull request's workflows from its merge commit, so this job runs exactly when
-    # a pull request carries the research files. Research branches use no pull requests (merges
-    # are local `git merge --no-ff` + push), and research is never merged into main: refuse it.
+    # a pull request carries the research files. Into a research branch that is a review within
+    # research; into any other branch (main above all) it is refused: research is never merged there.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Research branches use no pull requests
+      - name: Research files only into research branches
         env:
           BASE: ${{ github.base_ref }}
           HEAD: ${{ github.head_ref }}
         run: |
-          echo "::error::$HEAD -> $BASE carries the research files. Research branches use no pull requests and are never merged into main (.claude/rules/research/branching.md); close this pull request."
+          case "$BASE" in
+            research/*) echo "$HEAD -> $BASE: within the research branches"; exit 0 ;;
+          esac
+          echo "::error::$HEAD -> $BASE carries the research files. Research branches are never merged into $BASE (.claude/rules/research/branching.md); close this pull request."
           exit 1
 
   checks:
-    if: github.event_name == 'push'
+    # A push to a research branch, or a pull request into one (checked on its merge commit, by the
+    # rules of the base branch).
+    if: github.event_name == 'push' || startsWith(github.base_ref, 'research/')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -41,7 +46,7 @@ jobs:
         run: python -m pip install ruff pytest
       - name: Branch rules
         env:
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ github.base_ref || github.ref_name }}
         run: python research/tools/check_branch.py --branch "$BRANCH"
       - name: Lint
         run: ruff check research

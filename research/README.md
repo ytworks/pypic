@@ -23,6 +23,8 @@ research/* ──✕──▶ main                   (no push, merge or cherry-p
 - Main is taken only when the engine has changed, and only at a commit whose `pypic/` tree has an
   all-passed gate record in `bench/results/index.json`. The skill `research-sync-main` does this.
 - An engine change needed by research is made on a branch from main and goes through its PR and gates.
+- Pull requests within research are for review only: a work or session branch into its topic, or a
+  topic into trunk. Merge them with a merge commit (no squash, no rebase), because run records name commits.
   Research takes it after the merge to main.
 
 ## Why merges of main never conflict
@@ -62,7 +64,7 @@ research/tests/                 tests of the tools (pytest research/tests)
   - pushes to main, force pushes and branch deletes;
   - rebases;
   - commits of main-owned files outside a merge;
-  - any pull request: research branches use none; merges are local `--no-ff` merges and a push.
+  - pull requests whose base is not a research branch.
 
   It matches strings, so it is a tripwire, not a proof.
 - **SessionStart hook (`research/tools/hooks/session_start.py`):** reports the following. It reads local refs only.
@@ -71,8 +73,9 @@ research/tests/                 tests of the tools (pytest research/tests)
   - how far `origin/main` is ahead;
   - any rule violations.
 - **CI (`.github/workflows/research.yml`):** runs `check_branch.py`, `ruff` and the tool tests on
-  every push to `research/**`. Any pull request that carries the research files fails, since research branches use none.
-  GitHub reads a pull request's workflows from its merge commit, so this check works without any change to main.
+  every push to `research/**`, and on every pull request into a research branch (on its merge commit).
+  A pull request that carries the research files into any other branch fails. GitHub reads a pull
+  request's workflows from its merge commit, so this check works without any change to main.
 
 ## Limits and settings outside the repository
 

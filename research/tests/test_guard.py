@@ -43,9 +43,15 @@ def bash(command):
     (*bash('git checkout main && git merge --no-ff -m "x; y" research/trunk'), 2),
     (*bash("git merge --no-ff origin/main"), 0),
     ("mcp__github__create_pull_request", {"head": "research/trunk", "base": "main"}, 2),
-    ("mcp__github__create_pull_request", {"head": "research/foo", "base": "research/trunk"}, 2),
-    (*bash("gh pr create --base research/trunk"), 2),
-    (*bash("git commit -m 'no PRs: gh pr create is blocked'"), 0),  # text, not a command
+    ("mcp__github__create_pull_request", {"head": "claude/session", "base": "main"}, 2),
+    ("mcp__github__create_pull_request", {"head": "research/foo", "base": "research/trunk"}, 0),
+    ("mcp__github__create_pull_request", {"head": "claude/session", "base": "research/foo"}, 0),
+    ("mcp__github__update_pull_request", {"pullNumber": 1, "title": "t"}, 0),
+    ("mcp__github__update_pull_request", {"pullNumber": 1, "base": "main"}, 2),
+    (*bash("gh pr create --base research/trunk"), 0),
+    (*bash("gh pr create --base main"), 2),
+    (*bash("gh pr create --fill"), 2),  # no base: gh takes the default branch, main
+    (*bash("git commit -m 'note: gh pr create --base main is blocked'"), 0),  # text, not a command
 ])
 def test_guard(repo, tool, tool_input, code):
     assert guard(repo, tool, tool_input) == code

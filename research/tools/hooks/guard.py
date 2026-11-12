@@ -10,7 +10,8 @@ Active only in research mode (research/RESEARCH.md in the working tree). Blocks:
   deletes of research branches (other branches may be deleted);
 - git rebase; git commit of staged main-owned files outside a merge; any commit or push on main;
 - git merge / cherry-pick in a command that also switches to main;
-- any pull request: research branches use none (merges are local `git merge --no-ff` + push).
+- a pull request whose base is not a research branch (pull requests are for review between
+  research branches only: a work branch into its topic, a topic into trunk).
 """
 from __future__ import annotations
 
@@ -30,8 +31,8 @@ SEPARATORS = re.compile(r"&&|\|\||[;|\n&]")
 FORCE = {"-f", "--force", "--mirror", "--all"}
 DELETE = {"-d", "--delete"}
 RULES = ".claude/rules/research/branching.md"
-NO_PR = ("pull request: research branches use none, since nothing on them is merged by a pull request; "
-         "integrate with a local `git merge --no-ff` and push")
+PR_BASE = ("pull request into a branch that is not `research/*`: research is never merged into main; "
+           "a pull request from here must name a research branch as its base")
 
 
 def block(reason: str) -> int:
@@ -123,9 +124,27 @@ def check_commit(root: Path, args: list[str], branch: str) -> str | None:
     return None
 
 
+def gh_base(words: list[str]) -> str:
+    """The base branch of a `gh pr create` word list; "" when none is given (gh then takes the default branch)."""
+    for i, w in enumerate(words):
+        if w in ("--base", "-B") and i + 1 < len(words):
+            return words[i + 1]
+        if w.startswith("--base="):
+            return w.removeprefix("--base=")
+    return ""
+
+
+def check_pr(tool: str, tool_input: dict) -> str | None:
+    base = str(tool_input.get("base") or "")
+    if tool.endswith("update_pull_request") and not base:
+        return None  # title, body or state of an existing pull request
+    return None if base.startswith("research/") else PR_BASE
+
+
 def check_bash(root: Path, command: str) -> str | None:
-    if any(w[:3] == ["gh", "pr", "create"] for w in segments(command)):
-        return NO_PR
+    for words in segments(command):
+        if words[:3] == ["gh", "pr", "create"] and not gh_base(words).startswith("research/"):
+            return PR_BASE
     calls = git_calls(command)
     if not calls:
         return None
@@ -175,7 +194,7 @@ def main() -> int:
     elif tool == "Bash":
         reason = check_bash(root, str(tool_input.get("command", "")))
     elif tool in PR_TOOLS:
-        reason = NO_PR
+        reason = check_pr(tool, tool_input)
     else:
         reason = None
     return block(reason) if reason else 0
