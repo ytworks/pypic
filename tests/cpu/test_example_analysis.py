@@ -230,9 +230,10 @@ def test_blast_wave_gate_fails_without_a_measurement():
     assert out["blocks"][1] == 0 and np.isnan(out["deviation"])
 
 
-def _wake_planes(W, p, t, ex, er, x_low=0.0):
+def _wake_planes(W, p, t, ex, er, x_low=0.0, on_nodes=None):
     """A stand-in for the output of the plane through the axis: E_x(x, r) on its edges and E_z = +-E_r, in a
-    box that begins at x_low."""
+    box that begins at x_low; ``on_nodes``: further planes, as functions of x and z on the nodes. Every
+    output (one per time of t) reads the same planes."""
     from types import SimpleNamespace
 
     dx, dz, _ = W.PL.cells(p)
@@ -241,7 +242,24 @@ def _wake_planes(W, p, t, ex, er, x_low=0.0):
     zc = 0.5 * p.width
     planes = {"Ex": ex(xs["Ex"][:, None], np.abs(zs["Ex"][None, :] - zc)),
               "Ez": er(xs["Ez"][:, None], np.abs(zs["Ez"][None, :] - zc)) * np.sign(zs["Ez"][None, :] - zc)}
-    return SimpleNamespace(t=np.array([t]), plane_axes=lambda c, i=None: (xs[c], zs[c]), read=lambda c, i: planes[c])
+    for name, f in (on_nodes or {}).items():
+        xs[name], zs[name] = xs["Ez"], zs["Ex"]
+        planes[name] = f(xs[name][:, None], zs[name][None, :]) * np.ones((p.nx, p.n_perp))
+    return SimpleNamespace(t=np.atleast_1d(np.asarray(t, dtype=float)), plane_axes=lambda c, i=None: (xs[c], zs[c]),
+                           read=lambda c, i: planes[c])
+
+
+def _wake_run(W, p, series, monkeypatch, shift=0, front_cell=None):
+    """``analyze`` of the example reads this run: the plan of p and the outputs ``series`` of the plane through
+    the axis, in a window that has gone ``shift`` cells at each of them."""
+    from types import SimpleNamespace
+
+    cfg, _, info = W.PL.plan_wakefield(p)
+    series.window_shift = np.full(len(series.t), shift)
+    run = SimpleNamespace(meta={"planner": info}, dx=cfg.dx, scalars={"gauss": np.array([1e-12])},
+                          window={"front_cell": front_cell} if cfg.window else None, series=lambda name: series)
+    monkeypatch.setattr(W, "open_run", lambda path: run)
+    return cfg
 
 
 def test_wakefield_measurement_recovers_a_planted_wake_of_a_pulse():
@@ -279,6 +297,59 @@ def test_wakefield_measurement_recovers_a_planted_wake_of_a_pulse():
     assert m["amplitude_ratio"] == pytest.approx(1.03, rel=1e-3)
     assert m["k_times_speed"] == pytest.approx(1.004, rel=1e-4)
     assert m["Er_over_Ex_ratio"] == pytest.approx(0.95, rel=2e-3)
+
+
+def test_wakefield_analysis_of_a_run_with_one_output_gives_the_verdict_of_the_last_frame(monkeypatch):
+    """n_out = 1 writes the plane at t = 0 and at the end. At t = 0 the pulse has not reached the plasma: there
+    is no interval behind it to fit, and the amplitude of the output before the last is nan (review of PR #42:
+    the analysis ended with an IndexError there). The last frame holds the wake of the theory with 1.03 times
+    its amplitude and 1.004 times its wavenumber, inside the gate."""
+    W = _example("wakefield")
+    p = W.PL.WakeParams(n_out=1)
+    g = W.PL.laser_geometry(p)
+    t_end = W.PL.arrival_time(p, p.x_end)
+    k = 1.004 / g["v_g"]
+
+    def potential(x, r):
+        f2 = 1.0 + ((x - g["focus"]) / g["rayleigh"]) ** 2
+        a2 = p.a0 ** 2 / f2 / np.sqrt(1.0 - 1.0 / p.omega0 ** 2)
+        return (a2 * 0.25 * p.duration * np.sqrt(0.5 * np.pi) * np.exp(-p.duration ** 2 / 8.0)
+                * np.exp(-2.0 * r ** 2 / (p.waist ** 2 * f2))), p.waist ** 2 * f2
+
+    def er(x, r):
+        phi, w2 = potential(x, r)
+        return -1.03 * 4.0 * r / w2 * phi * np.sin(k * x + 0.7)
+
+    s = _wake_planes(W, p, [0.0, t_end], lambda x, r: 1.03 * potential(x, r)[0] / g["v_g"] * np.cos(k * x + 0.7), er,
+                     on_nodes={"n:electron": lambda x, z: 1.0, "Ey": lambda x, z: np.exp(-(x - p.x_end) ** 2)})
+    _wake_run(W, p, s, monkeypatch)
+    res = W.analyze("run", show_plot=False)
+    assert np.isnan(res["amplitude_ratio_previous_output"]) and res["t_previous_output"] == 0.0
+    assert res["t"] == t_end and res["amplitude_ratio"] == pytest.approx(1.03, rel=1e-3) and res["passed"]
+    assert res["pulse_center_measured"] == pytest.approx(p.x_end, abs=1e-6)
+
+
+def test_wakefield_analysis_of_a_blowout_box_without_the_driver_is_the_null_test(monkeypatch):
+    """laser_bubble.yaml with drive: false writes E_x, E_z and the electron density, and no E_y: the analysis
+    is the null test, against the E_x of the blowout prediction (sqrt(a0) = 2), and not the report of a cavity
+    (review of PR #42: that one read E_y and ended with a KeyError)."""
+    import yaml
+
+    from pypic import window
+
+    W = _example("wakefield")
+    with open(ROOT / "examples/wakefield/configs/laser_bubble.yaml") as f:
+        p = W.PL.params_from_dict({**yaml.safe_load(f), "drive": False})
+    cfg = W.PL.plan_wakefield(p)[0]
+    shift, front = window.shift_after(cfg, cfg.n_steps), window.front_cell(cfg)
+    x_front = (front + shift) * cfg.dx[0]
+    s = _wake_planes(W, p, np.linspace(0.0, cfg.n_steps * cfg.dt, 3), lambda x, r: 0.004 * np.cos(x) + 0.0 * r,
+                     lambda x, r: 0.0 * x * r, x_low=shift * cfg.dx[0],
+                     on_nodes={"n:electron": lambda x, z: 1.0 * (x < x_front)})
+    _wake_run(W, p, s, monkeypatch, shift=shift, front_cell=front)
+    res = W.analyze("run", show_plot=False)
+    assert res["predicted_amplitude"] == 2.0 and res["Ex_axis_max_over_predicted"] == pytest.approx(0.002, rel=1e-3)
+    assert res["density_plateau"] == pytest.approx(1.0) and res["passed"]
 
 
 def test_wakefield_measurement_recovers_a_planted_wake_of_a_bunch():

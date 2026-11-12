@@ -9,13 +9,17 @@ gate (bunch): on the axis E_x = c A_th cos(k (x - x_b) + phi) + b over five wave
       bunch: |c - 1| <= 5 %, |k beta - 1| <= 2 %; the amplitude on the lines at r = sigma_r over
       the one on the axis within 10 % of R(sigma_r) / R(0).
 null run (drive: false): max |E_x| on the axis <= 1 % of the predicted amplitude, mean electron
-      density on the plateau within 1 % of n0.
-reported: the fitted phase, the amplitude at the output before the last, the place of the driver.
+      density on the plateau within 1 % of n0. For a box of the regime "blowout" the predicted
+      amplitude is the largest E_x of the scaling, sqrt(a0).
+reported: the fitted phase, the place of the driver, the amplitude at the output before the last
+      (nan where the interval behind the driver holds less than one wavelength of the wake there,
+      as at the start of a run with one output).
 The places are those of the laboratory (OUT-D5). No interval of a fit or of the density comes
 closer than 1 c/omega_pe to the lower x face of the box, and the density is taken up to
 1 c/omega_pe behind the front of the plasma of a moving window.
 
-regime "blowout" (no gate; everything is reported next to the scalings of Lu et al. 2007):
+regime "blowout" with the driver (no gate; everything is reported next to the scalings of Lu et al.
+2007):
 cavity: the largest connected region of the plane with electron density below 0.5 n0 between the
       lower face + 1 and the centre of the pulse (the density averaged along x over one spacing
       across); its radius is half of its largest extent across.
@@ -100,13 +104,20 @@ def _window(p, x_driver: float, x_low: float = 0.0):
     return max(p.ramp[1], x_low) + 1.0, x_driver - 3.0 * p.duration
 
 
+def _interval(p, s, i: int):
+    """The place of the driver at the output i of the plane through the axis, and (x_lo, x_hi) of the
+    measurement behind it."""
+    xe = s.plane_axes("Ex", i)[0]
+    x_drv = PL.driver_position(p, float(s.t[i]))
+    return (x_drv, *_window(p, x_drv, xe[0] - 0.5 * (xe[1] - xe[0])))
+
+
 def _measure(p, s, i: int) -> dict:
     """Fits of the output i of the plane through the axis."""
     xe, ze = s.plane_axes("Ex", i)
     zc, speed = 0.5 * p.width, PL.speed(p)
     r = 0.5 * p.waist if p.driver == "laser" else p.sigma_r
-    x_drv = PL.driver_position(p, float(s.t[i]))
-    lo, hi = _window(p, x_drv, xe[0] - 0.5 * (xe[1] - xe[0]))
+    x_drv, lo, hi = _interval(p, s, i)
     sel = (xe >= lo) & (xe <= hi)
     x = xe[sel]
     origin = x_drv if p.driver == "bunch" else 0.0
@@ -281,7 +292,7 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
     run = open_run(run_dir)
     info = run.meta["planner"]
     p = PL.params_from_dict(info["params"])
-    if p.regime == "blowout":
+    if p.regime == "blowout" and p.drive:  # without the driver there is no pulse and no cavity: the null test
         return _blowout(run, p, info, show_plot, fig_dir)
     th = info["theory"]
     s = run.series("axis_plane")
@@ -292,7 +303,10 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
     x_low = float(xe[0] - 0.5 * (xe[1] - xe[0]))
     w = run.window
     front = (w["front_cell"] + int(s.window_shift[last])) * run.dx[0] if w else np.inf
-    predicted = th["Ex_axis_focus"] if p.driver == "laser" else th["Ex_axis"]
+    if p.regime == "blowout":
+        predicted = th["blowout"]["Ex_max"]
+    else:
+        predicted = th["Ex_axis_focus"] if p.driver == "laser" else th["Ex_axis"]
     res = {"driver": p.driver, "drive": p.drive, "t": float(s.t[last]), "predicted_amplitude": predicted,
            "speed": info["speed"], "x_low": x_low}
     # mean electron density on the plateau, in the plane, without the two nodes next to each face
@@ -310,9 +324,13 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
     else:
         m = _measure(p, s, last)
         res.update({k: v for k, v in m.items() if k not in ("fit", "x", "origin")})
-        before = _measure(p, s, last - 1)
-        res["amplitude_ratio_previous_output"] = before["amplitude_ratio"]
-        res["t_previous_output"] = before["t"]
+        # the output before the last, if the interval behind the driver holds a wavelength of the wake there
+        res["amplitude_ratio_previous_output"] = res["t_previous_output"] = float("nan")
+        if last > 0:
+            res["t_previous_output"] = float(s.t[last - 1])
+            _, lo, hi = _interval(p, s, last - 1)
+            if hi - lo >= 2.0 * np.pi * PL.speed(p):
+                res["amplitude_ratio_previous_output"] = _measure(p, s, last - 1)["amplitude_ratio"]
         ok = abs(m["amplitude_ratio"] - 1.0) <= 0.05 and abs(m["k_times_speed"] - 1.0) <= 0.02
         if p.driver == "laser":
             res["Er_over_Ex_theory"] = th["Er_over_Ex_half_waist"]
@@ -350,8 +368,8 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
 
 def movie(run_dir: str, out: str | None = None, fps: int = 6, n_frames: int = 100, dpi: int = 110) -> str:
     """The plane through the axis at its laboratory place: E_x and the driver (E_y of the pulse, or the density
-    of the bunch); the radial field of a linear wake; the electron density and the phase space (x, u_x) of a
-    blowout run."""
+    of the bunch; a run without the driver has no output of it); the radial field of a linear wake; the
+    electron density and the phase space (x, u_x) of a blowout run."""
     from pypic.analysis import Movie
     from pypic.analysis.animate import PhasePanel, SlicePanel
 
@@ -365,9 +383,9 @@ def movie(run_dir: str, out: str | None = None, fps: int = 6, n_frames: int = 10
     m.add(SlicePanel(run, "axis_plane", "Ex", label="E_x"))
     if not blowout:
         m.add(SlicePanel(run, "axis_plane", "Ez", label="E_z"))
-    if p.driver == "laser":
+    if p.drive and p.driver == "laser":
         m.add(SlicePanel(run, "axis_plane", "Ey", label="E_y (pulse)"))
-    else:
+    elif p.drive:
         m.add(SlicePanel(run, "axis_plane", "n:bunch", signed=False, vlim=(0.0, p.bunch_density),
                          label="bunch density [n0]"))
     if blowout:
