@@ -3,6 +3,11 @@
 Topic `spherical-shock-injection`. Designed 2026-11-12. **Status: designed and checked with the planner; not run.**
 Japanese version: `exploratory-conditions.ja.md` (this English file is the original).
 
+**Corrected 2026-11-13** after the review of these conditions (issue #48, kept in
+`reviews/2026-11-13-exploratory-conditions.md`): Sects. 2.2 and 2.3 now state the speed and the electron
+temperature behind each remnant value, and only β of run L is listed as matched. The physical conditions of
+L, M and H are unchanged.
+
 Citekeys refer to `research/literature/`; "survey" is `survey-snr-electron-injection.md`. "Our arithmetic" marks
 values derived here. "Estimate" marks an extrapolation that no run has tested.
 
@@ -48,46 +53,60 @@ The Mach numbers of the runs are nominal: they use the drift speed V_d of the de
 
 | Quantity | Supernova remnant | L | M | H |
 |---|---|---|---|---|
-| Alfvén Mach number M_A | about 250–300 with the unamplified field, about 15 with the amplified field | 3.5 | 6.0 | 8.7 |
+| Alfvén Mach number M_A | about 250–300 with the unamplified field, about 15 with the amplified field (5000 km/s) | 3.5 | 6.0 | 8.7 |
 | M_A / (m_i/m_e)^(1/2); whistler-mediated injection needs ≲ 1 | 6–7 unamplified, 0.35 amplified | 0.88 | 1.5 | 2.2 |
 | M_A / [1.2 (m_i/m_e)^(2/3)]; surfing needs ≥ 1 | 1.4–1.7 unamplified, 0.08 amplified | 0.46 | 0.79 | 1.14 |
-| (M_A/√β_e) / [(m_i/m_e)^(1/2)/2]; whistlers from reflected electrons need ≳ cos θ_Bn | 3.2 | 3.5 | 3.5 | 3.5 |
-| Sonic Mach number | about 440 (Tycho) | 5.5 | 5.5 | 5.5 |
+| (M_A/√β_e) / [(m_i/m_e)^(1/2)/2] = √2 × (flow speed / electron thermal speed); whistlers from reflected electrons need ≳ cos θ_Bn | about 18 at 5000 km/s and 10⁴ K; 3.2 at 3000 km/s and T_e = 10 eV | 3.5 | 3.5 | 3.5 |
+| Sonic Mach number | about 440 (Tycho, 4990 km/s) | 5.5 | 5.5 | 5.5 |
 | Fast Mach number | — | 2.95 | 4.05 | 4.64 |
-| β | 0.4–0.8 | 0.49 | 1.44 | 3.03 |
+| β | 0.4–0.8 at 10⁴ K; about 5–10 at 10 eV | 0.49 | 1.44 | 3.03 |
 | Shock speed / c | 0.007–0.02 | 0.25 | 0.25 | 0.25 |
 | Part of the sphere that is superluminal | under 2 % | 25 % (θ_Bn > 76°) | 25 % | 25 % |
-| Flow speed / electron thermal speed | about 13 | 2.5 | 2.5 | 2.5 |
+| Flow speed / electron thermal speed | about 13 at 5000 km/s and 10⁴ K; 2.3 at 3000 km/s and T_e = 10 eV | 2.5 | 2.5 | 2.5 |
 | m_i/m_e | 1836 | 16 | 16 | 16 |
 | ω_pe/Ω_ce | about 350 | 3.5 | 6.0 | 8.7 |
 | Run length in ion gyro-times | — | 13.2 | 7.7 | 5.3 |
 | Debris gyroradius / R_m | — | 0.22 | 0.54 | 1.00 |
 
 Sources for the remnant column:
-- M_A: `morlino2012strong` Sect. 2.3; `riquelme2011electron` Sect. 5; survey Sect. 2.
+- M_A: `morlino2012strong` Sect. 2.3; `riquelme2011electron` Sect. 5; survey Sect. 2. The values are for
+  about 5000 km/s.
 - Thresholds: `riquelme2011electron` Sect. 3.1 (whistlers); `matsumoto2012electron` Eq. 8 (surfing);
-  `amano2010critical` Eqs. 2, 3 (whistlers from reflected electrons; 68 over 21.4 is our arithmetic).
-- Sonic Mach number: `morlino2012strong` Sect. 2.3.
-- β: our arithmetic, 0.8 for Tycho (survey Sect. 2) and 0.4 for the density and field of SN 1006 at 10⁴ K.
+  `amano2010critical` Eqs. 2, 3 (whistlers from reflected electrons). Eq. 3 gives
+  M_A/√β_e ≃ 68 (V_s / 3000 km/s) (T_e / 10 eV)^(−1/2), and the threshold at the real mass ratio is 21.4. So
+  the row is 3.2 for the paper's 3000 km/s and 10 eV, and about 18 for 5000 km/s and 10⁴ K (0.86 eV), the
+  values behind the rows for β and for the flow speed (our arithmetic).
+- This row and the row of the flow speed over the electron thermal speed are one quantity: with
+  β_e = 2 (m_e/m_i) (v_te/v_A)² and v_te = (kT_e/m_e)^(1/2), M_A/√β_e = (m_i/m_e)^(1/2) V/(√2 v_te), and so
+  the row is √2 times that ratio at any mass ratio (our arithmetic).
+- Sonic Mach number: `morlino2012strong` Sect. 2.3 (M_0 = 443 at 4990 km/s).
+- β: our arithmetic for ions and electrons at 10⁴ K, 0.8 for Tycho (survey Sect. 2) and 0.4 for the density
+  and field of SN 1006. At 10 eV it is 11.6 times larger.
 - ω_pe/Ω_ce: our arithmetic in the survey, Sect. 2.
 - Shock speed: `vink2012supernova` Sect. 11.3. Superluminal part: survey Sect. 2.
-- Flow speed over electron thermal speed: our arithmetic for 5000 km/s and 10⁴ K.
+- Flow speed over electron thermal speed: our arithmetic. v_te is 390 km/s at 10⁴ K and 1330 km/s at 10 eV.
 
 The values for L, M and H are the planner's (Sect. 10) and our arithmetic from them.
 
 ### 2.3 What is matched and what is not
-- **Matched:**
-  - the geometry: one front on which θ_Bn runs from 0° to 90°;
-  - the position of the nominal M_A against the whistler limit and the surfing threshold. L lies below the
-    whistler limit, as a remnant with an amplified upstream field does. H lies nominally above the surfing
-    threshold, as a remnant with the unamplified field does. M lies between the two;
-  - M_A/√β_e against the threshold of `amano2010critical`, which is the same in all three runs because the flow
-    speed and the temperature are fixed;
-  - β in run L.
+- **Matched:** β in run L, for a remnant with an upstream temperature of 10⁴ K. Of the remnant's numbers this
+  is the only one that is matched.
+- **Alike in kind, not a matched number:**
+  - the initial geometry: a spherical drive in a uniform field, so that the angle between the radial
+    direction and the field runs from 0° to 90°. This describes the set-up, not a shock: no shock is expected
+    near the poles (Sect. 4.2), and θ_Bn has to be taken from the measured front where a shock exists;
+  - the side on which the nominal M_A lies against the whistler limit and the surfing threshold. L lies below
+    the whistler limit, as a remnant with an amplified upstream field does. H lies nominally above the surfing
+    threshold, as a remnant with the unamplified field does. M lies between the two. The fronts are slower
+    than the nominal values (Sect. 4.3).
 - **Not matched, in every run:**
   - the Mach numbers themselves, the sonic Mach number above all;
   - the mass ratio and the shock speed, with a superluminal band that is more than ten times too wide;
-  - the ratio of flow speed to electron thermal speed (2.5 against about 13);
+  - the ratio of flow speed to electron thermal speed, and with it M_A/√β_e against the threshold of
+    `amano2010critical`, which is the same quantity (Sect. 2.2). The runs have 2.5 (3.5 in units of the
+    threshold). A remnant at 5000 km/s and 10⁴ K, the temperature at which its β is 0.4–0.8, has about 13
+    (18). It has 2.3 (3.2) only at 3000 km/s and T_e = 10 eV, where its β is about ten times larger. The value
+    is the same in all three runs because the flow speed and the temperature are fixed;
   - the size of the system in units of the shock thickness.
 - **Not matched in M and H:** β, which rises to 1.4 and 3.0 because the temperature is fixed. The scan of M_A
   is therefore also a scan of β.

@@ -3,6 +3,30 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Review of the exploratory conditions (issue #48): record corrected, run set changed
+- Asked by the owner: run the exploratory conditions, analyse them, and test whether a novel and certain
+  hypothesis about the acceleration mechanism can be obtained; take the findings of issue #48 into the trials.
+- The review is kept in `reviews/2026-11-13-exploratory-conditions.md`. Answers, point by point:
+  - **A (record).** Corrected in `exploratory-conditions.md` and its Japanese version, Sects. 2.2 and 2.3:
+    - each remnant value names its speed and electron temperature;
+    - M_A/√β_e against the threshold of `amano2010critical` is √2 times the flow speed over the electron thermal
+      speed. A remnant has about 18 at 5000 km/s and 10⁴ K and 3.2 at 3000 km/s and 10 eV; the runs have 3.5. It
+      is no longer listed as matched;
+    - "θ_Bn runs from 0° to 90°" now describes the initial geometry only;
+    - only β of run L is listed as matched.
+  - **B.1–B.5 (design).** Accepted. They go into a protocol that is committed before the first run
+    (`exploratory-protocol.md`): the reflection baseline, the definition of a shock and its valid domain, the
+    numerical floor from a null run, the split of energetic electrons by origin, the foot-point θ_Bn, the
+    measured luminal angle, the closure test of the work, one energy threshold.
+  - **C (decisions; the owner approved the plan of 2026-11-13).**
+    - The record is corrected.
+    - The null run of L is added as a further run; H is not replaced. The order becomes: a 16-step check, the
+      null of L, L, M, then H as a contrast case only.
+    - The baseline and the shock definition are written before the first run.
+- The physical conditions of L, M and H are unchanged.
+- Sect. 6 (checks 2 and 6) and Sect. 8 (order of the runs) of the conditions record are replaced by the protocol;
+  the record keeps them as designed.
+
 ## 2026-11-12 — Three exploratory conditions designed (not run)
 - Asked by the owner: two or three conditions as close to a supernova remnant as possible, for trials that
   build hypotheses: a large box, few particles, a short run. Record them in markdown; do not run yet.
