@@ -75,19 +75,29 @@ __device__ __forceinline__ double interp_w(const double* __restrict__ F, const Y
 #ifdef MIXED_GATHER
 // PIC-D11: E and B gathered from float32 copies. The weights come from global index coordinates
 // (x / dx), computed in FP64 and rounded once to float, so they do not depend on the rank layout.
-// With the compact storage (PIC-D19) x is that coordinate already.
+// With the compact storage (PIC-D19) they come from the stored integers (yee_weights_cell).
 struct YeeWeightsF {
     int in[3], ih[3];
     float wn[3], wh[3];
 };
 
+#ifdef COMPACT_STORE
+// c: the cell of the particle in the arrays of the rank, q: its position within the cell in units of
+// 2^-32 cell. The fraction from the half-integer node below is q + 2^31 modulo 2^32; both fractions
+// are exact in a double and rounded once to float.
+__device__ __forceinline__ void yee_weights_cell(const int* c, const unsigned int* q, YeeWeightsF& w) {
+#pragma unroll
+    for (int a = 0; a < 3; a++) {
+        w.in[a] = c[a];
+        w.ih[a] = q[a] < 0x80000000u ? c[a] - 1 : c[a];
+        w.wn[a] = (float)((double)q[a] * (1.0 / 4294967296.0));
+        w.wh[a] = (float)((double)(q[a] ^ 0x80000000u) * (1.0 / 4294967296.0));
+    }
+}
+#else
 __device__ __forceinline__ void yee_weights_global(const double* x, YeeWeightsF& w) {
     const int off[3] = {OXI, OYI, OZI};
-#ifdef COMPACT_STORE
-    const double inv[3] = {1.0, 1.0, 1.0};
-#else
     const double inv[3] = {1.0 / DX, 1.0 / DY, 1.0 / DZ};
-#endif
 #pragma unroll
     for (int a = 0; a < 3; a++) {
         double fn = x[a] * inv[a], fh = fn - 0.5;
@@ -98,6 +108,7 @@ __device__ __forceinline__ void yee_weights_global(const double* x, YeeWeightsF&
         w.wh[a] = (float)(fh - gh);
     }
 }
+#endif
 
 __device__ __forceinline__ float interp_f(const float* __restrict__ F, const YeeWeightsF& w, int hx, int hy,
                                           int hz) {

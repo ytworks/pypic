@@ -82,6 +82,27 @@ __device__ __forceinline__ void store_pos(int* C, unsigned int* F, const long lo
     }
     C[p] = (int)IDX(c[0], c[1], c[2]);
 }
+
+// The stored integers of particle p: c = its cell along the three axes (arrays of this rank), q = the
+// position within that cell. The integer route of push_deposit computes in these.
+__device__ __forceinline__ void load_cell(const int* C, const unsigned int* F, const long long cap, const long long p,
+                                          int* c, unsigned int* q) {
+    const int l = C[p];
+    c[0] = l / (NY * NZ);
+    c[1] = l / NZ % NY;
+    c[2] = l % NZ;
+#pragma unroll
+    for (int a = 0; a < 3; a++) q[a] = F[a * cap + p];
+}
+
+__device__ __forceinline__ void store_cell(int* C, unsigned int* F, const long long cap, const long long p,
+                                           const int* c, const unsigned int* q) {
+    C[p] = (int)IDX(c[0], c[1], c[2]);
+#pragma unroll
+    for (int a = 0; a < 3; a++) F[a * cap + p] = q[a];
+}
+#define GET_CELL(p, c, q) load_cell(P_c, P_f, cap, p, c, q)
+#define SET_CELL(p, c, q) store_cell(P_c, P_f, cap, p, c, q)
 #else
 // Layout of doubles: S[row * cap + p], rows = x, y, z, ux, uy, uz, w, id (u = gamma v, c = 1; the id
 // is an integer-valued double); the remaining displacement of displace_deposit in rows 8..10.
@@ -151,10 +172,10 @@ struct AxisShape {
     double S0[3], dS[3];
 };
 
-__device__ __forceinline__ void axis_shape(const double X0, const double X1, AxisShape& s) {
-    const double f0 = floor(X0), f1 = floor(X1);
-    const int c0 = (int)f0, c1 = (int)f1;
-    const double w0 = X0 - f0, w1 = X1 - f1, v0 = 1.0 - w0, v1 = 1.0 - w1;
+// The ends given as cell and position within the cell.
+__device__ __forceinline__ void axis_shape_cells(const int c0, const double w0, const int c1, const double w1,
+                                                 AxisShape& s) {
+    const double v0 = 1.0 - w0, v1 = 1.0 - w1;
     const bool up0 = c0 > c1, up1 = c1 > c0;  // this end is in cell n + 1
     s.n = up0 ? c1 : c0;
     s.wide = c0 != c1;
@@ -164,6 +185,11 @@ __device__ __forceinline__ void axis_shape(const double X0, const double X1, Axi
     s.dS[0] = (up1 ? 0.0 : v1) - s.S0[0];
     s.dS[1] = (up1 ? v1 : w1) - s.S0[1];
     s.dS[2] = (up1 ? w1 : 0.0) - s.S0[2];
+}
+
+__device__ __forceinline__ void axis_shape(const double X0, const double X1, AxisShape& s) {
+    const double f0 = floor(X0), f1 = floor(X1);
+    axis_shape_cells((int)f0, X0 - f0, (int)f1, X1 - f1, s);
 }
 
 // Esirkepov deposition of a straight segment with the shapes x, y, z of its ends (axis_shape) in the
@@ -323,11 +349,25 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
 #endif
     if (p < n) {
         const double w = PW(p);
+#ifdef COMPACT_STORE
+        // the stored integers, and the working coordinate of the general path (exact)
+        int c0[3];
+        unsigned int q0[3];
+        GET_CELL(p, c0, q0);
+        const int g0[3] = {c0[0] + OXI, c0[1] + OYI, c0[2] + OZI};  // cell in the box
+        const double w0[3] = {(double)q0[0] * ITWO32, (double)q0[1] * ITWO32, (double)q0[2] * ITWO32};
+        double pos0[3] = {(double)g0[0] + w0[0], (double)g0[1] + w0[1], (double)g0[2] + w0[2]};
+#else
         double pos0[3] = {QX(p), QY(p), QZ(p)};
+#endif
         double u[3] = {PUX(p), PUY(p), PUZ(p)};
 #ifdef MIXED_GATHER
         YeeWeightsF yw;
+#ifdef COMPACT_STORE
+        yee_weights_cell(c0, q0, yw);
+#else
         yee_weights_global(pos0, yw);
+#endif
         double ex = h * (double)interp_f(Ex, yw, 1, 0, 0);
         double ey = h * (double)interp_f(Ey, yw, 0, 1, 0);
         double ez = h * (double)interp_f(Ez, yw, 0, 0, 1);
@@ -365,9 +405,20 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
         u[2] = urz + ez;  // second half electric kick
         double g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
 #ifdef COMPACT_STORE
+        // The end point, put on the lattice once: s1 = its distance from the lower face of the cell of
+        // the start in units of 2^-32 cell. It depends on the stored fraction and on u only, not on
+        // the cell, so not on the rank layout. A step is shorter than a cell: fl = -1, 0 or 1.
         const double rg = 1.0 / g1;
-        double pos1[3] = {WSNAP(pos0[0] + (rg * (DT / DX)) * u[0]), WSNAP(pos0[1] + (rg * (DT / DY)) * u[1]),
-                          WSNAP(pos0[2] + (rg * (DT / DZ)) * u[2])};
+        const double dtc[3] = {rg * (DT / DX), rg * (DT / DY), rg * (DT / DZ)};
+        long long s1[3];
+        int fl[3];
+        double pos1[3];
+#pragma unroll
+        for (int a = 0; a < 3; a++) {
+            s1[a] = __double2ll_rn((w0[a] + dtc[a] * u[a]) * TWO32);
+            fl[a] = (int)(s1[a] >> 32);
+            pos1[a] = (double)g0[a] + (double)s1[a] * ITWO32;
+        }
 #else
         const double dtg = DT / g1;
         double pos1[3] = {pos0[0] + dtg * u[0], pos0[1] + dtg * u[1], pos0[2] + dtg * u[2]};
@@ -389,6 +440,58 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
         const int b1[3] = {BCX1, BCY1, BCZ1};
         // deposit charge: q for plasma species, 0 for test species (they feel the fields only)
         const double qw = qdep * w;
+#ifdef COMPACT_STORE
+        // --- integer route (PIC-D19): a step that ends inside the faces of the box that are not
+        //     periodic, and outside the body, meets no wall, no cut and no removal. Its deposit, wrap
+        //     and store are done on the stored integers; they give what the general path below gives
+        //     for the same step (the shapes of the two ends are the same doubles). The choice depends
+        //     on the cell in the box only, not on the rank layout ---
+        const int gn[3] = {GNX, GNY, GNZ};
+        bool inner = true;
+#pragma unroll
+        for (int a = 0; a < 3; a++) {
+            if (b0[a] != BC_PERIODIC && (g0[a] + fl[a] < 0 || g0[a] + fl[a] >= gn[a])) inner = false;
+        }
+#ifdef BODY_SPHERE
+        {
+            const double rx = WPHYS(pos1[0], DX) - BODY_CX, ry = WPHYS(pos1[1], DY) - BODY_CY,
+                         rz = WPHYS(pos1[2], DZ) - BODY_CZ;
+            if (rx * rx + ry * ry + rz * rz < BODY_R2) inner = false;
+        }
+#endif
+        if (inner) {
+            const unsigned int q1[3] = {(unsigned int)s1[0], (unsigned int)s1[1], (unsigned int)s1[2]};
+            if (qw != 0.0) {
+                AxisShape x, y, z;
+                axis_shape_cells(c0[0], w0[0], c0[0] + fl[0], (double)q1[0] * ITWO32, x);
+                axis_shape_cells(c0[1], w0[1], c0[1] + fl[1], (double)q1[1] * ITWO32, y);
+                axis_shape_cells(c0[2], w0[2], c0[2] + fl[2], (double)q1[2] * ITWO32, z);
+                esirkepov_shapes(x, y, z, s1[0] != (long long)q0[0], s1[1] != (long long)q0[1],
+                                 s1[2] != (long long)q0[2], qw, Jx, Jy, Jz);
+            }
+            // periodic wrap on non-decomposed axes, change of rank on decomposed ones (as below)
+            const int dec[3] = {DECX, DECY, DECZ};
+            const int slo[3] = {SX0I, SY0I, SZ0I};
+            const int shi[3] = {SX1I, SY1I, SZ1I};
+            int c1[3];
+            bool migrate = false;
+#pragma unroll
+            for (int a = 0; a < 3; a++) {
+                const int g = g0[a] + fl[a];
+                c1[a] = c0[a] + fl[a];
+                if (!dec[a]) {
+                    if (b0[a] == BC_PERIODIC) {
+                        if (g < 0) c1[a] += gn[a];
+                        else if (g >= gn[a]) c1[a] -= gn[a];
+                    }
+                } else if (g < slo[a] || g >= shi[a]) {
+                    migrate = true;
+                }
+            }
+            if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+            SET_CELL(p, c1, q1);
+        } else {
+#endif
         double trem = 1.0;  // fraction of the step left after the wall hits so far
         const int fm = fmask & (PAIRED_FACES | (PAIRED_FACES << 8));
         for (int it = 0; it < 3; it++) {
@@ -495,6 +598,9 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
             if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
         }
         SET_POS(p, pos1[0], pos1[1], pos1[2]);
+#ifdef COMPACT_STORE
+        }  // general path
+#endif
         SET_MOM(p, u[0], u[1], u[2]);
     }
     if (do_diag) {
