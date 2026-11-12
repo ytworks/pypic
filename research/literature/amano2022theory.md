@@ -1,7 +1,7 @@
 # Amano & Hoshino (2022): Theory of Electron Injection at Oblique Shock of Finite Thickness
 
 - Ref: ApJ (2022), volume/article number not checked; DOI 10.3847/1538-4357/ac4f49; arXiv:2201.11416 (v1, submitted version, read here)
-- Read: 2026-11-12, full; topics: (none yet)
+- Read: 2026-11-12, full; topics: spherical-shock-injection
 
 ## Claim
 Stochastic shock drift acceleration (SSDA) and DSA are two limits of one diffusion-convection equation at an

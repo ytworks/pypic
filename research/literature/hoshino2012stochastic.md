@@ -1,7 +1,7 @@
 # Hoshino (2012): Stochastic Particle Acceleration in Multiple Magnetic Islands during Reconnection
 
 - Ref: Phys. Rev. Lett. 108, 135003 (2012); doi:10.1103/PhysRevLett.108.135003; arXiv:1201.0837
-- Read: 2026-11-12, full (arXiv v1); topics: (none yet)
+- Read: 2026-11-12, full (arXiv v1); topics: spherical-shock-injection
 
 ## Claim
 When a current layer breaks up into many merging islands, the most energetic particles stay outside

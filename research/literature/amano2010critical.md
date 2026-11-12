@@ -1,7 +1,7 @@
 # Amano & Hoshino (2010): A Critical Mach Number for Electron Injection in Collisionless Shocks
 
 - Ref: Phys. Rev. Lett. 104, 181102 (2010); DOI 10.1103/PhysRevLett.104.181102; arXiv:1004.3838
-- Read: 2026-11-12, full; topics: (none yet)
+- Read: 2026-11-12, full; topics: spherical-shock-injection
 
 ## Claim
 Shock drift acceleration mirror-reflects electrons upstream as a beam with a loss cone. Cyclotron resonance at

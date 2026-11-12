@@ -1,7 +1,7 @@
 # Hoshino & Shimada (2002): Nonthermal Electrons at High Mach Number Shocks: Electron Shock Surfing Acceleration
 
 - Ref: ApJ 572, 880–887 (2002); DOI 10.1086/340454; arXiv:astro-ph/0203073
-- Read: 2026-11-12, full; topics: (none yet)
+- Read: 2026-11-12, full; topics: spherical-shock-injection
 
 ## Claim
 In a high-Mach-number perpendicular shock, the Buneman instability between reflected ions and incoming
