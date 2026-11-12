@@ -1,0 +1,107 @@
+# Null run of the exploratory run M (topic spherical-shock-injection; protocol: ../exploratory-protocol.md).
+#
+# The same plasma, field, grid, seed, length and outputs as explore-M.yaml, without the debris shell
+# (debris: false): a magnetised plasma at rest with six open faces. It gives the numerical floor of run M:
+# electron heating, the count of electrons with gamma >= 1.5, the numerical pitch-angle scattering rate and
+# the closure of the work on the tracks. The debris species do not exist here, so the outputs leave them out.
+mass_ratio: 16
+mach_alfven: 6.0
+wpe_wce: 6.0
+vte: 0.1
+ti_te: 1.0
+rm: 11.2
+shell_radius: 0.33
+shell_width: 0.1
+debris_beams: 4
+debris: false        # the only physical difference to explore-M.yaml
+body: false          # no absorbing sphere and no dipole: a remnant has no magnetised body
+half_width: 1.3      # the planner's lower limit, in R_B
+cells_per_de: 2.0
+ppc: 2
+run: 1.25
+filter_passes: 4
+seed: 12345
+overrides:
+  precision: compact
+output:
+  # This list replaces the planner's. The entries coarse, slice_z and slice_y repeat the planner's own
+  # diagnostics (same names, block size and cadence), because examples/blast_wave/analyze.py reads them; the
+  # slices also carry the electron moments and J. The others are for the electrons. The box is 384 d_e wide,
+  # centre at 192. Changed on 2026-11-13 after the review R1 (../reviews/2026-11-13-protocol-r1.md): slice_x,
+  # ekin:i in the slices, hot_e from gamma 1.25 every 74 steps, denser tracks. The track cadence and stride
+  # were fixed by the 600-step check (check-L-cadence.yaml).
+  diagnostics:
+    - name: coarse
+      kind: fields
+      fields: ["n:e", "flux:e", "ekin:e", "n:i", "flux:i", "ekin:i", E, B, rho]
+      coarsen: [9, 9, 9]
+      every: 296
+    - name: slice_z            # equatorial plane, z = centre: theta_Bn = 90 deg all around
+      kind: slice
+      fields: ["n:e", "n:i", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: z
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 74
+    - name: slice_y            # meridional plane, y = centre: contains B0, all theta_Bn from 0 to 90 deg
+      kind: slice
+      fields: ["n:e", "n:i", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: y
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 74
+    - name: slice_x            # second meridional plane, x = centre: tests that the front is axisymmetric
+      kind: slice
+      fields: ["n:e", "n:i", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: x
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 74
+    - name: spec_meridional    # energy spectra by position in a slab of 16 d_e around the meridional plane
+      kind: histogram
+      species: [e, i]
+      quantities: [x, z, ekin]
+      bins: [192, 192, 96]
+      ranges: [[0.0, 384.0], [0.0, 384.0], [0.0001, 100.0]]
+      log: [false, false, true]
+      region: [null, [184.0, 200.0], null]
+      every: 148
+    - name: spec_equatorial    # the same in a slab of 16 d_e around the equatorial plane
+      kind: histogram
+      species: [e, i]
+      quantities: [x, y, ekin]
+      bins: [192, 192, 96]
+      ranges: [[0.0, 384.0], [0.0, 384.0], [0.0001, 100.0]]
+      log: [false, false, true]
+      region: [null, null, [184.0, 200.0]]
+      every: 148
+    - name: spec_all           # energy spectra of the whole box
+      kind: histogram
+      species: [e, i]
+      quantities: [ekin]
+      bins: [224]
+      ranges: [[0.000001, 100.0]]
+      log: [true]
+      every: 74
+    - name: spec_up            # the same corner column as in run M
+      kind: histogram
+      species: [e, i]
+      quantities: [ekin]
+      bins: [224]
+      ranges: [[0.000001, 10.0]]
+      log: [true]
+      region: [[16.0, 48.0], [16.0, 48.0], [16.0, 368.0]]
+      every: 74
+    - name: hot_e              # every electron with gamma >= 1.25: expected empty; a count is numerical
+      kind: particles
+      species: [e]
+      select: {gamma_min: 1.25}
+      every: 74
+    - name: tracks_e           # about 1.9e5 ambient electrons followed from the start, with E and B at the
+      # particle. Stride 4735 = 5 x 947 (no factor shared with 768): every fifth electron tracked in L and
+      # M, same birth cells. Every 2 steps as there (check-L-cadence, protocol Sect. 2); 11 GB on disk.
+      kind: tracks
+      species: [e]
+      stride: 4735
+      with_fields: true
+      every: 2

@@ -3,6 +3,112 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Run L: no signal at γ ≥ 1.5; the returns to the upstream are not adiabatic mirror reflections
+- **Run L.** `configs/explore-L.yaml`, 8 GPUs, commit `91f79ff`, seed 12345, 2960 steps in 1298 s (438 ms per
+  step). Output `output/research/spherical-shock-injection/L`, 62 GB, not in git. Gauss law ≤ 5.2 × 10⁻¹⁵,
+  div B ≤ 1.9 × 10⁻¹⁴, fill ≤ 0.674. Energy budget +10.4 % at t = 740 (monitored only; the null run has +12.7 %,
+  so the growth is the numerical heating of the electrons). Record: `runs/2026-11-13-91f79ff1d-L.json`.
+- **Front (`analyze.py front`).** 443 of 738 (time, θ) bins show a front; 241 are valid, 166 usable for B1′.
+  - No front within 10° of the pole, and no valid front below θ = 30°: the fronts there do not pass criteria
+    b–d (ahead of the debris, speed, duration). The valid domain is θ = 30–90°, t = 185–666.
+  - In the valid domain V_n = 0.139–0.157, fast Mach 1.75–2.06, compression b = 1.6–2.1 per bin (largest cell
+    3.7). The shock is weak: the piston moves at 3.5 v_A, the front at 2.1 v_A.
+  - Foot points are superluminal (V_HT ≥ c) for θ_Bn ≥ 77–83°. The front leads the debris by 15–35 d_e; the ion
+    flow agrees with V_n (1 − n₀/n) within 30 % in 240 of 241 valid bins; fit rms 0.63 d_e.
+- **Census (`census`, protocol Sect. 6).** Ambient electrons with γ ≥ 1.5 per dump: 486 at t = 74, 330 at
+  t = 148, 40 at t = 222, at most 4 later. The early ones are in the layer or behind it and precede every valid
+  front (the start of the driver, as the 16-step check saw). Upstream of the front: 3 at t = 222 (2 on the
+  detected front, both undetermined), none at any other dump. The null run has none.
+  - **Result at the registered threshold: no band reaches 100 electrons, so there is no signal and no residual
+    at γ ≥ 1.5 in L.** K1: one electron (t = 222); K2 and K3: none.
+  - `hot_e` is dominated by debris electrons (up to 600 ambient macro-electron weights upstream at t = 296).
+    They are the driver's, separated by species, and support nothing here.
+  - Deviation from Sect. 6, conservative: an electron within d_i of the front is in the layer class even when
+    its field line has not reached the front (the protocol reads "upstream" for it).
+  - N3b: ν = 9.4 × 10⁻⁴ for γ 1.25–1.5 (2373 pairs of dumps). Only 5 pairs above γ = 1.5, so the rate of the
+    null run (1.8 × 10⁻³) is used there.
+- **Tracks (`tracks`, protocol Sect. 7).** 956 674 tracked electrons: 675 871 never left the upstream, 147 081
+  transmitted, 96 447 in the layer at the end, 6416 back upstream after an encounter, 391 returned from
+  downstream, 10 142 start behind the front, 20 326 outside the range of the fit.
+  - γ_max ≥ 1.5 on 11 orbits, all of them starting behind the front. Returns with γ_out ≥ 1.25: 7. This is
+    below the 30 the protocol asks for, so C2 would rest on id histories and the false-negative rate of C1 on
+    its bound (upper limit 1.0): L cannot test C1 or C2.
+  - N4 passes: 1289 of the 1341 orbits with |Δγ| ≥ 0.1 close the work within 10 % (49 of the 52 failures
+    start behind the front). Parallel share of the work: median 0.19.
+  - The returns at all energies: 6295 with one encounter, 3224 of them reached the density front. μ is kept
+    within 20 % by 381 of the 3224 (12 %); μ_out/μ_in 0.25 / 1.40 / 9.0 (10 / 50 / 90 %). Gain: median 0.039,
+    99 % 0.164.
+  - Dwell in the layer: median 250, 90 % 418, against the 66 the protocol assumed. Caveat: the layer of this
+    measure is 4 d_i = 16 d_e thick, so part of the dwell is its definition (width / V_n ≈ 107) and it is
+    not by itself a sign of trapping.
+- **N3 with the measured dwell.** ν τ = 0.062 at the protocol's 66 (γ 1.25–1.5), but 0.23–0.39 at the measured
+  250–418. By the rule of N3 (ν τ < 0.1) the loss of μ cannot be assigned to a physical scattering mechanism
+  in L at 2 particles per cell.
+- **N3c (`n3c`).** Power of the fluctuations ahead of the front, L over its null: at most 1.67 in the valid
+  domain (no note), up to 3.02 on the detected front outside it (the note holds there).
+  - Three measures, since the protocol fixes no scale: below 1 d_i; about the mean along the front; about the
+    initial field. A fourth, "below 4 d_i", was written first and dropped before the result was used: a box
+    mean 4 d_i wide reaches the ramp from the 1–4 d_i shell and measured the ramp, not fluctuations (ratio in
+    the tens). Reported here because it was dropped after its numbers were seen.
+- **Potential (`phi`).** φ = −Σ (E·B)/B_pol ds along the in-plane field lines from 3 d_i ahead to 6 d_i behind
+  the density front, by foot angle (5°) and quadrant; the null run gives the noise.
+  - Chosen after seeing the data: the mean over 5 outputs, and the mean over all outputs of a bin where the
+    windowed value is not measured (error above 50 %). Neither changes a registered criterion.
+  - Mean over the outputs: 0.015–0.048 for θ = 10–70° (1.5–4.7 T_e; error below 50 % in every bin), largest at
+    15–25°. At θ > 70° not measured (0 ± 0.005: the field lines graze the front). Windowed: measured in 157
+    of 443 bins, 63 of the 241 valid ones.
+- **Baseline B2 against the census (`baseline`)**, lower bound with the measured φ, upper bound with φ = 0.
+  - γ ≥ 1.5: no cell with 100 measured electrons in either domain, so the rule of Sect. 3.4 (written for such
+    cells) does not apply. But the model predicts a beam that is not there: on the detected front 808–2820
+    electrons at t = 185, 1343–3890 at t = 296, 740–1529 at t = 407 (lower–upper bound), against 2, 0 and 0
+    measured upstream.
+  - γ 1.25–1.5 — **an extra bin, not registered, exploratory only.** Cells with ≥ 100 electrons: detected front
+    86 (36 inside [lower/2, 2 × upper], 27 below, 23 above); valid domain 35 (11 inside, 19 below, 5 above).
+    At t = 351.5 by band (model lower–upper | measured): 10–20° 0.2–3 | 201; 20–30° 19–138 | 525; 30–40°
+    239–2391 | 557; 40–50° 5790–20 998 | 352; 50–60° 20 397–86 337 | 102; 60–70° 8651–40 240 | 2. The
+    measured electrons sit at low θ_Bn, where a mirror gives almost nothing, and are missing by a factor
+    200 or more at 50–70°, where it should give the most. By the rule of Sect. 3.4 **no residual is
+    discussed**: the baseline does not describe the run.
+  - b enters with its scatter over the cells of a bin as its standard error.
+- **Share of the encounters that end in a return, all energies** (new; model against tracks, by foot θ_Bn at
+  entry, detected front):
+
+  | θ_Bn | model, φ = 0 | model, measured φ | tracks (± binomial) | tracks, only returns from behind the front |
+  |---|---|---|---|---|
+  | 10–20° | 0.131 | 0.0007 | 0.089 ± 0.012 | 0.057 |
+  | 20–30° | 0.132 | 0.0027 | 0.089 ± 0.004 | 0.050 |
+  | 30–40° | 0.115 | 0.0037 | 0.084 | 0.044 |
+  | 40–50° | 0.093 | 0.0052 | 0.073 | 0.036 |
+  | 50–60° | 0.053 | 0.0053 | 0.052 | 0.025 |
+  | 60–70° | 0.013 | 0.0020 | 0.033 | 0.016 |
+  | 70–80° | 0.0002 | 0.0001 | 0.021 | 0.013 |
+  | 80–90° | 0 | 0 | 0.010 | 0.006 |
+
+  - With the measured potential the adiabatic mirror returns 0.07–0.5 % of the encounters; the tracks return
+    1–9 %, and still 0.6–6 % when only orbits with a sample behind the density front count. The valid domain
+    gives the same picture (0.8–9.3 % against 0.01–0.6 %). The φ = 0 model is within a factor 1.5 at 10–60°,
+    but φ = 0 contradicts the measurement.
+  - **Reading: most returns in L are not adiabatic mirror reflections in a static potential**; μ says the
+    same (12 % keep it), and so does the energy: at 50–60° the φ = 0 model has the right share (0.053 against
+    0.052) but its beam at γ 1.25–1.5 is absent (above). The returning electrons do not carry 2 V_HT.
+  - What this does not show: a physical mechanism. Open explanations, none excluded by L: numerical scattering
+    (ν τ = 0.23–0.39, above); time dependence of the front and of φ (the model is static per foot); returns
+    that are kinematic only — half of the "back upstream" orbits never reach δ ≤ 0, and a decelerating,
+    expanding front lowers V_HT and θ_Bn at a field line's foot, so an overtaken electron can outrun the front
+    again; the model counts only feet slower than light.
+  - Two more, both known physics and both to be tested on M before anything is claimed. (1) Leakage (class S1):
+    a field line first touches the sphere at θ_Bn = 90°, and its foot then moves along it at V_HT = V_n / cos θ,
+    which falls towards V_n = 0.15. The heated electrons behind the front (T ≈ 0.015, thermal speed 0.12)
+    can then overtake the foot. This fits the excess at low θ_Bn and the small gain. (2) Marginal
+    adiabaticity by design: an upstream electron crosses a ramp one d_i wide in d_i / V_n = 27, which is 1.2
+    gyro-periods (Ω_ce d_i / V_n = (m_i/m_e) v_A / V_n = 7.6). The ramp width was not measured; this is an
+    estimate.
+- **State of the question after L.** At the registered threshold L holds no energetic upstream electron of
+  the ambient plasma, in agreement with a fast Mach number of 1.8 and b ≈ 2. The one robust finding is negative
+  for the baseline: S0 with the measured potential does not describe the returning electrons at any energy.
+  Whether that is physics is undecided at 2 particles per cell.
+- Next: M (fast Mach 4.05 by design) from commit `ac33a41`, then the same analyses.
+
 ## 2026-11-13 — Null run of L: the numerical floor; front measurement revised to protocol Sect. 4
 - **Run L-null.** `configs/explore-L-null.yaml` (no debris), 8 GPUs, commit `0114ef9`, seed 12345, 2960 steps in
   778 s (262 ms per step, 1.16 ns per particle and step). Output
