@@ -934,4 +934,102 @@ rows 3 and 4 another.
   code of bad2803 (the held bytes grow at each sort of more particles than the one before:
   1,789,952 → 1,971,712 → 2,187,264 → 2,402,816 in `fp64`) and passes with the pool of the sort,
   which then holds 42.3 (`fp64`) and 25.3 (`compact`) bytes per particle of the 8,192 of the test.
-- Not measured yet: the device memory of the gate-size and production-size runs with it.
+- The device memory of the gate-size and production-size runs with it: next section.
+
+### Device memory with the pool of the sort: below the planner's figure in all six runs
+
+2026-11-12, `pypic/` as on ac90f90, 8 GPUs, rank grid (1, 2, 4), no other job on the GPUs, one
+run per row; `blast_wave/full` after a 200-step probe in `fp64` (57.6 s, largest sample
+58.73 GB). Device memory as before (`nvidia-smi` once per second) and, in every rank,
+`cudaMemGetInfo` at each allocation from the default pool and from the pool of the sort; the two
+peaks agree to 0.001 GB in every run. "Before" is the peak of the same configuration without the
+pool of the sort (sections above: f34ac5a at gate size, b830153 at production size). "Largest
+fill" is the largest value of the `fill` scalar of the run (the particles of a species on a rank
+over its slots); the last two columns are the planner's formula with its sort term multiplied
+by that fill, and the peak against it.
+
+| run | precision | planner GB | peak GB | lowest GPU GB | peak − planner | before GB | largest fill | planner, sort at that fill GB | peak − that |
+|---|---|---|---|---|---|---|---|---|---|
+| `bow_shock/gate` | fp64 | 11.00 | 10.28 | 10.02 | −6.5 % | 10.87 | 0.5686 | 10.15 | +1.3 % |
+| `bow_shock/gate` | compact | 9.42 | 9.01 | 8.81 | −4.3 % | 9.36 | 0.5687 | 8.91 | +1.1 % |
+| `blast_wave/gate` | fp64 | 21.45 | 20.04 | 19.54 | −6.6 % | 22.21 | 0.6701 | 20.33 | −1.4 % |
+| `blast_wave/gate` | compact | 18.52 | 17.56 | 17.10 | −5.2 % | 18.78 | 0.6701 | 17.84 | −1.6 % |
+| `blast_wave/full` | fp64 | 66.16 | 61.78 | 60.49 | −6.6 % | 75.16 | 0.6680 | 62.36 | −0.9 % |
+| `blast_wave/full` | compact | 56.57 | 53.72 | 52.52 | −5.0 % | 62.48 | 0.6680 | 54.29 | −1.0 % |
+
+- The peak does not exceed the planner's figure in any of the six runs. At production size the
+  pool of the sort lowered it by 13.38 GB (`fp64`) and 8.76 GB (`compact`) per GPU; `compact` is
+  8.06 GB per GPU (13.0 %) below `fp64` (the planner's difference is 9.59 GB).
+- **By the letter of the R5 criterion — the peak within 5 % of the planner's figure — the
+  production-size runs are still outside it, now below the figure: −6.63 % (`fp64`) and −5.03 %
+  (`compact`).**
+- The runs carry the allocator hook: their wall times (799.6 s and 659.9 s at production size)
+  are not a speed measurement.
+
+Terms of the rank with the peak, in GB, planner / measured at the moment of the largest device
+memory. Measured "grid" is what the default pool holds beyond the particle arrays: the grid,
+output and exchange arrays in use and its free blocks (at most 0.71 GB of them, production
+size). "Outside the pools" is the device memory less the bytes the two pools hold (CUDA context,
+kernels, NCCL), for which the planner counts 1 GB.
+
+| run | precision | particle arrays | sort | grid | outside the pools | sum (measured) |
+|---|---|---|---|---|---|---|
+| `bow_shock/gate` | fp64 | 6.29 / 6.34 | 1.97 / 1.12 | 1.74 / 1.72 | 1.00 / 1.10 | 10.28 |
+| `bow_shock/gate` | compact | 5.51 / 5.55 | 1.18 / 0.67 | 1.74 / 1.68 | 1.00 / 1.10 | 9.01 |
+| `blast_wave/gate` | fp64 | 12.60 / 12.70 | 3.40 / 2.28 | 4.45 / 3.98 | 1.00 / 1.08 | 20.03 |
+| `blast_wave/gate` | compact | 11.02 / 11.12 | 2.04 / 1.37 | 4.45 / 3.96 | 1.00 / 1.10 | 17.56 |
+| `blast_wave/full` | fp64 | 40.07 / 40.38 | 11.47 / 7.69 | 13.63 / 12.63 | 1.00 / 1.08 | 61.78 |
+| `blast_wave/full` | compact | 35.06 / 35.37 | 6.88 / 4.62 | 13.63 / 12.63 | 1.00 / 1.09 | 53.72 |
+
+- **Sort.** The planner counts the sort of a full species (`SORT_BYTES` per slot). The pool of
+  the sort holds 40.2 (`fp64`) and 24.2 (`compact`) bytes per particle of the largest species on
+  the rank that holds the most (its number at the end of the run), and the runs fill 0.57 (bow
+  shock) and 0.67 (blast wave) of their slots. This term is 3.81 GB of the 4.38 GB between the
+  planner and the peak in `fp64` at production size (2.28 of 2.85 GB in `compact`). With the
+  sort term at the largest fill the planner's formula is within 1.6 % of the peak in all six
+  runs (last columns of the first table).
+- **Grid.** In the blast wave the planner's term is 0.47 GB (gate) and 1.00 GB (production size)
+  above the measured one, in the bow shock 0.02 and 0.06 GB. Which of the arrays the planner
+  counts the blast wave does not hold was not examined.
+- **Particle arrays.** 64.5 and 56.5 bytes per slot against the planner's 64 and 56: the list
+  of the particles to remove or migrate (`Species.flag_list`, an int32 for every eighth slot)
+  is not in `SLOT_BYTES`. 0.31 GB per GPU at production size.
+- The held bytes of the two pools no longer grow with the sorts: at the peak the default pool
+  has at most 0.71 GB of free blocks (before, at gate size, a rank held 4.9 GB more than it
+  had in use).
+
+Both production-size runs passed the criteria of the example (`analyze`):
+
+| precision | `energy_budget_change` | Gauss max | div B max | fill max | particles at the end |
+|---|---|---|---|---|---|
+| fp64 | 0.258956 | 6.8e-15 | 1.1e-14 | 0.66796 | 3,121,221,473 |
+| compact | 0.258985 | 7.1e-15 | 1.2e-14 | 0.66797 | 3,121,219,877 |
+
+Against the runs on b830153 (section "R5 exit" above) `energy_budget_change` differs by +3.7e-5
+of its value in `fp64` and by +1.9e-4 in `compact`, and the particle number at the end by
++3,506 and −4,482. The two runs of a precision, which differ in the memory of the sort and in
+the hook, differ by as much as `fp64` and `compact` did there (−3.5e-5; 6,392 particles). One
+run each.
+
+### R5 memory criterion: the result, and an amendment proposed to the owner (not applied)
+
+- **As written, the criterion is not met.** "Peak device memory of a production-size run within
+  5 % of the planner's figure": the peak is 6.63 % (`fp64`) and 5.03 % (`compact`) below the
+  figure. Without the pool of the sort it was 13.6 % and 10.5 % above it.
+- The planner's figure is defined as a bound, "device memory of a rank whose particle arrays
+  are full" (comment at the formula in both example planners; the run log prints "memory up
+  to"). The runs fill 0.57 to 0.67 of their slots, and a sort needs memory for the particles
+  it sorts, not for the slots. So the criterion compares a run that is two thirds full with a
+  figure for a full one, and the difference of the two sort terms alone is 5.8 % of the figure
+  in `fp64` and 4.0 % in `compact` at production size.
+- Nothing was changed to meet it: the planner's formula, `SORT_BYTES` and the 5 % limit are as
+  before. A sort term for the loaded particle number (the even share of a rank) would stop the
+  figure from being a bound: in the bow-shock gate, where the injection adds particles during
+  the run, the peak would be 2.7 % above it.
+- **Proposed amendment, for the owner to decide:** the memory criterion of R5 reads "the peak
+  device memory of a production-size run does not exceed the planner's figure, and is within
+  5 % of the planner's formula with the sort term at the largest fill of the run". Against that
+  wording all six runs pass: the peak is below the figure, and −0.9 % (`fp64`) and −1.0 %
+  (`compact`) from the formula at production size, +1.3 % to −1.6 % at gate size.
+- Until the owner decides, R5 stays open and PIC-D19 Proposed, with the criterion recorded as
+  not met by its letter.
