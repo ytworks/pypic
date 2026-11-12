@@ -116,6 +116,7 @@ class Simulation:
             # [1] charge and [2] number dropped at x-, [3] charged particles found next to the
             # x+ wall, [4] kinetic energy of the planes loaded
             self._window_fe = cp.zeros(1)
+            self._window_J = None  # the current of the move of a warm plane (allocated at the first one)
             self._wd = [cp.zeros(5) for _ in cfg.species]
 
         self.species: list[Species] = []
@@ -714,11 +715,11 @@ class Simulation:
 
     J_STAGGER = ((0.5, 0, 0), (0, 0.5, 0), (0, 0, 0.5))
 
-    def _filter_J(self):
+    def _filter_J(self, J=None):
         """Binomial current filter (PIC-D10), between the ghost reduction and the wall BC."""
         if self.n_filter:
             g = self.grid
-            g.filter((g.Jx, g.Jy, g.Jz), self.J_STAGGER, self.n_filter, self.cfg.current_filter.compensate)
+            g.filter(J or (g.Jx, g.Jy, g.Jz), self.J_STAGGER, self.n_filter, self.cfg.current_filter.compensate)
 
     def _gather_E(self):
         """Electric field the implicit particles gather: E_h, or F E_h with the current filter F, so
@@ -761,8 +762,10 @@ class Simulation:
         fields go one plane down; the particles below the new x- face are dropped; the laboratory
         plane that enters behind the vacuum margin is loaded as it was at the shift before and
         moved to the present in rounds of less than a cell, each followed by a migration, with the
-        current of the move taken out of E (div E = rho stays exact). The energy that leaves and
-        enters is kept for the record. Every rank makes the same collective calls."""
+        current of the move taken out of E (div E = rho stays exact). That current has arrays of its
+        own: J stays the current of the step, one plane down like the fields (the outputs read it).
+        The energy that leaves and enters is kept for the record. Every rank makes the same
+        collective calls."""
         cfg, g = self.cfg, self.grid
         if s > self._window_end:
             raise RuntimeError(f"the moving window was set up for n_steps = {cfg.n_steps} steps: no plane to load "
@@ -788,8 +791,13 @@ class Simulation:
             T = window.steps_since_shift(cfg, self.step_count + 1) * cfg.dt
             rounds = (math.floor(T / min(cfg.dx)) + 1) if any(hot) else 1
             xw = (window.front_cell(cfg) + s) * dx
+            Jm = (g.Jx, g.Jy, g.Jz)  # not written by a plane that does not move
             if any(hot):
-                g.zero_J()
+                if self._window_J is None:
+                    self._window_J = tuple(cp.empty(g.shape) for _ in range(3))
+                Jm = self._window_J
+                for J in Jm:
+                    J.fill(0)
             for r in range(rounds):
                 self.flag.fill(0)
                 for i, sp in enumerate(self.species):
@@ -801,18 +809,17 @@ class Simulation:
                     lst = sp.flag_list()
                     launch(self.k_wmove, k, (
                         sp.P, np.int32(n0[i]), np.int32(sp.n), np.int64(sp.cap),
-                        np.float64(T / rounds if hot[i] else 0.0), np.float64(xw), g.Jx, g.Jy, g.Jz,
+                        np.float64(T / rounds if hot[i] else 0.0), np.float64(xw), *Jm,
                         np.float64(sp.m), np.float64(sp.qdep), np.int32(r == 0), self._wd[i], self.sdiag[i],
                         self.flag[i:i + 1], lst, np.int32(lst.size)))
                 self._migrate()
             if any(hot):
-                g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
-                self._filter_J()
-                g.apply_bc_J()
+                g.reduce_ghosts(Jm)
+                self._filter_J(Jm)
+                g.apply_bc_J(Jm)
                 o = g.owned_slice()
-                for E, J in zip((g.Ex, g.Ey, g.Ez), (g.Jx, g.Jy, g.Jz)):
+                for E, J in zip((g.Ex, g.Ey, g.Ez), Jm):
                     E[o] -= cfg.dt * J[o]
-                g.zero_J()
         g.apply_bc_E()
         g.fill_ghosts((g.Ex, g.Ey, g.Ez))
         self._window_fe += cp.sum(fe0 - g.field_energy_local())

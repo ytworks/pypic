@@ -17,7 +17,7 @@ import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
 from pypic.body import relax_edges
-from pypic.config import Body, CurrentFilter, ExternalFields, Injection, Laser
+from pypic.config import Body, CurrentFilter, ExternalFields, Injection, Laser, Window
 from pypic.parallel.comm import SelfComm
 from pypic.simulation import Simulation
 
@@ -1190,7 +1190,8 @@ def _window_output(path: str) -> dict:
     last = len(plane.t) - 1
     o = {"window": run.window, "scalars": (sc.step, sc.window_shift),
          "shifts": [s.window_shift.tolist() for s in (plane, line, hist)],
-         "dump": {it: (dump.get(it, "Ey").coords[0], dump.get(it, "Ey").data) for it in dump.iterations},
+         "dump": {it: (dump.get(it, "Ey").coords[0], dump.get(it, "Ey").data, dump.get(it, "Jy").data)
+                  for it in dump.iterations},
          "plane": (plane.plane_axes("Ey", last)[0], plane.read("Ey", last)),
          "line": (line.x("n:e", last), line.read("n:e", last)),
          "hist": (hist.edges[0] + hist.window_shift[last] * run.dx[0], hist.read("e", last)),
@@ -1198,6 +1199,41 @@ def _window_output(path: str) -> dict:
     for s in (plane, line, hist, sc):
         s.close()
     return o
+
+
+@pytest.mark.parametrize("case", ["warm", "cold"])
+def test_moving_window_shift_keeps_the_current_of_the_step_at_its_laboratory_place(case):
+    """The outputs read J after a step (the current at t - dt / 2, OUT-D5). The shift of the window
+    that follows the step moves it one plane down with the fields. warm: the plane that enters is
+    moved to the present; the current of that move is taken out of E and is no part of J. cold: a
+    plasma at rest with an antenna (review of PR #42: J was zero after the shift with a warm plane,
+    and one cell too far up after the one with a cold plane)."""
+    theta = 4e-3 if case == "warm" else 0.0
+    pulse = Laser(plane_x=3.05, a0=0.1, omega=5.0, envelope={"shape": "gaussian", "duration": 0.3, "t_peak": 0.0})
+    cfg = SimConfig(n_cells=(64, 16, 16), dx=(0.1,) * 3, dt=0.045, n_steps=8, npml=8, ppc=4,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, theta=theta)]),
+                             SpeciesConfig("i", 1, 100, [Beam(1.0, theta=theta)])],
+                    lasers=[] if theta else [pulse], window=Window(start=0.0, margin=1.0),
+                    boundaries=(("open", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic")),
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    g = sim.grid
+
+    def current():
+        return cp.stack([J[g.physical_slice()] for J in (g.Jx, g.Jy, g.Jz)])
+
+    seen, shift = [], g.shift_x
+
+    def spy():
+        seen.append(current())
+        shift()
+
+    g.shift_x = spy
+    while not seen:
+        sim.step()
+    before, after = seen[0], current()
+    assert sim.window_shift == 1 and bool(cp.any(before[:, 1:] != 0))
+    assert bool(cp.all(after[:, :-1] == before[:, 1:])) and not bool(cp.any(after[:, -1]))
 
 
 def test_moving_window_leaves_a_plasma_at_rest_as_it_was_loaded():
@@ -1260,7 +1296,9 @@ def test_moving_window_output_is_in_laboratory_coordinates():
     """Output of a run with a moving window (OUT-D5): the regions of the diagnostics are places in
     the window, and with the shift that every output records the reader gives laboratory places.
     The field dump at 85 and at 200 shifts, and at the end the slice, the lineout, the particles of
-    a region and the x histogram, are those of the box at rest at the same laboratory places."""
+    a region and the x histogram, are those of the box at rest at the same laboratory places. Both
+    dumps follow a shift: J_y, the current of the step before it, has gone down with the fields,
+    through the rank face along x too (review of PR #42: it was left one cell up)."""
     if cp.cuda.runtime.getDeviceCount() < 4:
         pytest.skip("needs >= 4 GPUs")
     ref, o = _window_run("1,1,1", "static")["out"], _window_run("2,2,1", "laser")["out"]
@@ -1269,12 +1307,14 @@ def test_moving_window_output_is_in_laboratory_coordinates():
     step, shift = o["scalars"]  # a record every 8 steps; the one of step 504 is the last
     assert shift[0] == 0 and shift[step == 256] == 85 and step[-1] == 504 and shift[-1] == 196
     for it, n_shift in ((256, 85), (512, 200)):
-        (x, ey), (xr, eyr) = o["dump"][it], ref["dump"][it]
+        (x, ey, jy), (xr, eyr, jyr) = o["dump"][it], ref["dump"][it]
         assert ey.shape[0] == 96 and abs(x[0] - (32 + n_shift) * 0.05) < 1e-12  # Ey sits on the nodes along x
         i = int(np.argmin(np.abs(xr - x[0])))
         assert np.max(np.abs(xr[i:i + 96] - x)) < 1e-12
         scale = np.max(np.abs(eyr))
         assert scale > 0.1 and np.max(np.abs(ey - eyr[i:i + 96])) <= 1e-6 * scale
+        scale = np.max(np.abs(jyr[i:i + 96]))
+        assert scale > 0.01 and np.max(np.abs(jy - jyr[i:i + 96])) <= 1e-6 * scale
     for k, scale in (("plane", np.max(np.abs(ref["plane"][1]))), ("line", 1.0)):
         (x, v), (xr, vr) = o[k], ref[k]
         assert np.max(np.abs(x[32:] - xr[232:])) < 1e-12

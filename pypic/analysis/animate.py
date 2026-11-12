@@ -218,8 +218,10 @@ class PhasePanel(Panel):
         self.edges = self.s.edges
         self.q = self.s.quantities
         self.log = log
-        # x of a histogram is the place in the window (OUT-D5): a frame shows its laboratory place
-        self.shift = self.s.window_shift * run.dx[0] if self.q[0] == "x" and np.any(self.s.window_shift) else None
+        # x of a histogram is the place in the window (OUT-D5): a frame shows its laboratory place, on
+        # whichever axis of the picture x is
+        self.ix = list(self.q).index("x") if "x" in self.q and np.any(self.s.window_shift) else None
+        self.shift = self.s.window_shift * run.dx[0]
 
     def times(self):
         return self.t
@@ -241,10 +243,11 @@ class PhasePanel(Panel):
         if self.log:
             d = np.where(d > 0, d, np.nan)
         self.im.set_data(np.asarray(d).T)
-        if self.shift is not None:
-            lo, hi = self.edges[0][0] + self.shift[i], self.edges[0][-1] + self.shift[i]
-            self.im.set_extent([lo, hi, self.edges[1][0], self.edges[1][-1]])
-            self.ax.set_xlim(lo, hi)
+        if self.ix is not None:
+            ext = [[e[0], e[-1]] for e in self.edges]
+            ext[self.ix] = [v + self.shift[i] for v in ext[self.ix]]
+            self.im.set_extent(ext[0] + ext[1])
+            (self.ax.set_ylim if self.ix else self.ax.set_xlim)(*ext[self.ix])
         self.ax.set_title(f"{self.sp} ({self.q[0]}, {self.q[1]})  t={self.t[i]:.1f}")
 
 

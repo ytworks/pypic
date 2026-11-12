@@ -20,7 +20,7 @@ tracers: one species of test particles and no field at all: the particles move o
 
 laser:   a focused pulse in a cold plasma, open faces across the window (absorbing layers that
          the shift moves through every rank), 200 shifts. Writes E on the cells of the window
-         farther than 32 cells from x- to <file> (.npy), and output (a field dump, a slice, a
+         farther than 32 cells from x- to <file> (.npy), and output (a field dump of E_y and J_y, a slice, a
          lineout, particles and a histogram, with regions in the window) to the directory
          ``laser`` next to it.
 static:  the same pulse and plasma in a box at rest that ends where the window ends after its
@@ -62,7 +62,7 @@ def laser_run():
 
     kw = {"every": 256, "dtype": "float64"}  # outputs at the steps 0, 256 (85 shifts) and 512 (200 shifts)
     inner = (cells(40, 100), None, None)
-    diags = [Diagnostic("dump", "fields", fields=("Ey",), **kw,  # static: every place the window dump has had
+    diags = [Diagnostic("dump", "fields", fields=("Ey", "Jy"), **kw,  # static: every place the window dump has had
                         region=(cells(skip, n[0]) if moving else (skip * dx[0], (n[0] + shifts) * dx[0]), None, None)),
              Diagnostic("plane", "slice", fields=("Ey",), axis="z", **kw),
              Diagnostic("line", "lineout", fields=("n:e",), axis="x", average=False, **kw),

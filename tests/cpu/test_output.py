@@ -161,8 +161,9 @@ def test_movie_writes_an_animation(tmp_path):
 
 
 def test_movie_shows_a_moving_window_at_its_laboratory_place(tmp_path):
-    """Three outputs of a plane across y and of a histogram over (x, u_x); the window has gone 0, 4 and 10
-    cells of 0.5 at them: the pictures of the last frame lie 5 further in x than the first (OUT-D5)."""
+    """Three outputs of a plane across y and of histograms over (x, u_x) and over (u_x, x); the window has
+    gone 0, 4 and 10 cells of 0.5 at them: the pictures of the last frame lie 5 further in x than the first
+    (OUT-D5), on whichever axis of the histogram x is (review of PR #42: only the first one moved)."""
     from types import SimpleNamespace
 
     from pypic.analysis import Movie
@@ -179,11 +180,14 @@ def test_movie_shows_a_moving_window_at_its_laboratory_place(tmp_path):
                             read=lambda c, i: data * (i + 1))
     hist = SimpleNamespace(t=t, window_shift=shift, quantities=["x", "ux"], read=lambda sp, i: data,
                            edges=[np.linspace(0.0, 4.0, 9), np.linspace(-1.0, 1.0, 5)])
-    run = SimpleNamespace(series={"plane": plane, "phase": hist}.get, dx=[0.5] * 3)
-    a, b = SlicePanel(run, "plane", "Ex"), PhasePanel(run, "phase", "e")
-    Movie(run).add(a).add(b).save(str(tmp_path / "m.gif"), fps=5)
+    turned = SimpleNamespace(t=t, window_shift=shift, quantities=["ux", "x"], read=lambda sp, i: data.T,
+                             edges=hist.edges[::-1])
+    run = SimpleNamespace(series={"plane": plane, "phase": hist, "turned": turned}.get, dx=[0.5] * 3)
+    a, b, c = SlicePanel(run, "plane", "Ex"), PhasePanel(run, "phase", "e"), PhasePanel(run, "turned", "e")
+    Movie(run).add(a).add(b).add(c).save(str(tmp_path / "m.gif"), fps=5)
     assert list(a.im.get_extent()) == [5.0, 9.0, 0.0, 2.0] and a.ax.get_xlim() == (5.0, 9.0)
     assert list(b.im.get_extent()) == [5.0, 9.0, -1.0, 1.0] and b.ax.get_xlim() == (5.0, 9.0)
+    assert list(c.im.get_extent()) == [-1.0, 1.0, 5.0, 9.0] and c.ax.get_ylim() == (5.0, 9.0)
 
 
 class _Tracks:

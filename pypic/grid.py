@@ -406,12 +406,13 @@ class YeeGrid:
         launch(self.k_curl_B, self.n_update, (*B, *out, np.float64(s)))
 
     def shift_x(self):
-        """Moving window (PIC-D22): E, B and the memory of the PML go one plane down along x. The
+        """Moving window (PIC-D22): E, B, the memory of the PML and J go one plane down along x. The
         plane that enters at the upper end is zero, but for E_x of the new wall cell, which takes
         the value of the cell below it: div E = 0 at the node between them (the caller refuses
         charge there). B, and the memory of the PML, are valid afterwards with their ghosts; the
         caller ends with ``apply_bc_E()`` and ``fill_ghosts`` of E, after it has taken the current
-        of the plane it loads out of E."""
+        of the plane it loads out of E. J is the current of the step before the shift, which the
+        outputs read (OUT-D5): it stays at its laboratory place on the physical nodes."""
         ax = self.d.axes[0]
         # The psi of a layer across the window lies in every rank of a row along x, and the plane
         # above comes from the neighbour (psiE is updated on the owned range only). The psi of the
@@ -420,6 +421,8 @@ class YeeGrid:
         psi_x = self.use_pml and any(a.pml_lo or a.pml_hi for a in self.d.axes[1:])
         if psi_x:
             self.fill_ghosts(self.psiE, axes=(0,))
+        # the plane of J above a rank comes from the neighbour (reduce_ghosts has left zeros there)
+        self.fill_ghosts((self.Jx, self.Jy, self.Jz), axes=(0,))
         if getattr(self, "_shift_tmp", None) is None:
             self._shift_tmp = cp.empty(self.shape)
 
@@ -430,7 +433,7 @@ class YeeGrid:
             self._shift_tmp = arr
             return out
 
-        for name in FIELD_NAMES:
+        for name in FIELD_NAMES + ("Jx", "Jy", "Jz"):
             setattr(self, name, down(getattr(self, name)))
         if self.use_pml:
             self.psiE = [down(p) for p in self.psiE]
