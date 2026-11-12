@@ -43,6 +43,39 @@
    "output_bytes": 61808942991,
    "checks_ok": true,
    "analysis_commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0"
+  },
+  {
+   "file": "2026-11-13-ac33a41eb-M.json",
+   "name": "M",
+   "created": "2026-11-13T03:28:50+09:00",
+   "commit": "ac33a41ebdc2ebb0246d624262e3933f0f56f9cf",
+   "config": "research/topics/spherical-shock-injection/configs/explore-M.yaml",
+   "wall_time_s": 1320.647223294014,
+   "output_bytes": 60164704602,
+   "checks_ok": true,
+   "analysis_commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48"
+  },
+  {
+   "file": "2026-11-13-3f5c43715-M-null.json",
+   "name": "M-null",
+   "created": "2026-11-13T03:52:44+09:00",
+   "commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48",
+   "config": "research/topics/spherical-shock-injection/configs/explore-M-null.yaml",
+   "wall_time_s": 782.7369680369738,
+   "output_bytes": 15767084271,
+   "checks_ok": true,
+   "analysis_commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48"
+  },
+  {
+   "file": "2026-11-13-3f5c43715-H.json",
+   "name": "H",
+   "created": "2026-11-13T04:06:10+09:00",
+   "commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48",
+   "config": "research/topics/spherical-shock-injection/configs/explore-H.yaml",
+   "wall_time_s": 814.1788197490387,
+   "output_bytes": 16876112976,
+   "checks_ok": true,
+   "analysis_commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48"
   }
  ]
 }

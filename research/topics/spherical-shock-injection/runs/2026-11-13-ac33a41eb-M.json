@@ -1,0 +1,950 @@
+{
+ "name": "M",
+ "created": "2026-11-13T03:28:50+09:00",
+ "run": {
+  "commit": "ac33a41ebdc2ebb0246d624262e3933f0f56f9cf",
+  "commit is an ancestor of the commit of this record": true,
+  "example": "blast_wave",
+  "config": "research/topics/spherical-shock-injection/configs/explore-M.yaml",
+  "config_sha256": "f40928ea4e8dde43b50e5db62132cf82d77095fe435adf190d58612c5e1ec282",
+  "seed": 12345,
+  "ppc": 2,
+  "mass_ratio": 16,
+  "wpe_wce": 6.0,
+  "mach_alfven": 6.0,
+  "species": [
+   "e",
+   "i",
+   "de",
+   "di"
+  ],
+  "n_cells": [
+   768,
+   768,
+   768
+  ],
+  "steps": 2960,
+  "dt": 0.25,
+  "gpus": 8,
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "wall_time_s": 1320.647223294014,
+  "ns_per_particle_step": 1.9500386849256066,
+  "particles_at_the_end": 1830566325,
+  "run_id": "02390a06",
+  "pypic_version": "0.1.0"
+ },
+ "output": {
+  "path": "output/research/spherical-shock-injection/M",
+  "bytes": 60164704602,
+  "in git": false
+ },
+ "checks": {
+  "gauss": {
+   "max": 4.5102810375396984e-15,
+   "limit": 1e-10,
+   "ok": true
+  },
+  "divB": {
+   "max": 1.1426623536259228e-14,
+   "limit": 1e-12,
+   "ok": true
+  },
+  "fill": {
+   "max": 0.6689585105633484,
+   "limit": 0.95,
+   "ok": true
+  },
+  "energy budget, relative change (monitored)": 0.11802849074322384
+ },
+ "analysis": {
+  "commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48",
+  "files": {
+   "baseline.json": {
+    "sha256": "2ca644343f7d8ea7c0aa8fe2d4ddf8fc4f262268fe29ca86d8903b84757e7697",
+    "written": "2026-11-13T04:18:11"
+   },
+   "census.json": {
+    "sha256": "c12261c837720fa63706238584473a4f6ab6e2c9f773b43ef75ded76e86f7524",
+    "written": "2026-11-13T04:15:26"
+   },
+   "front.json": {
+    "sha256": "9ef4686f7dfa9d1d418d160fdd664a2129f92fb8c527a58ff153ef74ef9f5f66",
+    "written": "2026-11-13T03:51:21"
+   },
+   "n3c.json": {
+    "sha256": "2ecd49f1e05cc33c0f3fe66d77f4c730194229ae14a7ee5c0e3f0027afdbf870",
+    "written": "2026-11-13T04:11:36"
+   },
+   "phi.json": {
+    "sha256": "1be3f3ad66c768823e408585aae01cdc0667b0705016ff6c5327ff9927f1a396",
+    "written": "2026-11-13T04:12:15"
+   },
+   "tracks.json": {
+    "sha256": "3a3ddb9408d995fa496248a530237c49f95ac8bba065ed048cf4baf4c5f156fa",
+    "written": "2026-11-13T04:13:59"
+   }
+  },
+  "metrics": {
+   "baseline": {
+    "phi": "measured phi in the lower bound where its error is below 50 %, 0 elsewhere",
+    "phi_cells": [
+     {
+      "domain": "detected front",
+      "cells": 7705,
+      "windowed": 1105,
+      "mean of the bin": 2150,
+      "not measured": 4450,
+      "median phi where measured": 0.022488765764758795
+     },
+     {
+      "domain": "valid domain",
+      "cells": 4500,
+      "windowed": 575,
+      "mean of the bin": 1175,
+      "not measured": 2750,
+      "median phi where measured": 0.022488765764758795
+     }
+    ],
+    "N3": [
+     {
+      "gamma": "1.25-1.5",
+      "nu from": "this run",
+      "nu x tau_dwell": 0.05055497329527247
+     },
+     {
+      "gamma": "1.5-2",
+      "nu from": "null run",
+      "nu x tau_dwell": 0.22349992871404648
+     },
+     {
+      "gamma": "2-3",
+      "nu from": "null run",
+      "nu x tau_dwell": 0.22349992871404648
+     },
+     {
+      "gamma": "3-5",
+      "nu from": "null run",
+      "nu x tau_dwell": 0.22349992871404648
+     },
+     {
+      "gamma": ">5",
+      "nu from": "null run",
+      "nu x tau_dwell": 0.22349992871404648
+     }
+    ],
+    "share reflected": [
+     {
+      "domain": "detected front",
+      "band": [
+       0,
+       10
+      ],
+      "model upper": null,
+      "model lower": null,
+      "tracks back": 0,
+      "tracks with a known end": 0,
+      "tracks in the layer at the end": 0,
+      "tracks back from behind the front": 0,
+      "tracks share": null,
+      "tracks share error": null
+     },
+     {
+      "domain": "detected front",
+      "band": [
+       10,
+       20
+      ],
+      "model upper": null,
+      "model lower": null,
+      "tracks back": 0,
+      "tracks with a known end": 0,
+      "tracks in the layer at the end": 0,
+      "tracks back from behind the front": 0,
+      "tracks share": null,
+      "tracks share error": null
+     },
+     {
+      "domain": "detected front",
+      "band": [
+       20,
+       30
+      ],
+      "model upper": null,
+      "model lower": null,
+      "tracks back": 0,
+      "tracks with a known end": 0,
+      "tracks in the layer at the end": 0,
+      "tracks back from behind the front": 0,
+      "tracks share": null,
+      "tracks share error": null
+     },
+     {
+      "domain": "detected front",
+      "band": [
+       30,
+       40
+      ],
+      "model upper": 0.1353323754794503,
+      "model lower": 0.06403083790145202,
+      "tracks back": 180,
+      "tracks with a known end": 1235,
+      "tracks in the layer at the end": 493,
+      "tracks back from behind the front": 80,
+      "tracks share": 0.145748987854251,
+      "tracks share error": 0.01086348814979655
+     },
+     {
+      "domain": "detected front",
+      "band": [
+       40,
+       50
+      ],
+      "model upper": 0.1295806836179149,
+      "model lower": 0.0362492800536989,
+      "tracks back": 1001,
+      "tracks with a known end": 7044,
+      "tracks in the layer at the end": 4620,
+      "tracks back from behind the front": 512,
+      "tracks share": 0.14210675752413401,
+      "tracks share error": 0.0044915650254277045
+     },
+     {
+      "domain": "detected front",
+      "band": [
+       50,
+       60
+      ],
+      "model upper": 0.1042151357568949,
+      "model lower": 0.046888442046762825,
+      "tracks back": 1054,
+      "tracks with a known end": 8748,
+      "tracks in the layer at the end": 7587,
+      "tracks back from behind the front": 586,
+      "tracks share": 0.12048468221307727,
+      "tracks share error": 0.0037111758300749716
+     },
+     {
+      "domain": "detected front",
+      "band": [
+       60,
+       70
+      ],
+      "model upper": 0.04917140214215553,
+      "model lower": 0.009077464865405577,
+      "tracks back": 726,
+      "tracks with a known end": 7703,
+      "tracks in the layer at the end": 7860,
+      "tracks back from behind the front": 428,
+      "tracks share": 0.09424899389848111,
+      "tracks share error": 0.0034979082397267247
+     },
+     {
+      "domain": "detected front",
+      "band": [
+       70,
+       80
+      ],
+      "model upper": 0.004335467675465894,
+      "model lower": 0.003028942114285752,
+      "tracks back": 440,
+      "tracks with a known end": 5700,
+      "tracks in the layer at the end": 6924,
+      "tracks back from behind the front": 258,
+      "tracks share": 0.07719298245614035,
+      "tracks share error": 0.0036800310462110583
+     },
+     {
+      "domain": "detected front",
+      "band": [
+       80,
+       90
+      ],
+      "model upper": 3.4290668473957784e-09,
+      "model lower": 8.638292497565456e-10,
+      "tracks back": 92,
+      "tracks with a known end": 1373,
+      "tracks in the layer at the end": 2244,
+      "tracks back from behind the front": 56,
+      "tracks share": 0.06700655498907501,
+      "tracks share error": 0.006985916275765068
+     },
+     {
+      "domain": "valid domain",
+      "band": [
+       0,
+       10
+      ],
+      "model upper": null,
+      "model lower": null,
+      "tracks back": 0,
+      "tracks with a known end": 0,
+      "tracks in the layer at the end": 0,
+      "tracks back from behind the front": 0,
+      "tracks share": null,
+      "tracks share error": null
+     },
+     {
+      "domain": "valid domain",
+      "band": [
+       10,
+       20
+      ],
+      "model upper": null,
+      "model lower": null,
+      "tracks back": 0,
+      "tracks with a known end": 0,
+      "tracks in the layer at the end": 0,
+      "tracks back from behind the front": 0,
+      "tracks share": null,
+      "tracks share error": null
+     },
+     {
+      "domain": "valid domain",
+      "band": [
+       20,
+       30
+      ],
+      "model upper": null,
+      "model lower": null,
+      "tracks back": 0,
+      "tracks with a known end": 0,
+      "tracks in the layer at the end": 0,
+      "tracks back from behind the front": 0,
+      "tracks share": null,
+      "tracks share error": null
+     },
+     {
+      "domain": "valid domain",
+      "band": [
+       30,
+       40
+      ],
+      "model upper": null,
+      "model lower": null,
+      "tracks back": 0,
+      "tracks with a known end": 0,
+      "tracks in the layer at the end": 0,
+      "tracks back from behind the front": 0,
+      "tracks share": null,
+      "tracks share error": null
+     },
+     {
+      "domain": "valid domain",
+      "band": [
+       40,
+       50
+      ],
+      "model upper": 0.14849962648986362,
+      "model lower": 0.008130937092657858,
+      "tracks back": 261,
+      "tracks with a known end": 2064,
+      "tracks in the layer at the end": 786,
+      "tracks back from behind the front": 152,
+      "tracks share": 0.12645348837209303,
+      "tracks share error": 0.00782727442897457
+     },
+     {
+      "domain": "valid domain",
+      "band": [
+       50,
+       60
+      ],
+      "model upper": 0.11631266277560567,
+      "model lower": 0.04468230574834283,
+      "tracks back": 672,
+      "tracks with a known end": 6121,
+      "tracks in the layer at the end": 3441,
+      "tracks back from behind the front": 372,
+      "tracks share": 0.10978598268256821,
+      "tracks share error": 0.004235086226700121
+     },
+     {
+      "domain": "valid domain",
+      "band": [
+       60,
+       70
+      ],
+      "model upper": 0.0548855031311728,
+      "model lower": 0.010994604878343299,
+      "tracks back": 469,
+      "tracks with a known end": 5503,
+      "tracks in the layer at the end": 5532,
+      "tracks back from behind the front": 256,
+      "tracks share": 0.0852262402326004,
+      "tracks share error": 0.0039353821238792865
+     },
+     {
+      "domain": "valid domain",
+      "band": [
+       70,
+       80
+      ],
+      "model upper": 0.005024254050197917,
+      "model lower": 0.0036858860885595154,
+      "tracks back": 315,
+      "tracks with a known end": 4245,
+      "tracks in the layer at the end": 5267,
+      "tracks back from behind the front": 176,
+      "tracks share": 0.07420494699646643,
+      "tracks share error": 0.004180975111731178
+     },
+     {
+      "domain": "valid domain",
+      "band": [
+       80,
+       90
+      ],
+      "model upper": 3.779172009488794e-09,
+      "model lower": 9.62374097912001e-10,
+      "tracks back": 62,
+      "tracks with a known end": 1004,
+      "tracks in the layer at the end": 1843,
+      "tracks back from behind the front": 36,
+      "tracks share": 0.061752988047808766,
+      "tracks share error": 0.00784263732471296
+     }
+    ],
+    "rule gamma >= 1.5": {
+     "detected front": {
+      "cells with >= 100 electrons": 0,
+      "inside": 0,
+      "inside with the undetermined added": 0,
+      "below lower / 2": 0,
+      "above 2 x upper": 0,
+      "S0 / upper": {
+       "n": 0
+      },
+      "S0 / lower": {
+       "n": 0
+      }
+     },
+     "valid domain": {
+      "cells with >= 100 electrons": 0,
+      "inside": 0,
+      "inside with the undetermined added": 0,
+      "below lower / 2": 0,
+      "above 2 x upper": 0,
+      "S0 / upper": {
+       "n": 0
+      },
+      "S0 / lower": {
+       "n": 0
+      }
+     }
+    },
+    "rule gamma 1.25-1.5 (extra)": {
+     "detected front": {
+      "cells with >= 100 electrons": 13,
+      "inside": 4,
+      "inside with the undetermined added": 4,
+      "below lower / 2": 4,
+      "above 2 x upper": 5,
+      "S0 / upper": {
+       "n": 13,
+       "p10": 0.0747387027769609,
+       "p50": 0.8219492299841994,
+       "p90": 6.216339670710436
+      },
+      "S0 / lower": {
+       "n": 13,
+       "p10": 0.17079471374277702,
+       "p50": 2.327612983527014,
+       "p90": 18.90352734147217
+      }
+     },
+     "valid domain": {
+      "cells with >= 100 electrons": 0,
+      "inside": 0,
+      "inside with the undetermined added": 0,
+      "below lower / 2": 0,
+      "above 2 x upper": 0,
+      "S0 / upper": {
+       "n": 0
+      },
+      "S0 / lower": {
+       "n": 0
+      }
+     }
+    }
+   },
+   "census": {
+    "n_dumps": 41,
+    "b_max": 3.389361643426743,
+    "b_cell_max": 4.332337272681029,
+    "tau_dwell": 113.09733552923255,
+    "N3b": [
+     {
+      "gamma": "1.25-1.5",
+      "pairs": 1229,
+      "pairs_mu": 1082,
+      "nu": 0.000447004105434521,
+      "nu_used": 0.000447004105434521,
+      "nu_from": "this run",
+      "flight_limit": 223.71159187182994,
+      "dgamma_mean": -0.006012932112431446,
+      "energy_diffusion": 2.296285131106981e-05,
+      "drho_mean": 0.015472069977496596,
+      "drho_rms": 0.5657978498559402
+     },
+     {
+      "gamma": "1.5-2",
+      "pairs": 3,
+      "pairs_mu": 3,
+      "nu": 0.0002419829111491503,
+      "nu_used": 0.001976173246418152,
+      "nu_from": "null run",
+      "flight_limit": 50.60285082861623,
+      "dgamma_mean": 0.0070846925077598195,
+      "energy_diffusion": 2.4433454092949208e-05,
+      "drho_mean": -0.24592617884206427,
+      "drho_rms": 0.2934503706410879
+     },
+     {
+      "gamma": "2-3",
+      "pairs": 0,
+      "pairs_mu": 0,
+      "nu": null,
+      "nu_used": 0.001976173246418152,
+      "nu_from": "null run",
+      "flight_limit": 50.60285082861623,
+      "dgamma_mean": null,
+      "energy_diffusion": null,
+      "drho_mean": null,
+      "drho_rms": null
+     },
+     {
+      "gamma": "3-5",
+      "pairs": 0,
+      "pairs_mu": 0,
+      "nu": null,
+      "nu_used": 0.001976173246418152,
+      "nu_from": "null run",
+      "flight_limit": 50.60285082861623,
+      "dgamma_mean": null,
+      "energy_diffusion": null,
+      "drho_mean": null,
+      "drho_rms": null
+     },
+     {
+      "gamma": ">5",
+      "pairs": 0,
+      "pairs_mu": 0,
+      "nu": null,
+      "nu_used": 0.001976173246418152,
+      "nu_from": "null run",
+      "flight_limit": 50.60285082861623,
+      "dgamma_mean": null,
+      "energy_diffusion": null,
+      "drho_mean": null,
+      "drho_rms": null
+     }
+    ],
+    "upstream, largest dump, no front": {
+     "t": 111.0,
+     "n": 5,
+     "results": {
+      "S0 at exit": 0,
+      "S0 in range": 0,
+      "S1 leak": 0,
+      "S2 trapped": 0,
+      "undetermined": 5,
+      "residual": 0,
+      "residual, no encounter": 0
+     }
+    },
+    "K1, largest dump, whole front": {
+     "t": 111.0,
+     "k1": 1,
+     "expected": 0.005
+    }
+   },
+   "front": {
+    "n_outputs": 41,
+    "bins": 738,
+    "detected_bins": 326,
+    "valid_bins": 180,
+    "usable_bins": 121,
+    "fit_rms": 0.2908579243564221,
+    "fit_rms_B": 0.308917748109611,
+    "flags_in_valid": {
+     "ok_planes": 180,
+     "ok_thresholds": 121,
+     "ok_local": 179,
+     "ok_quadrants": 180
+    },
+    "flow_within_30pct": {
+     "valid": 180,
+     "of": 180
+    }
+   },
+   "n3c": {
+    "null": "output/research/spherical-shock-injection/M-null",
+    "commit_null": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48",
+    "largest ratio": {
+     "detected front": 3.7693039722054507,
+     "valid domain": 1.2544554101728613
+    },
+    "note on N3 and N5": {
+     "detected front": true,
+     "valid domain": false
+    }
+   },
+   "phi": {
+    "null": "output/research/spherical-shock-injection/M-null",
+    "bins on the detected front": 323,
+    "measured (error below 50 %)": 49,
+    "bins of the valid domain": 180,
+    "measured, valid domain": 23,
+    "significantly negative": 1,
+    "mean over the outputs with a detected front": [
+     {
+      "theta_deg": 2.5,
+      "outputs": 0,
+      "phi": null,
+      "err": null,
+      "measured": false
+     },
+     {
+      "theta_deg": 7.499999999999999,
+      "outputs": 0,
+      "phi": null,
+      "err": null,
+      "measured": false
+     },
+     {
+      "theta_deg": 12.5,
+      "outputs": 0,
+      "phi": null,
+      "err": null,
+      "measured": false
+     },
+     {
+      "theta_deg": 17.5,
+      "outputs": 0,
+      "phi": null,
+      "err": null,
+      "measured": false
+     },
+     {
+      "theta_deg": 22.5,
+      "outputs": 0,
+      "phi": null,
+      "err": null,
+      "measured": false
+     },
+     {
+      "theta_deg": 27.5,
+      "outputs": 0,
+      "phi": null,
+      "err": null,
+      "measured": false
+     },
+     {
+      "theta_deg": 32.5,
+      "outputs": 0,
+      "phi": null,
+      "err": null,
+      "measured": false
+     },
+     {
+      "theta_deg": 37.5,
+      "outputs": 9,
+      "phi": 0.021136723896832892,
+      "err": 0.006950937078605356,
+      "measured": true
+     },
+     {
+      "theta_deg": 42.5,
+      "outputs": 17,
+      "phi": 0.012626734571325822,
+      "err": 0.007063313915492325,
+      "measured": false
+     },
+     {
+      "theta_deg": 47.5,
+      "outputs": 28,
+      "phi": 0.014394249941284548,
+      "err": 0.004277953756929002,
+      "measured": true
+     },
+     {
+      "theta_deg": 52.50000000000001,
+      "outputs": 31,
+      "phi": 0.02306623997992803,
+      "err": 0.005221702492523526,
+      "measured": true
+     },
+     {
+      "theta_deg": 57.5,
+      "outputs": 33,
+      "phi": 0.00889335075566362,
+      "err": 0.0048926739281049845,
+      "measured": false
+     },
+     {
+      "theta_deg": 62.50000000000001,
+      "outputs": 33,
+      "phi": 0.022488765764758795,
+      "err": 0.005765309849378905,
+      "measured": true
+     },
+     {
+      "theta_deg": 67.5,
+      "outputs": 35,
+      "phi": 0.020578396897944152,
+      "err": 0.0056593617616736295,
+      "measured": true
+     },
+     {
+      "theta_deg": 72.5,
+      "outputs": 35,
+      "phi": 0.009386637457151494,
+      "err": 0.005875069921438566,
+      "measured": false
+     },
+     {
+      "theta_deg": 77.5,
+      "outputs": 35,
+      "phi": 0.006208274019552842,
+      "err": 0.007441631645117792,
+      "measured": false
+     },
+     {
+      "theta_deg": 82.5,
+      "outputs": 35,
+      "phi": -0.0016312832636069252,
+      "err": 0.004262957704294045,
+      "measured": false
+     },
+     {
+      "theta_deg": 87.5,
+      "outputs": 32,
+      "phi": -0.008582701340401719,
+      "err": 0.007902414721097026,
+      "measured": false
+     }
+    ]
+   },
+   "tracks": {
+    "n_tracked": 956674,
+    "stride": 947,
+    "all_by_category": {
+     "never left the upstream": 791967,
+     "encounter, back upstream": 6964,
+     "in the layer at the end": 57709,
+     "transmitted": 61517,
+     "returned from downstream": 579,
+     "starts behind the front": 6510,
+     "no sample in the range of the fit": 31428
+    },
+    "n_gamma_max>=1.25": 188,
+    "n_gamma_max>=1.5": 0,
+    "gamma_max>=1.5_by_category": {},
+    "N4": {
+     "orbits with |dgamma| >= 0.1": 853,
+     "within 10 %": 851,
+     "closure": {
+      "n": 853,
+      "p50": 0.027408252919090107,
+      "p90": 0.04410238170540842,
+      "p99": 0.07374316334851577
+     },
+     "failing by category": {
+      "starts behind the front": 2
+     },
+     "parallel share of the work (orbits within 10 %)": {
+      "n": 851,
+      "p10": -0.06306625532630981,
+      "p50": 0.22724983726496725,
+      "p90": 0.8421537064152911
+     }
+    },
+    "reflections, all energies": {
+     "one encounter, back upstream": 6850,
+     "of these, reached the front (delta <= 0)": 3967,
+     "mu within 20 %": 488,
+     "in the valid domain": 1656,
+     "in the valid domain, mu within 20 %": 194,
+     "mu_out / mu_in": {
+      "n": 3967,
+      "p10": 0.20135212296917507,
+      "p50": 1.151750995613938,
+      "p90": 6.027474341318647
+     },
+     "mu_out / mu_in, valid domain": {
+      "n": 1656,
+      "p10": 0.21924243751510847,
+      "p50": 1.185084153824894,
+      "p90": 6.252371034845124
+     },
+     "gain": {
+      "n": 3967,
+      "p10": -0.0083757282447237,
+      "p50": 0.02180765683333563,
+      "p90": 0.06821683936109749,
+      "p99": 0.13078796068465842
+     },
+     "gain, valid domain": {
+      "n": 1656,
+      "p10": -0.003047653103516512,
+      "p50": 0.028331232962445108,
+      "p90": 0.08083394872056737,
+      "p99": 0.1450235989303954
+     },
+     "gamma_out above": {
+      "1.05": 1484,
+      "1.1": 285,
+      "1.25": 3,
+      "1.5": 0
+     },
+     "gamma_out above, valid domain": {
+      "1.05": 818,
+      "1.1": 182,
+      "1.25": 2,
+      "1.5": 0
+     },
+     "dwell in the layer": {
+      "n": 3967,
+      "p50": 252.0,
+      "p90": 414.5,
+      "p99": 531.1800000000003
+     },
+     "dwell in the layer, gamma_out >= 1.1": {
+      "n": 285,
+      "p50": 198.5,
+      "p90": 338.3,
+      "p99": 461.22000000000014
+     },
+     "foot theta_Bn at the deepest point (deg)": {
+      "n": 3967,
+      "p10": 22.291527470743826,
+      "p50": 44.69182319747775,
+      "p90": 61.335366458652096
+     },
+     "parallel share of the work in the encounter (|work| >= 0.02)": {
+      "n": 2408,
+      "p10": -0.5108608863848648,
+      "p50": 0.2936121826386412,
+      "p90": 1.0219748956747023
+     },
+     "work - dgamma in the encounter": {
+      "n": 3967,
+      "p10": -0.003631110923832105,
+      "p50": -0.002059084687144084,
+      "p90": -0.0010046055836195578
+     }
+    },
+    "reflections": {
+     "one encounter, back upstream, gamma_out >= 1.25": 3,
+     "mu within 20 %": 1,
+     "mu_out / mu_in": {
+      "n": 3,
+      "p10": 1.2377108906947798,
+      "p50": 1.4883221753407139,
+      "p90": 10.762108322895806
+     },
+     "gain": {
+      "n": 3,
+      "p10": 0.18310252748401018,
+      "p50": 0.2260103968074907,
+      "p90": 0.2735672745057468
+     },
+     "gamma_out": {
+      "n": 3,
+      "p10": 1.2551773173293956,
+      "p50": 1.2613703823734397,
+      "p90": 1.2920052568360856
+     },
+     "dwell in the layer": {
+      "n": 3,
+      "p10": 191.3,
+      "p50": 230.5,
+      "p90": 286.5
+     },
+     "dwell protocol": 113.09733552923255,
+     "time not upstream": {
+      "n": 3,
+      "p10": 193.6,
+      "p50": 242.0,
+      "p90": 288.8
+     },
+     "foot theta_Bn at the deepest point (deg)": {
+      "n": 3,
+      "p10": 49.91656249119547,
+      "p50": 57.49462835563071,
+      "p90": 67.49773584173835
+     },
+     "in the valid domain": 2,
+     "foot superluminal": 0,
+     "canonical radius out - in": {
+      "n": 3,
+      "p10": -0.8448157460750167,
+      "p50": -0.6449488211716812,
+      "p90": 1.5419486906175963
+     },
+     "B1'": {
+      "gamma_out >= 1.25": {
+       "reflections with mu within 20 %": 1,
+       "explained": 0,
+       "not explained": 0,
+       "undetermined": 1,
+       "other or not in a dump": 0,
+       "f_FN": null,
+       "f_FN upper 95 %": 1.0
+      },
+      "gamma_out >= 1.5": {
+       "reflections with mu within 20 %": 0,
+       "explained": 0,
+       "not explained": 0,
+       "undetermined": 0,
+       "other or not in a dump": 0,
+       "f_FN": null,
+       "f_FN upper 95 %": 1.0
+      }
+     },
+     "census t_r - time of the deepest point": {
+      "n": 1,
+      "p10": 83.30618286132812,
+      "p50": 83.30618286132812,
+      "p90": 83.30618286132812
+     },
+     "census theta_Bn - foot theta_Bn of the track (deg)": {
+      "n": 1,
+      "p10": -9.26303108920376,
+      "p50": -9.26303108920376,
+      "p90": -9.26303108920376
+     }
+    },
+    "K2 several encounters, gamma_out >= 1.5": {
+     "n": 0,
+     "n_enc": {
+      "n": 0
+     },
+     "gain": {
+      "n": 0
+     }
+    },
+    "K3 superluminal foot, mu not conserved, gamma_out >= 1.5": 0,
+    "returned from downstream, gamma_out >= 1.5": 0,
+    "census residuals on tracks (gamma >= 1.5)": {
+     "n": 0,
+     "by_category": {},
+     "n_enc": {
+      "n": 0
+     },
+     "mu_out / mu_in": {
+      "n": 0
+     },
+     "dwell": {
+      "n": 0
+     },
+     "closure within 10 %": 0
+    },
+    "K1 on tracks": {
+     "n": 0,
+     "by_category": {}
+    }
+   }
+  }
+ }
+}

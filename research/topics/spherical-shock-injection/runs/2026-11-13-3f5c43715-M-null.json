@@ -1,0 +1,99 @@
+{
+ "name": "M-null",
+ "created": "2026-11-13T03:52:44+09:00",
+ "run": {
+  "commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48",
+  "commit is an ancestor of the commit of this record": true,
+  "example": "blast_wave",
+  "config": "research/topics/spherical-shock-injection/configs/explore-M-null.yaml",
+  "config_sha256": "177ca0f03ce42c331790e932803d293f12e6fd030332f770a959493fbaa1a42c",
+  "seed": 12345,
+  "ppc": 2,
+  "mass_ratio": 16,
+  "wpe_wce": 6.0,
+  "mach_alfven": 6.0,
+  "species": [
+   "e",
+   "i"
+  ],
+  "n_cells": [
+   768,
+   768,
+   768
+  ],
+  "steps": 2960,
+  "dt": 0.25,
+  "gpus": 8,
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "wall_time_s": 782.7369680369738,
+  "ns_per_particle_step": 1.1686336988286563,
+  "particles_at_the_end": 1810312457,
+  "run_id": "5b38d30e",
+  "pypic_version": "0.1.0"
+ },
+ "output": {
+  "path": "output/research/spherical-shock-injection/M-null",
+  "bytes": 15767084271,
+  "in git": false
+ },
+ "checks": {
+  "gauss": {
+   "max": 2.1267709815475655e-15,
+   "limit": 1e-10,
+   "ok": true
+  },
+  "divB": {
+   "max": 1.7694179454963432e-15,
+   "limit": 1e-12,
+   "ok": true
+  },
+  "fill": {
+   "max": 0.6669278690164384,
+   "limit": 0.95,
+   "ok": true
+  },
+  "energy budget, relative change (monitored)": 0.12765493493184144
+ },
+ "analysis": {
+  "commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48",
+  "files": {
+   "front.json": {
+    "sha256": "76ef4e2ae5b01aac15594e4489ddc613566fc78f516cc92b477d0688444b21ec",
+    "written": "2026-11-13T04:06:09"
+   },
+   "null.json": {
+    "sha256": "ea7128ccb23d59d914f63f6a0a48b1fadeebebd05e02beb74b87670b4ca04414",
+    "written": "2026-11-13T04:09:16"
+   }
+  },
+  "metrics": {
+   "front": {
+    "n_outputs": 41,
+    "bins": 738,
+    "detected_bins": 0,
+    "valid_bins": 0,
+    "usable_bins": 0,
+    "fit_rms": null,
+    "fit_rms_B": null,
+    "flags_in_valid": {
+     "ok_planes": 0,
+     "ok_thresholds": 0,
+     "ok_local": 0,
+     "ok_quadrants": 0
+    },
+    "flow_within_30pct": {
+     "valid": 0,
+     "of": 0
+    }
+   },
+   "null": {
+    "T0": 0.010000000000000002,
+    "N1_max_per_dump>=1.5": {
+     "ambient": 0,
+     "injected": 0,
+     "other": 0
+    }
+   }
+  }
+ }
+}

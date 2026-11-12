@@ -1,0 +1,89 @@
+{
+ "name": "H",
+ "created": "2026-11-13T04:06:10+09:00",
+ "run": {
+  "commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48",
+  "commit is an ancestor of the commit of this record": true,
+  "example": "blast_wave",
+  "config": "research/topics/spherical-shock-injection/configs/explore-H.yaml",
+  "config_sha256": "8667b71c3d9b68d855ceed20f0feca1fc5d96131a960ac4846b9c9861c7664f7",
+  "seed": 12345,
+  "ppc": 2,
+  "mass_ratio": 16,
+  "wpe_wce": 8.7,
+  "mach_alfven": 8.7,
+  "species": [
+   "e",
+   "i",
+   "de",
+   "di"
+  ],
+  "n_cells": [
+   768,
+   768,
+   768
+  ],
+  "steps": 2960,
+  "dt": 0.25,
+  "gpus": 8,
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "wall_time_s": 814.1788197490387,
+  "ns_per_particle_step": 1.2088720487056215,
+  "particles_at_the_end": 1820412793,
+  "run_id": "a096c9f3",
+  "pypic_version": "0.1.0"
+ },
+ "output": {
+  "path": "output/research/spherical-shock-injection/H",
+  "bytes": 16876112976,
+  "in git": false
+ },
+ "checks": {
+  "gauss": {
+   "max": 4.6629367034256575e-15,
+   "limit": 1e-10,
+   "ok": true
+  },
+  "divB": {
+   "max": 6.9909356081865326e-15,
+   "limit": 1e-12,
+   "ok": true
+  },
+  "fill": {
+   "max": 0.6681336963581728,
+   "limit": 0.95,
+   "ok": true
+  },
+  "energy budget, relative change (monitored)": 0.12297512081658754
+ },
+ "analysis": {
+  "commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48",
+  "files": {
+   "front.json": {
+    "sha256": "a35f628d1818b4cb2428ee855bd497874be60ffeffac5660c7c6f5f0a32ab00b",
+    "written": "2026-11-13T04:20:02"
+   }
+  },
+  "metrics": {
+   "front": {
+    "n_outputs": 41,
+    "bins": 738,
+    "detected_bins": 0,
+    "valid_bins": 0,
+    "usable_bins": 0,
+    "fit_rms": null,
+    "fit_rms_B": null,
+    "flags_in_valid": {
+     "ok_planes": 0,
+     "ok_thresholds": 0,
+     "ok_local": 0,
+     "ok_quadrants": 0
+    },
+    "flow_within_30pct": {
+     "valid": 0,
+     "of": 0
+    }
+   }
+  }
+ }
+}
