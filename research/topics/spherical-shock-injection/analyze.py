@@ -4,6 +4,7 @@ Usage (from the repository root):
     .venv/bin/python research/topics/spherical-shock-injection/analyze.py selftest
     .venv/bin/python research/topics/spherical-shock-injection/analyze.py predict --out <json>
     .venv/bin/python research/topics/spherical-shock-injection/analyze.py front <run directory>
+    .venv/bin/python research/topics/spherical-shock-injection/analyze.py cadence <run directory>
 
 Results of a command on a run go to <run directory>/analysis/ (not in git).
 
@@ -407,6 +408,84 @@ def cmd_front(args) -> int:
     return 0
 
 
+# ------------------------------------------------------------------ cadence of the tracks
+def _read_tracks(tr, keys, sel=None):
+    """Tracked quantities as float64 arrays (len(keys), n_t, n)."""
+    if sel is None:
+        return np.stack([np.asarray(tr[k], dtype=float) for k in keys])
+    return np.stack([np.asarray(tr.f[k][:, sel], dtype=float) for k in keys])
+
+
+def cmd_cadence(args) -> int:
+    """Work closure of tracks recorded every step, read at every 1, 2, 3 and 4 steps (review R1, change 5).
+    Fixes the cadence of tracks_e: the coarsest one at which the criterion N4 (10 %) holds per orbit."""
+    run = _open(args.run)
+    tr = run.tracks("tracks_e", "e")
+    t = np.asarray(tr.t, float)
+    dt_step = float(run.dt)
+    step = int(round((t[1] - t[0]) / dt_step))
+    if step != 1:
+        raise SystemExit(f"the tracks are recorded every {step} steps; this check needs every step")
+    u = _read_tracks(tr, ("ux", "uy", "uz"))
+    e = _read_tracks(tr, ("Ex", "Ey", "Ez"))
+    b = _read_tracks(tr, ("Bx", "By", "Bz"))
+    b0 = float(run.meta["planner"]["b0"])
+    bmax = np.nanmax(np.sqrt(np.sum(b ** 2, axis=0)), axis=0)
+    gam = np.sqrt(1.0 + np.sum(u ** 2, axis=0))
+    stay = np.isfinite(gam).all(axis=0)
+    top = np.sort(bmax[stay])[-max(1, int(stay.sum()) // 100):]
+    print(f"{u.shape[2]} tracked electrons, {u.shape[1]} samples to t = {t[-1]:.1f}; {int(stay.sum())} stay in the "
+          f"box; largest |B| on a track {np.nanmax(bmax) / b0:.2f} B0 (median of the top 1 %: "
+          f"{np.median(top) / b0:.2f})")
+    summary = {"run": str(args.run), "n_tracked": int(u.shape[2]), "n_stay": int(stay.sum()), "cadences": {}}
+    strong = bmax >= 2.0 * b0  # orbits that met the compressed field
+    ref = None
+    print("  every  orbits            |d gamma| >=  number  |work/d gamma - 1|: median  90 %  within 10 %  "
+          "parallel work against every 1 (of d gamma): median  90 %")
+    cadences = (1, 2, 3, 4)
+    for c in cadences:
+        wc = sk.work_closure(u[:, ::c], e[:, ::c], t[::c], dt_step, b=b[:, ::c], dgamma_min=0.0)
+        if ref is None:
+            ref = wc
+        rows = {}
+        for name, subset in (("all", stay), ("|B| >= 2 B0 met", stay & strong)):
+            for dg in (0.02, 0.05, 0.1, 0.2):
+                ok = subset & np.isfinite(wc["work"]) & (np.abs(wc["dgamma"]) >= dg)
+                n = int(ok.sum())
+                key = f"{name}, {dg}"
+                if n == 0:
+                    rows[key] = {"n": 0}
+                    continue
+                rel = np.abs(wc["work"][ok] / wc["dgamma"][ok] - 1.0)
+                par = np.abs(wc["work_par"][ok] - ref["work_par"][ok]) / np.abs(ref["dgamma"][ok])
+                r = rows[key] = {
+                    "n": n, "median": float(np.median(rel)), "p90": float(np.percentile(rel, 90)),
+                    "within_10pct": float(np.mean(rel <= 0.1)), "par_median": float(np.median(par)),
+                    "par_p90": float(np.percentile(par, 90)),
+                    "par_share": float(np.median(wc["work_par"][ok] / wc["dgamma"][ok]))}
+                print(f"  {c:5d}  {name:16s}  {dg:12.2f}  {n:6d}  {r['median']:26.3f}  {r['p90']:.3f}  "
+                      f"{r['within_10pct']:10.1%}  {r['par_median']:44.3f}  {r['par_p90']:.3f}")
+        # samples per gyration in the upstream field and where the field is strongest
+        rows["samples_per_gyration_b0"] = 2 * np.pi / (b0 * c * dt_step)
+        rows["samples_per_gyration_bmax"] = 2 * np.pi / (float(np.nanmax(bmax)) * c * dt_step)
+        summary["cadences"][str(c)] = rows
+    # the criterion N4 is applied per orbit: a cadence passes if 95 % of the orbits with |d gamma| >= 0.1
+    # close within 10 %, among all orbits and among those that met the compressed field
+    passing = []
+    for c in cadences:
+        rows = [summary["cadences"][str(c)][f"{name}, 0.1"] for name in ("all", "|B| >= 2 B0 met")]
+        if all(r["n"] >= 30 and r["within_10pct"] >= 0.95 for r in rows):
+            passing.append(c)
+    summary["coarsest_passing"] = max(passing) if passing else None
+    print(f"coarsest cadence at which 95 % of the orbits with |d gamma| >= 0.1 close within 10 % (all, and those "
+          f"that met |B| >= 2 B0; >= 30 orbits each): {summary['coarsest_passing']}")
+    out = Path(args.run) / "analysis"
+    out.mkdir(exist_ok=True)
+    (out / "cadence.json").write_text(json.dumps(summary, indent=1) + "\n")
+    print(f"wrote {out / 'cadence.json'}")
+    return 0
+
+
 # ------------------------------------------------------------------ prediction before the runs
 def predict(args) -> int:
     """Count model B2 for a nominal sphere. The numbers are the same for L, M and H: the three runs share
@@ -465,11 +544,15 @@ def main(argv=None) -> int:
     p.add_argument("--out", default=None)
     p = sub.add_parser("front", help="front, valid shock domain and compression of a run (protocol Sect. 4)")
     p.add_argument("run", type=Path)
+    p = sub.add_parser("cadence", help="work closure of tracks read every 1-4 steps (fixes the track cadence)")
+    p.add_argument("run", type=Path)
     args = ap.parse_args(argv)
     if args.cmd == "selftest":
         return selftest()
     if args.cmd == "front":
         return cmd_front(args)
+    if args.cmd == "cadence":
+        return cmd_cadence(args)
     if args.cmd == "predict":
         return predict(args)
     return 2

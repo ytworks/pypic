@@ -29,7 +29,8 @@ output:
   # diagnostics (same names, block size and cadence), because examples/blast_wave/analyze.py reads them; the
   # slices also carry the electron moments and J. The others are for the electrons. The box is 384 d_e wide,
   # centre at 192. Changed on 2026-11-13 after the review R1 (../reviews/2026-11-13-protocol-r1.md): slice_x,
-  # ekin:i in the slices, hot_e from gamma 1.25 every 74 steps, track stride 463.
+  # ekin:i in the slices, hot_e from gamma 1.25 every 74 steps, denser tracks. The track cadence and stride
+  # were fixed by the 600-step check (check-L-cadence.yaml).
   diagnostics:
     - name: coarse
       kind: fields
@@ -99,10 +100,11 @@ output:
       species: [e, de]
       select: {gamma_min: 1.25}
       every: 74
-    - name: tracks_e           # about 2.0e6 ambient electrons followed from the start, with E and B at the
-      # particle. Stride 463 (prime, shares no factor with 768): about 150-900 one-step reflections tracked.
+    - name: tracks_e           # about 9.6e5 ambient electrons followed from the start, with E and B at the
+      # particle. Stride 947 (prime, shares no factor with 768), every 2 steps: the cadence at which the work
+      # of the recorded field closes per orbit (check-L-cadence, protocol Sect. 2); 55 GB on disk.
       kind: tracks
       species: [e]
-      stride: 463
+      stride: 947
       with_fields: true
-      every: 4
+      every: 2

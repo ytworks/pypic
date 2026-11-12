@@ -3,6 +3,41 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Review R1 of the protocol; cadence check; protocol revised before the first run
+- **Review R1** (`reviews/2026-11-13-protocol-r1.md`, the research reviewer, on Sects. 3–8 at `ec6470e`). Its
+  verdict: the structure is right and the algebra of S0 correct, but three things would let a false "hypothesis
+  obtained" through: S0 with one V_HT per reflection on a curved front, two published classes missing from the
+  known side (leakage, trapping), and no control of the particle number. All eight required changes are taken;
+  two with a deviation, named below. The revised `exploratory-protocol.md` lists them in its Sect. 11.
+- **Cadence check (R1, change 5).** `configs/check-L-cadence.yaml`, 8 GPUs, commit `2d309c8`, 600 steps in
+  175 s; output `output/research/spherical-shock-injection/check-L-cadence` (4.9 GB, not in git).
+  - Work of the recorded field against the energy change, per orbit with |Δγ| ≥ 0.1: read every step the
+    median error is 0.4 % (all 210 orbits within 10 %); every 2 steps 0.6 % (98 % within 10 %); every 3 steps
+    2.5 % (88 %); every 4 steps 5.4 % (73 %).
+  - Decision: tracks every 2 steps.
+- **Deviations from R1, change 1 (track stride).**
+  - 947 in L and M, not 463: at every 2 steps 463 is 110 GB per run, and 291 GB are free. R1 names 947 as its
+    fallback. With it the nominal prediction puts about 1 / 70 / 420 reflections on tracks (b = 2 / 3 / 4).
+  - 4735 = 5 × 947 in the null run of L and in H, not the stride of L: the null holds no reflection and H
+    supports no hypothesis. Its tracked electrons are every fifth one of L's.
+- **Not done, against R1, change 6:** S0′ (guiding-centre orbits in the fitted front). The range of V_HT over
+  the dwell is used, which R1 gives as the minimum. A residual in a band with ε > 0.3 stays "candidate".
+- **Correction to the entry "16-step check of L" below:** a run does not take 45–50 minutes. A step costs
+  290 ms (measured over 600 steps); the 0.90–1.06 s of the 16-step check was the cost of writing every output
+  every 4 steps. A run is about 15 minutes plus the denser tracks; the null run of L will measure it.
+- **Seen in the check, to keep in mind for the census:**
+  - `hot_e` (γ ≥ 1.25) is dominated by debris electrons: 3.3 × 10⁶ at t = 148 against 3.5 × 10⁴ ambient ones.
+    The dump levels off near 105 MB, so a run holds about 5 GB of it;
+  - ambient electrons with γ ≥ 1.5 number 300–800 before any shock can be valid (t < 112). They belong to the
+    start of the driver, not to a shock;
+  - the work along B is about 1 % of the gain of the 210 orbits: the early gain is across the field.
+- **Code state.** `analyze.py` has `front` (density front, valid domain with the numbers of the first version)
+  and `cadence`; 18 of 18 self-tests pass. The R1 changes to the front measurement, and the commands for the
+  floor, the census, the tracks and the records, are not written yet. They read outputs that the configs
+  already write, so the null run of L starts now and the code follows while it runs.
+- **Still limiting the verdict to "candidate":** the two unread predecessors (entry below), S0′, and the pair of
+  runs at 2 and 8 particles per cell (made only if L shows a residual or a K1 signal).
+
 ## 2026-11-13 — Curved-shock predecessors read before the first run
 - **Done:** 27 notes added to `research/literature/` (full text: 5; skimmed: 9; abstract only: 13).
   `literature.md` has a new part, "Curved fronts"; the protocol's Sect. 10 says what it means for S0, K1, K2.
