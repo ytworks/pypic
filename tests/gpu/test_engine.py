@@ -34,12 +34,10 @@ def plasma(solver="explicit", bc=None, n=(16, 8, 8), dt=None, drift=0.2, theta=1
 
 def inject(sp, pos, u, w=1e-20):
     pos, u = np.atleast_2d(pos), np.atleast_2d(u)
-    n = len(pos)
-    sp.ensure_capacity(n)
-    sp.P[:3, :n] = cp.asarray(pos.T)
-    sp.P[3:6, :n] = cp.asarray(u.T)
-    sp.P[6, :n] = w
-    sp.n = n
+    blk = np.zeros((8, len(pos)))
+    blk[:3], blk[3:6], blk[6] = pos.T, u.T, w
+    sp.n = 0
+    sp.append(blk)
 
 
 # ----------------------------------------------------------------------- pusher
@@ -58,7 +56,7 @@ def test_boris_gyration_conserves_gamma_and_period():
     ang = []
     for _ in range(nst):
         sim.step()
-        ux, uy = float(sp.P[3, 0]), float(sp.P[4, 0])
+        ux, uy = float(sp.mom(0)[0]), float(sp.mom(1)[0])
         assert abs(math.hypot(ux, uy) - u0) < 1e-13  # |u| exactly conserved by the rotation
         ang.append(math.atan2(uy, ux))
     # Boris phase error: the rotation angle per step is 2 atan(wc dt/2)
@@ -80,7 +78,7 @@ def test_exb_drift():
     xs = []
     for _ in range(nst):
         sim.step()
-        xs.append(float(sp.P[0, 0]))
+        xs.append(float(sp.pos(0)[0]))
     xs = np.unwrap(np.array(xs) / sim.grid.L[0] * 2 * np.pi) * sim.grid.L[0] / (2 * np.pi)
     vd = (xs[-1] - x0) / (nst * cfg.dt)
     assert abs(vd - E / B) < 0.01 * E / B
@@ -100,7 +98,7 @@ def test_external_uniform_fields_give_the_orbits_of_grid_fields(precision):
         sim = Simulation(cfg, comm=SelfComm(), verbose=False)
         for _ in range(200):
             sim.step()
-        orbits.append(cp.asnumpy(sim.species[0].P[:6, :50]))
+        orbits.append(cp.asnumpy(sim.species[0].rows()[:6, :50]))
         sim.close()
     assert np.array_equal(*orbits)
     assert np.max(np.abs(orbits[0][3:] - np.asarray(pts).T[3:])) > 0.1  # the fields did act
@@ -181,7 +179,7 @@ def test_perturbation_is_gauss_exact_with_the_requested_density(solver):
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     assert sim.gauss_error()[0] < 1e-13
     sp = sim.species[0]
-    x, w = cp.asnumpy(sp.P[0, : sp.n]), cp.asnumpy(sp.P[6, : sp.n])
+    x, w = cp.asnumpy(sp.pos(0)), cp.asnumpy(sp.weight())
     L = sim.grid.L[0]
     k = 2 * math.pi * m / L
     nk = abs(np.sum(w * np.exp(-1j * k * x)) / np.sum(w))
@@ -269,7 +267,7 @@ def test_density_profile_is_exact_and_neutral():
                     diag_interval=5, gauss_interval=5)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     e = sim.species[0]
-    assert e.n == 12 * 4 * 4 * 8 and float(cp.max(e.P[0, : e.n])) < 3.0
+    assert e.n == 12 * 4 * 4 * 8 and float(cp.max(e.pos(0))) < 3.0
     assert sim.gauss_error()[0] < 1e-13
     sim.run(20)
     assert np.nanmax(sim.history["gauss"]) < 1e-12
@@ -455,7 +453,7 @@ def test_absorbing_sphere_keeps_the_charge_of_the_particles_it_took(passes):
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
 
     def inside():
-        r2 = [sum((sp.P[a, : sp.n] - sphere.center[a]) ** 2 for a in range(3)) for sp in sim.species]
+        r2 = [sum((sp.pos(a) - sphere.center[a]) ** 2 for a in range(3)) for sp in sim.species]
         return sum(int((v < sphere.radius**2).sum()) for v in r2)
 
     n0 = sim.total_particles()
@@ -508,7 +506,7 @@ def test_absorbed_particle_is_booked_with_its_energy_and_charge():
     ke = w * (math.sqrt(1.0 + u * u) - 1.0)
     sim.run(6)  # 0.089 per step: both are inside after 5 steps
     h = sim.history
-    assert (e.n, t.n) == (1, 0) and abs(float(e.P[1, 0]) - 5.3) < 1e-12
+    assert (e.n, t.n) == (1, 0) and abs(float(e.pos(1)[0]) - 5.3) < 1e-12
     assert h["n_absorbed"][0] == 0 and h["n_absorbed"][-1] == 2
     assert abs(h["absorbed_kinetic"][-1] - ke) < 1e-12 * ke and abs(h["absorbed_charge"][-1] + w) < 1e-12 * w
     assert abs(h["kinetic"][-1] - ke) < 1e-12 * ke  # of the electron that is left
@@ -523,15 +521,15 @@ def test_sort_orders_by_cell_and_keeps_every_particle():
     sim.run(2)
     for sp in sim.species:
         n = sp.n
-        before = [cp.asnumpy(A[:, :n]) for A in (sp.P, sp.Pn)]
+        before = [cp.asnumpy(A) for A in (sp.rows(), sp.Pn[:, :n])]
         sp.sort(sim.k_cell)
-        after = [cp.asnumpy(A[:, :n]) for A in (sp.P, sp.Pn)]
+        after = [cp.asnumpy(A) for A in (sp.rows(), sp.Pn[:, :n])]
         assert not np.array_equal(before[0][7], after[0][7])  # the particles were out of order
         by_id0, by_id1 = np.argsort(before[0][7]), np.argsort(after[0][7])
         for b, a in zip(before, after):
             assert np.array_equal(b[:, by_id0], a[:, by_id1])
         key = cp.empty(n, dtype=cp.int64)
-        launch(sim.k_cell, n, (sp.P, np.int32(n), np.int64(sp.cap), key))
+        launch(sim.k_cell, n, (*sp.store, np.int32(n), np.int64(sp.cap), key))
         assert bool((key[1:] >= key[:-1]).all())
 
 
@@ -559,14 +557,14 @@ def test_particle_rows_beyond_int32_offsets():
     ref = plasma("explicit", sort_interval=5)
     sim = plasma("explicit", sort_interval=5)
     sp = sim.species[0]
-    ids = cp.asnumpy(sp.P[7, : sp.n]).copy()
+    ids = cp.asnumpy(sp.ids()).copy()
     sp.ensure_capacity(BIG_CAP)
     assert 6 * sp.cap > 2**31
     ref.run(10)
     sim.run(10)
     assert np.nanmax(sim.history["gauss"]) < 1e-12
     np.testing.assert_allclose(sim.history["total"], ref.history["total"], rtol=1e-12)
-    assert np.array_equal(np.sort(cp.asnumpy(sp.P[7, : sp.n])), np.sort(ids))
+    assert np.array_equal(np.sort(cp.asnumpy(sp.ids())), np.sort(ids))
     del sim, sp
     cp.get_default_memory_pool().free_all_blocks()
 
@@ -586,7 +584,7 @@ def test_reflecting_keeps_particles():
     assert sim.total_particles() == n0
     L = sim.grid.L
     for sp in sim.species:
-        x = cp.asnumpy(sp.P[:3, : sp.n])
+        x = cp.asnumpy(sp.rows()[:3])
         for a in range(3):
             assert x[a].min() >= 0.0 and x[a].max() <= L[a]
 
@@ -653,10 +651,10 @@ def test_cold_diagonal_inflow_through_two_faces_fills_the_edge_once():
     for sp, d in zip(sim.species, sim.sdiag):
         assert abs(float(d[8]) - swept) < 5 * math.sqrt(swept)
         # straight orbits: floor(x / a) counts the steps since the particle crossed x = 0
-        kx, ky = (np.floor(cp.asnumpy(sp.P[c, : sp.n]) / a) for c in (0, 1))
+        kx, ky = (np.floor(cp.asnumpy(sp.pos(c)) / a) for c in (0, 1))
         entered = np.minimum(kx, ky) < steps
         assert abs(np.count_nonzero(entered & (kx == ky)) - edge_trials * p) < 5 * math.sqrt(edge_trials * p * (1 - p))
-    ids = cp.concatenate([sp.P[7, : sp.n] for sp in sim.species])
+    ids = cp.concatenate([sp.ids() for sp in sim.species])
     assert int(cp.unique(ids).size) == int(ids.size)
     assert max(sim.history["electric"]) < 1e-20
 
@@ -682,7 +680,7 @@ def test_paired_face_keeps_the_charge_that_crossed_it_at_zero():
     assert i[5] > 0.0 and bank < 0.25 * i[5]  # ions left through the face and most were paid for
     assert float(sim.bank.min()) >= 0.0  # and none was paid for twice
     assert abs(crossed + bank) < 1e-9
-    assert abs(sum(float(sp.q * sp.P[6, : sp.n].sum()) for sp in sim.species) - crossed) < 1e-9
+    assert abs(sum(float(sp.q * sp.weight().sum()) for sp in sim.species) - crossed) < 1e-9
     assert np.nanmax(h["gauss"]) < 1e-10
     _, mean, var = inflow_moments(drift, theta)
     w = sim.grid.cell_volume / cfg.ppc
@@ -718,7 +716,7 @@ def test_radial_shell_has_the_mass_and_the_momentum_of_its_shape():
     w0 = n0 * sim.grid.cell_volume / sim.cfg.ppc
     sigma = math.sqrt(w0 * n0 * np.sum(4 * np.pi * r * r * f * f) * (r[1] - r[0]))
     for sp, full, th in zip(sim.species, ref.species, (theta, theta / 16)):
-        P, Q = cp.asnumpy(sp.P[:, : sp.n]), cp.asnumpy(full.P[:, : full.n])
+        P, Q = cp.asnumpy(sp.rows()), cp.asnumpy(full.rows())
         d = P[:3] - np.asarray(origin)[:, None]
         w = P[6]
         assert abs(w.sum() - mass) < 5 * sigma
@@ -1082,7 +1080,7 @@ def test_maxwell_juttner_sampling(theta):
                     diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sp = sim.species[0]
-    u = cp.asnumpy(sp.P[3:6, : sp.n])
+    u = cp.asnumpy(sp.rows()[3:6])
     eps = np.sqrt(1 + (u ** 2).sum(0)) - 1
     expected = kve(1, 1 / theta) / kve(2, 1 / theta) + 3 * theta - 1
     assert abs(eps.mean() - expected) < 5 * eps.std() / math.sqrt(eps.size)
@@ -1139,12 +1137,12 @@ def test_unconverged_implicit_step_is_not_committed():
     sim = plasma("implicit", drift=0.3, theta=0.01)
     sim.run(2)
     sim.cfg.implicit.picard_maxit = 1
-    P0 = [sp.P[:, : sp.n].copy() for sp in sim.species]
+    P0 = [sp.rows().copy() for sp in sim.species]
     E0 = sim.grid.Ex.copy()
     with pytest.raises(ImplicitStepError):
         sim.step()
     for sp, p in zip(sim.species, P0):
-        assert bool(cp.all(sp.P[:, : sp.n] == p))
+        assert bool(cp.all(sp.rows() == p))
     assert bool(cp.all(sim.grid.Ex == E0))
 
 
@@ -1170,6 +1168,6 @@ def test_implicit_reflection_with_displacement_beyond_half_box_conserves_charge(
     inject(p, [0.1, 2.3, 2.3], [0.0, 0.0, 0.0], w=1e-3)  # neutral start: rho = 0, E = 0
     assert sim.gauss_error()[0] < 1e-15
     sim.step()
-    x = float(e.P[0, 0])
-    assert 4.0 < x < 8.0 and float(e.P[3, 0]) > 0  # reflected past the box centre
+    x = float(e.pos(0)[0])
+    assert 4.0 < x < 8.0 and float(e.mom(0)[0]) > 0  # reflected past the box centre
     assert sim.gauss_error()[0] < 1e-12

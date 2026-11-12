@@ -54,7 +54,7 @@ cfg = SimConfig(n_cells=(16, 16, 8), dx=(0.2,) * 3, dt=0.1, n_steps=30, dims=dim
                 precision="mixed" if variant in ("mixed", "dipole") else "fp64")
 sim = Simulation(cfg, verbose=False)
 sim.run()
-ids = cp.concatenate([sp.P[7, : sp.n] for sp in sim.species])
+ids = cp.concatenate([sp.ids() for sp in sim.species])
 s = sim.comm.allreduce(cp.stack([ids.sum(), (ids * ids).sum(), cp.asarray(float(ids.size))]))
 if sim.rank == 0:
     h = sim.history

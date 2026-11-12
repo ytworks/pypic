@@ -50,7 +50,7 @@ cfg = SimConfig(dx=(0.5,) * 3, dt=0.2, n_steps=40, dims=dims, npml=6, **extra,
                                     neutralizer="e"))
 sim = Simulation(cfg, verbose=False)
 sim.run()
-ids = cp.concatenate([sp.P[7, : sp.n] for sp in sim.species])
+ids = cp.concatenate([sp.ids() for sp in sim.species])
 # sums that are exact in float64 in any order (the order of the particles is not fixed): the ids
 # and the squares of their two low 16-bit halves
 low, high = (((ids.astype(cp.int64) >> b) & 0xFFFF).astype(cp.float64) for b in (0, 16))

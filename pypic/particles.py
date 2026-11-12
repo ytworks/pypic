@@ -46,9 +46,66 @@ class Species:
             Pn[:, : self.n] = self.Pn[:, : self.n]
             self.Pn = Pn
 
+    # -------------------------------------------------------------- accessors
+    # Code outside this module and the kernels reaches the particles only through these, in FP64
+    # physical values, so the layout of the storage can change with the build (PIC-D19). A returned
+    # array may be a view of the storage: read it, do not write into it.
     @property
-    def data(self):
-        return self.P[:, : self.n]
+    def store(self):
+        """The storage as the arguments of a kernel's PSTORE parameters."""
+        return (self.P,)
+
+    def _range(self, lo, hi):
+        return slice(lo, self.n if hi is None else hi)
+
+    def pos(self, a, lo=0, hi=None):
+        """Position along axis a of the particles lo..hi (default: all)."""
+        return self.P[a, self._range(lo, hi)]
+
+    def mom(self, a, lo=0, hi=None):
+        """Momentum u = gamma v along axis a."""
+        return self.P[3 + a, self._range(lo, hi)]
+
+    def weight(self, lo=0, hi=None):
+        return self.P[6, self._range(lo, hi)]
+
+    def ids(self, lo=0, hi=None):
+        return self.P[7, self._range(lo, hi)]
+
+    def rows(self, sel=None):
+        """(8, m) block x, y, z, ux, uy, uz, w, id of all particles, or of those of ``sel`` (a mask
+        or an index array)."""
+        P = self.P[:NROW, : self.n]
+        return P if sel is None else P[:, sel]
+
+    def scale_weight(self, f, lo=0, hi=None):
+        self.P[6, self._range(lo, hi)] *= f
+
+    def add_mom(self, a, du, lo=0, hi=None):
+        self.P[3 + a, self._range(lo, hi)] += du
+
+    def append(self, block):
+        """Append the particles of an (8, m) block x, y, z, ux, uy, uz, w, id."""
+        m = block.shape[1]
+        self.ensure_capacity(self.n + m)
+        self.P[:NROW, self.n: self.n + m] = cp.asarray(block)
+        self.n += m
+
+    # The remaining displacement of the set-up (density and displacement perturbations): three more
+    # rows of the storage while it lasts, so that it migrates with its particle.
+    @property
+    def displacing(self):
+        return self.P.shape[0] > NROW
+
+    def set_displacement(self, disp):
+        self.P = cp.concatenate([self.P, disp], axis=0)
+
+    def displacement_max(self, a):
+        return float(cp.max(cp.abs(self.P[NROW + a, : self.n])))
+
+    def end_displacement(self):
+        if self.displacing:
+            self.P = cp.ascontiguousarray(self.P[:NROW])
 
     # ---------------------------------------------------------------- loading
     def load(self, grid, kernel, beam: Beam, ppc: int, seed: int, stream: int, block=None):
@@ -67,7 +124,7 @@ class Species:
         id_base = (stream - 1) * gn[0] * gn[1] * gn[2] * ppc
         origin = beam.origin if beam.origin is not None else (0.0, 0.0, 0.0)
         launch(kernel, ntot, (
-            self.P, np.int64(self.cap), np.int64(self.n), np.int32(ppc),
+            *self.store, np.int64(self.cap), np.int64(self.n), np.int32(ppc),
             np.int32(nl[0]), np.int32(nl[1]), np.int32(nl[2]),
             np.int32(g0[0]), np.int32(g0[1]), np.int32(g0[2]),
             np.int32(gn[0]), np.int32(gn[1]), np.int32(gn[2]),
@@ -83,7 +140,7 @@ class Species:
         if self.n == 0:
             return
         key = cp.empty(self.n, dtype=cp.int64)
-        launch(kernel, self.n, (self.P, np.int32(self.n), np.int64(self.cap), key))
+        launch(kernel, self.n, (*self.store, np.int32(self.n), np.int64(self.cap), key))
         order = cp.argsort(key)
         buf = key.view(cp.float64)
         for A in (self.P, self.Pn):

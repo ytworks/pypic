@@ -8,7 +8,8 @@
 // Exceptions: the remaining displacement of displace_deposit (rows 8..10, set-up only), and the
 // row copies of migrate.cu.
 
-#define PSTORE double* P                           // the storage of a species as kernel parameters
+#define PSTORE_AS(S) double* S                     // the storage of a species as kernel parameters
+#define PSTORE PSTORE_AS(P)
 #define PSTORE_RO const double* __restrict__ P
 // values of particle p of the storage (S, cap): physical position, momentum, weight, id
 #define S_X(S, cap, p) (+(S)[(p)])
@@ -815,7 +816,7 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
                                        const int nlx, const int nly, const int nlz, const int gnx, const int gny,
                                        const int gnz, const int ppc, const unsigned long long seed,
                                        const long long step, const double id_step, const double* bt,
-                                       const int nbeam, const int face, const int paired, double* Pe,
+                                       const int nbeam, const int face, const int paired, PSTORE_AS(Pe),
                                        const long long cape, const int ne0, int* ninje, double* diage, int* flage,
                                        int* liste, const int listcape, const double qe,
                                        unsigned long long* pstate, int* pface, double* bank,
@@ -905,7 +906,7 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
 // neutraliser's inflow distribution at the face (rb, see sample_inflow) with the stream the
 // carrier left. A kernel of its own because the sampler is a rejection loop: here every thread of
 // a warp runs it. diage: as diag of inject_face.
-extern "C" __global__ void inject_partners(double* Pe, const long long cape, const int ne0, const int* ninje,
+extern "C" __global__ void inject_partners(PSTORE_AS(Pe), const long long cape, const int ne0, const int* ninje,
                                            double* diage, const double qe, const double me, const double* rb,
                                            const int nrb, const unsigned long long* pstate, int* pface,
                                            const int do_diag) {

@@ -63,12 +63,12 @@ def test_files_hold_the_state(tmp_path):
     assert np.allclose(run.series("lo")["Ex"][-1], Ex.mean(axis=(0, 2)), rtol=1e-6, atol=1e-8)
     h = run.series("h")
     for sp in sim.species:
-        assert abs(h.read(sp.name, -1).sum() - float(cp.sum(sp.P[6, : sp.n]))) < 1e-6 * float(cp.sum(sp.P[6, : sp.n]))
+        assert abs(h.read(sp.name, -1).sum() - float(cp.sum(sp.weight()))) < 1e-6 * float(cp.sum(sp.weight()))
         p = run.particles("p").get(n, sp.name)
-        ids = cp.asnumpy(sp.P[7, : sp.n])
+        ids = cp.asnumpy(sp.ids())
         assert len(np.unique(p["id"])) == sp.n and np.array_equal(np.sort(ids).astype(np.uint64), p["id"])
         order = np.argsort(ids)
-        assert np.array_equal(p["x"], cp.asnumpy(sp.P[0, : sp.n])[order].astype(np.float32))
+        assert np.array_equal(p["x"], cp.asnumpy(sp.pos(0))[order].astype(np.float32))
     assert len(run.scalars.t) == len(sim.history["t"])
     assert run.info["time_centering"]["momentum"] == -0.5  # explicit leapfrog: u at t - dt/2
 
