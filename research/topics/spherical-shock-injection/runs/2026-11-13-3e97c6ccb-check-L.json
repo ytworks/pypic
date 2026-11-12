@@ -1,0 +1,77 @@
+{
+ "name": "check-L",
+ "created": "2026-11-13T01:04:04+09:00",
+ "run": {
+  "commit": "3e97c6ccb629f8a5462e22fb3f054d31b516bbdf",
+  "commit is an ancestor of the commit of this record": true,
+  "example": "blast_wave",
+  "config": "research/topics/spherical-shock-injection/configs/check-L.yaml",
+  "config_sha256": "19343ddee96a7a484be4004365119790fb885567958787b7dead5f074dc9ffa5",
+  "seed": 12345,
+  "ppc": 2,
+  "mass_ratio": 16,
+  "wpe_wce": 3.5,
+  "mach_alfven": 3.5,
+  "species": [
+   "e",
+   "i",
+   "de",
+   "di"
+  ],
+  "n_cells": [
+   768,
+   768,
+   768
+  ],
+  "steps": 16,
+  "dt": 0.25,
+  "gpus": 8,
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "wall_time_s": 18.84110819012858,
+  "ns_per_particle_step": 4.993390438580864,
+  "particles_at_the_end": 1886601956,
+  "run_id": "d0ea0a58",
+  "pypic_version": "0.1.0"
+ },
+ "output": {
+  "path": "output/research/spherical-shock-injection/check-L",
+  "bytes": 3018925202,
+  "in git": false
+ },
+ "checks": {
+  "gauss": {
+   "max": 4.3298697960381105e-15,
+   "limit": 1e-10,
+   "ok": true
+  },
+  "divB": {
+   "max": 1.3183898417423734e-16,
+   "limit": 1e-12,
+   "ok": true
+  },
+  "fill": {
+   "max": 0.6666632072278199,
+   "limit": 0.95,
+   "ok": true
+  },
+  "energy budget, relative change (monitored)": -0.0033216824960639424
+ },
+ "analysis": {
+  "commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0",
+  "files": {
+   "front.json": {
+    "sha256": "d05b837ce57bef4eb3a218fb0b8b758d821086275ccbaaae6ce75bf49aa8be0d",
+    "written": "2026-11-13T01:32:15"
+   }
+  },
+  "metrics": {
+   "front": {
+    "n_outputs": 5,
+    "bins": 90,
+    "detected_bins": 0,
+    "valid_bins": 0,
+    "fit_rms": null
+   }
+  }
+ }
+}

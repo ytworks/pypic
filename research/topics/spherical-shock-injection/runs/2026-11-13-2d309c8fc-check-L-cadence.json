@@ -1,0 +1,75 @@
+{
+ "name": "check-L-cadence",
+ "created": "2026-11-13T01:42:42+09:00",
+ "run": {
+  "commit": "2d309c8fc359e94934e60f3c5dfcc718752ff099",
+  "commit is an ancestor of the commit of this record": true,
+  "example": "blast_wave",
+  "config": "research/topics/spherical-shock-injection/configs/check-L-cadence.yaml",
+  "config_sha256": "1b32c676dcc0746b4de51cb05ee9f09c01f34207f7a2ebbf4adeac60f887c15e",
+  "seed": 12345,
+  "ppc": 2,
+  "mass_ratio": 16,
+  "wpe_wce": 3.5,
+  "mach_alfven": 3.5,
+  "species": [
+   "e",
+   "i",
+   "de",
+   "di"
+  ],
+  "n_cells": [
+   768,
+   768,
+   768
+  ],
+  "steps": 600,
+  "dt": 0.25,
+  "gpus": 8,
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "wall_time_s": 175.23573051416315,
+  "ns_per_particle_step": 1.238362032425436,
+  "particles_at_the_end": 1886745780,
+  "run_id": "4f60f506",
+  "pypic_version": "0.1.0"
+ },
+ "output": {
+  "path": "output/research/spherical-shock-injection/check-L-cadence",
+  "bytes": 5196788511,
+  "in git": false
+ },
+ "checks": {
+  "gauss": {
+   "max": 4.801714581503802e-15,
+   "limit": 1e-10,
+   "ok": true
+  },
+  "divB": {
+   "max": 1.0241807402167069e-14,
+   "limit": 1e-12,
+   "ok": true
+  },
+  "fill": {
+   "max": 0.6667944755661817,
+   "limit": 0.95,
+   "ok": true
+  },
+  "energy budget, relative change (monitored)": 0.018661333971965798
+ },
+ "analysis": {
+  "commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0",
+  "files": {
+   "cadence.json": {
+    "sha256": "fdabe3f718567204c70d1efd615694dd1475a27853a08e9b2f8491382aeb9c27",
+    "written": "2026-11-13T01:50:50"
+   }
+  },
+  "metrics": {
+   "cadence": {
+    "n_tracked": 191416,
+    "n_stay": 184349,
+    "coarsest_passing": 2
+   }
+  }
+ }
+}

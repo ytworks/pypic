@@ -1,0 +1,48 @@
+{
+ "entries": [
+  {
+   "file": "2026-11-13-3e97c6ccb-check-L.json",
+   "name": "check-L",
+   "created": "2026-11-13T01:04:04+09:00",
+   "commit": "3e97c6ccb629f8a5462e22fb3f054d31b516bbdf",
+   "config": "research/topics/spherical-shock-injection/configs/check-L.yaml",
+   "wall_time_s": 18.84110819012858,
+   "output_bytes": 3018925202,
+   "checks_ok": true,
+   "analysis_commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0"
+  },
+  {
+   "file": "2026-11-13-2d309c8fc-check-L-cadence.json",
+   "name": "check-L-cadence",
+   "created": "2026-11-13T01:42:42+09:00",
+   "commit": "2d309c8fc359e94934e60f3c5dfcc718752ff099",
+   "config": "research/topics/spherical-shock-injection/configs/check-L-cadence.yaml",
+   "wall_time_s": 175.23573051416315,
+   "output_bytes": 5196788511,
+   "checks_ok": true,
+   "analysis_commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0"
+  },
+  {
+   "file": "2026-11-13-0114ef9ea-L-null.json",
+   "name": "L-null",
+   "created": "2026-11-13T01:59:13+09:00",
+   "commit": "0114ef9eadf3e5c44abfbe0f6cfeeef1956f9e97",
+   "config": "research/topics/spherical-shock-injection/configs/explore-L-null.yaml",
+   "wall_time_s": 778.2347603479866,
+   "output_bytes": 15475584649,
+   "checks_ok": true,
+   "analysis_commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0"
+  },
+  {
+   "file": "2026-11-13-91f79ff1d-L.json",
+   "name": "L",
+   "created": "2026-11-13T02:20:43+09:00",
+   "commit": "91f79ff1dc636e0512669d269c13df19b8476f3e",
+   "config": "research/topics/spherical-shock-injection/configs/explore-L.yaml",
+   "wall_time_s": 1297.762448093854,
+   "output_bytes": 61808942991,
+   "checks_ok": true,
+   "analysis_commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0"
+  }
+ ]
+}
