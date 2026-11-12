@@ -3,6 +3,9 @@
 Usage (from the repository root):
     .venv/bin/python research/topics/spherical-shock-injection/analyze.py selftest
     .venv/bin/python research/topics/spherical-shock-injection/analyze.py predict --out <json>
+    .venv/bin/python research/topics/spherical-shock-injection/analyze.py front <run directory>
+
+Results of a command on a run go to <run directory>/analysis/ (not in git).
 
 The definitions and criteria are fixed in exploratory-protocol.md; the kinematics is in shockkin.py.
 """
@@ -30,6 +33,25 @@ def _sample_mj(rng, temp, n):
     gam = np.sqrt(1.0 + np.sum(u ** 2, axis=0))
     w = np.exp(-(gam - 1.0) / temp + np.sum(u ** 2, axis=0) / (2.0 * s ** 2))
     return u, w / w.sum()
+
+
+def _boris_orbits(rng, e0, b0, n, steps, dt_step, every):
+    """Electron orbits of the Boris scheme in uniform fields, recorded as the engine records tracks:
+    the momentum half a step before the fields. Returns u, E, B as (3, n_t, n) and the times."""
+    u = rng.normal(0.0, 0.1, (3, n))
+    us, ts = [], []
+    for step in range(steps + 1):
+        if step % every == 0:
+            us.append(u.copy())
+            ts.append(step * dt_step)
+        um = u - 0.5 * dt_step * e0[:, None]
+        tv = -0.5 * dt_step * b0[:, None] / np.sqrt(1 + np.sum(um ** 2, axis=0))
+        up = um + np.cross(um, tv, axis=0)
+        up = um + np.cross(up, 2 * tv / (1 + np.sum(tv ** 2, axis=0)), axis=0)
+        u = up - 0.5 * dt_step * e0[:, None]
+    us = np.stack(us, 1)
+    shape = (1, us.shape[1], n)
+    return us, np.tile(e0[:, None, None], shape), np.tile(b0[:, None, None], shape), np.array(ts)
 
 
 def selftest() -> int:
@@ -141,8 +163,248 @@ def selftest() -> int:
           f"reflected {c1['reflected'][0]:.4e} vs {c2['reflected'][0]:.4e} at half the steps (rel {rel:.1e}); "
           f"in an infinite box all are kept (rel {inbox:.1e})")
 
+    # 9 the front of a synthetic shell with the noise of 2 particles per cell (measured: 0.29 per cell)
+    r_of = lambda th, t: (21.0 + 0.2 * t) * (1.0 + 0.08 * np.cos(2 * th))  # noqa: E731
+    t_out = 100.0 + 18.5 * np.arange(20)
+    ax = 0.5 * np.arange(768)
+    res = measure_front(_synthetic_frames(rng, ax, r_of, t_out), ax, ax, (192.0, 192.0), **_SYNTH)
+    th = res["theta"]
+    true = r_of(th[None, :], t_out[:, None])
+    err = res["r_fold"] - true
+    spread = np.nanmax(np.abs(res["r_quad"] - true[:, None, :]))
+    check("front position", np.isfinite(err).all() and np.abs(err).max() < 1.5 and spread < 2.0,
+          f"detected {int(np.isfinite(err).sum())}/{err.size}, error {err.mean():+.2f} +- {err.std():.2f} d_e "
+          f"(max {np.abs(err).max():.2f}; the mean over d_i moves a sharp jump out by 0.67), "
+          f"single quadrants max {spread:.2f}")
+    f_true = sk.foot(lambda a, b: (r_of(a, b), 0.2 * (1 + 0.08 * np.cos(2 * a)) + 0 * b,
+                                   -(21.0 + 0.2 * b) * 0.16 * np.sin(2 * a)), th[None, :], t_out[:, None])
+    mid = slice(2, -2)
+    e_v = np.nanmax(np.abs(res["v_n"][mid] / f_true["v_n"][mid] - 1))
+    e_a = np.nanmax(np.abs(np.degrees(res["tbn"][mid] - f_true["tbn"][mid])))
+    fit_a = np.max(np.abs(np.degrees(sk.foot(res["front"], th[None, :], t_out[:, None])["tbn"] - f_true["tbn"])))
+    check("front speed and normal", e_v < 0.08 and e_a < 6.0 and res["rms"] < 1.0 and fit_a < 2.0,
+          f"V_n within {e_v:.1%}, theta_Bn within {e_a:.1f} deg (bins) and {fit_a:.1f} deg (fit, rms "
+          f"{res['rms']:.2f} d_e)")
+    inside = (true >= _SYNTH["r_lo"]) & (true <= _SYNTH["r_hi"])
+    inside[:4] = inside[-4:] = False  # the speed needs five outputs, the domain five in a row
+    lost = int((inside & ~res["valid"]).sum())
+    e_b = np.nanmax(np.abs(res["b_mean"] - 2.5))
+    gap = np.nanmean(res["r_fold"] - res["r_debris"])
+    check("valid domain, compression, debris edge", lost == 0 and e_b < 0.15 and abs(gap - 12.0) < 1.5,
+          f"{lost} bins lost inside the radial range, b = 2.5 within {e_b:.2f}, front ahead of the debris by "
+          f"{gap:.1f} d_e (12)")
+    flat = measure_front(_synthetic_frames(rng, ax, None, t_out[:6]), ax, ax, (192.0, 192.0), **_SYNTH)
+    n_false = int(np.isfinite(flat["r_quad"]).sum())
+    check("no front in noise", n_false == 0, f"{n_false} detections in {flat['r_quad'].size} single-quadrant bins")
+
+    # 10 Boris orbits in uniform fields: work of the recorded field against the recorded energy; the moment
+    b0 = np.array([0.0, 0.0, 0.2857])
+    us, es, bs, ts = _boris_orbits(rng, np.array([0.0, 0.004, -0.004]), b0, 400, 800, 0.25, 4)
+    wc = sk.work_closure(us, es, ts, 0.25, b=bs)
+    par = np.nanmedian(np.abs(wc["work_par"] / wc["dgamma"] - 1)[np.abs(wc["dgamma"]) >= 0.1])
+    check("work closure", wc["n_used"] > 300 and wc["median_rel_error"] < 0.01 and par < 0.05,
+          f"{wc['n_used']} orbits with |d gamma| >= 0.1, median error {wc['median_rel_error']:.1e}; "
+          f"the work along B is the gain within {par:.1%} (the other component only drifts)")
+    us, es, bs, ts = _boris_orbits(rng, np.zeros(3), b0, 400, 800, 0.25, 4)
+    mu = sk.magnetic_moment(us, bs)
+    drift = np.max(np.abs(mu[-1] / mu[0] - 1))
+    nu = sk.pitch_scatter_rate(us, bs, ts, lags=(4, 16))
+    check("magnetic moment", drift < 1e-9 and nu[4][0] < 1e-12,
+          f"largest change in a uniform field {drift:.1e}; pitch-angle scattering rate {nu[4][0]:.1e}")
+
+    # 11 temperature of the bulk from a histogram, and the thermal bound of the test B1
+    u, w = _sample_mj(rng, 0.012, 4_000_000)
+    edges = np.logspace(-6, 1, 225)
+    hist, _ = np.histogram(np.sqrt(1 + np.sum(u ** 2, axis=0)) - 1, bins=edges, weights=w * 5.8e6)
+    temp, _ = sk.fit_temperature(hist, edges, 0.01)
+    e_th = sk.thermal_bound(0.01, 9.06e8)
+    check("temperature fit, thermal bound", abs(temp / 0.012 - 1) < 0.01 and abs(e_th - 0.20) < 0.005,
+          f"T = {temp:.5f} (0.012); E_th = {e_th:.3f} for T = 0.01 and 9.06e8 electrons (0.20)")
+
+    # 12 the per-electron test: reflected thermal electrons are explained, a faster one is not
+    u, w = _sample_mj(rng, 0.01, 400_000)
+    u_perp = np.hypot(u[0], u[1])
+    _, refl, u_r, g_r = sk.ht_reflect(u[2], u_perp, 0.5, 3.0)
+    keep = refl & (np.sqrt(1 + np.sum(u ** 2, axis=0)) - 1 <= e_th)
+    expl, e_before, _ = sk.s0_test(u_r[keep], u_perp[keep], 0.5, 3.0, e_th)
+    twice = sk.ht_reflect(-u_r[keep], u_perp[keep], 0.5, 3.0)[2]  # reflected a second time
+    expl2, _, _ = sk.s0_test(twice, u_perp[keep], 0.5, 3.0, e_th)
+    check("S0 test", expl.all() and not expl2.any(),
+          f"{int(expl.sum())}/{int(keep.sum())} once-reflected thermal electrons explained, "
+          f"{int(expl2.sum())} of the twice-reflected")
+
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
+
+
+# ------------------------------------------------------------------ the measured front
+_SYNTH = dict(d_i=4.0, v_a=0.0714286, c_s=0.0456, r_lo=44.0, r_hi=172.0)
+
+
+def _synthetic_frames(rng, ax, r_of, times, noise=0.29):
+    """Meridional frames of a shell behind a front r_of(theta, t) (None: undisturbed plasma)."""
+    dx, dz = ax[:, None] - 192.0, ax[None, :] - 192.0
+    rad = np.hypot(dx, dz)
+    theta = np.arccos(np.clip(np.abs(dz) / np.maximum(rad, 1e-9), 0, 1))
+    for t in times:
+        if r_of is None:
+            n = np.ones(rad.shape)
+            shell = cavity = np.zeros(rad.shape, bool)
+        else:
+            front = r_of(theta, t)
+            shell, cavity = (rad <= front) & (rad > front - 8.0), rad <= front - 8.0
+            n = np.where(shell, 2.5, np.where(cavity, 0.3, 1.0))
+        yield {"t": t, "ni": n + noise * np.sqrt(n) * rng.normal(size=n.shape),
+               "ndi": (rad <= (r_of(theta, t) - 12.0 if r_of else 0.0)).astype(float),
+               "bmag": np.where(shell, 2.5, np.where(cavity, 0.2, 1.0)) + 0.03 * rng.normal(size=n.shape)}
+
+
+def measure_front(frames, across, along, centre, d_i, v_a, c_s, r_lo, r_hi, n_front=1.5, n_debris=0.1,
+                  behind_di=3.0, ahead_di=1.0) -> dict:
+    """Front, debris edge, compression, kinematics and valid domain from meridional frames (protocol Sect. 4).
+
+    frames: dicts with t, ni (ambient ion density over n0), ndi (debris ions, or None), bmag (|B| / B0), on
+    the plane (across, along) with `along` the direction of B0. Returns arrays on (time, theta bin)."""
+    pm = sk.PolarMap(across, along, centre)
+    rows: dict = {k: [] for k in ("t", "r_fold", "r_quad", "r_debris", "r_debris_quad", "b_mean", "b_cell")}
+    for fr in frames:
+        rows["t"].append(fr["t"])
+        r_f = sk.outermost_crossing(pm.fold_mean(fr["ni"]), pm.r, n_front)
+        rows["r_fold"].append(r_f)
+        rows["r_quad"].append(sk.outermost_crossing(np.moveaxis(pm.quadrants(pm.mean(fr["ni"])), 1, 0), pm.r, n_front))
+        if fr.get("ndi") is None:
+            rows["r_debris"].append(np.full(pm.n_q, np.nan))
+            rows["r_debris_quad"].append(np.full((4, pm.n_q), np.nan))
+        else:
+            rows["r_debris"].append(sk.outermost_crossing(pm.fold_mean(fr["ndi"]), pm.r, n_debris))
+            rows["r_debris_quad"].append(
+                sk.outermost_crossing(np.moveaxis(pm.quadrants(pm.mean(fr["ndi"])), 1, 0), pm.r, n_debris))
+        layer = (pm.r[:, None] >= r_f - behind_di * d_i) & (pm.r[:, None] <= r_f + ahead_di * d_i)
+        for key, binned in (("b_mean", pm.fold_mean(fr["bmag"])), ("b_cell", pm.quadrants(pm.max(fr["bmag"])).max(0))):
+            top = np.where(layer & np.isfinite(binned), binned, -np.inf).max(axis=0)
+            rows[key].append(np.where(np.isfinite(top), top, np.nan))
+    out = {k: np.array(v) for k, v in rows.items()}
+    out["theta"] = pm.theta
+    out.update(sk.front_kinematics(pm.theta, out["t"], out["r_fold"]))
+    out.update(sk.valid_domain(out["r_fold"], out["r_debris"], out["v_n"], out["tbn"], v_a, c_s, d_i, r_lo, r_hi))
+    found = np.isfinite(out["r_fold"])
+    out["front"], out["rms"] = None, float("nan")
+    if found.sum() >= 40:
+        tt, th = np.broadcast_arrays(out["t"][:, None], pm.theta[None, :])
+        out["front"], out["rms"], _ = sk.fit_front(th[found], tt[found], out["r_fold"][found])
+    return out
+
+
+def _open(run_dir):
+    import hdf5plugin  # noqa: F401  (the files are compressed with zstd)
+
+    from pypic.analysis import open_run
+    return open_run(str(run_dir))
+
+
+def _slice_frames(series, b0, with_debris):
+    for i, t in enumerate(series.t):
+        bmag = np.sqrt(sum(series.read(f"B{c}", i).astype(float) ** 2 for c in "xyz")) / b0
+        yield {"t": float(t), "ni": series.read("n:i", i), "bmag": bmag,
+               "ndi": series.read("n:di", i) if with_debris else None}
+
+
+def cmd_front(args) -> int:
+    run = _open(args.run)
+    pl = run.meta["planner"]
+    d_i, b0, v_a, centre = pl["d_i"], pl["b0"], pl["v_a"], pl["center"]
+    c_s = sk.sound_speed(v_a, pl["beta"])
+    half = 0.5 * float(run.L[2])
+    r_lo, r_hi = 0.3 * pl["r_b"], half - 5.0 * d_i
+    kw = dict(d_i=d_i, v_a=v_a, c_s=c_s, r_lo=r_lo, r_hi=r_hi)
+    mer = run.series("slice_y")
+    x, z = mer.plane_axes("n:i")
+    res = measure_front(_slice_frames(mer, b0, "n:di" in mer.keys()), x, z, (centre[0], centre[2]), **kw)
+    t, th = res["t"], res["theta"]
+    deg = np.degrees(th)
+
+    # the equatorial plane: one front per azimuth, and the example's definition (B_z >= 1.25 B0)
+    eq = run.series("slice_z")
+    xe, ye = eq.plane_axes("n:i")
+    pe = sk.PolarMap(xe, ye, (centre[0], centre[1]))
+    eq_n, eq_b = [], []
+    for i in range(len(eq.t)):
+        eq_n.append(sk.outermost_crossing(pe.mean(eq.read("n:i", i)), pe.r, 1.5))
+        eq_b.append(sk.outermost_crossing(pe.mean(eq.read("Bz", i)) / b0, pe.r, 1.25))
+    eq_n, eq_b = np.array(eq_n), np.array(eq_b)
+
+    spread = np.nanstd(np.where(np.isfinite(res["r_quad"]).sum(axis=1, keepdims=True) >= 3, res["r_quad"], np.nan),
+                       axis=1)
+    summary = {"run": str(args.run), "commit": run.info.get("git_commit"), "d_i": d_i, "v_a": v_a, "c_s": c_s,
+               "r_lo": r_lo, "r_hi": r_hi, "n_outputs": len(t), "fit_rms": res["rms"],
+               "fit": res["front"].to_dict() if res["front"] is not None else None,
+               "detected_bins": int(np.isfinite(res["r_fold"]).sum()), "valid_bins": int(res["valid"].sum()),
+               "bins": int(res["valid"].size),
+               "quadrant_spread_median": float(np.nanmedian(spread)) if np.isfinite(spread).any() else None,
+               "criteria": {k: int(res[k].sum()) for k in "abcde"}}
+    print(f"front of {args.run}: {summary['detected_bins']}/{summary['bins']} (time, theta) bins with a front, "
+          f"{summary['valid_bins']} in the valid domain; criteria a-e: {summary['criteria']}")
+    print(f"fit rms {res['rms']:.2f} d_e (needs < d_i = {d_i}); spread of the four quadrants, median "
+          f"{summary['quadrant_spread_median']} d_e")
+    with np.errstate(invalid="ignore"):
+        mach = res["v_n"] / sk.fast_speed(v_a, c_s, res["tbn"])
+    print("\nper output: time, then per theta bin R [d_e] (* = valid); '.' = no front")
+    print("  t      " + " ".join(f"{d:5.1f}" for d in deg))
+    for i in range(len(t)):
+        cells = [f"{res['r_fold'][i, j]:4.0f}{'*' if res['valid'][i, j] else ' '}"
+                 if np.isfinite(res["r_fold"][i, j]) else "   . " for j in range(len(th))]
+        print(f"  {t[i]:6.1f} " + " ".join(cells))
+    table = []
+    print("\nper theta bin, averaged over the valid outputs: n, V_n/c, fast Mach, theta_Bn, V_HT, b (bin, cell), "
+          "front - debris [d_e]")
+    for j in range(len(th)):
+        v = res["valid"][:, j]
+        row = {"theta_deg": float(deg[j]), "n_valid": int(v.sum()), "t_first": None, "t_last": None}
+        if v.any():
+            sub = np.isfinite(res["v_ht"][v, j]) & (res["v_ht"][v, j] < 1)
+            row.update(t_first=float(t[v][0]), t_last=float(t[v][-1]), v_n=float(np.mean(res["v_n"][v, j])),
+                       mach_fast=float(np.mean(mach[v, j])), tbn_deg=float(np.degrees(np.mean(res["tbn"][v, j]))),
+                       v_ht=float(np.median(res["v_ht"][v, j])), subluminal=int(sub.sum()),
+                       b_mean=float(np.nanmean(res["b_mean"][v, j])), b_cell=float(np.nanmean(res["b_cell"][v, j])),
+                       debris_gap=float(np.nanmean(res["r_fold"][v, j] - res["r_debris"][v, j]))
+                       if np.isfinite(res["r_debris"][v, j]).any() else None)
+            print(f"  {deg[j]:5.1f}  {row['n_valid']:3d}  {row['v_n']:.4f}  {row['mach_fast']:5.2f}  "
+                  f"{row['tbn_deg']:5.1f}  {row['v_ht']:7.3f}  {row['b_mean']:5.2f} {row['b_cell']:5.2f}  "
+                  f"{row['debris_gap'] if row['debris_gap'] is None else round(row['debris_gap'], 1)}")
+        else:
+            print(f"  {deg[j]:5.1f}    0  (no valid output)")
+        table.append(row)
+    summary["per_theta"] = table
+    # equator: the meridional bin next to the equator against the equatorial plane and the B_z definition
+    te = eq.t
+    eq_row = {"t": [float(a) for a in te], "n_i_mean": np.nanmean(eq_n, axis=1).tolist(),
+              "n_i_std": np.nanstd(eq_n, axis=1).tolist(), "bz_mean": np.nanmean(eq_b, axis=1).tolist()}
+    summary["equator"] = eq_row
+    seen = np.flatnonzero(np.isfinite(res["r_fold"][:, -1]))
+    last = int(seen[-1]) if len(seen) else None
+    if last is not None:
+        print(f"\nequator at t = {t[last]:.0f}: meridional bin {res['r_fold'][last, -1]:.1f}, equatorial plane "
+              f"{np.nanmean(eq_n[last]):.1f} +- {np.nanstd(eq_n[last]):.1f} over the azimuth, B_z >= 1.25 B0 at "
+              f"{np.nanmean(eq_b[last]):.1f} d_e")
+    if res["front"] is not None:
+        lum = []
+        fine = np.radians(np.arange(0.25, 90, 0.5))
+        for ti in t:
+            f = sk.foot(res["front"], fine, ti)
+            sup = f["v_ht"] >= 1.0
+            lum.append(float(np.degrees(f["tbn"][sup].min())) if sup.any() else None)
+        summary["luminal_tbn_deg"] = lum
+        shown = [a for a in lum if a is not None]
+        if shown:
+            print(f"luminal angle (foot points with V_HT >= c) from the fit: theta_Bn >= {min(shown):.1f}-"
+                  f"{max(shown):.1f} deg over the run")
+    out = Path(args.run) / "analysis"
+    out.mkdir(exist_ok=True)
+    arrays = {k: v for k, v in res.items() if isinstance(v, np.ndarray)}
+    np.savez(out / "front.npz", eq_t=te, eq_n=eq_n, eq_b=eq_b, **arrays)
+    (out / "front.json").write_text(json.dumps(summary, indent=1) + "\n")
+    print(f"wrote {out / 'front.npz'} and front.json")
+    return 0
 
 
 # ------------------------------------------------------------------ prediction before the runs
@@ -201,9 +463,13 @@ def main(argv=None) -> int:
     p.add_argument("--every", type=int, default=148, help="cadence of the dump hot_e")
     p.add_argument("--t-step", type=float, default=1.0)
     p.add_argument("--out", default=None)
+    p = sub.add_parser("front", help="front, valid shock domain and compression of a run (protocol Sect. 4)")
+    p.add_argument("run", type=Path)
     args = ap.parse_args(argv)
     if args.cmd == "selftest":
         return selftest()
+    if args.cmd == "front":
+        return cmd_front(args)
     if args.cmd == "predict":
         return predict(args)
     return 2

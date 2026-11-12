@@ -57,10 +57,35 @@ def _basis(theta, tau, order_t):
     return np.stack(cols, -1), np.stack(dt_cols, -1), np.stack(dth_cols, -1)
 
 
+class FittedFront:
+    """A fitted front, callable as front(theta, t) -> (R, R_t, R_theta). It can be saved as a dict.
+
+    The fit is a polynomial in time: it is not to be used outside t_range."""
+
+    def __init__(self, coef, t0: float, span: float, order_t: int):
+        self.coef, self.t0, self.span, self.order_t = np.asarray(coef, float), float(t0), float(span), int(order_t)
+
+    @property
+    def t_range(self) -> tuple:
+        return self.t0, self.t0 + self.span
+
+    def __call__(self, theta, t):
+        th, tt = np.broadcast_arrays(np.asarray(theta, float), np.asarray(t, float))
+        b, bt, bth = _basis(th, (tt - self.t0) / self.span, self.order_t)
+        return b @ self.coef, (bt @ self.coef) / self.span, bth @ self.coef
+
+    def to_dict(self) -> dict:
+        return {"coef": self.coef.tolist(), "t0": self.t0, "span": self.span, "order_t": self.order_t}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "FittedFront":
+        return cls(d["coef"], d["t0"], d["span"], d["order_t"])
+
+
 def fit_front(theta, t, radius, order_t: int = 3):
     """Least-squares fit of measured front radii by {1, cos 2 theta, cos 4 theta} x {1..tau^order_t}.
 
-    theta, t, radius: 1-D arrays of the valid points (theta folded into [0, pi/2] by the caller
+    theta, t, radius: 1-D arrays of the measured points (theta folded into [0, pi/2] by the caller
     or not: the basis is symmetric). Returns (front, rms residual, (t_min, t_max))."""
     theta, t, radius = (np.asarray(a, float) for a in (theta, t, radius))
     t0, t1 = float(t.min()), float(t.max())
@@ -68,13 +93,7 @@ def fit_front(theta, t, radius, order_t: int = 3):
     a, _, _ = _basis(theta, (t - t0) / span, order_t)
     coef, *_ = np.linalg.lstsq(a, radius, rcond=None)
     rms = float(np.sqrt(np.mean((a @ coef - radius) ** 2)))
-
-    def front(th, tt):
-        th, tt = np.broadcast_arrays(np.asarray(th, float), np.asarray(tt, float))
-        b, bt, bth = _basis(th, (tt - t0) / span, order_t)
-        return b @ coef, (bt @ coef) / span, bth @ coef
-
-    return front, rms, (t0, t1)
+    return FittedFront(coef, t0, span, order_t), rms, (t0, t1)
 
 
 def foot(front, theta, t) -> dict:
@@ -302,18 +321,31 @@ def guiding_centre(x, y, ux, uy, b0: float, charge: float = -1.0):
     return x + uy / (charge * b0), y - ux / (charge * b0)
 
 
-def s0_test(u_par_r, u_perp, v_ht, b_max: float, u_thermal: float, k_thermal: float = 5.0):
+def thermal_bound(temp: float, n_total: float, n_max: float = 10.0) -> float:
+    """Kinetic energy above which a Maxwell-Juttner distribution of temperature temp holds fewer
+    than n_max of n_total electrons (the bound E_th of the per-electron test B1)."""
+    lo, hi = 0.0, 200.0 * temp + 5.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if mj_tail_fraction(temp, 1.0 + mid) * n_total > n_max:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def s0_test(u_par_r, u_perp, v_ht, b_max, e_thermal: float):
     """Is a reflected electron explained by one reflection of a thermal electron (S0)?
 
-    It is when the momentum before the reflection lies within k_thermal thermal momenta and the
-    electron was outside the loss cone for the largest compression b_max (phi = 0, the most
-    permissive case). Returns (explained, |u| before the reflection)."""
+    It is when (1) the foot point was subluminal, (2) the kinetic energy before the reflection is
+    at most e_thermal (thermal_bound) and (3) the electron was outside the loss cone for the
+    largest compression b_max (phi = 0, the most permissive case).
+    Returns (explained, kinetic energy before, mirrored); the energy is NaN for v_ht >= 1."""
     u_par0, gam0, gam_ht = before_reflection(u_par_r, u_perp, v_ht)
-    u0 = np.sqrt(np.maximum(gam0 ** 2 - 1.0, 0.0))
     with np.errstate(invalid="ignore"):
-        mirror = gam_ht ** 2 - 1.0 - b_max * np.asarray(u_perp, float) ** 2 < 0.0
-        explained = mirror & (u0 <= k_thermal * u_thermal) & (np.asarray(v_ht, float) < 1.0)
-    return explained, u0
+        mirror = gam_ht ** 2 - 1.0 - np.asarray(b_max, float) * np.asarray(u_perp, float) ** 2 < 0.0
+        explained = mirror & (gam0 - 1.0 <= e_thermal) & (np.asarray(v_ht, float) < 1.0)
+    return explained, gam0 - 1.0, mirror
 
 
 # ------------------------------------------------------------------ measures on tracked orbits
@@ -340,22 +372,41 @@ def pitch_scatter_rate(u, b, t, lags=(4, 16, 64)):
     return out
 
 
-def work_closure(u, e, t, charge: float = -1.0, dgamma_min: float = 0.1):
+def centre_momentum(u, t, dt_step: float):
+    """Momentum at the time of the recorded fields. The engine records u half a step (dt_step / 2)
+    before the fields, so u is moved forward by linear interpolation between two samples.
+    u: (3, n_t, n); returns (3, n_t - 1, n) for the first n_t - 1 samples."""
+    frac = 0.5 * dt_step / np.diff(t)
+    return u[:, :-1] + (u[:, 1:] - u[:, :-1]) * frac[None, :, None]
+
+
+def work_closure(u, e, t, dt_step: float, charge: float = -1.0, dgamma_min: float = 0.1, b=None):
     """Compare the work of the recorded field with the recorded change of energy, per orbit.
 
-    u, e: (3, n_t, n); u is recorded half a step before e, so the velocity is averaged over
-    neighbouring samples before it is multiplied with e. Returns dict(work, dgamma, n_used,
-    median_rel_error) over the orbits with |dgamma| >= dgamma_min and no missing sample."""
-    gam = np.sqrt(1.0 + np.sum(u ** 2, axis=0))
-    v = u / gam
-    p = charge * np.sum(e * v, axis=0)  # d gamma / dt
-    dt = np.diff(t)[:, None]
-    work = np.sum(0.5 * (p[1:] + p[:-1]) * dt, axis=0)
+    u, e (and b): (3, n_t, n); u is centred on the field time first (centre_momentum).
+    Returns dict(work, dgamma, n_used, median_rel_error) over the orbits with |dgamma| >=
+    dgamma_min and no missing sample; with b also work_par (the part done by E along B)."""
+    uc = centre_momentum(u, t, dt_step)
+    gam = np.sqrt(1.0 + np.sum(uc ** 2, axis=0))
+    v = uc / gam
+    ee = e[:, :-1]
+    dt = np.diff(t[:-1])[:, None]
+
+    def integral(p):
+        return np.sum(0.5 * (p[1:] + p[:-1]) * dt, axis=0)
+
+    work = integral(charge * np.sum(ee * v, axis=0))
     dgam = gam[-1] - gam[0]
     ok = np.isfinite(work) & np.isfinite(dgam) & (np.abs(dgam) >= dgamma_min)
     rel = np.abs(work[ok] - dgam[ok]) / np.abs(dgam[ok])
-    return {"work": work, "dgamma": dgam, "n_used": int(ok.sum()),
-            "median_rel_error": float(np.median(rel)) if ok.any() else float("nan")}
+    out = {"work": work, "dgamma": dgam, "n_used": int(ok.sum()),
+           "median_rel_error": float(np.median(rel)) if ok.any() else float("nan")}
+    if b is not None:
+        bb = b[:, :-1]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            bhat = bb / np.sqrt(np.sum(bb ** 2, axis=0))
+        out["work_par"] = integral(charge * np.sum(ee * bhat, axis=0) * np.sum(v * bhat, axis=0))
+    return out
 
 
 def magnetic_moment(u, b):
@@ -377,3 +428,185 @@ def count_crossings(s, hysteresis: float):
         n += change
         state = np.where(new != 0, new, state)
     return n
+
+
+# ------------------------------------------------------------------ the measured front
+class PolarMap:
+    """Polar bins about a centre on a plane through it, for fields given on that plane.
+
+    across, along: node coordinates of the first and the second array axis; the angle alpha is
+    measured from +along towards +across (for the meridional plane (x, z): the polar angle from
+    B0, continued to 360 degrees). The four quadrants are four samples of one polar angle
+    theta in [0, 90] degrees: fold[j] is the theta bin of the angle bin j."""
+
+    def __init__(self, across, along, centre, dr: float = 2.0, r_max: float = 190.0, dangle_deg: float = 5.0):
+        da = np.asarray(across, float)[:, None] - centre[0]
+        db = np.asarray(along, float)[None, :] - centre[1]
+        rad = np.hypot(da, db)
+        alpha = np.mod(np.arctan2(da, db), 2.0 * np.pi)
+        self.n_r, self.n_a = int(round(r_max / dr)), int(round(360.0 / dangle_deg))
+        if self.n_a % 4:
+            raise ValueError("the angle bins must divide a quadrant")
+        self.n_q = self.n_a // 4
+        step = 2.0 * np.pi / self.n_a
+        ir = np.floor(rad / dr).astype(int)
+        ia = np.minimum(np.floor(alpha / step).astype(int), self.n_a - 1)
+        self.index = np.where(ir < self.n_r, ir * self.n_a + ia, -1).ravel()
+        self.inside = self.index >= 0
+        self.r = (np.arange(self.n_r) + 0.5) * dr
+        self.dr = dr
+        self.alpha = (np.arange(self.n_a) + 0.5) * step
+        self.theta = (np.arange(self.n_q) + 0.5) * step
+        j = np.arange(self.n_a)
+        self.quadrant = j // self.n_q
+        self.fold = np.where(self.quadrant % 2 == 0, j % self.n_q, self.n_q - 1 - j % self.n_q)
+        self.count = np.bincount(self.index[self.inside], minlength=self.n_r * self.n_a).reshape(self.n_r, self.n_a)
+
+    def _sum(self, field):
+        f = np.asarray(field, float).ravel()[self.inside]
+        return np.bincount(self.index[self.inside], weights=f, minlength=self.n_r * self.n_a).reshape(
+            self.n_r, self.n_a)
+
+    def mean(self, field):
+        """Bin averages (n_r, n_alpha); NaN in an empty bin."""
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return self._sum(field) / self.count
+
+    def quadrants(self, binned):
+        """(n_r, n_alpha) -> (4, n_r, n_theta): the four quadrants, each on the theta bins."""
+        out = np.empty((4, self.n_r, self.n_q))
+        for q in range(4):
+            cols = np.flatnonzero(self.quadrant == q)
+            out[q][:, self.fold[cols]] = binned[:, cols]
+        return out
+
+    def fold_mean(self, field):
+        """Bin averages over the four quadrants together, (n_r, n_theta)."""
+        tot = self.quadrants(self._sum(field)).sum(axis=0)
+        cnt = self.quadrants(self.count.astype(float)).sum(axis=0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return tot / cnt
+
+    def max(self, field):
+        """Largest single-cell value per bin, (n_r, n_alpha); -inf in an empty bin."""
+        out = np.full(self.n_r * self.n_a, -np.inf)
+        np.maximum.at(out, self.index[self.inside], np.asarray(field, float).ravel()[self.inside])
+        return out.reshape(self.n_r, self.n_a)
+
+
+def outermost_crossing(profile, r, threshold: float, r_min: float = 16.0, smooth: int = 2):
+    """Outermost radius at which a radial profile falls below a threshold.
+
+    profile: (n_r, ...) on the uniform radii r; it is averaged over `smooth` radial bins first.
+    The crossing has to have the averaged profile at or above the threshold in two neighbouring
+    bins on its inner side, at radii >= r_min; its position is interpolated linearly. NaN where
+    there is none, or where the profile is still above the threshold at the outer edge."""
+    p = np.asarray(profile, float)
+    p = np.where(np.isfinite(p), p, -np.inf)
+    sm = sum(p[i:p.shape[0] - smooth + 1 + i] for i in range(smooth)) / smooth
+    rs = sum(r[i:len(r) - smooth + 1 + i] for i in range(smooth)) / smooth
+    above = sm >= threshold
+    use = (rs >= r_min).reshape((-1,) + (1,) * (p.ndim - 1))
+    hit = above[1:-1] & above[:-2] & ~above[2:] & use[1:-1]  # index k = 1 .. n - 2: above at k - 1, k; below at k + 1
+    n = hit.shape[0]
+    k = n - 1 - np.argmax(hit[::-1], axis=0) + 1
+    found = hit.any(axis=0)
+    idx = np.expand_dims(k, 0)
+    s0 = np.take_along_axis(sm, idx, axis=0)[0]
+    s1 = np.take_along_axis(sm, idx + 1, axis=0)[0]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        frac = np.where(np.isfinite(s1), (s0 - threshold) / (s0 - s1), 1.0)
+    pos = rs[k] + np.clip(frac, 0.0, 1.0) * (rs[1] - rs[0])
+    # a profile that is still above the threshold at the outer edge has no outer crossing
+    return np.where(found & ~above[-1] & ~above[-2], pos, np.nan)
+
+
+def front_kinematics(theta, t, radius, window: int = 5) -> dict:
+    """Speed and geometry of a measured front, without the fit.
+
+    radius: (n_t, n_theta) on the uniform bin centres theta in (0, pi/2), NaN where no front.
+    R_t is the slope of a straight line through `window` outputs (NaN unless all are present);
+    R_theta is a central difference, with the symmetry about the axis and the equator at the
+    two ends and a one-sided difference beside a missing bin.
+    Returns dict(r_t, r_theta, v_n, cos_tbn, tbn, v_ht), each (n_t, n_theta)."""
+    theta, t, radius = np.asarray(theta, float), np.asarray(t, float), np.asarray(radius, float)
+    n_t = len(t)
+    h = window // 2
+    r_t = np.full(radius.shape, np.nan)
+    for i in range(h, n_t - h):
+        tt = t[i - h:i + h + 1] - t[i]
+        rr = radius[i - h:i + h + 1]
+        r_t[i] = np.sum((tt - tt.mean())[:, None] * (rr - rr.mean(axis=0)), axis=0) / np.sum((tt - tt.mean()) ** 2)
+    dth = theta[1] - theta[0]
+    ext = np.concatenate([radius[:, :1], radius, radius[:, -1:]], axis=1)  # mirror images at both ends
+    left, right = ext[:, :-2], ext[:, 2:]
+    both = np.isfinite(left) & np.isfinite(right)
+    r_theta = np.where(both, (right - left) / (2 * dth),
+                       np.where(np.isfinite(right), (right - radius) / dth, (radius - left) / dth))
+    den = r_theta * np.sin(theta) + radius * np.cos(theta)
+    norm = np.sqrt(radius ** 2 + r_theta ** 2)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        cos_tbn = np.abs(den) / norm
+        v_ht = np.where(den > 0, r_t * radius / den, np.inf)
+        v_ht = np.where(np.isfinite(r_t) & np.isfinite(den), v_ht, np.nan)
+    return {"r_t": r_t, "r_theta": r_theta, "v_n": r_t * radius / norm, "cos_tbn": cos_tbn,
+            "tbn": np.arccos(np.clip(cos_tbn, 0.0, 1.0)), "v_ht": v_ht}
+
+
+def _in_a_row(mask, n: int):
+    """True where a True of mask (n_t, ...) belongs to at least n True values in a row in time."""
+    m = np.asarray(mask, bool)
+    run = np.zeros(m.shape, int)
+    acc = np.zeros(m.shape[1:], int)
+    for i in range(m.shape[0]):
+        acc = np.where(m[i], acc + 1, 0)
+        run[i] = acc
+    out = np.zeros(m.shape, bool)
+    acc = np.zeros(m.shape[1:], int)
+    for i in range(m.shape[0] - 1, -1, -1):  # carry the length of each run back to its start
+        acc = np.where(m[i], np.maximum(acc, run[i]), 0)
+        out[i] = acc >= n
+    return out
+
+
+def valid_domain(radius, r_debris, v_n, tbn, v_a: float, c_s: float, d_i: float, r_lo: float, r_hi: float,
+                 gap_di: float = 2.0, mach_fast: float = 1.5, in_a_row: int = 5) -> dict:
+    """The valid shock domain of the protocol (Sect. 4) on the (time, theta) bins.
+
+    Returns the masks a (front exists), b (ahead of the debris ions by gap_di d_i; true where
+    no debris edge is found), c (normal speed >= mach_fast x fast speed at the local theta_Bn),
+    d (a-c in `in_a_row` outputs in a row), e (r_lo <= R <= r_hi) and valid (d and e)."""
+    a = np.isfinite(radius)
+    with np.errstate(invalid="ignore"):
+        b = a & (~np.isfinite(r_debris) | (radius - r_debris >= gap_di * d_i))
+        c = a & (v_n >= mach_fast * fast_speed(v_a, c_s, tbn))
+        e = a & (radius >= r_lo) & (radius <= r_hi)
+    d = _in_a_row(a & b & c, in_a_row)
+    return {"a": a, "b": b, "c": c, "d": d, "e": e, "valid": d & e}
+
+
+def fit_temperature(hist, edges, t_guess: float, lo: float = 0.5, hi: float = 5.0):
+    """Temperature of the bulk from a histogram of the kinetic energy (m = 1, energies in m c^2).
+
+    hist: (..., n_bins) counts in the bins `edges`. For a Maxwell-Juttner distribution
+    dN/dE is proportional to gamma u exp(-E / T), so ln(hist / (dE gamma u)) is a straight line
+    in E with the slope -1/T. Weighted least squares (weight = count) over the bins with centres
+    in [lo, hi] x t_guess. Returns (T, number of electrons used); NaN with fewer than 3 bins."""
+    edges = np.asarray(edges, float)
+    cen = np.sqrt(edges[1:] * edges[:-1])
+    gam = 1.0 + cen
+    sel = (cen >= lo * t_guess) & (cen <= hi * t_guess)
+    h = np.asarray(hist, float)[..., sel]
+    x = cen[sel]
+    w = np.where(h > 0, h, 0.0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        y = np.where(h > 0, np.log(h / (np.diff(edges)[sel] * gam[sel] * np.sqrt(gam[sel] ** 2 - 1.0))), 0.0)
+    sw = w.sum(axis=-1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        xm = (w * x).sum(axis=-1) / sw
+        ym = (w * y).sum(axis=-1) / sw
+        sxx = (w * (x - xm[..., None]) ** 2).sum(axis=-1)
+        sxy = (w * (x - xm[..., None]) * (y - ym[..., None])).sum(axis=-1)
+        temp = -sxx / sxy
+    ok = ((h > 0).sum(axis=-1) >= 3) & (sxy < 0)
+    return np.where(ok, temp, np.nan), sw
