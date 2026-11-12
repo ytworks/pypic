@@ -21,4 +21,4 @@ plane_x: 2
 ppc: 8
 lattice: [2, 2, 2]
 n_out: 20
-u_range: [-20, 400]
+u_range: [-20, 520]  # the first run (61f454b) reached the limit 400 at t = 169
