@@ -10,11 +10,13 @@ A short driver that crosses a cold plasma leaves a plasma wave behind it: every 
     largest for τ = 2 (Schroeder et al. 2011, OSTI 1013067: the resonant Gaussian pulse). a₀ and w are the local ones of the diffracting beam, and a₀² is 1/η larger inside the plasma than in vacuum (η = √(1 − ω_pe²/ω₀²): the pulse keeps its energy flux through the ramp).
   - The pulse travels with the group velocity of the Yee grid, v_g = 0.99142 at 32 cells per wavelength and dt = dx/2 (0.99499 without the grid).
   - Bunch with the peak density n_b: E_x = n_b √(2π) σ_x exp(−k_w²σ_x²/2) R(r) cos(k_w ξ) behind it, with R(r) = k_w² ∫ r′ exp(−r′²/2σ_r²) I₀(k_w r_<) K₀(k_w r_>) dr′ and k_w = 1/β (Muggli, arXiv:2007.05226, Eqs. 1 and 3, for β = 1).
+  - Strong pulse (`regime: blowout`; no gate): a pulse with a₀ ≳ 2 and the matched waist w = 2√a₀ expels the electrons from a nearly spherical cavity of the radius R = 2√a₀. On the axis E_x = (x − x_c)/2 through the centre x_c of the cavity, so its largest value is √a₀. The wake follows the pulse at 1 − 3/(2ω₀²); an electron stays in phase over (2/3) ω₀² R and gains (2/3) ω₀² a₀ there (Lu et al., Phys. Rev. ST Accel. Beams 10, 061301 (2007)).
 
 | config | driver | box | predicted |
 |---|---|---|---|
 | `laser_linear.yaml` (gate) | a₀ = 0.1, τ = 2, w = 4, ω₀ = 10 ω_pe, focus at x = 10π | 1152×128² (22.6 × 24² c/ω_pe), dx = λ₀/32, transverse cells 0.1875, periodic transverse faces; plasma of 54 c/ω_pe | E_x = 3.853e-3 on the axis at the focus; E_r/E_x = 0.4957 at r = w/2 |
 | `beam_linear.yaml` (gate) | n_b = 0.05, σ_x = σ_r = 1, γ = 10, bunch and partner of the mass 10⁶ | 384×192² (48 × 24² c/ω_pe), dx = 1/8, reflecting transverse faces; plasma of 105 c/ω_pe | E_x = 0.03505 on the axis; R(σ_r)/R(0) = 0.7516; k_w = 1.00504 |
+| `laser_bubble.yaml` (production, reported) | a₀ = 4, τ = 2, w = 4 = 2√a₀, ω₀ = 10 ω_pe, focus at x = 8 (the top of the ramp) | 1536×320² (30.2 × 40² c/ω_pe), dx = λ₀/32, transverse cells 0.125, periodic transverse faces; plasma of 172 c/ω_pe | cavity radius 4; E_x on the axis with the slope 0.5, up to 2; wake speed 0.985; energy gain 267 over 267 c/ω_pe |
 
 ```bash
 python -m pypic.launch -n 8 examples/wakefield/run.py --config examples/wakefield/configs/laser_linear.yaml
