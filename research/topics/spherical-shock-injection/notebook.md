@@ -3,6 +3,127 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Runs M, M-null and H: no signal at γ ≥ 1.5; the measured shocks are weak and decaying, the Mach scan did not happen
+- **Runs.** All 8 GPUs, seed 12345, 2960 steps, clean tree.
+  - M: `configs/explore-M.yaml`, commit `ac33a41`, 1321 s (446 ms per step), 60.2 GB. Gauss law ≤ 4.5 × 10⁻¹⁵,
+    div B ≤ 1.1 × 10⁻¹⁴, fill ≤ 0.669, energy budget +11.8 % (monitored). Record `runs/2026-11-13-ac33a41eb-M.json`.
+  - M-null: `configs/explore-M-null.yaml`, commit `3f5c437`, 783 s, 15.8 GB. Gauss law ≤ 2.1 × 10⁻¹⁵, div B ≤
+    1.8 × 10⁻¹⁵, fill ≤ 0.667, budget +12.8 %. Record `runs/2026-11-13-3f5c43715-M-null.json`.
+  - H: `configs/explore-H.yaml`, commit `3f5c437`, 814 s (274 ms per step), 16.9 GB. Gauss law ≤ 4.7 × 10⁻¹⁵,
+    div B ≤ 7.0 × 10⁻¹⁵, fill ≤ 0.668, budget +12.3 %. Record `runs/2026-11-13-3f5c43715-H.json`.
+  - M has a valid domain (θ ≥ 45°), so M-null was run, as planned: the census and N3c of M need its floor.
+- **Storage.** All outputs of the topic now sit on the NVMe (owner's instruction), under
+  `/mnt/nvme/pypic/output/research/spherical-shock-injection/`. `output/research/spherical-shock-injection/<name>` is a link to it, so the paths in the
+  records stay valid. Nothing was deleted.
+- **Null floor of M (`null`).** No front in any of the 738 bins. T_e 0.0100 → 0.0109. No electron at γ ≥ 1.5 at
+  any dump (N1 = 0). N3 at lags 4 / 16 / 64: ν = 1.30 × 10⁻² / 7.9 × 10⁻³ / 5.0 × 10⁻³ (v 0.1–0.2), 3.3 × 10⁻³ /
+  2.0 × 10⁻³ / 1.4 × 10⁻³ (v 0.3–1.0). N5: the 99.9th percentile of |Δρ| rises from 2.07 to 5.96 d_e.
+- **Front of M (`front`).** 326 of 738 bins show a front; 180 are valid, 121 usable for B1′. No front is
+  detected below θ = 35°; the valid domain is θ = 45–90°, t = 259–703.
+  - In the valid domain (min / 10 % / median / 90 % / max): V_n 0.089 / 0.094 / 0.106 / 0.130 / 0.147; fast
+    Mach 1.50 / 1.57 / 1.75 / 2.13 / 2.38; V_n / v_A 2.14 / 2.27 / 2.55 / 3.11 / 3.53; b 1.62 / 1.74 / 1.94 /
+    2.27 / 2.50 (largest cell 2.92). Lead over the debris 10–59 d_e (median 31). Ion flow within 30 % in 180 of
+    180; fit rms 0.29 d_e. Superluminal feet for θ_Bn ≥ 78–85°.
+  - L on the same statistic: V_n 0.116–0.204 (median 0.150); fast Mach 1.50 / 1.55 / 1.82 / 2.24 / 2.51;
+    b 1.58–2.78 (median 2.0). The entry of L quoted a narrower range (1.75–2.06); this one is the full range.
+  - **The designed Mach scan did not happen.** The design had fast Mach 2.95 (L) and 4.05 (M). The valid
+    domains of both hold fast Mach 1.5–2.5 with a median of 1.8, and b ≈ 2.
+- **Front history, L and M (new; from `front.npz`).** The debris edge stalls far inside R_B = 148 d_e: at 83 d_e
+  = 1.3 R_m in L (about 80 d_e from t ≈ 370), at 62–66 d_e = 1.4–1.5 R_m in M (from t ≈ 200). After that the
+  front is a free blast wave that decays. Equator:
+
+  | t | L: R front | R debris | V_n | fast Mach | valid | M: R front | R debris | V_n | fast Mach | valid |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | 148 | 65.8 | 59.5 | 0.215 | 2.54 | no | 52.9 | 58.9 | 0.197 | 3.20 | no |
+  | 222 | 80.7 | 67.5 | 0.188 | 2.22 | yes | 66.0 | 64.8 | 0.160 | 2.59 | no |
+  | 296 | 94.0 | 74.2 | 0.175 | 2.06 | yes | 76.9 | 60.9 | 0.136 | 2.20 | yes |
+  | 370 | 106.6 | 79.2 | 0.161 | 1.89 | yes | 86.3 | 62.9 | 0.118 | 1.90 | yes |
+  | 444 | 118.0 | 81.8 | 0.149 | 1.76 | yes | 94.9 | – | 0.112 | 1.80 | yes |
+  | 518 | 128.8 | 82.9 | 0.142 | 1.67 | yes | 102.8 | – | 0.106 | 1.70 | yes |
+  | 592 | 139.0 | 83.2 | 0.134 | 1.57 | yes | 110.4 | – | 0.099 | 1.59 | yes |
+  | 666 | 148.6 | 82.6 | 0.125 | 1.47 | no | 117.9 | – | 0.099 | 1.59 | yes |
+
+  - The first valid outputs are t = 185–278 in L (R = 73–86 d_e, fast Mach 1.9–2.5) and t = 259–333 in M
+    (R = 71–80 d_e, fast Mach 2.1–2.4). The bins that show a front before t = 300 but are not valid (62 in L,
+    54 in M) all fail criterion b only: the front is not yet 2 d_i ahead of the debris. They have fast Mach
+    1.9–2.8 (L) and 2.5–3.3 (M).
+  - So the stronger phase exists, but it is the phase in which the front has not separated from the piston, and
+    the registered definition does not read it as a shock. The front becomes valid just as the piston stalls.
+    With R_m = 16 d_i (L) and 11.2 d_i (M) there is no room between the two.
+- **Census of M (`census --null`).** Ambient electrons with γ ≥ 1.5 per dump (all classes | of them upstream):
+  5 | 0 (t = 55.5), 14 | 0 (74), 33 | 0 (92.5), 32 | 5 (111), 18 | 4 (129.5), 9 | 3 (148), 6 | 3 (166.5), 3 | 2
+  (185), 2 | 1 (203.5), then at most 1 per dump up to t = 425.5 and none later. Every upstream one is on a ray
+  without a detected front (all undetermined). The null run has none.
+  - **Result at the registered threshold: no band reaches 100 electrons, so there is no signal and no residual
+    at γ ≥ 1.5 in M.** K1: 3 records of 2 electrons (t = 111; t = 148 and 166.5), before any valid front.
+  - b_max 3.39 (cell 4.33), τ_dwell 113. N3b: ν = 4.5 × 10⁻⁴ for γ 1.25–1.5 (1229 pairs); 3 pairs above γ = 1.5,
+    so the rate of the null run (2.0 × 10⁻³) is used there.
+  - The tracks were made with a preliminary census (before M-null existed). The final census differs from it in
+    9 records (`k1`, its threshold, `und`), none of a tracked electron, and the join reads no other changed
+    array. The tracks were therefore not re-run.
+- **Tracks of M (`tracks`).** 956 674 tracked: 791 967 never left the upstream, 61 517 transmitted, 57 709 in the
+  layer at the end, 6964 back upstream after an encounter, 579 returned from downstream, 6510 start behind the
+  front, 31 428 outside the range of the fit.
+  - γ_max ≥ 1.25 on 188 orbits, **γ_max ≥ 1.5 on none**. Returns with γ_out ≥ 1.25: 3 (below the 30 of the
+    protocol; f_FN upper bound 1.0). M cannot test C1 or C2 either. K2, K3, returns from downstream at γ ≥ 1.5:
+    none.
+  - N4 passes: 851 of 853 orbits close the work within 10 % (both failures start behind the front). Parallel
+    share of the work: median 0.23.
+  - Returns at all energies: 6850 with one encounter, 3967 reached the density front; μ within 20 % in 488
+    (12 %, as in L); μ_out/μ_in 0.20 / 1.15 / 6.0 (10 / 50 / 90 %). Gain: median 0.022, 99 % 0.131.
+  - Dwell in the layer: median 252, 90 % 414.5 (protocol: 113). The caveat of L holds (the layer is 4 d_i thick).
+- **N3 with the measured dwell, M.** ν τ = 0.051 at the protocol's 113, 0.11–0.19 at the measured 252–414.5:
+  above 0.1, less than in L (0.23–0.39). The rule of N3 still forbids assigning the loss of μ to a physical
+  scattering mechanism.
+- **N3c, M.** Largest ratio 1.25 in the valid domain (no note), 3.77 on the detected front outside it.
+- **Potential, M (`phi --null`).** Mean over the outputs 0.009–0.023 (1–2.3 T_e) at θ = 37–72°, measured (error
+  below 50 %) in 5 of the 5° bins there; not measured above 70°. Windowed: measured in 49 of 323 detected bins,
+  23 of the 180 valid ones. About half the potential of L.
+- **Baseline B2 against the census, M (`baseline`).**
+  - γ ≥ 1.5: no cell with 100 measured electrons, so the rule of Sect. 3.4 does not apply. The model again
+    predicts a beam that is not there: on the detected front 107–223 electrons at t = 129.5, 560–1017 at t = 296,
+    587–1046 at t = 351.5, falling to 21–50 at t = 740 (lower–upper bound); in the valid domain 76–100 (t = 296)
+    to 187–264 (t = 462.5). **Measured upstream of a detected front: 0 at every dump.**
+  - γ 1.25–1.5 (extra bin, not registered): 13 cells with ≥ 100 electrons on the detected front (4 inside
+    [lower/2, 2 × upper], 4 below, 5 above), none in the valid domain. At t = 499.5 by band (model lower–upper |
+    measured): 30–40° 1.2–1.3 | 33; 40–50° 58–164 | 166; 50–60° 1264–2250 | 93; 60–70° 5629–18 773 | 11;
+    70–80° 6650–9347 | 0. The pattern of L: measured at low θ_Bn, missing by a factor 500 or more at 60–80°.
+    **No residual is discussed.**
+  - Share of the encounters that end in a return, all energies, detected front:
+
+  | θ_Bn | model, φ = 0 | model, measured φ | tracks (± binomial) | tracks, only returns from behind the front |
+  |---|---|---|---|---|
+  | 30–40° | 0.135 | 0.064 | 0.146 ± 0.011 | 0.065 |
+  | 40–50° | 0.130 | 0.036 | 0.142 ± 0.005 | 0.073 |
+  | 50–60° | 0.104 | 0.047 | 0.121 ± 0.004 | 0.067 |
+  | 60–70° | 0.049 | 0.009 | 0.094 ± 0.004 | 0.056 |
+  | 70–80° | 0.004 | 0.003 | 0.077 ± 0.004 | 0.045 |
+  | 80–90° | 0 | 0 | 0.067 ± 0.007 | 0.041 |
+
+  - Tracks return 7–15 % of the encounters, the model with the measured potential 0–6 %. At 70–90°, where
+    the mirror returns almost nothing with or without a potential, the tracks return 7–8 % (4–5 % with a sample
+    behind the front). The valid domain agrees (6–13 % against 0–4.5 %).
+- **H (contrast only).** No front in any of the 738 bins. The ambient ion density reaches 1.5 n₀ in 3
+  equatorial bins at the end (r ≈ 102–107 d_e); the debris edge is near 50 d_e. In 5.3 Ω_ci⁻¹ the compression
+  does not become a shock by the registered definition. Ambient electrons at γ ≥ 1.5: at most 1 per dump
+  (one at t = 111).
+  - The early energetic ambient electrons scale with the field: at t = 74, 486 (L), 14 (M), 0 (H). They are
+    made at the start of the driver, not at a shock, and their number falls with the magnetisation.
+- **Readings.**
+  - L and M agree in everything that was measured: no ambient electron population at γ ≥ 1.5 upstream; a
+    predicted mirror beam that is absent; returns at all energies that exceed the mirror with the measured
+    potential and that keep μ in 12 % of the cases; returns concentrated at low θ_Bn.
+  - The absence of energetic electrons is what a fast Mach number of 1.5–2.5 and b ≈ 2 give. It says nothing
+    about the designed Mach numbers, which no valid front reached.
+  - The failure of S0 is a property of the baseline as much as of the runs: marginal adiabaticity
+    (Ω_ce d_i / V_n = (m_i/m_e) v_A / V_n ≈ 7.6 in L, 6.2 in M), a decaying front, and ν τ above 0.1. The
+    candidate readings of the entry of L (leakage, kinematic returns from a decelerating front, numerical
+    scattering) all remain; M removes none and adds none.
+- **State of the question after L, M and H.** No signal at the registered threshold in any run. K1: one
+  electron in L, two in M (before its first valid front). K2, K3: none. No residual with a positive signature. By
+  Sect. 9 of the protocol the second seed (L-s2) and the 384³ pair are not run.
+- Next: the results document with the criteria C1–C6 and the verdict, then review R2.
+
 ## 2026-11-13 — Run L: no signal at γ ≥ 1.5; the returns to the upstream are not adiabatic mirror reflections
 - **Run L.** `configs/explore-L.yaml`, 8 GPUs, commit `91f79ff`, seed 12345, 2960 steps in 1298 s (438 ms per
   step). Output `output/research/spherical-shock-injection/L`, 62 GB, not in git. Gauss law ≤ 5.2 × 10⁻¹⁵,
