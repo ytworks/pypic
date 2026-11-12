@@ -1,6 +1,6 @@
 # Amano & Hoshino (2022): Theory of Electron Injection at Oblique Shock of Finite Thickness
 
-- Ref: ApJ (2022), volume/article number not checked; DOI 10.3847/1538-4357/ac4f49; arXiv:2201.11416 (v1, submitted version, read here)
+- Ref: ApJ 927, 132 (2022) (volume and article as printed in Wang & Amano 2026, ref. 17); DOI 10.3847/1538-4357/ac4f49; arXiv:2201.11416 (v1, submitted version, read here)
 - Read: 2026-11-12, full; topics: spherical-shock-injection
 
 ## Claim
