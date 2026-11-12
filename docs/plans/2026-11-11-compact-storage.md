@@ -1113,3 +1113,27 @@ without `--phases` (three runs, the sequence above) falls by at least 2 % of the
 step of this section in both configurations, 0.763 ms in the bow shock and 1.648 ms in the
 blast wave. If it does in neither, the kernel stays as it is; if in one only, that is reported
 to the owner and the kernel stays as it is.
+
+Result (2026-11-12, b2d9e76, the same sequence and machine, no other job on the GPUs): adopted.
+
+| run | precision | three runs, ms per step | median | median before | change |
+|---|---|---|---|---|---|
+| bow shock | fp64 | 44.747, 42.541, 42.627 | 42.627 | 42.535 | +0.092 |
+| bow shock | mixed | 39.566, 38.040, 38.101 | 38.101 | 38.143 | −0.042 |
+| bow shock | compact | 34.654, 34.022, 34.096 | 34.096 | 35.520 | −1.424 |
+| blast wave | fp64 | 90.992, 90.995, 91.018 | 90.995 | 90.978 | +0.017 |
+| blast wave | mixed | 82.586, 82.443, 82.401 | 82.443 | 82.415 | +0.028 |
+| blast wave | compact | 72.586, 72.589, 72.642 | 72.589 | 75.812 | −3.223 |
+
+- The `compact` step falls by 1.424 ms in the bow shock (3.7 % of the `mixed` step; limit
+  0.763 ms) and by 3.223 ms in the blast wave (3.9 %; limit 1.648 ms). The ranges before and
+  after do not overlap; `fp64` and `mixed`, whose kernels did not change, moved by 0.09 ms at
+  most.
+- `kernel_rho` with `--phases`, medians: 1.156 ms in the bow shock (before 2.539; `mixed`
+  1.586) and 2.172 ms in the blast wave (before 5.404; `mixed` 3.125). The other parts are
+  within 0.1 ms of the table above (`kernel_push` of `compact` 18.319 and 42.893 ms).
+- Whole step of `compact` now: 10.5 % below `mixed` and 20.0 % below `fp64` in the bow shock,
+  12.0 % and 20.2 % in the blast wave (medians of this measurement).
+- Test: `test_filter_and_marder_zone_at_open_faces_keep_gauss` runs in `compact` too (the charge
+  density of the zone equals the full one at the zone nodes); with the offset of the rank left
+  out of the new test of the kernel it fails (checked once).
