@@ -8,6 +8,11 @@ Japanese version: `exploratory-conditions.ja.md` (this English file is the origi
 temperature behind each remnant value, and only β of run L is listed as matched. The physical conditions of
 L, M and H are unchanged.
 
+**Superseded in part, 2026-11-13:** Sect. 6 (checks 2 and 6) and Sect. 8 are replaced by
+`exploratory-protocol.md`, which is fixed before the first run. The run time of Sect. 7 was an estimate; the
+16-step check measured 0.9–1.1 s per step, which is about 45–50 minutes per run. The sections stay below as
+designed.
+
 Citekeys refer to `research/literature/`; "survey" is `survey-snr-electron-injection.md`. "Our arithmetic" marks
 values derived here. "Estimate" marks an extrapolation that no run has tested.
 

@@ -3,6 +3,30 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — 16-step check of L; protocol and baseline written before the first run
+- **Check run (run 0).** `configs/check-L.yaml`, 8 GPUs, commit `3e97c6c`, 16 steps in 18.8 s. All nine
+  diagnostics wrote files; Gauss law 4 × 10⁻¹⁵, div B ≤ 1.3 × 10⁻¹⁶. Output:
+  `output/research/spherical-shock-injection/check-L` (2.9 GB, not in git).
+- **Correction to the entry of 2026-11-12 and to the plan:** a run takes about 45–50 minutes (0.90–1.06 s per
+  step, measured), not 15–20. The whole run set is about 3–5 GPU-hours.
+- **Changed against the plan:** the check uses `gamma_min: 1.05`, not 1.02. At 1.02 the dump would hold a
+  quarter of the ambient electrons.
+- **Found in the files:**
+  - the loaded electrons follow a Maxwell–Jüttner distribution (T = 0.01), not a Gaussian in u: tail fraction
+    at γ ≥ 1.05 measured 0.019628, Maxwell–Jüttner 0.019623, Gaussian 0.0166. The baseline uses the first;
+  - `id // 2` is the birth cell of an ambient electron (checked on every electron of the dump); injected
+    electrons have ids ≥ 20N; debris electrons are the species `de`, with small, varying weights;
+  - reading a dump needs `import hdf5plugin` first (zstd).
+- **Written:** `shockkin.py` (reflection map, foot-point formulas for an axisymmetric front, count model,
+  back-tracing), `analyze.py` (`selftest`: 10 of 10 pass; `predict`), `exploratory-protocol.md`.
+- **Prediction before the runs** (nominal sphere at 0.87 V_d, `data/predict-nominal.json`): one-step reflection
+  gives γ ≥ 1.5 almost only at foot-point θ_Bn = 50–70°, nothing at γ ≥ 3, and a count that goes from
+  5 × 10² (b = 2) to 2 × 10⁵ (b = 4) macro-electrons in the box at the end.
+  - Consequence: counts cannot carry a claim. The per-electron test (does the electron trace back to a thermal
+    electron reflected once?) is the primary one.
+- **Not done yet:** the commands for the front, the census and the tracks; the review R1 of the protocol; no
+  production run.
+
 ## 2026-11-13 — Review of the exploratory conditions (issue #48): record corrected, run set changed
 - Asked by the owner: run the exploratory conditions, analyse them, and test whether a novel and certain
   hypothesis about the acceleration mechanism can be obtained; take the findings of issue #48 into the trials.
