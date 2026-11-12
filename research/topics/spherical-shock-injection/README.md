@@ -29,8 +29,8 @@ including unknown ones:
 
   This is not the whole picture: amano2022theory (Sect. 4.5, Eq. 22) already limits stochastic shock drift
   acceleration by the curvature of the bow shock (correction from the review of 2026-11-12). The survey of
-  2026-11-12 found curved fronts treated for the Earth's bow shock only, in works that are not yet read
-  (`survey-snr-electron-injection.md`, Sect. 6.5).
+  2026-11-12 found curved fronts treated for the Earth's bow shock only (`survey-snr-electron-injection.md`,
+  Sect. 6.5); those works were read in part on 2026-11-13 (Prior work).
 - **Real shocks are curved:** supernova blast waves, planetary bow shocks, shocks driven by coronal
   mass ejections, laser-driven shocks. On a spherical shock in a uniform field, θ_Bn runs
   continuously from 90° at the equator to 0° at the poles. The front is curved, and a blast wave
@@ -71,8 +71,13 @@ references; the map by line of work is in `literature.md`). What it establishes 
 - **No study covers the range of θ_Bn with one set of parameters** (survey Sect. 6.1).
 - **Models of whole remnants assume the efficiency law ε(θ_Bn)**; SN 1006 and the radio population of remnants
   point in opposite directions (survey Sect. 3.3).
-- **Curved fronts:** treated for the bow shock only (Krauss-Varban & Burgess 1991; Vandas 1995, 2001; Savoini &
-  Lembège 2001). These are the direct predecessors for curvature and are not yet read.
+- **Curved fronts:** treated for the bow shock only. These are the direct predecessors for curvature
+  (`literature.md`, "Curved fronts", read 2026-11-13):
+  - read in full: `savoini2001twodimensional` and `savoini2010origin` (2.5-D full PIC of a cylindrical piston,
+    m_i/m_e = 42, M_A = 3), `vandas1994acceleration`, `vandas2001shockb`, `kong2016electron`;
+  - known by abstract only, full texts not obtained: `kraussvarban1991electron` (the first treatment of
+    electrons at a curved shock) and `giacalone2017acceleration` (protons at a spherical blast wave), the two
+    that matter most for novelty, and the other works listed in `literature.md` under "Still to read".
 
 The works read before the survey:
 - **hoshino2002nonthermal:** electron surfing at high-Mach shocks. Threshold M_A > 43–75 at the
@@ -102,7 +107,8 @@ Open; one candidate, a hypothesis:
 ## Related work and novelty
 A first systematic search was done on 2026-11-12 (arXiv, by keyword, author and reference lists; log in the
 survey, Sect. 9). Still missing:
-- the bow-shock literature on curved shocks (J. Geophys. Res., not on arXiv);
+- the part of the bow-shock literature on curved shocks whose full texts were not obtained (J. Geophys. Res.;
+  list in `literature.md`, "Still to read");
 - forward citations of the key works through a citation index;
 - the heliospheric literature on electrons at interplanetary and coronal shocks.
 
@@ -127,8 +133,11 @@ Draft; the criteria and null tests are to be fixed before any production run.
 - They are not evidence for a claim. Their criteria, floors and null tests were fixed before the runs in
   `exploratory-protocol.md`; the results and the verdict are in `exploratory-results.md`.
 - Their main limit, expected and now measured: the front is slower than the debris. Where the protocol finds
-  a shock, its fast Mach number is 1.5–2.5 in L and in M, and H forms none. A driver that holds its speed
-  needs a planner of the topic's own.
+  a shock, its fast Mach number is 1.5–2.5 in L and in M, and H forms none. The debris cloud is small against
+  the debris gyroradius ρ_d = M_A d_i: R_m/ρ_d = 4.6 (L), 1.9 (M), 1.0 (H).
+- Their second limit, measured: numerical scattering of thermal electrons at 2 particles per cell is above the
+  registered limit in every reading (`exploratory-results.md`, Sect. 3), so no loss of magnetic moment in these
+  runs can be assigned to physics.
 
 The plan for the later, claim-bearing runs:
 - **Driver:** a spherical shock driven outwards into a uniform field. The existing debris shell
@@ -152,14 +161,17 @@ No claim.
 
 Observations of the exploratory runs (2026-11-13). They are not claims: one seed, 2 particles per cell,
 m_i/m_e = 16. Limits and detail: `exploratory-results.md`.
-- No ambient electron population at γ ≥ 1.5 upstream of a front in L, M or H; the null runs hold none.
+- No ambient electron population at γ ≥ 1.5 upstream of a front in L, M or H (at most 3 electrons per dump in
+  L and 5 in M, against the 100 required); the null runs hold none.
   Records: `runs/2026-11-13-91f79ff1d-L.json`, `-ac33a41eb-M.json`, `-3f5c43715-H.json`, `-0114ef9ea-L-null.json`,
   `-3f5c43715-M-null.json`.
 - The valid shocks of L and M are a decaying blast wave of fast Mach 1.5–2.5 and compression about 2; the
   debris stalls at 1.3–1.5 R_m (records of L and M, `front`).
 - The adiabatic mirror in a static potential does not describe the electrons that return upstream, in number,
-  energy or magnetic moment (records of L and M, `baseline`, `tracks`). Numerical scattering is not excluded
-  as the cause.
+  energy or magnetic moment (records of L and M, `baseline`, `tracks`). This is a statement about the baseline
+  and the numerical floor, not about the plasma (review R2): in the valid domain 98 % or more of the predicted
+  beam comes from bands where the baseline is not defined (ε > 0.3), and the share of returns that keep the
+  magnetic moment equals the share in the null runs (records of L, M, L-null, M-null; blocks `r2`, `r2null`).
 
 ## Publication
 Open.
@@ -184,11 +196,14 @@ Designed 2026-11-12: three exploratory runs (`exploratory-conditions.md`).
 Run and analysed 2026-11-13: L-null, L, M, M-null, H, against the protocol fixed before them
 (`exploratory-protocol.md`; reviews in `reviews/`). **Verdict: no hypothesis was obtained from these runs**
 (`exploratory-results.md`): no signal at the registered threshold, and the runs sampled a weak, decaying shock
-instead of the designed Mach numbers.
+instead of the designed Mach numbers. Review R2 (`reviews/2026-11-13-results-r2.md`) confirms the verdict; its
+corrections are in the results document and in the notebook.
 
-Next:
-- the owner's decision on the question;
+Next (order of `exploratory-results.md`, Sect. 8):
 - reading `kraussvarban1991electron` and `giacalone2017acceleration` in full (access beyond arXiv);
-- a test-particle baseline in the measured fields of L and M (no GPU), to decide whether the returns beyond
-  the mirror baseline are known kinematics;
-- only then a further run, whose conditions are in `exploratory-results.md`, Sect. 8.
+- the owner's decision on the question, with a controlling number and a threshold;
+- one analysis of the existing data without GPU time: a count model of thermal escape per band, to close the
+  observation "returns beyond the mirror baseline" as numerical floor plus known leakage, or to keep it open;
+- only then a design. A 2.5-D design comes first for the baseline and the numerical floor; a 3-D run is for
+  what only 3-D can show. A test-particle baseline in the stored slices is not planned as it stands (the slices
+  are one gyro-period apart).

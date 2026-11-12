@@ -3,6 +3,110 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Review R2 of the results: verdict stands; corrections to the entries on L and on M, M-null and H
+
+- **What was reviewed.** The first version of `exploratory-results.md` (commit `69459cd`), by the research
+  reviewer, against the protocol, this notebook and the records. Report, unchanged:
+  `reviews/2026-11-13-results-r2.md`. It is advice, not a decision of the owner.
+- **Outcome.** "Not obtained from these runs" does not need rethinking. Nothing moves the answer towards
+  "candidate". Nine changes were required before a merge; all are taken (table in `exploratory-results.md`,
+  Sect. 10). The revised text was not reviewed again.
+- **How the points were handled.** Each finding was checked against the records before it was accepted. New
+  checks were added as commands (`r2`, `r2null`, `census --tau` of `analyze.py`, commit `aac5d4a`) and recorded
+  (blocks `r2`, `census-tau`, `r2null` of the records, commit `f22fb3b`). They are not registered tests: they
+  were written after the data were seen.
+
+**Corrections to the entry "Run L" (below; not rewritten).**
+
+- **Census series.** The entry gives "486 at t = 74, 330 at t = 148, 40 at t = 222, at most 4 later". The dumps
+  between were left out, and the largest is not t = 74. From `census.json`: 486 (t = 74), **807 (t = 92.5)**,
+  753, 533, 330 (t = 148), 207, 110 (t = 185), 59, 40 (t = 222), 21, 13, 10, then at most 6.
+- **Upstream counts.** The entry gives "3 at t = 222 …, none at any other dump". Wrong: 22 electron-dumps
+  upstream of the fitted surface, in eleven dumps (3 each at t = 166.5, 185, 222, 259, 277.5; 2 at 203.5; 1
+  each at 240.5, 314.5, 333, 481, 610.5). 16 have a foot on a detected front, 3 are in the valid domain. By
+  result: 5 explained by S0, 17 undetermined, no residual. The verdict is unchanged: no band holds 100.
+- **"2, 0 and 0 measured upstream".** These are the baseline's counts at the three display times t = 185, 296
+  and 407 only. Over all dumps the baseline counts the same 16 electron-dumps.
+- **K1.** "One electron (t = 222)" is one electron in seven dumps: id 391104754, t = 166.5–277.5, γ falling from
+  1.84 to 1.50. Not in the valid domain; inside the debris edge. Its field line was not traced.
+- **N3.** The entry evaluates ν τ for the electrons of γ 1.25–1.5 with the τ_dwell of B1′ ("0.062 at the
+  protocol's 66") and with the measured dwell. The registered N3 is for thermal electrons and the crossing
+  time of the layer. The numbers are in the block below. The reading "N3 would pass at 66" is withdrawn.
+- **"Most returns in L are not adiabatic mirror reflections …; μ says the same (12 % keep it)".** Withdrawn as a
+  statement about the plasma. In L-null 11 % of the electrons keep μ within 20 % over a gap of 250, with no
+  shock at all (block below).
+- **"The ramp width was not measured".** It is measured now, as an upper bound (block below).
+
+**Corrections to the entry "Runs M, M-null and H" (below; not rewritten).**
+
+- **Bins before the valid domain.** "62 in L, 54 in M, all fail criterion b only: the front is not yet 2 d_i
+  ahead" is not reproduced by the records and is wrong. Counting the bins with a front before the first valid
+  time of their polar angle, at the polar angles that become valid: 74 (L) and 73 (M). All fail (b); 24 and 18
+  also fail (c); 28 and 35 also fail (e); (b) alone: 46 and 38. Those that pass (c) have fast Mach
+  1.92 / 2.50 / 2.78 (L, 50 bins) and 2.26 / 2.85 / 3.28 (M, 55 bins). The selection that gave 62 and 54 could
+  not be recovered.
+- **Criterion (b)** asks for a lead of 0.7 V_n/Ω_ci over the debris edge: 1.5–2.3 d_i in L, 2.3–3.3 d_i in M.
+  It is not a fixed 2 d_i.
+- **Equator table, M, t ≥ 444.** The dashes for the debris radius were a gap of that table. The debris edge
+  exists in every output of M (62–64 d_e at 0.1 n₀); at t = 444 the lead is 32 d_e against 7.5 required.
+- **"At t = 74, 486 (L), 14 (M), 0 (H) … their number falls with the magnetisation".** Two errors. The
+  comparison at equal t mixes different phases, and the wording has the wrong sign: the number falls as the
+  field falls. At the largest dumps: 807 (L, t = 92.5 = 1.65 Ω_ci⁻¹), 33 (M, t = 92.5 = 0.96 Ω_ci⁻¹), 1 (H,
+  t = 111). At equal Ω_ci t ≈ 1.3: 486 (L) and 18 (M).
+- **"The absence of energetic electrons is what a fast Mach number of 1.5–2.5 and b ≈ 2 give".** Withdrawn. The
+  registered baseline predicts a beam of 10²–10³ at these same fronts. The beam is absent, but in the valid
+  domain 98 % or more of it is predicted in the bands θ_Bn = 60–80°, where ε > 0.3 and the baseline is not
+  defined, and the thermal N3 fails. The absence is a statement about the baseline and the floor.
+- **N3 of M** ("0.051 at the protocol's 113"): the same error as in L; see the block below.
+- **Small numbers.** Ω_ce d_i / V_n of M is 6.28, not 6.2. φ of M is 0.014–0.023 where measured; the lower end
+  0.009 quoted before is the bin at 57.5°, which is flagged not measured.
+- **Confirmed, not corrected.** The 5 upstream electrons of M at t = 111 "on rays without a detected front":
+  all 22 upstream electron-dumps of M have feet in bins without a detected front and are undetermined.
+
+**New numbers (records, blocks `r2`, `r2null`, `census-tau`).**
+
+- **Ramp width of |B|** (10–90 % of the rise, upper bound; 10th / 50th / 90th percentile of the valid bins):
+  2.6 / 3.6 / 4.8 d_e (L), 4.8 / 5.4 / 6.0 d_e (M). Crossing time: 24 (L), 49 (M) at the median.
+- **N3 as registered** (thermal ν at lags 64 … 4 times τ): crossing of the ramp 0.12–0.28 (L), 0.25–0.64 (M);
+  per θ_Bn band 0.10–0.37, 0.24–0.66; census layer 0.27–0.62, 0.38–0.98; τ_dwell of B1′ 0.33–0.76, 0.57–1.47;
+  median dwell of the returns 1.3–2.9, 1.3–3.3. Above 0.1 in every reading (the lowest value of L is at the limit).
+- **μ in the null runs.** Share of tracked electrons with μ within 20 % after a gap of 0 / 3 gyro-periods /
+  150 / 250 / 420: 27 / 14 / 12 / 11 / 11 % (L-null), 23 / 12.5 / 12 / 11 / 11 % (M-null). The returns of the
+  shock runs: 11.8 % (L), 12.3 % (M). No difference.
+- **The rule of τ_dwell** (protocol Sect. 3.2), not applied before: the 90th percentile of the dwell of the
+  reflections with γ_out ≥ 1.25 is 198 (L, n = 7) and 286.5 (M, n = 3), above 66 and 113. Census with the new
+  τ: at γ ≥ 1.5 no residual in either (L: explained by S0 5 → 8, undetermined 17 → 14; M: 22 undetermined in
+  both). In the extra bin γ ≥ 1.25 the residual with an encounter falls from 2103 to 746 (L) and from 316 to
+  120 (M).
+- **Regime of the valid domain.** V_n / v_te = 1.46 (L), 1.04 (M) at the median; β = 0.50, 1.47; γ − 1 = 0.5 is
+  45 and 89 times ½ m_e V_n². R ∝ t^0.55 (L), t^0.52 (M). b at θ_Bn ≥ 80°: 2.13 (L), 2.06 (M) against a
+  perpendicular MHD jump of 1.98, 1.94 (adiabatic index 5/3).
+- **ε per band.** At the assumed τ_dwell, ε ≤ 0.3 in 111 of 241 (L) and 47 of 180 (M) valid bins. In every
+  valid bin where one reflection reaches γ = 1.5 (V_HT ≥ 0.447; 96 bins in L, 59 in M) ε is above 0.3.
+- **Why the energetic population of L decays.** The 807 electrons of t = 92.5, followed by id: 220 above 1.5 at
+  t = 111, 44 at t = 185, 0 at t = 296, while their median distance behind the front grows from 6 to 27 d_e.
+  They are made at the piston stage, left behind and not replaced. The cause of the energy loss was not
+  analysed.
+- **Downstream branch of C1.** One macro-electron above the cut behind the front in L (16 outputs), none in M.
+  Fails the count.
+- **Reports of protocol Sect. 4.** In `exploratory-results.md`, Sect. 4. The debris edge of M moves by 11 d_e
+  between the thresholds 0.03 and 0.3 n₀ (L: 3.7 d_e).
+
+**What failed or was not done.**
+
+- An edit of `README.md` was made while a background job still had a `record` step pending; `record` needs a
+  clean tree. Caught before the step ran; the edit was parked outside the tree and restored afterwards.
+- Not done: the count model of thermal escape (S1) per band; the exit θ_Bn of the returns (not in the
+  records); the first critical Mach number; the sensitivity of B2 to the errors of V_n and θ_Bn; the field
+  line of the K1 electron; a second review. L-s2 and N6 were not run (no residual, no K1 signal).
+- References that the reviewer gave from memory are not cited anywhere. The reviewer's estimate of V_sh / v_te
+  for young remnants is the reviewer's and is not used as ours.
+
+**Reading.** The runs answer the registered question with "not obtained". What they add beyond that is a list
+of what a design must fix first: a narrowed question with a controlling number, a baseline valid where ε ~ 1,
+a thermal numerical floor, and a shock requirement in Mach number and duration (`exploratory-results.md`,
+Sect. 8).
+
 ## 2026-11-13 — Runs M, M-null and H: no signal at γ ≥ 1.5; the measured shocks are weak and decaying, the Mach scan did not happen
 - **Runs.** All 8 GPUs, seed 12345, 2960 steps, clean tree.
   - M: `configs/explore-M.yaml`, commit `ac33a41`, 1321 s (446 ms per step), 60.2 GB. Gauss law ≤ 4.5 × 10⁻¹⁵,
