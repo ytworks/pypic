@@ -1,0 +1,46 @@
+# 600-step check of the track cadence for run L (topic spherical-shock-injection; review R1, change 5).
+#
+# The same plasma, field, grid and seed as explore-L.yaml: its first 600 steps (t = 150, 2.7 / Omega_ci), with
+# the tracks written every step at the old stride 4733. The work closure and the magnetic moment are evaluated
+# on these tracks at cadences 1, 2 and 4 (analyze.py cadence); the result fixes `every` of tracks_e in the
+# production configs. The run also gives the first sizes of the dump hot_e at gamma >= 1.25 and the cost of
+# the tracks. It is not a physics run: the shell has only begun to pile up the ambient plasma.
+mass_ratio: 16
+mach_alfven: 3.5
+wpe_wce: 3.5
+vte: 0.1
+ti_te: 1.0
+rm: 16.0
+shell_radius: 0.33
+shell_width: 0.1
+debris_beams: 4
+body: false
+half_width: 1.3
+cells_per_de: 2.0
+ppc: 2
+run: 1.25
+filter_passes: 4
+seed: 12345
+overrides:
+  precision: compact
+  n_steps: 600
+output:
+  diagnostics:
+    - name: slice_y            # the place of the compression, to select the tracked electrons inside it
+      kind: slice
+      fields: ["n:e", "n:i", "n:de", "n:di", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: y
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 74
+    - name: hot_e              # as in explore-L.yaml: the first sizes of the dump
+      kind: particles
+      species: [e, de]
+      select: {gamma_min: 1.25}
+      every: 74
+    - name: tracks_e           # every step, stride 4733 (1.9e5 electrons)
+      kind: tracks
+      species: [e]
+      stride: 4733
+      with_fields: true
+      every: 1
