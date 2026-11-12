@@ -9,7 +9,7 @@ Active only in research mode (research/RESEARCH.md in the working tree). Blocks:
 - git push to main (by refspec, or by an upstream on main), force pushes, --all / --mirror, deletes;
 - git rebase; git commit of staged main-owned files outside a merge; any commit or push on main;
 - git merge / cherry-pick in a command that also switches to main;
-- a pull request from a research branch into a branch that is not a research branch.
+- any pull request: research branches use none (merges are local `git merge --no-ff` + push).
 """
 from __future__ import annotations
 
@@ -28,6 +28,8 @@ PR_TOOLS = {"mcp__github__create_pull_request", "mcp__github__update_pull_reques
 SEPARATORS = re.compile(r"&&|\|\||[;|\n&]")
 FORCE = {"-f", "--force", "--mirror", "--all", "-d", "--delete"}
 RULES = ".claude/rules/research/branching.md"
+NO_PR = ("pull request: research branches use none, since nothing on them is merged by a pull request; "
+         "integrate with a local `git merge --no-ff` and push")
 
 
 def block(reason: str) -> int:
@@ -111,6 +113,8 @@ def check_commit(root: Path, args: list[str], branch: str) -> str | None:
 
 
 def check_bash(root: Path, command: str) -> str | None:
+    if any(w[:3] == ["gh", "pr", "create"] for w in segments(command)):
+        return NO_PR
     calls = git_calls(command)
     if not calls:
         return None
@@ -130,10 +134,6 @@ def check_bash(root: Path, command: str) -> str | None:
             reason = None
         if reason:
             return reason
-    if re.search(r"\bgh\s+pr\s+create\b", command):
-        m = re.search(r"(?:--base|-B)[=\s]+(\S+)", command)
-        if not m or not m.group(1).startswith("research/"):
-            return "pull request from a research branch into a non-research branch"
     return None
 
 
@@ -150,14 +150,6 @@ def check_file(root: Path, path: str) -> str | None:
             "changes go on a branch from main (PR, gates), then into research with the skill research-sync-main")
 
 
-def check_pr(tool_input: dict, branch: str) -> str | None:
-    base = str(tool_input.get("base") or "")
-    head = str(tool_input.get("head") or branch)
-    if base and not base.startswith("research/") and (head.startswith("research/") or "head" not in tool_input):
-        return f"pull request into {base}: research branches never merge into a non-research branch"
-    return None
-
-
 def main() -> int:
     try:
         event = json.load(sys.stdin)
@@ -172,7 +164,7 @@ def main() -> int:
     elif tool == "Bash":
         reason = check_bash(root, str(tool_input.get("command", "")))
     elif tool in PR_TOOLS:
-        reason = check_pr(tool_input, current_branch(root))
+        reason = NO_PR
     else:
         reason = None
     return block(reason) if reason else 0

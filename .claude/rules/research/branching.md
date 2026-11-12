@@ -12,7 +12,9 @@ cut from them. Research mode means `research/RESEARCH.md` exists. Layout and pro
   Land its commits there, and nowhere else.
 - Changes flow main → trunk → topic, always with `git merge --no-ff`. A topic merges into trunk
   (`--no-ff`) at a milestone: a recorded result or a finished survey.
-- Nothing on `research/*` ever reaches main: no PR, push, merge or cherry-pick.
+- Nothing on `research/*` ever reaches main: no push, merge or cherry-pick.
+- Research branches use no pull requests, not even between research branches. Integrate with a
+  local `git merge --no-ff` and a push.
 - Engine changes go the other way: a branch from main, its PR and gates, the merge to main. Then
   take main into trunk with the skill `research-sync-main`, only at a gated point.
 - Never rebase, squash, amend a pushed commit, or force-push a research branch. Never delete a

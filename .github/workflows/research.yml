@@ -11,22 +11,19 @@ permissions:
   contents: read
 
 jobs:
-  never-into-main:
+  no-pull-requests:
     # GitHub reads a pull request's workflows from its merge commit, so this job runs exactly when
-    # the pull request carries the research files. Into a research branch that is the normal flow;
-    # into any other branch (main above all) it is refused: research is never merged into main.
+    # a pull request carries the research files. Research branches use no pull requests (merges
+    # are local `git merge --no-ff` + push), and research is never merged into main: refuse it.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Research files only into research branches
+      - name: Research branches use no pull requests
         env:
           BASE: ${{ github.base_ref }}
           HEAD: ${{ github.head_ref }}
         run: |
-          case "$BASE" in
-            research/*) echo "$HEAD -> $BASE: within the research branches"; exit 0 ;;
-          esac
-          echo "::error::$HEAD -> $BASE carries the research files. Research branches are never merged into $BASE (.claude/rules/research/branching.md)."
+          echo "::error::$HEAD -> $BASE carries the research files. Research branches use no pull requests and are never merged into main (.claude/rules/research/branching.md); close this pull request."
           exit 1
 
   checks:

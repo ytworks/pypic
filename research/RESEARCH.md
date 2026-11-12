@@ -20,6 +20,13 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 
 ## Change Log
 
+### 2026-11-12 — [amendment] Research branches use no pull requests
+- What: research branches use no pull requests at all, not even between research branches. Merges are local `git merge --no-ff` followed by a push.
+  - The PreToolUse guard blocks every PR creation, through the GitHub MCP tool or the gh CLI. Its gh check now parses commands, so the words in a commit message no longer trigger it.
+  - The CI job `no-pull-requests` fails any PR that carries the research files.
+- Why: owner's decision. Nothing on a research branch is merged by a PR, so a PR serves no purpose. PR #44 (research/trunk → main) was closed without a merge.
+- Refs: `.claude/rules/research/branching.md`, `research/tools/hooks/guard.py`, `.github/workflows/research.yml`; amends the entry "Research branches and their harness".
+
 ### 2026-11-12 — [design] Research reviewer agent; literature notes on Hoshino's work
 - What: `.claude/agents/research-reviewer.md` is a reviewer for research questions, plans, results and drafts.
   - It is read-only, and is for research only: never for code, the engine or engineering.

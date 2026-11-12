@@ -14,7 +14,7 @@ loads on these branches are in `.claude/rules/research/`.
 main ──(merge, at a gated point)──▶ research/trunk ──(merge)──▶ research/<topic>
                                          ▲                            │
                                          └──── merge --no-ff ─────────┘  (at a milestone)
-research/* ──✕──▶ main                   (no PR, push, merge or cherry-pick)
+research/* ──✕──▶ main                   (no push, merge or cherry-pick)
 ```
 
 - `research/trunk` holds what all topics share: tools, rules, `RESEARCH.md`, the literature.
@@ -62,7 +62,7 @@ research/tests/                 tests of the tools (pytest research/tests)
   - pushes to main, force pushes and branch deletes;
   - rebases;
   - commits of main-owned files outside a merge;
-  - pull requests from a research branch into a non-research branch.
+  - any pull request: research branches use none; merges are local `--no-ff` merges and a push.
 
   It matches strings, so it is a tripwire, not a proof.
 - **SessionStart hook (`research/tools/hooks/session_start.py`):** reports the following. It reads local refs only.
@@ -71,7 +71,7 @@ research/tests/                 tests of the tools (pytest research/tests)
   - how far `origin/main` is ahead;
   - any rule violations.
 - **CI (`.github/workflows/research.yml`):** runs `check_branch.py`, `ruff` and the tool tests on
-  every push to `research/**`. A pull request that carries the research files into a branch that is not a research branch fails.
+  every push to `research/**`. Any pull request that carries the research files fails, since research branches use none.
   GitHub reads a pull request's workflows from its merge commit, so this check works without any change to main.
 
 ## Limits and settings outside the repository
@@ -79,7 +79,7 @@ research/tests/                 tests of the tools (pytest research/tests)
 - **Codex:** reads `AGENTS.md` → `CLAUDE.md`, which do not mention these rules; they are Claude Code only.
 - **Hooks on main:** they run only where their scripts exist, so they do nothing in a main checkout. A merge of research into
   main done there is caught at the next commit or push (the research files are then in the tree),
-  or by the CI of its pull request.
+  or by the CI of a pull request, if one is opened.
 - **Recommended:** a GitHub ruleset on `research/**` that forbids force pushes and deletion.
 - **Cloud sessions:** start a session for research with `research/trunk` or `research/<topic>` as the source
   branch. A session started from main does not load these rules.
