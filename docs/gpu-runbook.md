@@ -39,6 +39,13 @@ and every analytic example) with `precision: mixed` and records them as
 GPU tests are not repeated (they cover both precisions and are part of the fp64 record); the implicit
 configuration is excluded (mixed is explicit-only). Run it after the fp64 gates on the same commit.
 
+## Compact particle storage (PIC-D19, Proposed)
+
+`python scripts/gpu_gates.py --gpus 8 --precision compact` runs the same explicit gates with
+`precision: compact` and records them as `bench/results/<date>-<commit>-gpu-gates-compact.json`
+(`precision: compact` in the file and its index entry), under the same criteria. Run it after the fp64 and
+the mixed gates on the same commit.
+
 ## Diagnostics
 
 Wall time and ns/particle/step are recorded per gate but never decide a verdict. For scaling
