@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import baseline  # noqa: E402
 import census  # noqa: E402
 import orbits  # noqa: E402
+import potential  # noqa: E402
 import shockkin as sk  # noqa: E402
 import upstream  # noqa: E402
 
@@ -300,6 +301,7 @@ def selftest() -> int:
     orbits.selfcheck(check)
     baseline.selfcheck(check)
     upstream.selfcheck(check)
+    potential.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
@@ -1041,6 +1043,9 @@ def main(argv=None) -> int:
     p = sub.add_parser("n3c", help="fluctuation power upstream of the front against the null run (N3c)")
     p.add_argument("run")
     p.add_argument("null")
+    p = sub.add_parser("phi", help="rise of the potential along the field lines through the layer (Sect. 3.1)")
+    p.add_argument("run")
+    p.add_argument("--null", help="directory of the null run: its E along the same paths gives the noise")
     p = sub.add_parser("baseline", help="count model B2 on the measured front against the census (Sect. 3.4)")
     p.add_argument("run")
     p.add_argument("--workers", type=int, default=4)
@@ -1052,6 +1057,8 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "n3c":
         return upstream.cmd_n3c(args)
+    if args.cmd == "phi":
+        return potential.cmd_phi(args)
     if args.cmd == "baseline":
         return baseline.cmd_baseline(args)
     if args.cmd == "tracks":

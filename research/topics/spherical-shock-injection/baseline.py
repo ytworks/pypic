@@ -2,8 +2,9 @@
 and the energies before the reflection of the electrons that B1' explains (Sect. 3.2).
 
 Upper bound: the measured compression b(theta, t), phi = 0, the measured upstream temperature.
-Lower bound: the initial temperature and b lower by its scatter; phi is not measured, so phi = 0 here too
-and the lower bound is too high by the effect of the potential.
+Lower bound: the initial temperature and b lower by its scatter, with the measured phi (analysis/phi.npz of the
+command phi) where its error is below 50 %; elsewhere phi = 0 and the lower bound is too high there.
+The share of all encounters that the model reflects is compared with that of the tracked orbits.
 The energy bin gamma 1.25-1.5 lies below the threshold fixed before the runs; it is carried as an extra.
 """
 from __future__ import annotations
@@ -15,6 +16,7 @@ from pathlib import Path
 
 import census
 import numpy as np
+import potential
 import shockkin as sk
 
 BAND_EDGES_DEG = list(range(0, 91, 10))
@@ -65,14 +67,16 @@ def before_moments(v_ht: float, temp: float, b: float, gamma_edges, n_par=320, n
 
 
 def _case(job):
-    front, t_grid, theta, t_dumps, temp, b, density, z_half, mask = job
-    res = sk.reflection_counts(front, t_grid, theta, t_dumps, temp, b, 0.0, density, z_half, census.E_EDGES,
-                               BAND_EDGES_DEG, valid=mask)
-    return res["counts"], res["reflected"]
+    front, t_grid, theta, t_dumps, temp, b, phi, density, z_half, mask = job
+    # a first bin from gamma = 1 holds the reflections below the bins of the census
+    res = sk.reflection_counts(front, t_grid, theta, t_dumps, temp, b, phi, density, z_half,
+                               [1.0, *census.E_EDGES], BAND_EDGES_DEG, valid=mask)
+    return res["counts"][..., 1:], res["reflected"], res["encountered"]
 
 
-def model_counts(model, t_dumps, sigma_b, t_step: float = 3.7, workers: int = 4):
-    """Counts of B2 [bound (upper, lower), domain, dump, band, energy bin] and the reflections in all."""
+def model_counts(model, t_dumps, sigma_b, phi_map=None, t_step: float = 3.7, workers: int = 4):
+    """Counts of B2 [bound (upper, lower), domain, dump, band, energy bin]; the reflections of all energies and
+    the encounters [bound, domain, band]. phi_map(theta, t) -> (phi, source): used in the lower bound."""
     t0, t1 = model.t_range_b
     t_grid = np.arange(t0 + 0.5 * t_step, t1, t_step)
     theta = np.radians(np.arange(0.5, 90.0, 1.0))
@@ -86,14 +90,66 @@ def model_counts(model, t_dumps, sigma_b, t_step: float = 3.7, workers: int = 4)
     density = model.ppc / float(np.prod(model.dx))
     z_half = model.n_cells[2] * model.dx[2] - model.centre[2]
     masks = [has & (flag >= 1), has & (flag >= 2)]
-    jobs = [(model.front_b, t_grid, theta, t_dumps, tp, np.where(has, bb, 1.0001), density, z_half, m)
-            for tp, bb in ((temp_up, b), (temp_0 * np.ones_like(tt), b_low)) for m in masks]
+    phi, src = phi_map(th, tt) if phi_map is not None else (np.zeros_like(tt), np.zeros(tt.shape, int))
+    jobs = [(model.front_b, t_grid, theta, t_dumps, tp, np.where(has, bb, 1.0001), ph, density, z_half, m)
+            for tp, bb, ph in ((temp_up, b, 0.0), (temp_0 * np.ones_like(tt), b_low, phi)) for m in masks]
     with ProcessPoolExecutor(max_workers=workers) as pool:
         res = list(pool.map(_case, jobs))
     counts = np.array([r[0] for r in res]).reshape(2, 2, len(t_dumps), len(BAND_EDGES_DEG) - 1, -1)
-    reflected = np.array([r[1] for r in res]).reshape(2, 2, -1)
-    return counts, reflected, {"t_grid": [float(t_grid[0]), float(t_grid[-1]), t_step], "T_initial": temp_0,
-                               "density": density, "z_half": float(z_half)}
+    reflected, encountered = (np.array([r[k] for r in res]).reshape(2, 2, -1) for k in (1, 2))
+    info = {"t_grid": [float(t_grid[0]), float(t_grid[-1]), t_step], "T_initial": temp_0, "density": density,
+            "z_half": float(z_half),
+            "phi_cells": [{"domain": name, "cells": int(m.sum()), "windowed": int((m & (src == 2)).sum()),
+                           "mean of the bin": int((m & (src == 1)).sum()), "not measured": int((m & (src == 0)).sum()),
+                           "median phi where measured": float(np.median(phi[m & (src > 0)]))
+                           if (m & (src > 0)).any() else None} for name, m in zip(DOMAINS, masks)]}
+    return counts, reflected, encountered, info
+
+
+def track_shares(run_dir, model):
+    """Tracked orbits that met the front, by the band of the foot of their field line when they entered the
+    layer and by their end: [domain, band, (back upstream, transmitted, returned from downstream, in the layer at
+    the end, back upstream after a sample behind the density front)]. None without analysis/tracks.npz."""
+    path = Path(run_dir) / "analysis" / "tracks.npz"
+    if not path.exists():
+        return None
+    z = np.load(path)
+    cat, t_in, rho = z["cat"], z["t_enter"], z["rho_in"]
+    deep = (cat == 1) & (z["d_min"] <= 0.0)
+    ok = np.isin(cat, (1, 2, 3, 4)) & np.isfinite(t_in) & np.isfinite(rho)
+    ok &= (t_in >= model.t_range_b[0]) & (t_in <= model.t_range_b[1])
+    z_foot, _, tbn = model.tab_b.at(rho[ok], t_in[ok])
+    flag = model.flag(np.arctan2(rho[ok], np.abs(z_foot)), t_in[ok])
+    good = np.isfinite(tbn)
+    band = np.minimum((np.degrees(np.where(good, tbn, 0.0)) // 10).astype(int), len(BAND_EDGES_DEG) - 2)
+    out = np.zeros((2, len(BAND_EDGES_DEG) - 1, 5), int)
+    kind = np.array([0, 0, 3, 1, 2])[cat[ok]]  # CATS of orbits.py: 1 back, 2 in the layer, 3 transmitted, 4 returned
+    for d, fmin in enumerate((1, 2)):
+        s = good & (flag >= fmin)
+        np.add.at(out[d], (band[s], kind[s]), 1)
+        np.add.at(out[d], (band[s & deep[ok]], 4), 1)
+    return out
+
+
+def share_rows(reflected, encountered, tracks) -> list:
+    """Per domain and band: the share of the encounters that the model reflects (upper bound: phi = 0; lower
+    bound: with phi) and the share of the tracked orbits that came back upstream, of those with a known end."""
+    rows = []
+    for d, dom in enumerate(DOMAINS):
+        for ib in range(len(BAND_EDGES_DEG) - 1):
+            row = {"domain": dom, "band": [BAND_EDGES_DEG[ib], BAND_EDGES_DEG[ib + 1]]}
+            for k, bound in enumerate(("upper", "lower")):
+                row[f"model {bound}"] = float(reflected[k, d, ib] / encountered[k, d, ib]) \
+                    if encountered[k, d, ib] > 0 else None
+            if tracks is not None:
+                back, done = int(tracks[d, ib, 0]), int(tracks[d, ib, :3].sum())
+                row.update({"tracks back": back, "tracks with a known end": done,
+                            "tracks in the layer at the end": int(tracks[d, ib, 3]),
+                            "tracks back from behind the front": int(tracks[d, ib, 4]),
+                            "tracks share": back / done if done >= N_MIN else None,
+                            "tracks share error": float(np.sqrt(max(back, 1)) / done) if done >= N_MIN else None})
+            rows.append(row)
+    return rows
 
 
 def measured_counts(cen, n_dumps: int):
@@ -187,7 +243,8 @@ def cmd_baseline(args) -> int:
     t_dumps = cen["times"]
     has = np.isfinite(z["r_b"]) & (z["b_mean"] >= 1.5)
     sigma_b = b_scatter(z["b_mean"], has)
-    counts, reflected, info = model_counts(model, t_dumps, sigma_b, workers=args.workers)
+    phi_map = potential.PhiMap.load(run_dir)
+    counts, reflected, encountered, info = model_counts(model, t_dumps, sigma_b, phi_map, workers=args.workers)
     meas = measured_counts(cen, len(t_dumps))
     pre = list(range(1, len(census.E_EDGES) - 1))
     b_med = float(np.nanmedian(np.where(has, z["b_mean"], np.nan)))
@@ -196,11 +253,13 @@ def cmd_baseline(args) -> int:
            "sigma_b": {"definition": "1.48 MAD of the differences of the bin-average compression between "
                        "successive outputs, over sqrt 2, per angle",
                        "per_angle": sigma_b.tolist(), "median": float(np.median(sigma_b))},
-           "phi": "not measured: phi = 0 in both bounds, so the lower bound is too high",
+           "phi": "not measured: phi = 0 in both bounds, so the lower bound is too high" if phi_map is None else
+                  "measured phi in the lower bound where its error is below 50 %, 0 elsewhere",
            "N3": [{"gamma": r["gamma"], "nu from": r["nu_from"], "nu x tau_dwell": r["nu_used"] * model.tau_dwell}
                   for r in cj["N3b"]],
-           "reflected_in_all": {"upper": reflected[0].sum(axis=-1).tolist(),
-                                "lower": reflected[1].sum(axis=-1).tolist()},
+           "reflected, all energies": {"upper": reflected[0].tolist(), "lower": reflected[1].tolist()},
+           "encountered": {"upper": encountered[0].tolist(), "lower": encountered[1].tolist()},
+           "share reflected": share_rows(reflected, encountered, track_shares(run_dir, model)),
            "model_counts": counts.tolist(), "measured": meas.tolist(),
            "rule gamma >= 1.5": compare(counts, meas, pre), "rule gamma 1.25-1.5 (extra)": compare(counts, meas, [0]),
            "energies_before": energies_before(cen, model, {"b_max": float(model.b_max), "b_median": b_med})}
@@ -216,6 +275,24 @@ def report(out) -> None:
           f"{out['density']:.0f} macro-electrons per d_e^3; {out['phi']}")
     print("N3, nu x tau_dwell:", "; ".join(f"gamma {r['gamma']} {r['nu x tau_dwell']:.3f} ({r['nu from']})"
                                           for r in out["N3"]))
+    for r in out.get("phi_cells", []):
+        print(f"phi in the lower bound, {r['domain']}: {r['cells']} cells of the model; windowed value in "
+              f"{r['windowed']}, mean of the bin in {r['mean of the bin']}, not measured in {r['not measured']}; "
+              f"median where measured {r['median phi where measured']}")
+    print("\nshare of the encounters that end in a reflection, all energies (model: feet slower than light only): "
+          "model with phi = 0 / model of the lower bound | tracked orbits back upstream (of them with a sample "
+          "behind the density front) / with a known end (in the layer at the end)")
+    for r in out.get("share reflected", []):
+        if r["model upper"] is None and not r.get("tracks with a known end"):
+            continue
+        fmt = "  ".join("   n/a" if r[k] is None else f"{r[k]:6.4f}" for k in ("model upper", "model lower"))
+        line = f"  {r['domain']:14s} {r['band'][0]:2d}-{r['band'][1]:2d}  {fmt}"
+        if "tracks back" in r:
+            share = "n/a" if r["tracks share"] is None else f"{r['tracks share']:.4f} +- {r['tracks share error']:.4f}"
+            line += (f" | {r['tracks back']:5d} ({r['tracks back from behind the front']:5d}) / "
+                     f"{r['tracks with a known end']:6d} "
+                     f"({r['tracks in the layer at the end']:6d})  {share}")
+        print(line)
     for d, name in enumerate(out["domains"]):
         print(f"\n{name}: electrons in the box, all bands; lower / upper bound | explained by S0 / undetermined / "
               "all upstream")
@@ -288,3 +365,45 @@ def selfcheck(check) -> None:
     ok = (r["cells with >= 100 electrons"], r["inside"], r["below lower / 2"], r["above 2 x upper"]) == (2, 1, 1, 0)
     check("baseline, rule of the bounds", ok, f"{r['inside']} of {r['cells with >= 100 electrons']} cells inside, "
           f"{r['below lower / 2']} below half the lower bound")
+    # the share of the encounters that end in a reflection: the bin from gamma = 1 leaves the counts as they
+    # were; a potential lowers the share; the shares of the tracked orbits by the band of their foot
+    front, t_grid, theta = sk.sphere(20.0, 0.2), np.arange(0.5, 100, 1.0), np.radians(np.arange(0.5, 90, 1.0))
+    t_dumps, mask = np.array([50.0, 100.0]), np.ones((100, 90), bool)
+    c0, r0, e0 = _case((front, t_grid, theta, t_dumps, 0.01, 2.5, 0.0, 1.0, 60.0, mask))
+    c1, r1, e1 = _case((front, t_grid, theta, t_dumps, 0.01, 2.5, np.full((100, 90), 0.02), 1.0, 60.0, mask))
+    ref = sk.reflection_counts(front, t_grid, theta, t_dumps, 0.01, 2.5, 0.0, 1.0, 60.0, census.E_EDGES,
+                               BAND_EDGES_DEG, valid=mask)
+    one = sk.reflected_flux(0.2 / np.cos(np.radians(45.5)), 0.01, 2.5, 0.0, [1.0, np.inf], np.linspace(0, 1, 201))
+    rows = share_rows(np.array([[r0, r0], [r1, r1]]), np.array([[e0, e0], [e1, e1]]), None)
+    lo, hi = rows[4]["model lower"], rows[4]["model upper"]  # 40-50 degrees, detected front
+
+    class _Model:
+        t_range_b = (0.0, 100.0)
+
+        class tab_b:  # noqa: N801
+            @staticmethod
+            def at(rho, t):
+                return 10.0 * np.ones_like(rho), 0.3 * np.ones_like(rho), np.radians(rho)
+
+        @staticmethod
+        def flag(theta, t):
+            return np.where(t > 50.0, 2, 1)
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "analysis").mkdir()
+        # 600 orbits with the foot at 45 degrees: 60 back, 440 transmitted, 100 in the layer; 300 of them late;
+        # 5 that never met the front and 5 that entered before the range of the fit
+        cat = np.array([1] * 60 + [3] * 440 + [2] * 100 + [0] * 5 + [1] * 5)
+        t_in = np.concatenate([np.tile([20.0, 80.0], 300), np.full(5, np.nan), np.full(5, -5.0)])
+        np.savez(Path(tmp) / "analysis" / "tracks.npz", cat=cat, t_enter=t_in, rho_in=np.full(610, 45.0),
+                 d_min=np.where(np.arange(610) < 20, -1.0, 2.0))
+        tr = track_shares(tmp, _Model)
+    row = share_rows(np.array([[r0, r0], [r1, r1]]), np.array([[e0, e0], [e1, e1]]), tr)[4]
+    ok = np.allclose(c0, ref["counts"], rtol=1e-12) and np.all(r0 >= c0[-1].sum(axis=-1)) and 0.0 < lo < 0.7 * hi \
+        and abs(hi / (one[0].sum() / one[1]) - 1.0) < 0.1 and tr[0, 4].tolist() == [60, 440, 0, 100, 20] \
+        and tr[1, 4, :4].sum() == 300 and tr[..., :4].sum() == 900 and row["tracks share"] == 60 / 500
+    check("baseline, share of the encounters that end in a reflection", ok,
+          f"40-50 degrees: {hi:.4f} without a potential ({one[0].sum() / one[1]:.4f} at 45.5 degrees), {lo:.4f} with "
+          f"phi = 2 T; counts of the census bins unchanged; tracked orbits {tr[0, 4].tolist()} -> "
+          f"{row['tracks share']:.3f}")
