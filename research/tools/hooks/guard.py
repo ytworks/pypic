@@ -6,7 +6,8 @@ are string matches and see one command at a time.
 
 Active only in research mode (research/RESEARCH.md in the working tree). Blocks:
 - Edit / Write / NotebookEdit of a main-owned file (anything but the research paths);
-- git push to main (by refspec, or by an upstream on main), force pushes, --all / --mirror, deletes;
+- git push to main (by refspec, or by an upstream on main), force pushes, --all / --mirror, and
+  deletes of research branches (other branches may be deleted);
 - git rebase; git commit of staged main-owned files outside a merge; any commit or push on main;
 - git merge / cherry-pick in a command that also switches to main;
 - any pull request: research branches use none (merges are local `git merge --no-ff` + push).
@@ -26,7 +27,8 @@ from check_branch import current_branch, git, is_research_path, research_mode  #
 FILE_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
 PR_TOOLS = {"mcp__github__create_pull_request", "mcp__github__update_pull_request"}
 SEPARATORS = re.compile(r"&&|\|\||[;|\n&]")
-FORCE = {"-f", "--force", "--mirror", "--all", "-d", "--delete"}
+FORCE = {"-f", "--force", "--mirror", "--all"}
+DELETE = {"-d", "--delete"}
 RULES = ".claude/rules/research/branching.md"
 NO_PR = ("pull request: research branches use none, since nothing on them is merged by a pull request; "
          "integrate with a local `git merge --no-ff` and push")
@@ -77,18 +79,27 @@ def short(ref: str) -> str:
 def check_push(root: Path, args: list[str], branch: str) -> str | None:
     flags = [a for a in args[1:] if a.startswith("-")]
     if any(f in FORCE or f.startswith("--force") for f in flags):
-        return "force push, --all, --mirror or a branch delete: research history must stay as it is"
+        return "force push, --all or --mirror: research history must stay as it is"
     positional = [a for a in args[1:] if not a.startswith("-")]
     refspecs = positional[1:]
-    if any(r.startswith(("+", ":")) for r in refspecs):
-        return "forced (+) or deleting (:) refspec: research history must stay as it is"
+    if any(r.startswith("+") for r in refspecs):
+        return "forced (+) refspec: research history must stay as it is"
+    deleting = DELETE & set(flags)
+    deleted = [short(r.lstrip(":")) for r in refspecs if deleting or r.startswith(":")]
+    if any(d.startswith("research/") for d in deleted):
+        return "delete of a research branch: research history must stay as it is (run records name its commits)"
+    if "main" in deleted:
+        return "delete of main"
+    if deleting:
+        return None  # deleting other branches (merged feature branches) is allowed
+    given, refspecs = refspecs, [r for r in refspecs if not r.startswith(":")]
     if branch == "main":
         return "push from main while research files are in the tree: research is never merged into main"
     for r in refspecs:
         dst = short(r.split(":", 1)[1] if ":" in r else r)
         if dst == "main":
             return f"push to main ({r}): research branches are never pushed to main"
-    if not refspecs:
+    if not given:
         upstream = git(root, "rev-parse", "--abbrev-ref", "@{upstream}", check=False).strip()
         if upstream.split("/", 1)[-1] == "main":
             return (f"this branch tracks {upstream}: a bare `git push` would push it to main; "

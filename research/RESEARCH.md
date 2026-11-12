@@ -20,6 +20,11 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 
 ## Change Log
 
+### 2026-11-12 — [amendment] Guard: other branches may be deleted; research branches and main may not
+- What: the PreToolUse guard used to block every branch delete. It now blocks only deletes of `research/*` and of main.
+- Why: the owner asked to delete merged branches that are neither main nor research. The rule protects research history only.
+- Refs: `research/tools/hooks/guard.py`, `research/tests/test_guard.py`.
+
 ### 2026-11-12 — [progress] Topic spherical-shock-injection opened
 - What: `research/spherical-shock-injection` was cut from trunk at 6f00c11.
   - Purpose (owner): the electron injection problem, studied with PIC of a spherical shock. It covers every acceleration mechanism, known and unknown: surfing, drift, wakefield, first- and second-order Fermi, combinations, geometric effects of the curved front, and the front's shape from perpendicular to parallel θ_Bn.
