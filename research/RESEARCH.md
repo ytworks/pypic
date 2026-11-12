@@ -11,7 +11,7 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 
 | Topic | Branch | Question | Status | Latest record |
 |---|---|---|---|---|
-| (none yet) | | | | |
+| spherical-shock-injection | `research/spherical-shock-injection` | Which mechanisms, known or unknown, inject electrons at a spherical shock, where on the front (θ_Bn, curvature), and which exist only because the front is curved? (draft) | Purpose stated 2026-11-12; survey open | none |
 
 ## Engine baseline
 
@@ -19,6 +19,12 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 - Its `pypic/` tree is that of 300c1a4. Gates all passed there: `bench/results/2026-11-12-300c1a498-gpu-gates.json`, `-mixed.json` and `-compact.json`.
 
 ## Change Log
+
+### 2026-11-12 — [progress] Topic spherical-shock-injection opened
+- What: `research/spherical-shock-injection` was cut from trunk at 6f00c11.
+  - Purpose (owner): the electron injection problem, studied with PIC of a spherical shock. It covers every acceleration mechanism, known and unknown: surfing, drift, wakefield, first- and second-order Fermi, combinations, geometric effects of the curved front, and the front's shape from perpendicular to parallel θ_Bn.
+  - The README has the background and a draft question. The survey list is in the topic's `literature.md`.
+- Refs: `research/topics/spherical-shock-injection/README.md` (on its branch).
 
 ### 2026-11-12 — [amendment] Research branches use no pull requests
 - What: research branches use no pull requests at all, not even between research branches. Merges are local `git merge --no-ff` followed by a push.
