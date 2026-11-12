@@ -31,15 +31,15 @@ tests); everything that executes kernels runs here. Criteria: `.claude/rules/num
 4. On failure: the JSON lists `failed_checks` and a log tail. Never relax a criterion to pass;
    a criterion changes only by a design amendment recorded in `docs/design/` and `PROGRESS.md`.
 
-## Mixed-precision gather (PIC-D11, Proposed)
+## Mixed-precision gather (PIC-D11)
 
-`python scripts/gpu_gates.py --gpus 8 --precision mixed` runs the explicit gates (two-stream ei/ep/eip/buneman
-and every analytic example) with `precision: mixed` and records them as
+`python scripts/gpu_gates.py --gpus 8 --precision mixed` runs the explicit gates (two-stream ei/ep/eip/buneman/ei_b0
+and every example gate) with `precision: mixed` and records them as
 `bench/results/<date>-<commit>-gpu-gates-mixed.json` (`precision: mixed` in the file and its index entry). The
 GPU tests are not repeated (they cover both precisions and are part of the fp64 record); the implicit
 configuration is excluded (mixed is explicit-only). Run it after the fp64 gates on the same commit.
 
-## Compact particle storage (PIC-D19, Proposed)
+## Compact particle storage (PIC-D19)
 
 `python scripts/gpu_gates.py --gpus 8 --precision compact` runs the same explicit gates with
 `precision: compact` and records them as `bench/results/<date>-<commit>-gpu-gates-compact.json`

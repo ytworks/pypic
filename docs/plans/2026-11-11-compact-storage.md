@@ -1,7 +1,8 @@
 # Compact particle storage: closing R3 and R5
 
-Status: In progress
-Refs: roadmap R3, R5 (R10 stays open); PIC-D19 (new); PIC-D11 (default to be decided by the owner)
+Status: In progress — R3 and R5 are closed by the owner's decisions (2026-11-12, last section);
+open: the gate records of the head after the merge of PR #41
+Refs: roadmap R3, R5 (R10 stays open); PIC-D19 (new); PIC-D11 (default `fp64`, owner decision 2026-11-12)
 
 ## Context
 
@@ -1292,3 +1293,72 @@ The criteria are the same in the three precisions (the contracts of
 
 What the records do not cover: `compact` with the implicit solver (refused); the 102 GPU tests
 run once, with the `fp64` gates (the tests of the mode set `precision: compact` themselves).
+
+## A3 — the owner's decisions (2026-11-12) and what they close
+
+The owner decided on the three points this pull request put to them, with the three gate
+records of 2c8aa5f and the production-size comparison of the sections above.
+
+1. **Default precision: `fp64`.** `mixed` (PIC-D11) and `compact` (PIC-D19) are options of the
+   explicit solver; `pypic/config.py` is unchanged. PIC-D11 and PIC-D19 are Accepted.
+2. **Amendment of the memory criterion of R5** (the proposal of "R5 memory criterion" above,
+   accepted as written). In "What closes the rows" the clause "the peak device memory of a
+   production-size run is within 5 % of the planner's figure" now reads: "the peak device
+   memory of a production-size run does not exceed the planner's figure, and is within 5 % of
+   the planner's formula with the sort term at the largest fill of the run". Reason: the
+   planner's figure is a bound for full particle arrays, and the runs fill 0.57 to 0.67 of
+   their slots. The six measured runs meet the amended wording: every peak is below the
+   figure, and −0.9 % (`fp64`) and −1.0 % (`compact`) from the formula at production size,
+   +1.3 % to −1.6 % at gate size. By the wording before the amendment five of the six were
+   outside the limit, on the low side; that record stays as written above. The planner's
+   formula, `SORT_BYTES` and the 5 % are unchanged.
+3. **Amendment of the null test of A1** (the two-part test recorded under A1, confirmed). "The
+   FP64 and mixed gates reproduce the values of the records of 17f1b5f bit for bit" is
+   replaced by: (1) the particle rows after one step have the same bits on the base tree and
+   on the A1 commit; (2) the gates on the A1 commit are set value by value beside the records
+   of 17f1b5f. Reason: two runs of one tree do not give the same gate values in all digits
+   (order of the atomic deposits, ANA-D3). Results as recorded under A1: (1) holds in the five
+   set-ups in which the base reproduces itself; (2) both records ALL PASSED.
+
+What this closes:
+
+- **R5**: PIC-D19 is Accepted; the explicit gates pass on one commit (2c8aa5f) in `fp64`,
+  `mixed` and `compact`; the memory criterion as amended is met; the planners take the bytes
+  per slot of the mode (`SLOT_BYTES`, `SORT_BYTES` in `pypic/config.py`).
+- **R3**: every item is adopted with gate evidence or measured and dropped ("What was
+  measured: adopted and dropped"); the default precision is decided and PIC-D11 is no longer
+  Proposed; the final breakdown of `push_deposit` is recorded; M6 is Complete; the roadmap
+  names what remains, R10, with its measured share (0.876 ms of the 2.837 ms `compact` step on
+  8 GPUs is skipped with zero charge).
+
+### Review fix (2026-11-12, 4168d9b)
+
+`CompactSpecies.rows(sel)` built the FP64 positions of every particle and then took the
+selection, so a sparse particle or track output asked for arrays of all particles. It takes
+the selection first now; the values are unchanged. Test: `rows(idx)` and `rows(mask)` equal
+the columns of `rows()`, and `rows(idx)` asks for less than one byte per particle (fails on
+the code before, checked once).
+
+### Stacked on PR #41 (2026-11-12, 031851c)
+
+Owner instruction (2026-11-12): the three pull requests merge without conflicts. That replaces
+"any merge order" of the owner's plan by a fixed one: #41 (`examples/r6`), then #43 (this
+branch), then #42 (`wakefield`); each later branch takes the earlier ones in by a merge commit
+(no rebase: the commits, the gate records and the review comments of a branch stay as they
+are). The base of each pull request stays `main`.
+
+- 031851c merges `examples/r6` at 00c07ee. Both sides are kept in `scripts/gpu_gates.py`
+  (`ei_b0` joins the explicit configurations of `--precision mixed` and `compact`),
+  `docs/design/engine.md` (PIC-D18, PIC-D19), `examples/blast_wave/README.md`,
+  `bench/results/index.json` (64 records) and `PROGRESS.md`; the three Change Log entries of
+  PR #41 go into the archive byte for byte, below the entry of PIC-D19 that is newer than they
+  are. The GPU test of PIC-D18 reads the particle rows through `Species.rows()`.
+- The head has the `pypic/` of neither parent (PIC-D18 of PR #41 beside the accessor layer and
+  the compact mode), so the records of 2c8aa5f and of c54e5d1 do not cover it. The gates are
+  taken once on the head, in the three precisions, with the gates PR #41 added: `ei_b0` and
+  five example gates (`relativistic_shock:pair_2d_sigma`, `filamentation:pair_b0` and
+  `pair_b0_stable`, `bow_shock:south` and `oblique`).
+- Targeted run on 031851c before the gates (8 GPUs, `--precision compact`, only the gates of
+  PR #41, which no `compact` record holds yet; a partial run, not recorded): `ei_b0` (growth
+  error +2.2 %, Gauss 1.6e-14), `relativistic_shock:pair_2d_sigma`, `filamentation:pair_b0` and
+  `pair_b0_stable`, `bow_shock:south` and `oblique` all pass.
