@@ -1,0 +1,97 @@
+# Exploratory run M of the topic spherical-shock-injection (designed 2026-11-12; not run yet).
+# Record and reasons: ../exploratory-conditions.md. Run with examples/blast_wave/run.py (that file, Sect. 8).
+#
+# A debris shell with a radial drift V_d = 0.25 c expands into a plasma at rest in a uniform field B0 along z.
+# Nominal M_A = 6.0 (V_d / v_A), beta = 1.44, fast Mach number 4.05: between the whistler limit 4 and the surfing threshold 7.6.
+# The front is slower than V_d, so its own Mach number is lower and is to be measured.
+# The three runs L, M, H differ only in the field strength (wpe_wce = mach_alfven) and in rm, which keeps
+# R_B at about 148 d_e, so that all three use the same box: 768^3 cells of 0.5 d_e, 2960 steps (7.7 / Omega_ci).
+mass_ratio: 16
+mach_alfven: 6.0
+wpe_wce: 6.0
+vte: 0.1
+ti_te: 1.0
+rm: 11.2
+shell_radius: 0.33
+shell_width: 0.1
+debris_beams: 4
+body: false          # no absorbing sphere and no dipole: a remnant has no magnetised body
+half_width: 1.3      # the planner's lower limit, in R_B
+cells_per_de: 2.0
+ppc: 2
+run: 1.25
+filter_passes: 4
+seed: 12345
+overrides:
+  precision: compact
+output:
+  # This list replaces the planner's. The first three entries repeat the planner's own diagnostics (same
+  # names, block size and cadence), because examples/blast_wave/analyze.py reads them; the slices also carry
+  # the electron moments and J. The others are for the electrons. The box is 384 d_e wide, centre at 192.
+  diagnostics:
+    - name: coarse
+      kind: fields
+      fields: ["n:e", "flux:e", "ekin:e", "n:i", "flux:i", "ekin:i", "n:de", "flux:de", "ekin:de",
+               "n:di", "flux:di", "ekin:di", E, B, rho]
+      coarsen: [9, 9, 9]
+      every: 296
+    - name: slice_z            # equatorial plane, z = centre: theta_Bn = 90 deg all around
+      kind: slice
+      fields: ["n:e", "n:i", "n:de", "n:di", "flux:i", "flux:e", "ekin:e", E, B, J]
+      axis: z
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 74
+    - name: slice_y            # meridional plane, y = centre: contains B0, all theta_Bn from 0 to 90 deg
+      kind: slice
+      fields: ["n:e", "n:i", "n:de", "n:di", "flux:i", "flux:e", "ekin:e", E, B, J]
+      axis: y
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 74
+    - name: spec_meridional    # energy spectra by position in a slab of 16 d_e around the meridional plane
+      kind: histogram
+      species: [e, i, de, di]
+      quantities: [x, z, ekin]
+      bins: [192, 192, 96]
+      ranges: [[0.0, 384.0], [0.0, 384.0], [0.0001, 100.0]]
+      log: [false, false, true]
+      region: [null, [184.0, 200.0], null]
+      every: 148
+    - name: spec_equatorial    # the same in a slab of 16 d_e around the equatorial plane
+      kind: histogram
+      species: [e, i, de, di]
+      quantities: [x, y, ekin]
+      bins: [192, 192, 96]
+      ranges: [[0.0, 384.0], [0.0, 384.0], [0.0001, 100.0]]
+      log: [false, false, true]
+      region: [null, null, [184.0, 200.0]]
+      every: 148
+    - name: spec_all           # energy spectra of the whole box
+      kind: histogram
+      species: [e, i, de, di]
+      quantities: [ekin]
+      bins: [224]
+      ranges: [[0.000001, 100.0]]
+      log: [true]
+      every: 74
+    - name: spec_up            # far upstream (a corner column the blast never reaches): numerical heating
+      kind: histogram
+      species: [e, i]
+      quantities: [ekin]
+      bins: [224]
+      ranges: [[0.000001, 10.0]]
+      log: [true]
+      region: [[16.0, 48.0], [16.0, 48.0], [16.0, 368.0]]
+      every: 74
+    - name: hot_e              # every electron with gamma >= 1.5 (the ram energy of an ion), with its id
+      kind: particles
+      species: [e, de]
+      select: {gamma_min: 1.5}
+      every: 148
+    - name: tracks_e           # about 1.9e5 ambient electrons followed from the start, with E and B at the particle
+      kind: tracks
+      species: [e]
+      stride: 4733
+      with_fields: true
+      every: 4
