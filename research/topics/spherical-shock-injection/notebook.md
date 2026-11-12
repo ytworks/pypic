@@ -3,6 +3,25 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-12 — Three exploratory conditions designed (not run)
+- Asked by the owner: two or three conditions as close to a supernova remnant as possible, for trials that
+  build hypotheses: a large box, few particles, a short run. Record them in markdown; do not run yet.
+- The owner chose: only what `examples/blast_wave` can express; vary the field strength only; 768³ cells with
+  2 particles per cell.
+- Done:
+  - read the example's planner, the engine's limits and the output system;
+  - designed L, M, H (nominal M_A = 3.5, 6.0, 8.7; m_i/m_e = 16; V_d = 0.25 c; v_te = 0.1 c; R_B ≈ 148 d_e);
+  - wrote `configs/explore-{L,M,H}.yaml`; the planner accepts all three (`--plan-only`, CPU, plan for 8 GPUs);
+  - an independent check recomputed the numbers from the planner's formulas and reviewed the output block;
+  - wrote `exploratory-conditions.md` and its Japanese version.
+- Found by the check, and now in the record:
+  - the front runs at about 0.87 V_d and slows, so H is expected at or below the surfing threshold;
+  - a track stride that shares a factor with 768 would line the tracked electrons up in planes (4733 is used);
+  - the energy selection of the particle dump has no test in the repository.
+- Corrected against the plan: the run time is about 15–20 minutes per run, not 7–10. The first figure counted
+  the particles only, and the grid costs more here.
+- Not done: no run; the electron analysis (`analyze.py`) and the run-recording tools are not written.
+
 ## 2026-11-12 — Citation check of the survey: 16 corrections
 - An independent check compared about 290 located statements of Sects. 1–8 of the survey with the paper texts.
   About 280 were confirmed. Three were wrong and 13 imprecise or mis-located; all 16 are corrected in the

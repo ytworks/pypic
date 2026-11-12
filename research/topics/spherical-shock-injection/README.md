@@ -119,6 +119,16 @@ mechanisms to develop.
 
 ## Approach
 Draft; the criteria and null tests are to be fixed before any production run.
+
+**Exploratory runs (designed 2026-11-12, not run):** three trials to build hypotheses, recorded in
+`exploratory-conditions.md` with their configs in `configs/`.
+- They use the debris shell of `examples/blast_wave` in a 768³ box with 2 particles per cell, and differ in the
+  field strength only: nominal M_A = 3.5, 6.0 and 8.7 at m_i/m_e = 16.
+- They are not evidence for a claim. Their checks are fixed in that record (Sect. 6).
+- Their main limit: the front is slower than the debris, so even the highest run is expected to stay at or
+  below the surfing threshold. A driver that holds its speed needs a planner of the topic's own.
+
+The plan for the later, claim-bearing runs:
 - **Driver:** a spherical shock driven outwards into a uniform field. The existing debris shell
   (`examples/blast_wave`, M_A = 3) is one option, and is likely too low in Mach number for
   surfing. The driver and the parameters (M_A, m_i/m_e, β_e, ω_pe/Ω_ce, radius in ion scales) are
@@ -156,7 +166,10 @@ m_i/m_e and β_e. That decision is the owner's and is open.
 
 Surveyed 2026-11-12: electron injection at supernova remnant shocks (`survey-snr-electron-injection.md`).
 
+Designed 2026-11-12: three exploratory runs (`exploratory-conditions.md`); not run.
+
 Next:
 - the owner's decision on the question;
 - the curved-shock works for the bow shock, which need access beyond arXiv;
-- a research-reviewer review of the survey.
+- a research-reviewer review of the survey and of the exploratory conditions;
+- before the exploratory runs: the run-recording tools of the research harness, and the topic's `analyze.py`.
