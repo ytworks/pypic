@@ -1049,3 +1049,52 @@ largest u_x of its last three outputs is not measured. `laser_bubble.yaml` now s
 default of the planner stays 400. 520 is above the continuation of the fastest growth of the
 largest u_x in the first run (2.6 per unit of time from t = 103 to 141: 495 at the end). No other
 definition of the report changes.
+
+### Stage 5 — second production run of `laser_bubble` (2026-11-12, da4e27e, 8 GPUs, FP64)
+
+Record: `bench/results/2026-11-12-da4e27e2c-example-wakefield-laser_bubble-run-b738687c.json`.
+The run of the committed code: the index coordinate of the window path (07c668c), the Gauss check
+every 760 steps (2e7911e), the sort that frees its pool (e5c2117), histograms to u_x = 520.
+19,120 steps to t = 187.71 in 3,098 s (162 ms per step, 0.53 ns per particle and step), 8,117
+shifts; 2.100e9 particles at the load, 2.433e9 at the end.
+
+**The questions left open above.**
+
+- Gauss residual: 26 checks, 2.4e-15 at step 0, 3.72e-11 at most (step 18,240), 3.71e-11 at the
+  last check. Below the 1e-10 of the contract through the whole run. It rises through the run
+  (largest of each quarter of the checks: 2.0e-11, 2.9e-11, 3.6e-11, 3.7e-11); the cause of the
+  residual on the axis is still not established.
+- div B: 9.3e-12 to 1.6e-11 at the checks of steps 760 to 3,040 (the pulse enters through the
+  plane of the antenna), 1.7e-12 to 2.7e-12 from step 3,800 on. Above the 1e-12 of the contract
+  at every check after step 0, as in the first run; the section on the index coordinate gives the
+  size of one rounding unit. Reported to the owner; the contract is not changed here.
+- Device memory: 47,067 MiB at the peak on one GPU (every GPU every 20 s; first run 97,139 MiB).
+- Histogram: the largest u_x is 457 at the end, below the limit of 520 in every output.
+
+**The wake.** The last output gives the numbers of the first run: radius of the cavity 4.69
+(Lu et al. 4), slope 0.446 (0.5), a0 3.87, centre of the pulse 178.30, extremes of E_x on the axis
+4.42 and −8.66. The histories of a0, radius, slope and the minimum of E_x agree with the first run
+in every digit of the analysis; the centre of the pulse differs by 1.8e-6 at most.
+
+| t | Electrons with u_x > 20 | Largest u_x | first run |
+|---|---|---|---|
+| 150.2 | 44.5 | 387 | 387 |
+| 159.6 | 46.8 | 405 | 395 |
+| 168.9 | 49.3 | 424 | 400 (limit) |
+| 178.3 | 51.8 | 441 | 400 (limit) |
+| 187.7 | 54.4 | 457 | 400 (limit) |
+
+Electrons with u_x > 20 at the end: 54.38 n0 (c/ω_pe)³, for 0.8 µm 1.955e9 electrons and 313 pC;
+mean u_x 146.3, most populated bin 95.5. The largest u_x grows by 1.9 per unit of time over the
+last four outputs. The energy gain of Lu et al. at the dephasing length is 267; the pulse has
+crossed 172 of the 267 c/ω_pe of that length, and the largest u_x is above 267 from t = 103.2 on
+(275).
+
+Correction to the section of the first run: its histogram left out the electrons above 400, it
+did not collect them in the last bin. Its number with u_x > 20 is equal to the one of this run to
+3e-8 up to t = 150.2 and smaller by 6.1e-6 at t = 159.6 and by 0.0046 at the end; its largest u_x
+at t = 159.6 (395) was already not the largest of the run (405), one output before the last bin
+was occupied.
+
+Energy (monitored only): work of the antenna 1.004e5; the budget is off by 162 at the end (1.6e-3
+of the work) and by 743 at most; `window_out` 4,965.
