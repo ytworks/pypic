@@ -36,6 +36,19 @@ an absorbing sphere with a dipole. Gate configuration (384³, 9.4e8 particles, 8
 production configuration (576³, 3.1e9 particles, 788 s): front at 2.1 fast magnetosonic speeds,
 debris extent 21 to 22 % above the scaling of Le et al. 2021 (a 2-D fit used with D = 3).
 
+Laser and beam drivers and a moving window (R8, 2026-11-12; plan `docs/plans/2026-11-11-wakefield.md`):
+a laser antenna (the current of a magnetisation on one layer of cells, PIC-D20), a bunch driver
+loaded on a heavy partner of the opposite charge (PIC-D21), lattice places for the load (PIC-D23)
+and a box that follows the driver at c one cell at a time (PIC-D22, output in laboratory places
+OUT-D5); all explicit scheme only, charge conservation by the deposition alone. `examples/wakefield`
+has two gates in the moving window: the wake of an a₀ = 0.1 pulse (amplitude −1.3 % of the linear
+theory, wavenumber −0.02 %) and of a rigid bunch (+0.5 %, −0.25 %), equal to the box at rest on the
+same interval. One recorded run with an a₀ = 4 pulse (`laser_bubble`, 1536×320², 2.1e9 to 2.4e9
+particles, 172 c/ω_pe of plasma, 52 min on 8 GPUs): cavity radius 4.69 c/ω_pe (scaling of Lu et al.
+2007: 4), slope of E_x on the axis 0.446 (0.5), trapped electrons up to u_x = 457. Not included:
+ionisation, a boosted frame, a window with injection, a body or the implicit scheme, a bare bunch
+with a Poisson start.
+
 ## Next (in priority order)
 
 | ID | Item | Notes |
@@ -45,7 +58,6 @@ debris extent 21 to 22 % above the scaling of Le et al. 2021 (a 2-D fit used wit
 | R4 | Implicit solver: robustness for ωp·dt > 2 | cost after rounds 2–3 (#20, #22, #28–#32): 488 ms/step on 1 GPU at 50M particles (~22× explicit), 76–78 ms on 8 GPUs; `implicit_push` is 92 % of the 1-GPU step and 73 % of the 8-GPU step, the CG 19 % on 8 GPUs. At the tested ωp·dt the Picard iteration contracts by ≈ 1.8e-4 per sweep, so Anderson acceleration or a plasma preconditioner saves no sweep there; they are open only for larger time steps. Measured and dropped: CUDA graphs, a hot/cold split of `implicit_push` (0.5 % of the kernel), a quadratic Picard start (worse start error) |
 | R5 | float32 / mixed-precision particle storage | must keep the gate criteria |
 | R6 | More examples | PR #2 set, the bow shock and the blast wave done; later: the bow shock with a southward or oblique IMF and at a larger Dp, the blast wave at a larger R_m / d_i and with a Gaussian cloud, magnetised shocks, beam–plasma with B0, long production runs (shock tail, large reconnection boxes) |
-| R8 | Laser / beam drivers and a moving window (wakefield acceleration) | needs field injection at a boundary |
 | R10 | Deterministic (order-independent) current deposition option | atomics make long turbulent runs realization-dependent (ANA-D3); needed for bitwise reproducibility |
 | R11 | Converged Fermi tail of the pair shock | t >~ 8000 / omega_pe, ~1e9 particles (quasi-2-D); needs R5/R10 performance work or many nodes |
 | R9 | Asynchronous output writing | rank 0 writes synchronously. Production two-stream run with the full output set: +4.0 % on 1 GPU (0.89 ms/step), +13–14 % on 8 GPUs (0.45 ms/step). A writer thread on rank 0 was measured at −4.0 / −1.5 / −1.3 % of that run on 8 GPUs (one pair of three above the 2 % criterion) and not adopted; reopen when the write time of a production case is measured above 2 % |

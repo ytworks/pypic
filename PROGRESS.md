@@ -83,10 +83,18 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   rising at 3× the length), while its potential stays within 1.2 T_e / e and the plasma outside
   2 r_dip is as in N1. The owner made the charge a reported value (amendment). Not shown: a level of
   the body charge; charge and potential of the body under the debris.
-- Wakefield (R8; `docs/plans/2026-11-11-wakefield.md`, PR #42, not merged): laser antenna (PIC-D20), bunch driver (PIC-D21)
-  and `examples/wakefield` exist; the two linear gates and their null runs pass in the static box with lattice places
-  (PIC-D23) and failed on the amplitude with random places. The moving window (PIC-D22) and its output (OUT-D5) exist and pass
-  the tests W0 to W4 of the plan. Not done: the window runs of the two gates, the production run, the gate record.
+- Wakefield (R8; `docs/plans/2026-11-11-wakefield.md`, PR #42, not merged): laser antenna (PIC-D20), bunch driver (PIC-D21),
+  lattice places (PIC-D23), moving window (PIC-D22) with its output (OUT-D5) and `examples/wakefield`. Both linear gates run in
+  the moving window (8 GPUs, FP64, 40edad6): `laser_linear` amplitude −1.33 %, wavelength −0.02 %, radial +0.06 %; `beam_linear`
+  +0.51 %, −0.25 %, −0.77 % (limits 5 / 2 / 10 %); the null runs pass; equal to the box at rest on the same interval (≤ 1.9e-9).
+  With random places both gates failed on the amplitude (recorded). Production run `laser_bubble` (a₀ = 4, 1536×320², 2.1e9 to
+  2.4e9 particles, 19,120 steps, 8,117 shifts, 3,098 s, 47,067 MiB on one GPU at most; one FP64 run on da4e27e, reported;
+  `bench/results/2026-11-12-da4e27e2c-example-wakefield-laser_bubble-run-b738687c.json`): cavity radius 4.69 (Lu et al. 2007: 4),
+  slope of E_x 0.446 (0.5), 54.4 n₀ (c/ω_pe)³ of electrons above u_x = 20, largest u_x 457, Gauss ≤ 3.7e-11. Wiki page
+  `Plasma-Wakefield` (EN + JA): sources in `docs/wiki/`, not published. Not shown: the cause of the Gauss residual on the axis of
+  that run (it rises through the run); div B there is 1.7e-12 to 2.7e-12 after the pulse has entered, above the absolute 1e-12 of
+  the contract (one rounding unit of B = 50 over dx = 0.0196 is 3.6e-13; reported to the owner, contract unchanged); the amplitude
+  beyond the gate window of `beam_linear`. No gate record yet (one full gate run at the final head).
 - Blockers: none. GPUs are shared with kairyu vLLM containers (see `docs/gpu-runbook.md`).
 - Production results (reported) recorded in `bench/results/*-example-*.json`; a converged shock Fermi
   tail (p -> 2.4) needs t >~ 8000 / omega_pe (~1e9 particles), not run.
@@ -95,6 +103,16 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-12 — [progress] R8 Stage 5: both wakefield gates run in the moving window; production run `laser_bubble` recorded
+- What: `laser_linear` and `beam_linear` in the window (40edad6, 8 GPUs, FP64) pass with the limits first fixed (amplitude −1.33 % and +0.51 %) and equal the box at rest on the same interval (≤ 1.9e-9 of the maximum; the box at rest has 2.8 and 2.3 times the cells). `laser_bubble` (a₀ = 4, 1536×320², 2.1e9 to 2.4e9 particles, 19,120 steps, 8,117 shifts, 3,098 s; da4e27e): cavity radius 4.69 (Lu et al. 2007: 4), slope of E_x 0.446 (0.5), electrons above u_x = 20: 54.4 n₀ (c/ω_pe)³ (313 pC at 0.8 µm), largest u_x 457 (scaling 267 at the dephasing length; the pulse crossed 172 of 267 c/ω_pe); Gauss ≤ 3.7e-11. Wiki page `Plasma-Wakefield` (sources; not published). Roadmap: R8 to Done.
+- Why: closes the run part of R8. Not a gate: the scalings are not a solution. Open: div B of this run (1.7e-12 to 2.7e-12, above the absolute 1e-12 of the contract; round-off of B = 50 on these cells) and the Gauss residual on the axis that rises through the run (cause not established) — reported to the owner.
+- Refs: `docs/plans/2026-11-11-wakefield.md` (Results, Stage 5); `bench/results/2026-11-12-da4e27e2c-example-wakefield-laser_bubble-run-b738687c.json`; `examples/wakefield/README.md`; `docs/wiki/en/Plasma-Wakefield.md`; PR #42. No gate record yet.
+
+### 2026-11-12 — [progress] R8 Stage 5: three faults found by the first production run, fixed (window index coordinate, sort pool, Gauss interval)
+- What: the first run of `laser_bubble` (61f454b) ended with a Gauss residual of 1.69e-10 (contract 1e-10) and 97,139 MiB on one GPU. (1) With a window the index coordinate `(x − OX)/dx − s` depended on the rank by more than whole cells (rounding with the origin of the rank, fused by the compiler): a particle changing rank left charge at the plane between ranks. Now `(x·(1/dx) + XLOW) − (OXI + XLOW + s)`, exact in the integer part (07c668c; new define `XLOW`; regression test: ranks give every node the same charge bit for bit, 1.3e-11 on the old form). (2) `Species.sort` kept freed temporaries in the pool when a rank refills below its largest n (e5c2117; 63,549 → 12,859 MiB on a reduced run; test fails on the old code). (3) The wakefield planner set the Gauss interval independently of the history interval, so the run had two checks (2e7911e). Second run (da4e27e): 26 checks, ≤ 3.7e-11; 47,067 MiB.
+- Why: the Gauss contract must hold in production runs, not only at gate size; the fault needed cells whose inverse is not a round number and many shifts to show.
+- Refs: `docs/plans/2026-11-11-wakefield.md` (Results, Stage 5: first run, memory, index coordinate); `pypic/kernels/particles.cu` (`XIDX`), `pypic/kernelsrc.py`, `pypic/particles.py`, `tests/gpu/mgpu_window.py`; PR #42. Not changed: the box-at-rest form `(x − OX)/dx` (every axis; also y, z of a window run) has the same rank dependence — changing it changes the bits of every run on main; reported to the owner.
 
 ### 2026-11-12 — [design] PIC-D22 moving window, OUT-D5 window output (Proposed); tests W0 to W4 pass
 - What: `window: {start, margin}` (explicit solver, x− open, x+ reflecting): the box follows the driver at c one cell at a time; positions stay laboratory positions and the index coordinate subtracts the integer shift, so the deposit, the loader and the migration are unchanged. History term `window_out`. Output: regions are placed in the window, files give laboratory places (`window_shift` per row, `gridGlobalOffset` per iteration). Tests fixed in the plan: W0 kernels and regress bits unchanged without a window; W1 plasma at rest over 400 shifts (density 0.45 %, limit 2.5 %); W2 against the box at rest 7e-15 (limit 1e-6); W3 1 vs N GPUs ≤ 5.4e-13; W4 energy at the lower face that the box at rest does not have 5.3e-10 (limit 1e-4). Found and fixed: a hang with x split (collective in a rank-dependent branch), a window without species.
