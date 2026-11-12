@@ -27,7 +27,9 @@ including unknown ones:
   - second-order Fermi acceleration in multiple magnetic islands, studied for reconnection
     (hoshino2012stochastic).
 
-  Whether this framing holds for the literature as a whole is for the survey to confirm.
+  This is not the whole picture: amano2022theory (Sect. 4.5, Eq. 22) already limits stochastic shock drift
+  acceleration by the curvature of the bow shock (correction from the review of 2026-11-12). How far the
+  literature treats curvature is for the survey to establish.
 - **Real shocks are curved:** supernova blast waves, planetary bow shocks, shocks driven by coronal
   mass ejections, laser-driven shocks. On a spherical shock in a uniform field, θ_Bn runs
   continuously from 90° at the equator to 0° at the poles. The front is curved, and a blast wave
@@ -136,4 +138,7 @@ Missing:
 - a confirmed idea;
 - the driver and parameters, and the criteria and null tests.
 
-Next: survey the candidate works in `literature.md`, and get a research-reviewer review of this README.
+Reviewed 2026-11-12 (`reviews/2026-11-12-purpose.md`): the purpose is a programme, not yet a question.
+The reviewer proposes to narrow it to the θ_Bn at which injection switches on, and to its scaling with
+m_i/m_e and β_e. That decision is the owner's and is open.
+Next: the owner's decision on the question; the survey, starting with the curved-shock works the review names.

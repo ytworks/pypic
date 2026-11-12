@@ -30,6 +30,14 @@ The lines of work, by injection mechanism. Read means a note exists in `research
 
   To check: what these show about electrons.
 
+- **Curved shocks and θ_Bn along a front.** Named by the review of 2026-11-12 from search results;
+  not read, and not verified beyond their titles and citations:
+  - Krauss-Varban & Burgess 1991, a curved-shock model of electron acceleration (NTRS 19900029432);
+  - Burgess, arXiv:astro-ph/0610714, fluctuations of the shock surface;
+  - Guo & Giacalone 2010, ApJ 715, 406 (arXiv:1003.5946), θ_Bn varying along a front with meandering field lines;
+  - Caprioli & Spitkovsky 2014, ApJ 783, 91 (arXiv:1310.2943), θ_Bn dependence of ion injection, hybrid;
+  - arXiv:2204.11569 (not identified yet).
+
 ## Open
 Survey not done. In particular, still unknown:
 - any work on electron injection along θ_Bn on a single curved shock;
