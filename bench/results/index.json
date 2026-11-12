@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "file": "2026-11-12-61f454b3f-example-wakefield-laser_bubble-run-1c8c65d7.json",
+      "type": "example",
+      "date": "2026-11-12",
+      "commit": "61f454b3fe9e4b571cf3b92a7d70f2b64a255ae4",
+      "dirty": false,
+      "run_id": "1c8c65d7",
+      "gpus": 8,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "wakefield",
+      "config": "laser_bubble"
+    },
+    {
       "file": "2026-11-11-17f1b5f10-gpu-gates-mixed.json",
       "date": "2026-11-11",
       "commit": "17f1b5f10d23d7915fe466acf35f251498926e0c",
