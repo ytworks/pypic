@@ -841,3 +841,63 @@ What the runs show:
 
 Not covered by these runs: a build with reflecting walls or periodic axes at this size (the
 tests and the benchmark above cover them at their sizes), and a production-size run.
+
+## R5 exit — `blast_wave/full` in `fp64` and `compact`: the memory criterion is not met
+
+2026-11-12, `pypic/` as on b830153, 8 GPUs, rank grid (1, 2, 4), no other job on the GPUs, one
+run per row, after a 200-step probe in `compact` (46.9 s, largest sample 53.80 GB). 576³ cells,
+3,130,150,010 particles at the start, 2800 steps, capacity factor 1.5. Device memory as in the
+section above: `nvidia-smi` once per second, the largest sample of the GPU with the most.
+
+| precision | planner GB | peak GB | lowest GPU GB | peak − planner | wall s | ms / step | vs fp64 |
+|---|---|---|---|---|---|---|---|
+| fp64 | 66.16 | 75.16 | 61.80 | +13.6 % | 788.5 | 281.6 | — |
+| compact | 56.57 | 62.48 | 51.53 | +10.5 % | 648.3 | 231.5 | −17.8 % |
+
+**The criterion of R5 — the peak device memory of a production-size run within 5 % of the
+planner's figure — failed in both precisions.** The peak is above the figure in `fp64` as well,
+so the excess does not come from the compact storage. `compact` lowers the peak by 12.67 GB per GPU
+(16.9 %; the planner's difference is 9.59 GB). The device memory of the blast wave had not been
+measured before this plan (`examples/blast_wave/README.md`: "The device memory was not measured").
+
+Both runs passed the criteria of the example (`analyze`):
+
+| precision | `energy_budget_change` | Gauss max | div B max | fill max | particles at the end | absorbed |
+|---|---|---|---|---|---|---|
+| fp64 | 0.258946 | 6.9e-15 | 1.3e-14 | 0.66796 | 3,121,217,967 | 248,379 |
+| compact | 0.258937 | 6.9e-15 | 1.2e-14 | 0.66797 | 3,121,224,359 | 248,065 |
+
+`energy_budget_change` differs by −3.5e-5 of its value; the front speed (0.130006) agrees to
+4e-7 and the compression (2.685142) to 3e-10. One run each.
+
+### Where the memory goes (instrumented runs at gate size)
+
+In the series of the `compact` run four GPUs have a median of 40,475 MiB and end there, with
+excursions up to 52,307 MiB. Two others rise by 2,222 MiB four times between t = 209 and 252 s
+(10 or 11 s apart; a sort every 50 steps is 11.6 s at the mean step time) to 57,651 and
+59,589 MiB and stay there to the end. The production-size runs were not instrumented.
+`blast_wave/gate` was (bad2803, 8 GPUs): an allocator around CuPy's default pool kept, for every
+rise of the pool's used or held bytes above their former maximum, the request and the Python
+frames that made it.
+
+| run | largest used (a rank) | largest held (a rank) | planner | requests that raised the held bytes |
+|---|---|---|---|---|
+| `gate`, fp64 | 17.11 GB | 22.06 GB | 21.45 GB | `cp.argsort` in `Species.sort`: 876 MiB, 432 MiB |
+| `gate`, compact | 14.91 GB | 18.37 GB | 18.52 GB | `cp.argsort` in `CompactSpecies.sort`: 658 MiB, 432 MiB |
+
+- On all eight ranks of both runs, every rise of the held bytes after the set-up came from the
+  argsort of the particle sort. The used bytes reach their maximum within 9 s (fp64) and 18 s
+  (compact) and do not pass it afterwards (resolution of the record: 64 MB); the held bytes rise
+  until 60 s and 52 s (fp64, the rank with the most: 16,816 MiB at the first sort, 21,035 MiB
+  at 60 s with 16,320 MiB in use).
+- So the pool takes new device memory for a request of the sort while it holds more free bytes
+  than the request: a free block serves only a request that fits it. `Species.sort` returns the
+  free blocks to the device only after a sort of more particles than any before
+  (`_release_sort`, added for the injection of the bow shock); a species whose number on a rank
+  falls and rises again below its largest keeps the blocks of every sort.
+- The samples of `nvidia-smi` miss peaks shorter than a second: in the fp64 run the lowest
+  sampled peak of a GPU is 17,593 MiB and the lowest pool maximum of a rank is 18,906 MiB. A
+  sampled peak is therefore a lower bound.
+- The used bytes are 3.3 GB (fp64) and 2.6 GB (compact) below the planner's figure without its
+  1 GB for the context. The planner counts the sort of a full species (the fill is 0.67) and
+  31 + n_out grid arrays; which of its terms is too large was not measured here.
