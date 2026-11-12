@@ -3,6 +3,44 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-12 — One-page summary of the survey, in English and Japanese
+- Asked by the owner. `survey-snr-electron-injection-summary.md` and its `.ja.md` give the whole picture on one
+  page: the problem, what observations fix, the mechanisms by θ_Bn, what decides the answer in a simulation,
+  what is supported, disputed and unknown, and what it means for this topic.
+- Every statement is taken from the survey, with its citekeys.
+
+## 2026-11-12 — Japanese version of the survey
+- Asked by the owner. `survey-snr-electron-injection.ja.md` has the same sections as the English survey, which
+  stays the original.
+- Its reference lists (Sect. 10) are taken from the English file by script; only headings and remarks are
+  translated.
+- Checked by script, section by section: the citekeys are identical, and no number of the English version is
+  missing.
+
+## 2026-11-12 — Survey: electron injection at supernova remnant shocks
+- Asked by the owner: survey the prior work on the electron injection problem at SNR shocks, in markdown, with
+  the citations kept.
+- Done:
+  - arXiv searches by keyword (12 queries, 238 new results), then by author and title, then reference lists;
+  - 54 works selected, full texts from arXiv, read by nine readers in groups (observations; surfing line;
+    perpendicular SNR series; foreshock and reviews; quasi-parallel; thresholds 2021–2026; shock drift theory;
+    geometry);
+  - one note per work in `research/literature/`;
+  - the headline numbers of 20 works checked against the paper texts;
+  - the survey written: `survey-snr-electron-injection.md`.
+- Main findings:
+  - mechanisms are sorted by obliquity, and each is known from planar runs at one or a few angles;
+  - no study covers the range of θ_Bn with one parameter set;
+  - global models of remnants assume the efficiency law ε(θ_Bn);
+  - SN 1006 points to quasi-parallel acceleration and the radio population to quasi-perpendicular;
+  - no kinetic simulation of a curved front at SNR-like parameters was found.
+- Not done:
+  - the bow-shock works on curved shocks (not on arXiv) are not read, so the last finding is not certain;
+  - relativistic shocks and wakefield acceleration were not covered;
+  - the survey has not been reviewed by the research reviewer.
+- Corrected along the way: the reference of `amano2022theory` (ApJ 927, 132).
+- No decision on the research question; it stays with the owner.
+
 ## 2026-11-12 — First review (purpose stage)
 - Review: `reviews/2026-11-12-purpose.md`. Verdict:
   - "every mechanism over all θ_Bn" needs rethinking (a programme, not one question);
