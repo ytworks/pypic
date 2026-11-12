@@ -321,7 +321,64 @@ The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the meth
     made by atomic deposits and the first half kick takes it), so this set-up cannot show bits.
     After one step the rows differ by 4.4e-16 between the two runs of the base and by 2.8e-17
     (FP64) and 4.4e-16 (mixed) between base and A1.
-  (1) holds where the base reproduces itself. Result of (2): pending.
+  (1) holds where the base reproduces itself.
+- Result of (2) (2026-11-12, 8 GPUs, e321bd2): FP64 ALL PASSED (93 GPU tests, five two-stream
+  gates, 17 example gates) and mixed ALL PASSED (four and 17); records
+  `bench/results/2026-11-12-e321bd238-gpu-gates.json` and `…-gpu-gates-mixed.json`. The table
+  gives per gate the number of metrics compared (timings left out) and, for A1 against the record
+  of 17f1b5f, how many differ and the largest relative difference with its metric. Beside it the
+  same for the record of 9bfa1a5 against that of 17f1b5f: two runs of one `pypic/` tree (the
+  analysis of the blast wave changed between them, so that row of the base pair holds this
+  change too).
+
+  | Gate | Metrics | FP64: A1 | FP64: base pair | mixed: A1 | mixed: base pair |
+  |---|---|---|---|---|---|
+  | `gpu-tests` | 3 | 0 | 0 | — | — |
+  | `two-stream:ei` | 6 | 3, 2.6e-03 `gauss_max` | 3, 1.8e-02 `divB_max` | 3, 4.1e-03 `gauss_max` | 3, 1.5e-01 `divB_max` |
+  | `two-stream:ep` | 6 | 3, 1.1e-01 `divB_max` | 3, 4.1e-02 `divB_max` | 3, 1.3e-01 `divB_max` | 3, 3.4e-02 `gauss_max` |
+  | `two-stream:eip` | 6 | 3, 8.3e-02 `divB_max` | 3, 1.6e-01 `divB_max` | 3, 4.6e-02 `divB_max` | 3, 7.2e-02 `divB_max` |
+  | `two-stream:ei_implicit` | 6 | 3, 4.0e-02 `divB_max` | 3, 1.1e-01 `divB_max` | — | — |
+  | `two-stream:buneman` | 6 | 3, 6.2e-02 `divB_max` | 3, 1.7e-02 `divB_max` | 5, 4.1e-02 `divB_max` | 5, 1.0e-01 `divB_max` |
+  | `plasma_waves:unmagnetized` | 18 | 8, 2.7e-02 `divB_max` | 8, 1.5e-01 `divB_max` | 8, 3.4e-02 `divB_max` | 8, 2.8e-02 `divB_max` |
+  | `plasma_waves:perpendicular` | 38 | 16, 3.0e-03 `divB_max` | 16, 3.0e-02 `divB_max` | 16, 8.9e-02 `divB_max` | 16, 1.4e-01 `divB_max` |
+  | `landau_damping:landau` | 9 | 1, 2.0e-03 `gauss_max` | 1, 1.9e-03 `gauss_max` | 1, 4.3e-04 `gauss_max` | 1, 4.1e-03 `gauss_max` |
+  | `landau_damping:dawson` | 4 | 1, 5.9e-02 `gauss_max` | 1, 4.4e-03 `gauss_max` | 2, 2.3e-02 `gauss_max` | 1, 1.3e-01 `gauss_max` |
+  | `landau_damping:wavebreaking` | 5 | 1, 8.9e-02 `gauss_max` | 1, 3.3e-02 `gauss_max` | 1, 3.0e-02 `gauss_max` | 1, 1.7e-01 `gauss_max` |
+  | `landau_damping:relativistic` | 6 | 1, 9.4e-03 `gauss_max` | 1, 1.8e-02 `gauss_max` | 2, 2.5e-02 `gauss_max` | 1, 3.5e-02 `gauss_max` |
+  | `filamentation:pair` | 56 | 2, 3.6e-02 `gauss_max` | 2, 1.6e-01 `gauss_max` | 2, 1.0e-02 `gauss_max` | 2, 1.0e-01 `gauss_max` |
+  | `particle_orbits:gyration` | 14 | 0 | 0 | 0 | 0 |
+  | `particle_orbits:exb` | 14 | 0 | 0 | 0 | 0 |
+  | `particle_orbits:hyperbolic` | 14 | 0 | 0 | 0 | 0 |
+  | `particle_orbits:e_gt_b` | 14 | 0 | 0 | 0 | 0 |
+  | `particle_orbits:plane_wave` | 16 | 0 | 0 | 0 | 0 |
+  | `plasma_expansion:isothermal_hydrogen` | 10 | 6, 8.4e-03 `electron_temperature_final_over_initial` | 6, 3.6e-03 `velocity_profile_median_rel_error` | 5, 1.8e-02 `velocity_profile_median_rel_error` | 6, 3.8e-03 `E_max_median_rel_error` |
+  | `relativistic_shock:pair_2d` | 72 | 11, 2.3e-01 `compression_rel_error` | 12, 1.1e-01 `compression_rel_error` | 12, 2.6e-01 `compression_rel_error` | 13, 2.4e-01 `compression_rel_error` |
+  | `reconnection:pair_sigma10` | 13 | 7, 6.1e-01 `E_parallel_share_top1pct` | 7, 1.2e-01 `E_parallel_share_top1pct` | 7, 1.0e+00 `E_parallel_share_top1pct` | 7, 7.1e-01 `E_parallel_share_top1pct` |
+  | `bow_shock:gate` | 30 | 23, 2.3e-02 `gauss_max` | 23, 4.6e-02 `gauss_max` | 23, 1.1e-01 `gauss_max` | 23, 1.0e-01 `gauss_max` |
+  | `blast_wave:gate` | 93 | 31, 1.7e-01 `gauss_max` | 54, 2.0e-02 `slice_y` | 56, 8.0e-02 `divB_max` | 59, 1.1e-01 `divB_max` |
+
+  - The same in all digits, FP64 and mixed: the five `particle_orbits` gates (72 values); in
+    FP64 the counts of `gpu-tests` (93 passed). Every other gate differs in some values, and so
+    does the base pair: the gates do not show bits (the order of the atomic deposits, as in (1)).
+  - Most of the largest differences are in `gauss_max` and `divB_max`, residuals of rounding
+    (Gauss maximum of the record 7.61e-12 in FP64 and 7.65e-12 in mixed; 17f1b5f: 7.61e-12 and
+    7.68e-12). The others, as 9bfa1a5 / 17f1b5f / A1: compression of the shock 3.068 / 3.076 /
+    3.060 (FP64) and 3.071 / 3.055 / 3.072 (mixed); `E_parallel_share_top1pct` of the
+    reconnection 0.0044 / 0.0038 / 0.0015 (FP64) and 0.0008 / 0.0026 / −0.0001 (mixed); final
+    electron temperature of the expansion 1.0393 / 1.0378 / 1.0291 (FP64) and 1.0372 / 1.0383 /
+    1.0427 (mixed). The growth rates of the two-stream gates are equal in all digits in the
+    three records, except `buneman` in mixed (0.050969 / 0.051226 / 0.051226).
+  - The A1 figure is the smaller one in 8 of the 17 gates that differ in FP64 and in 10 of 16 in
+    mixed. One base pair per precision is not a spread; the table is a comparison of sizes.
+  - In mixed two metrics differ on A1 where the base pair agrees in all digits:
+    `freq_rel_error_median` of `landau_damping:dawson` (0.0030547052120 against 0.0030547064732)
+    and of `landau_damping:relativistic` (0.00074694638 against 0.00074694771). Repeated for
+    `dawson`, mixed, 8 GPUs, twice on each tree: e883591 gives 0.0030547065849 and
+    0.0030547064732, e321bd2 gives 0.0030547064621 and 0.0030547064732. The metric changes in
+    these digits between runs of the base, and one run of the base has the bits of the A1 record.
+    `relativistic`, mixed, three times on each tree: e883591 gives 0.00074694771 once and
+    0.00074694638 twice, e321bd2 gives 0.00074694771 three times; the base has both values.
+  (2) shows no difference between A1 and the base that two runs of the base do not show.
 - Beside the null test, without a GPU: the PTX that NVRTC makes of the six cases of
   `scripts/check_kernels.py` (target `compute_120`), on the tree of e883591 and on the A1 tree.
   Field modules: the same text in all six cases. Particle modules: the text differs; with the
