@@ -65,6 +65,26 @@ def test_boris_gyration_conserves_gamma_and_period():
     assert abs(abs(total) - expected) < 2 * 2 * math.atan(0.5 * wc * cfg.dt)
 
 
+def test_compact_momenta_gyrate_within_the_float32_rounding():
+    """Condition of PIC-D19 for float32 momenta: |u| of a gyrating particle may leave its start by
+    the rounding of the stored momentum only, a random walk: at most 6e-8 sqrt(n) (relative) after n
+    steps, at the end of each of 16 periods, so a drift that grows like n fails."""
+    B = 0.5
+    cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, species=[SpeciesConfig("e", -1, 1, [])],
+                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0, precision="compact")
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sp = sim.species[0]
+    u0 = 2.0
+    inject(sp, [2.0, 2.0, 2.0], [u0, 0.0, 0.0])
+    nst = int(round(2 * math.pi * math.sqrt(1 + u0 * u0) / B / cfg.dt))
+    for period in range(1, 17):
+        for _ in range(nst):
+            sim.step()
+        u = math.hypot(float(sp.mom(0)[0]), float(sp.mom(1)[0]))
+        assert abs(u - u0) / u0 <= 6e-8 * math.sqrt(period * nst), period
+        assert float(sp.mom(2)[0]) == 0.0
+
+
 def test_exb_drift():
     E, B = 0.1, 0.5
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, species=[SpeciesConfig("e", -1, 1, [])],
@@ -533,10 +553,25 @@ def test_sort_orders_by_cell_and_keeps_every_particle():
         assert bool((key[1:] >= key[:-1]).all())
 
 
-def test_sort_of_a_growing_species_does_not_grow_the_memory_pool():
+def test_compact_sort_orders_by_the_stored_cell_and_keeps_every_particle():
+    """The sort of the compact storage (PIC-D19) moves whole particles: every value follows the same
+    order, and the stored cells come out ascending."""
+    sim = plasma(sort_interval=0, precision="compact")
+    sim.run(2)
+    for sp in sim.species:
+        before = cp.asnumpy(sp.rows())
+        sp.sort()
+        after = cp.asnumpy(sp.rows())
+        assert not np.array_equal(before[7], after[7])  # the particles were out of order
+        assert np.array_equal(before[:, np.argsort(before[7])], after[:, np.argsort(after[7])])
+        assert bool((sp.C[1:sp.n] >= sp.C[:sp.n - 1]).all())
+
+
+@pytest.mark.parametrize("precision", ["fp64", "compact"])
+def test_sort_of_a_growing_species_does_not_grow_the_memory_pool(precision):
     """Regression: CuPy's pool keeps a freed block only for requests that fit, so the temporaries of
     the sorts of a species that gains particles (injection) piled up until the device was full."""
-    sim = plasma("explicit", sort_interval=0)
+    sim = plasma("explicit", sort_interval=0, precision=precision)
     sp = sim.species[0]
     pool = cp.get_default_memory_pool()
     pool.free_all_blocks()
@@ -871,19 +906,24 @@ def test_migration_lists_are_ordered_like_a_sort(name, dtype):
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
-def test_mixed_gather_is_decomposition_independent():
+@pytest.mark.parametrize("precision", ["mixed", "compact"])
+def test_reduced_precision_is_decomposition_independent(precision):
     """The float32 gather (PIC-D11) takes its weights from global coordinates: 1 GPU and a 2x2
-    rank grid give the same run, Gauss's law holds, and it stays close to the FP64 run."""
+    rank grid give the same run, Gauss's law holds, and it stays close to the FP64 run. So does the
+    compact storage (PIC-D19), whose loaded lattice points are the same on both rank grids."""
     script = os.path.join(HERE, "mgpu_migrate.py")
     outs = {}
-    for n, dims, variant in ((1, "1,1,1", "mixed"), (4, "2,2,1", "mixed"), (1, "1,1,1", "plain")):
+    for n, dims, variant in ((1, "1,1,1", precision), (4, "2,2,1", precision), (1, "1,1,1", "plain")):
         r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, variant],
                            capture_output=True, text=True, timeout=600)
         assert r.returncode == 0, r.stderr[-2000:]
         outs[(n, variant)] = json.loads(r.stdout.strip().splitlines()[-1])
-    a, b = (np.asarray(outs[(n, "mixed")]["kinetic"]) for n in (1, 4))
+    for k in ("ids", "lattice"):
+        assert outs[(4, precision)][k] == outs[(1, precision)][k], k
+    assert (outs[(1, precision)]["lattice"] is not None) == (precision == "compact")
+    a, b = (np.asarray(outs[(n, precision)]["kinetic"]) for n in (1, 4))
     assert np.max(np.abs(a - b) / np.abs(a)) < 1e-10
-    assert np.nanmax(np.asarray(outs[(4, "mixed")]["gauss"], dtype=float)) < 1e-12
+    assert np.nanmax(np.asarray(outs[(4, precision)]["gauss"], dtype=float)) < 1e-12
     f = np.asarray(outs[(1, "plain")]["kinetic"])
     assert np.max(np.abs(a - f) / np.abs(f)) < 1e-5
 
@@ -905,14 +945,14 @@ def test_external_dipole_is_decomposition_independent():
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
-@pytest.mark.parametrize("variant", ["inject", "inject_filter", "body", "mixed"])
+@pytest.mark.parametrize("variant", ["inject", "inject_filter", "body", "mixed", "compact"])
 def test_open_flow_is_decomposition_independent(variant):
     """A magnetised oblique flow through six open faces, one paired and four flux (PIC-D13): what
     enters depends on (seed, step, global cell, slot) only, so 1 GPU and a 2x2 rank grid give the
     same run, the same particles and the same charge in the bank, and Gauss's law holds. With the
     current filter and the Marder zone too (``inject_filter``, PIC-D15 and PIC-D16), with an absorbing
-    sphere on the edge shared by the ranks (``body``, PIC-D14), and with all of them, a dipole in the
-    sphere and the float32 gather (``mixed``)."""
+    sphere on the edge shared by the ranks (``body``, PIC-D14), with all of them, a dipole in the
+    sphere and the float32 gather (``mixed``), and with the compact storage too (``compact``, PIC-D19)."""
     script = os.path.join(HERE, "mgpu_open_flow.py")
     outs = {}
     for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
@@ -923,7 +963,7 @@ def test_open_flow_is_decomposition_independent(variant):
     ref, o = outs[1], outs[4]
     assert o["ids"] == ref["ids"] and o["n_injected"] == ref["n_injected"] and o["n_absorbed"] == ref["n_absorbed"]
     assert ref["n_injected"][-1] > 0 and ref["bank"] > 0.0
-    assert (ref["n_absorbed"][-1] > 0) == (variant in ("body", "mixed"))
+    assert (ref["n_absorbed"][-1] > 0) == (variant in ("body", "mixed", "compact"))
     for k in ("kinetic", "electric", "lost_charge", "injected_charge", "absorbed_kinetic", "absorbed_charge", "bank"):
         a, b = np.asarray(ref[k]), np.asarray(o[k])
         assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
@@ -954,9 +994,24 @@ def test_radial_shell_is_decomposition_independent():
     assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
 
 
-def test_mixed_precision_is_explicit_only():
+@pytest.mark.parametrize("precision", ["mixed", "compact"])
+def test_reduced_precision_is_explicit_only(precision):
     with pytest.raises(ValueError, match="explicit"):
-        plasma("implicit", precision="mixed")
+        plasma("implicit", precision=precision)
+
+
+def test_compact_load_is_the_fp64_load_on_the_lattice():
+    """The compact loader (PIC-D19) keeps the upper 32 bits of the random number of the FP64 loader
+    and rounds the same momentum once: the same particles, each less than 2^-32 of a cell below its
+    FP64 position, with the float32 of its FP64 momentum."""
+    f, c = (plasma(precision=p) for p in ("fp64", "compact"))
+    for a, b in zip(f.species, c.species):
+        A, B = (cp.asnumpy(s.rows()) for s in (a, b))
+        A, B = A[:, np.argsort(A[7])], B[:, np.argsort(B[7])]
+        assert np.array_equal(A[6:], B[6:])  # weights and ids
+        d = A[:3] - B[:3]
+        assert d.min() > -1e-15 and d.max() < 0.2 * 2.0**-32 + 1e-15
+        assert np.array_equal(B[3:6], A[3:6].astype(np.float32).astype(np.float64))
 
 
 # --------------------------------------------------------- review regressions

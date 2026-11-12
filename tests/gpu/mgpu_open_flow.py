@@ -1,6 +1,6 @@
 """Helper for the open-flow test: run with ``python -m pypic.launch -n N``.
 
-    mgpu_open_flow.py <dims> <variant>    dims like 2,2,1; variant inject | inject_filter | body | mixed
+    mgpu_open_flow.py <dims> <variant>    dims like 2,2,1; variant inject | inject_filter | body | mixed | compact
 
 A magnetised, oblique, thermal electron-ion flow through a box with six open faces (PIC-D13):
 x- is the paired inflow face, the y and z faces inject on their own (``flux``), x+ only removes.
@@ -11,6 +11,7 @@ Particles enter, leave and are returned on every rank and at the edges between i
 the four ranks, with ``body.relax`` on the edges inside it. ``mixed`` is the combination of a bow
 shock: filter, Marder zone, sphere, a dipole inside it (PIC-D12) and the float32 gather (PIC-D11),
 in a box of 20 cells per axis that holds the nodes left out of the Gauss check around the sphere.
+``compact`` is ``mixed`` with the compact particle storage (PIC-D19).
 Prints the histories, the charge kept in the bank of the paired face and the global id sums.
 """
 import json
@@ -25,16 +26,16 @@ from pypic.simulation import Simulation
 
 dims = tuple(int(v) for v in sys.argv[1].split(","))
 variant = sys.argv[2]
-assert variant in ("inject", "inject_filter", "body", "mixed")
+assert variant in ("inject", "inject_filter", "body", "mixed", "compact")
 extra = {"n_cells": (16, 16, 8)}
 if variant == "inject_filter":
     extra = {"n_cells": (8, 16, 12), "current_filter": CurrentFilter(1, True), "marder_zone": 0.125}
 dipoles = []
 if variant == "body":
     extra["body"] = Body(center=(4.0, 4.0, 2.0), radius=0.6, relax=1.0)
-if variant == "mixed":
+if variant in ("mixed", "compact"):
     extra = {"n_cells": (20, 20, 20), "current_filter": CurrentFilter(1, True), "marder_zone": 0.125,
-             "body": Body(center=(5.0, 5.0, 5.0), radius=0.5), "precision": "mixed"}
+             "body": Body(center=(5.0, 5.0, 5.0), radius=0.5), "precision": variant}
     dipoles = [Dipole(moment=(0.0, 0.01, 0.03), center=(5.05, 4.95, 5.0), core=0.4)]
 u = (0.1, 0.1, 0.05)  # slow along x: some ions leave through the paired face and are paid for
 gamma = math.sqrt(1.0 + sum(c * c for c in u))
