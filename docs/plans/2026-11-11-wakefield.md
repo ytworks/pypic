@@ -859,3 +859,193 @@ What the output of a real run showed (analysis from end to end, no change to the
   7.6e2 while the pulse enters and by 63 (6e-4 of the work) at the end.
 - Figure: the axis of E_x moved to the left (it lay on the colour bar of the map), with the line
   of slope 1 / 2 through the measured zero.
+
+### Stage 5 — first production run of `laser_bubble` (2026-11-12, 61f454b, 8 GPUs, FP64)
+
+Record: `bench/results/2026-11-12-61f454b3f-example-wakefield-laser_bubble-run-1c8c65d7.json`.
+19,120 steps to t = 187.71 in 3,133 s (164 ms per step, 0.54 ns per particle and step), 8,117
+shifts of the window; 2.100e9 particles at the load, 2.433e9 at the end.
+
+| Last output (t = 187.7) | Run | Lu et al. 2007 |
+|---|---|---|
+| Radius of the cavity | 4.69 | 4 |
+| Slope of E_x at its zero in the cavity | 0.446 | 0.5 |
+| a0 of the pulse | 3.87 (largest of the outputs 5.56 at t = 84) | 4 at the focus |
+| Centre of the pulse | 178.30 (planned 180.18; 0.980 c from t = 18.8 to the end) | |
+| Electrons with u_x > 20 | 54.4 n0 (c/ω_pe)³; for 0.8 µm 1.96e9 electrons, 313 pC | |
+| u_x of these electrons | mean 146, most populated bin 95.5, largest ≥ 400 (limit of the histogram) | energy gain 267 at the dephasing length |
+
+The extremes of E_x on the axis behind the pulse are 4.42 and −8.66 at x = 174.25 and 174.31:
+a spike 0.06 c/ω_pe wide, not the field of the cavity (which the slope measures; the peak of the
+cavity without load is 2).
+
+History (every output from the one at which the cavity exists):
+
+| t | Centre of the pulse | a0 | Radius | Slope | Electrons with u_x > 20 | Largest u_x | Most populated bin |
+|---|---|---|---|---|---|---|---|
+| 18.8 | 12.7 | 3.98 | 3.94 | 0.453 | 0 | – | – |
+| 28.2 | 22.0 | 4.03 | 3.94 | 0.427 | 0.000539 | 24 | 20.5 |
+| 37.5 | 31.4 | 4.32 | 3.81 | 0.438 | 7.32 | 70 | 23.5 |
+| 46.9 | 40.6 | 4.78 | 3.94 | 0.431 | 13 | 100 | 20.5 |
+| 56.3 | 49.7 | 5.10 | 4.06 | 0.418 | 17.9 | 129 | 36.5 |
+| 65.7 | 59.0 | 5.42 | 4.06 | 0.415 | 21.8 | 165 | 32.5 |
+| 75.1 | 68.3 | 5.53 | 4.06 | 0.416 | 24.9 | 220 | 50.5 |
+| 84.5 | 77.5 | 5.56 | 4.19 | 0.432 | 27.3 | 235 | 68.5 |
+| 93.9 | 86.7 | 5.49 | 4.31 | 0.441 | 29.7 | 250 | 84.5 |
+| 103.2 | 95.9 | 5.30 | 4.31 | 0.442 | 32.2 | 275 | 99.5 |
+| 112.6 | 105.1 | 5.09 | 4.44 | 0.439 | 35 | 299 | 107.5 |
+| 122.0 | 114.3 | 4.92 | 4.56 | 0.436 | 37.5 | 322 | 119.5 |
+| 131.4 | 123.7 | 4.78 | 4.56 | 0.440 | 40.2 | 352 | 74.5 |
+| 140.8 | 132.9 | 4.60 | 4.56 | 0.436 | 42.5 | 373 | 147.5 |
+| 150.2 | 142.0 | 4.25 | 4.56 | 0.442 | 44.5 | 387 | 63.5 |
+| 159.6 | 151.2 | 4.26 | 4.56 | 0.446 | 46.8 | 395 | 84.5 |
+| 168.9 | 160.5 | 4.07 | 4.69 | 0.442 | 49.3 | 400 | 88.5 |
+| 178.3 | 169.6 | 3.78 | 4.69 | 0.461 | 51.8 | 400 | 92.5 |
+| 187.7 | 178.3 | 3.87 | 4.69 | 0.446 | 54.4 | 400 | 95.5 |
+
+The pulse steepens to a0 = 5.6 at t = 84 and falls back to 3.9; the cavity widens from 3.9 to 4.7
+with it; the slope stays between 0.41 and 0.46. Electrons are trapped from t = 28 on, all through
+the run (the number still grows by 2.5 per output at the end). The last bin of the u_x histogram is
+occupied from t = 168.9: the largest u_x of the last three outputs is not measured.
+
+Diagnostics of the run:
+
+- Gauss residual 2.7e-15 at step 0 and 1.69e-10 at step 14,516, the only two checks of the run:
+  above the 1e-10 of the contract.
+- div B 2.17e-12 at most (contract 1e-12).
+- Energy (monitored only): work of the antenna 1.004e5; the budget is off by 162 at the end
+  (1.6e-3 of the work) and by 743 at most; `window_out` 4,965.
+- Device memory: 97,139 MiB at the peak on one GPU (the probe of 1,842 steps: 38.3 GB).
+
+Four things of this list are not properties of the wake. Each has its own section below: the
+device memory, the two Gauss checks, the Gauss residual and div B, the limit of the histogram.
+
+### Stage 5 — device memory of a run whose ranks refill (e5c2117)
+
+`Species.sort` gave its temporaries back to the device only after a sort of more particles than
+any sort before. A rank of a window run loses particles at the lower face and refills: its n rises
+from sort to sort but stays below its largest value, so the freed temporaries of each sort were too
+small for the next one and stayed in CuPy's pool beside the new ones. The pool is now freed after a
+sort of more particles than the last sort. `test_sort_of_a_growing_species_does_not_grow_the_memory_pool`
+now starts from an empty pool, adds a fall followed by a rise below the largest n, and fails on the
+old code.
+
+A/B on a reduced `laser_bubble` (`n_perp=160 width=20 x_end=100`: 1536×160² cells, 5.25e8
+particles, 10,900 steps, 8 GPUs), device memory of every GPU every 2 s:
+
+| | ed83bb4 (before) | e5c2117 |
+|---|---|---|
+| Largest device memory of a GPU | 63,549 MiB | 12,859 MiB |
+| Wall time, ms per step at the end | 448.5 s, 41.1 | 449.4 s, 41.2 |
+
+### Stage 5 — the Gauss check of the planner (2e7911e)
+
+The engine records the Gauss check only at a step of the history that is also a multiple of
+`gauss_interval`. The planner set the two intervals independently (`n_steps // 500` and
+`n_steps // 25`); in the production run (38 and 764 steps) only steps 0 and 14,516 are multiples
+of both. The Gauss interval of the wakefield planner is now 20 history intervals.
+`test_wakefield_plan_records_the_gauss_check_through_the_whole_run` fails on the old planner for
+`laser_linear` (13 checks) and `laser_bubble` (2 checks).
+
+Not changed here (outside this track, reported to the owner): the planners of `filamentation`,
+`landau_damping`, `plasma_waves`, `plasma_expansion`, `relativistic_shock` and `reconnection` set
+the two intervals independently in the same way. How many checks their runs keep was not counted.
+
+### Stage 5 — Gauss residual at the planes between ranks: the index coordinate of the window (07c668c)
+
+**Where the residual is.** A diagnostic script (not in the repository) ran the reduced
+`laser_bubble` above on the code of the first production run and gave, every 440 steps, the
+residual on every rank with the place of its largest value. Three places appear:
+
+| t | Shift | Largest residual | Place |
+|---|---|---|---|
+| 8.6 to 21.6 | 0 | 6.9e-12 to 7.7e-12 | plane of the antenna (x = 1.98), no charge there |
+| 25.9 | 0 | 2.3e-11 | on the axis, window cell 577: one node above the plane between ranks 2 and 3 (576) |
+| 30.2 to 43.2 | 97 to 757 | 3.1e-11 to 3.2e-11 | on the axis at x = 15.10 (laboratory cell 769; 768 is the plane between ranks 3 and 4 before the first shift) |
+| 47.5 to 56.2 | 977 to 1,417 | 5.4e-12 to 2.1e-11 | on the axis, x = 32.8, 38.4, 42.5 |
+| 60.5 to 73.4 | 1,637 to 2,297 | 3.3e-11 to 3.5e-11 | on the axis, x = 45.3, then 47.5 at three checks |
+| 77.7 to 86.4 | 2,517 to 2,957 | 2.4e-11 to 1.6e-11 | on the axis, x = 49.5, 54.2, 58.6 |
+| 90.7, 95.0 | 3,177, 3,397 | 1.08e-10 | on the axis, laboratory cell 3,833, which was window cell 768 (the plane between ranks 3 and 4) at shift 3,065, between the checks at t = 86.4 and 90.7 |
+| 99.4 to 107.0 | 3,617 to 4,007 | 1.30e-10 to 1.74e-10 | on the axis, window cell 769, in electrons of −550 to −595 n0 |
+
+A residual stays at its laboratory place once it is there (nothing removes it) until that place
+leaves the window, so a maximum is seen at the same place at several checks.
+
+**It is reproducible at the planes between ranks.** Three runs of the same code and seed (A, B,
+C; `x_end=40`), residual on the line of the axis at step 2,640 (before the first shift): within two
+nodes of a plane between ranks the rms is 2.6e-12 in each and the three runs agree (correlation
++0.991 for each pair; node 576 +2.27e-11, +2.53e-11, +2.29e-11, node 577 −2.22e-11, −2.38e-11,
+−2.33e-11); elsewhere the rms is 2.6e-13 to 2.8e-13 and the runs do not agree (correlation −0.01
+to +0.06), as round-off of the deposit sums in a different order does (R10). A pair of opposite
+signs on the two nodes of a plane between ranks is charge that moved by a part of a cell without
+a current.
+
+**Cause.** With a window the index coordinate was `(x − OX) / dx − s` with the origin OX of the
+rank, and the compiler contracts the product and the subtraction of s into one fused operation.
+`x − OX` is rounded with the origin of the rank, so two ranks give one position index coordinates
+that differ by more than their whole cells; a particle that changes rank starts its next deposit at
+another place than the one at which its last deposit ended. The two forms were compiled with the
+options of the engine and run for 4,096 positions within one cell of the plane between two ranks,
+with the cells of the production run (dx = 0.019635, origins of the ranks at cells 382 and 574):
+without a shift the two ranks differ for 1,495 positions (by up to 2.8e-14 of a cell), at shift
+917 for 1,582, at shift 8,117 (the end of the production run) for all 4,096 with a mean of
+1.1e-12 of a cell: the difference grows with x, and late in the run it has one sign. With cells of
+0.1 (the tests of Stage 4) no position differs: the inverse is the round number 10.
+
+**Fix.** With a window the index coordinate is now `(x · (1 / dx) + XLOW) − (OXI + XLOW + s)`: the
+product is rounded by itself (`__dmul_rn`), XLOW (the cells that the arrays of the first rank hold
+below the box, the same number on every rank) keeps the sum from being negative, and the integer
+taken away is not negative on any rank, so the subtraction is exact. Two ranks and two shifts now
+differ by whole cells only, bit for bit. New define `XLOW` (`kernelsrc.particle_defines`,
+`Decomposition.x_low`), exercised by the window cases of `check_kernels.py`. The kernels of a box
+at rest are unchanged (W0 holds). A first form without XLOW was not exact on the first rank while
+`OXI + s` is negative (found by an exact emulation before any run; not committed).
+
+**Test.** The tracers case of `mgpu_window.py` now uses cells of 0.0999 and deposits 32 single
+particles on every rank that holds the nodes around the middle plane;
+`test_moving_window_is_decomposition_independent` asks that the ranks give every node the same
+charge bit for bit. On the old form the largest difference is 1.3e-11 on (2,2,1); on the new form
+it is 0 on (2,2,1) and (1,2,2), with the history hash of one GPU.
+
+**Result on the reduced run.** Run D (`x_end=40`) and run E (`x_end=100`) used two earlier forms
+of a rank-independent index coordinate (D: the fused form with the global cell; E: the product
+rounded by itself, without XLOW), not the committed one; the second production run below is the
+run of the committed form. At step 2,640 the nodes at the planes between ranks are like the others
+(rms within two nodes 2.4e-13 and 2.6e-13, elsewhere 2.6e-13 and 2.7e-13; node 576 −6e-14 and
++1.3e-12; correlation with A, B, C at most 0.04). Largest residual of run E against the old code:
+
+| t | Old code | Run E |
+|---|---|---|
+| 30.2 to 43.2 | 3.1e-11 to 3.2e-11 | 1.4e-11 to 1.6e-11 |
+| 60.5 to 82.1 | 3.3e-11 to 3.5e-11, then 2.4e-11 and 2.0e-11 | 2.7e-11 to 2.8e-11 |
+| 90.7 | 1.08e-10 | 1.7e-11 |
+| 99.4 | 1.30e-10 | 2.4e-11 |
+| 107.0 (end) | 1.74e-10 | 3.4e-11 |
+
+**What remains, and what is not established.**
+
+- From t = 30 on the largest residual of runs D and E is on the axis (y = z = 10), where the
+  largest density of the run is 230 to 1,570 n0, at places that differ between the two runs
+  (t = 34 to 43: D 1.9e-11 at x = 17.75, E 1.6e-11 at x = 17.51). In run E it rises from 1.7e-11
+  to 3.4e-11 between t = 91 and 107. Its cause is not established. Whether it stays below 1e-10
+  to t = 188 is read from the second production run.
+- The residual in the plane of the antenna has the same size with the fix (7.4e-12 to 8.0e-12;
+  old code 6.9e-12 to 7.7e-12).
+- div B is unchanged by the fix: 1.1e-11 to 1.7e-11 in the plane of the antenna while the pulse
+  enters (|B| up to 362 there), 2.1e-12 to 2.9e-12 in the pulse afterwards (|B| 42 to 56). With
+  dx = 0.0196 one rounding unit of B = 50 over dx is 3.6e-13 (2.9e-12 for B = 362), so these
+  values are six to eight units; the places differ from run to run. The 1e-12 of the contract is an absolute number and
+  is not met by a field of this size on these cells. Reported to the owner; the contract is not
+  changed here.
+- The index coordinate of a box at rest, `(x − OX) / dx` (every axis, also y and z of a window
+  run), has the same dependence on the origin of the rank. It is not changed in this track: it
+  would change the bits of every run on `main`. Reported to the owner.
+
+### Amendment (2026-11-12): range of the u_x histograms of `laser_bubble`
+
+The set-up above fixed −20 ≤ u_x ≤ 400. The first run reached the limit at t = 168.9, so the
+largest u_x of its last three outputs is not measured. `laser_bubble.yaml` now sets
+`u_range: [-20, 520]` (da4e27e); the width of the bins is unchanged (1, and 2 over (x, u_x)), the
+default of the planner stays 400. 520 is above the continuation of the fastest growth of the
+largest u_x in the first run (2.6 per unit of time from t = 103 to 141: 495 at the end). No other
+definition of the report changes.
