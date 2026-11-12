@@ -318,9 +318,9 @@ The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the meth
     between base and A1.
   - Perturbation: two runs of the base already differ at step 0 (E_x by 5.6e-17 in FP64 and
     6.9e-17 in mixed, u_x of the electrons by 2.8e-17: the field of the set-up displacement is
-    made by atomic deposits and the first half kick takes it), so this set-up cannot show bits. After one step the rows
-    differ by 4.4e-16 between the two runs of the base and by 2.8e-17 (FP64) and 4.4e-16
-    (mixed) between base and A1.
+    made by atomic deposits and the first half kick takes it), so this set-up cannot show bits.
+    After one step the rows differ by 4.4e-16 between the two runs of the base and by 2.8e-17
+    (FP64) and 4.4e-16 (mixed) between base and A1.
   (1) holds where the base reproduces itself. Result of (2): pending.
 - Beside the null test, without a GPU: the PTX that NVRTC makes of the six cases of
   `scripts/check_kernels.py` (target `compute_120`), on the tree of e883591 and on the A1 tree.
@@ -342,9 +342,10 @@ Written before the code; what the code ends up doing differently is noted here w
   (the same 8 bytes as the int64 of the design table; no kernel or reader changes its type).
   `PSTORE` is these four pointers; `Species.store` returns them.
 - Index coordinate: `XI(p) = (double)i + (double)F * 2^-32` is exact while `|i| < 2^21` (a
-  double holds 53 bits, the fraction takes 32), so the kernels that work from `XI / YI / ZI` (`deposit_rho`, `deposit_moment`,
-  `gather_at_particles`, `boris_kick`, `cell_index`) need no compact body, and the charge density
-  of the Gauss check is the CIC density of the stored lattice points.
+  double holds 53 bits, the fraction takes 32), so the kernels that work from `XI / YI / ZI`
+  (`deposit_rho`, `deposit_moment`, `gather_at_particles`, `boris_kick`, `cell_index`) need no
+  compact body, and the charge density of the Gauss check is the CIC density of the stored
+  lattice points.
   Correction (2026-11-12): this item first read "exact (at most 31 + 32 bits)", which a double
   cannot hold. The limit is 21 bits of cell index, and it also covers the global index
   coordinate of the moving kernels and the points one step outside the box. `Simulation`
@@ -362,8 +363,9 @@ Written before the code; what the code ends up doing differently is noted here w
   the indices of the deposit and the gather.
 - `push_deposit` (in the global index coordinate, see the item above): start
   `c0 + q0 * 2^-32`; the end point is snapped before anything uses it,
-  `s = round((w0 + dX) * 2^32)`; walls are the integers `0` and `GN`; the reflection `2 * wall - x` and the periodic wrap `x ± GN` are exact in
-  double for lattice points; a returned particle of a paired face gets a snapped end point and
+  `s = round((w0 + dX) * 2^32)`; walls are the integers `0` and `GN`; the reflection
+  `2 * wall - x` and the periodic wrap `x ± GN` are exact in double for lattice points; a
+  returned particle of a paired face gets a snapped end point and
   `wall - 2^-32` in place of `nextafter`; `deposit_cut` clips in index coordinates. A path
   without wall and cut takes the integer shape functions of the A0 prototype; the general path
   hands the two exact end points to the Esirkepov core.
