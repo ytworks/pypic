@@ -81,9 +81,7 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
         ax[0].set_xlabel(r"$k_\perp c/\omega_{pe}$")
         ax[0].set_ylabel(r"$\Gamma/\omega_{pe}$")
         ax[0].legend()
-        for i, m in enumerate((1, 3, 7)):
-            if m < n:
-                ax[1].semilogy(t, amps[m], color=P.color(i), label=f"m={m + 1}")
+        _plot_modes(ax[1], t, amps)
         ax[1].set_xlabel(r"$\omega_{pe} t$")
         ax[1].set_title(r"$|B(k_\perp)|$")
         ax[1].legend()
@@ -95,6 +93,13 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
         fig.tight_layout()
         res["plot"] = P.save(fig, os.path.join(fig_dir or run_dir, "filamentation.png"))
     return res
+
+
+def _plot_modes(ax, t, amps) -> None:
+    """|B| of the modes m = 2, 4, 8 against time, as far as the run analysed them."""
+    for i, m in enumerate((1, 3, 7)):
+        if m < len(amps):
+            ax.semilogy(t, amps[m], color=P.color(i), label=f"m={m + 1}")
 
 
 STABLE_LIMIT = float(np.exp(2.0))  # growth of the mode energy allowed above the field of marginal stability
@@ -113,8 +118,7 @@ def _stable(run_dir, t, amps, info, t_end, gauss, show_plot, fig_dir) -> dict:
     if show_plot:
         P.style()
         fig, ax = P.plt.subplots(figsize=(6, 4.2))
-        for i, m in enumerate((1, 3, 7)):
-            ax.semilogy(t, amps[m], color=P.color(i), label=f"m={m + 1}")
+        _plot_modes(ax, t, amps)
         ax.set_xlabel(r"$\omega_{pe} t$")
         ax.set_title(r"$|B(k_\perp)|$ above the field of marginal stability")
         ax.legend()

@@ -619,3 +619,25 @@ dashes):
   definition changed.
 
 PIC-D18 is Accepted with these records (`relativistic_shock:pair_2d_sigma` on 8 GPUs).
+
+### Review fixes (2026-11-12, after the gates on c54e5d1)
+
+Four findings of the review of PR #41, all in `examples/` (no file under `pypic/` changes):
+
+- `filamentation/plan.py`: `stable` is now Ω² ≥ A (every k), not "no analysed mode grows". A field
+  below the marginal one whose unstable modes all lie above `n_modes` is refused (`b0 = 0.98` with
+  16 modes: growth starts at m = 17).
+- `bow_shock/analyze.py`: the null test fails when a species was not measured (a nan in the ions
+  was skipped by `max`).
+- `relativistic_shock/analyze.py`: the field ahead of the shock is nan when the shock leaves no
+  room ahead (`t_end = 50`), instead of an exception.
+- `filamentation/analyze.py`: the plot of the stable case draws only the modes the run analysed
+  (`n_modes = 4`).
+
+Checks: a CPU test per finding, each failing on the code before the fix. The plans of the four
+shipped filamentation configs are equal before and after (1 and 8 GPUs), and the recorded runs
+`relativistic_shock/pair_2d_sigma`, `bow_shock/oblique_null`, `filamentation/pair_b0` and
+`pair_b0_stable` give the same analysis results with the old and the new code. The two cases of
+the review ran end to end on 1 GPU. Seen there and not examined: `pair_b0_stable` with
+`n_modes = 4` (a longer run, three modes in the sum) gives a mode-energy ratio of 9.9, above the
+limit e².

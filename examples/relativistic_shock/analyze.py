@@ -24,6 +24,15 @@ from pypic.analysis.fields import fit_velocity, front_position  # noqa: E402
 from pypic.analysis.particles import energy_cutoff, fit_power_law, fit_temperature, spectrum  # noqa: E402
 
 
+def field_ahead(b) -> dict:
+    """Mean, rms and largest deviation from 1 of the field (over B1) ahead of the shock; nan where the
+    shock leaves no room between it and the receding plasma edge (a short run)."""
+    if b.size == 0:
+        return dict.fromkeys(("field_ahead_mean", "field_ahead_rms", "field_ahead_max_deviation"), float("nan"))
+    return {"field_ahead_mean": float(np.mean(b)), "field_ahead_rms": float(np.std(b)),
+            "field_ahead_max_deviation": float(np.max(np.abs(b - 1.0)))}
+
+
 def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) -> dict:
     run = open_run(run_dir)
     info = run.meta["planner"]
@@ -63,11 +72,9 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
         name, B1 = "B" + info["field_component"], info["B1"]
         xb, b = lo.x(name), lo[name][i_last] / B1
         b2 = float(np.mean(b[(xb > 0.3 * xl) & (xb < 0.8 * xl)]))
-        ahead = b[(xb > xl + 5 * skin) & (xb < edge - 5 * skin)]
         res.update(sigma=sigma, field_component=name, field_compression=b2,
                    field_compression_rel_error=(b2 - jc["compression"]) / jc["compression"],
-                   field_ahead_mean=float(np.mean(ahead)), field_ahead_rms=float(np.std(ahead)),
-                   field_ahead_max_deviation=float(np.max(np.abs(ahead - 1.0))))
+                   **field_ahead(b[(xb > xl + 5 * skin) & (xb < edge - 5 * skin)]))
     # downstream spectrum from the (x, gamma) histogram at the latest time the run is still valid
     xg = run.series("x_gamma")
     ex, eg = xg.edges

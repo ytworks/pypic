@@ -207,6 +207,11 @@ def test_filamentation_planner_takes_the_field_along_the_drift_from_the_marginal
     stable_cfg, _, stable = F.plan_filamentation(F.FilamentationParams(b0=1.5))
     assert stable["stable"] and max(stable["gamma_theory"]) == 0.0
     assert stable_cfg.n_steps == free_cfg.n_steps  # no growth time of its own: the length of the free case
+    # just below the marginal field only short wavelengths grow: not stable, and refused unless they are analysed
+    with pytest.raises(ValueError, match="n_modes"):
+        F.plan_filamentation(F.FilamentationParams(b0=0.98))
+    _, _, short = F.plan_filamentation(F.FilamentationParams(b0=0.98, n_modes=32))
+    assert not short["stable"] and short["gamma_theory"][15] == 0.0 < short["gamma_theory"][16]
 
 
 def test_shock_planner_gives_the_magnetised_flow_its_motional_field():

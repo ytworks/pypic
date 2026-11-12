@@ -75,8 +75,15 @@ def plan_filamentation(p: FilamentationParams, n_gpus: int = 1):
     gam = filamentation_species(ks, species, omega_c)
     gam_free = filamentation_species(ks, species)
     g_max = float(gam.max())
+    # stable at every k, not only at the analysed ones: Omega^2 >= A (filamentation_growth)
+    stable = bool(omega_c >= w_crit)
+    if not stable and g_max == 0.0:
+        b = sum(bm.density * s.charge ** 2 / s.mass / (1 + bm.drift[0] ** 2) ** 1.5 for s in species for bm in s.beams)
+        m_first = int(math.floor(math.sqrt(b * omega_c ** 2 / (w_crit ** 2 - omega_c ** 2)) / ks[0])) + 1
+        raise ValueError(f"b0={p.b0:g} is below the field of marginal stability, but the unstable modes start at "
+                         f"m={m_first}, above the n_modes={p.n_modes} analysed ones: raise n_modes or lower b0")
     # a stable case has no growth time of its own: it runs as long as the case without the field
-    g_run = g_max if g_max > 0 else float(gam_free.max())
+    g_run = g_max if not stable else float(gam_free.max())
     t_end = p.growth_times / g_run
     n_steps = int(math.ceil(t_end / dt))
     n_cells = (p.nx, nperp, nperp)
@@ -108,7 +115,7 @@ def plan_filamentation(p: FilamentationParams, n_gpus: int = 1):
     info = {"mixture": p.mixture, "u0": p.u0, "theta": p.theta, "wp_tot": wp_tot, "L_perp": Lp,
             "k_modes": ks.tolist(), "gamma_theory": gam.tolist(), "gamma_max": g_max,
             "gamma_limit": float(filamentation_species([1e6], species, omega_c)[0]), "B_sat_trapping": b_sat,
-            "B0": B0, "omega_c": omega_c, "omega_c_critical": w_crit, "stable": g_max == 0.0,
+            "B0": B0, "omega_c": omega_c, "omega_c_critical": w_crit, "stable": stable,
             "gate_modes": [p.gate_m_min, 10], "params": asdict(p)}
     lines = ["=== pypic filamentation planner ===",
              f"{p.mixture}: beams u0=+-{p.u0:g} (beta={beta0:.3f}, gamma={g0:.3f}), theta={p.theta:g}, "
@@ -119,6 +126,6 @@ def plan_filamentation(p: FilamentationParams, n_gpus: int = 1):
              + f" ... -> {info['gamma_limit']:.3f} (k -> inf)",
              *([f"B0={B0:.4f} along the drift: Omega={omega_c:.4f} = {p.b0:g} of the marginal {w_crit:.4f}"
                 + (f"; stable at every k, run length from the case without the field ({g_run:.3f})"
-                   if g_max == 0 else "")] if B0 else []),
+                   if stable else "")] if B0 else []),
              f"magnetic-trapping saturation estimate for the fastest mode: B ~ {b_sat:.3f} m c omega_pe / e"]
     return cfg, "\n".join(lines), info

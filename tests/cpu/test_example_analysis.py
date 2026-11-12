@@ -183,6 +183,19 @@ def test_bow_shock_null_history_measures_density_velocity_and_temperature_per_re
     assert h["e"]["density"][h["regions"].index("y-"), 1] == pytest.approx(1.0 + 0.1 * 2 / 8)
 
 
+def test_bow_shock_null_test_does_not_pass_a_species_that_was_not_measured():
+    B = _example("bow_shock")
+
+    def res(ion):
+        return {"gauss_max": 1e-13, "density": {"e": {"value": 0.01}, "i": {"value": ion}},
+                "velocity": {"e": {"value": 0.01}, "i": {"value": ion}}, "temperature_interior_end": {"e": 1.0},
+                "electric_ratio": 1.0, "magnetic_ratio": 1.0}
+
+    assert all(B.null_checks(res(0.01)).values())
+    lost = B.null_checks(res(float("nan")))  # the ions after the electrons: a nan must not be skipped
+    assert not lost["density"] and not lost["velocity"] and lost["gauss"]
+
+
 def test_blast_wave_front_and_debris_extent_are_recovered_from_synthetic_planes():
     from scipy.special import erfinv
 
@@ -304,3 +317,23 @@ def test_filamentation_stable_ratio_compares_the_modes_2_to_10_from_a_tenth_of_t
     gated = np.where(t < 10.0, 5.0, np.exp(0.5 * (t - 10.0) / 90.0))  # amplitude e^0.5 from t = 10 to the end
     amps = [np.exp(t)] + [gated] * 9 + [np.exp(t)] * 6  # modes 1 and 11..16 are not part of the criterion
     assert F.stable_ratio(t, amps, 100.0) == pytest.approx(np.e)
+
+
+def test_filamentation_stable_plot_draws_only_the_modes_of_the_run(tmp_path):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    spec = importlib.util.spec_from_file_location("filamentation_analyze", ROOT / "examples/filamentation/analyze.py")
+    F = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(F)
+    t = np.linspace(0.0, 100.0, 101)
+    info = {"omega_c": 0.6, "omega_c_critical": 0.4}
+    res = F._stable(str(tmp_path), t, [np.ones_like(t)] * 4, info, 100.0, 1e-13, True, None)  # n_modes = 4: no m = 8
+    assert res["passed"] and Path(res["plot"]).exists()
+
+
+def test_shock_field_ahead_is_nan_when_the_shock_leaves_no_room_ahead():
+    S = _example("relativistic_shock")
+    assert all(np.isnan(v) for v in S.field_ahead(np.array([])).values())
+    got = S.field_ahead(np.array([0.9, 1.1, 1.3]))
+    assert got["field_ahead_mean"] == pytest.approx(1.1) and got["field_ahead_max_deviation"] == pytest.approx(0.3)

@@ -281,16 +281,21 @@ def null_test(run_dir: str) -> dict:
             res[key + "_ratio"] = float(e[late].mean() / e[before].mean()) if before.any() else float("nan")
     b = s["magnetic"].astype(float)
     res["magnetic_slope_per_480"] = float(np.polyfit(step[late], b[late], 1)[0] * 480.0 / b[late].mean())
-    checks = {
-        "gauss": bool(res["gauss_max"] <= GAUSS_MAX),  # False for nan: no measurement, no pass
-        "density": bool(max(res["density"][sp]["value"] for sp in "ei") <= NULL_DENSITY),
-        "velocity": bool(max(res["velocity"][sp]["value"] for sp in "ei") <= NULL_VELOCITY),
+    checks = null_checks(res)
+    res.update(checks=checks, passed=all(checks.values()))
+    return res
+
+
+def null_checks(res: dict) -> dict:
+    """Verdicts of the null test. A nan is no measurement and does not pass, in either species."""
+    return {
+        "gauss": bool(res["gauss_max"] <= GAUSS_MAX),
+        "density": all(res["density"][sp]["value"] <= NULL_DENSITY for sp in "ei"),
+        "velocity": all(res["velocity"][sp]["value"] <= NULL_VELOCITY for sp in "ei"),
         "temperature": bool(res["temperature_interior_end"]["e"] <= NULL_TEMPERATURE),
         "electric": bool(res["electric_ratio"] <= NULL_ENERGY),
         "magnetic": bool(res["magnetic_ratio"] <= NULL_ENERGY),
     }
-    res.update(checks=checks, passed=all(checks.values()))
-    return res
 
 
 def _mark_body(ax, info, a, b):
