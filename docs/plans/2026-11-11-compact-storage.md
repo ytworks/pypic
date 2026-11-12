@@ -233,3 +233,54 @@ With (c) the kinetic energy of the record differs by 3.6e-4 relative at step 0: 
 takes γ of the record from the float32 arithmetic, which cannot resolve γ − 1 of the cold ions.
 A product version would compute the record from `u² / (γ + 1)` in FP64; the timings do not
 depend on it (one step in ten records).
+
+### A0 — prototypes: results (2026-11-12, engine code of e883591, no other job on the GPUs)
+
+Shadow runs of the `mixed` benchmark (256×64×64, 50,331,648 particles, 100 steps after 20 of
+warm-up), three runs on 8 GPUs and three on 1 GPU; ms per step, mean over the ranks, smallest
+to largest of the three runs. "of the step" is relative to the whole `mixed` step of the
+baseline (3.38 ms on 8 GPUs, 18.18 ms on 1 GPU), as the amendment above fixes.
+
+| kernel | 8 GPUs, ms | change, of the step | 1 GPU, ms | change, of the step |
+|---|---|---|---|---|
+| push of the engine (`mixed`) | 2.220–2.223 | — | 16.945–16.948 | — |
+| (a) compact position, f64 momentum | 1.893 | −9.7 % | 14.587–14.592 | −13.0 % |
+| (b) f32 momentum stored, FP64 Boris | 1.949–1.954 | −7.9 to −8.0 % | 15.155–15.167 | −9.8 to −9.9 % |
+| (c) f32 momentum, FP32 Boris | 1.298–1.310 | −27.0 to −27.3 % | 10.128–10.131 | −37.5 % |
+| sort of the engine (per step) | 0.096–0.097 | — | 0.439–0.440 | — |
+| sort, layout of (a) | 0.032–0.034 | −1.9 % | 0.281 | −0.9 % |
+| sort, layout of (b) and (c) | 0.018 | −2.3 % | 0.246–0.247 | −1.1 % |
+
+- The push of the engine timed in the shadow run is 16.95 ms on 1 GPU (baseline `kernel_push`
+  16.94) and 2.22 ms on 8 GPUs (baseline 2.31; the 0.09 ms were not traced). The changes above
+  are differences inside one shadow run, on the same particle states and fields.
+- (b) against (a): 0.057–0.061 ms slower on 8 GPUs (+1.7 to +1.8 % of the step) and 0.57 ms
+  slower on 1 GPU (+3.1 %). Storing float32 momenta and doing the Boris arithmetic in FP64 costs
+  time; it would be a memory option only.
+- (c) against (b): 0.64–0.65 ms faster on 8 GPUs (−19 % of the step), 5.03 ms on 1 GPU (−28 %).
+- Breakdown (medians): without the deposit the engine kernel takes 1.144 ms on 8 GPUs (8.92 ms
+  on 1 GPU), (a) 1.096 (8.41) and (c) 0.472 (3.40); the rest, the deposit, is 1.078 (8.02),
+  0.797 (6.18) and 0.833 (6.73) ms. So (a) gains in the deposit (no `floor`, lattice end points)
+  and (c) in the gather and the Boris push. (b) without the deposit was not timed.
+- End points against the engine after one push (largest over all particles and ranks):
+  (a) 3.5e-10 cells (the lattice is 2.3e-10) and 8.4e-12 in u; (b) 7.3e-9 cells and 2.1e-8;
+  (c) 3.4e-8 cells and 4.3e-8.
+- Gauss residual with the prototype as the push (one rank, 256×64×64, 50,331,648 particles,
+  400 steps, no sort): engine 5.9e-13; (a) 4.1e-15, (b) 4.2e-15, (c) 4.4e-15. div B 8e-16 in all
+  four. Electric energy at the end against the engine: (a) 7e-12 relative, (b) 4e-8, (c) 2.5e-7.
+
+Against the criteria fixed in A0:
+
+| criterion | limit | measured (8 GPUs decides) | outcome |
+|---|---|---|---|
+| a speed item is adopted | ≥ 2 % of the step | compact position (a): 9.7 %, plus 1.9 % from the sort | adopted |
+| (c) preferred to (b) | ≥ 2 % | 19 % | FP32 Boris arithmetic, not FP64 on stored float32 |
+| compact goes on to A1 | not more than 2 % slower than `mixed` | 9.7 % to 27 % faster | goes on |
+| Gauss residual of the prototype | ≤ 1e-10 | 4.4e-15 at most | passes |
+
+What the prototypes do not show: they are periodic only (no wall loop, injection, body,
+migration record) and one species pair; the product kernels of A2 are measured again with the
+gates. The float32 momentum of (c) stays under the two conditions of owner decision 2 (all
+explicit gates in the mode; gyration drift of |u| ≤ 6e-8·√N without a secular trend), which A2
+tests; if one fails the mode keeps float64 momenta — layout (a), 56 B — and (b) is not used.
+The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the method section).
