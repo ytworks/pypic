@@ -290,7 +290,7 @@ Measured (2026-11-12, A0, 8× RTX PRO 6000; prototypes of the push, periodic onl
 - **Gauss residual** over 400 steps on one rank: 4.4e-15 at most with the prototypes, 5.9e-13 with the engine.
 - **Gyration with float32 stored momenta and FP64 Boris arithmetic** (2026-11-12; product kernel of f322fe2, one GPU, uniform B, 1,024 particles with random phases per value of `|u|`): the group mean of the relative change of `|u|` leaves zero as the steps go on. At 2,301,952 steps (B = 0.5, dt = 0.05) it is −19.6, +21.5, −15.9, +16.4 standard errors from zero for `|u|` = 1, 2, 5, 11.3 (a second seed: −20.0, +25.1, −16.0, +16.0), and for seven of eight other values of `|u|` 9.2 to 26.0; for `|u|` = 1 the mean per step is −7.1e-12, −6.8e-12, −6.5e-12 at 143,872, 575,488 and 2,301,952 steps. With float64 storage (`mixed`, and `compact` after the change) the same runs stay within 1.8 standard errors, 5.2e-20 per step at most. The mechanism is not established. Tables: the plan, "A2 — result".
 
-Not established: the gates in the mode; speed and memory of the product kernels (the planner counts 56 bytes per slot; the 32 bytes per particle of the sort are an estimate); the peak device memory of a production-size run against the planner.
+Not established: the gates in the mode; the speed of the product kernels; the grid term of the example planners in the mode (the planner counts 56 bytes per slot and 24 per particle of the sorted species for the sort — one sort of 3.4e7 particles held 24.2, against 40.2 in `fp64`); the peak device memory of a production-size run against the planner.
 
 ## Review amendments
 

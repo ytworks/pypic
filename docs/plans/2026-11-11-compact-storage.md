@@ -481,6 +481,19 @@ Written before the code; what the code ends up doing differently is noted here w
   `compact` (31 arrays, measured in `fp64`; the float32 arrays of the gather are not counted
   separately). Both are part of the exit measurement of R5 (peak device memory within 5 % of
   the planner's figure).
+  Measured (2026-11-12, 403eeb6, one GPU, no other job on it; `two_stream/ei` with
+  `cells_per_wavelength=64`, 33,554,432 electrons and 16,777,216 ions): the memory pool emptied,
+  then one sort; the growth of the pool and of the used device memory up to the end of the
+  sort, per particle of the sorted species, twice per species with equal results.
+
+  | precision | pool, bytes per particle | device, bytes per particle |
+  |---|---|---|
+  | fp64 | 40.22 | 40.25 |
+  | mixed | 40.22 | 40.25 |
+  | compact | 24.19 | 24.25 |
+
+  `SORT_BYTES` of `compact` is 24 (the estimate was 32). The 40 of the bow-shock gate is
+  reproduced. The grid term of the example planners is still open.
 
 ## A2 — result (2026-11-12): float32 momenta fail the gyration condition; momenta stay float64
 

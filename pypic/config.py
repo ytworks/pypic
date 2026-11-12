@@ -186,11 +186,11 @@ MAX_CAPACITY = 2 ** 31 - 1
 # Device bytes by precision, for the memory estimates of the planners. SLOT_BYTES: one particle slot
 # (fp64, mixed: 8 rows of float64; compact, PIC-D19: weight and id in float64, the cell in int32,
 # three uint32 and three float64). SORT_BYTES: the temporaries of the sort per particle of the
-# species being sorted. 40 was measured at the bow-shock gate. 32 for compact is an estimate, not
-# yet measured: an int32 key in place of the int64 one in the key, its copy and the scratch of the
-# argsort (-12), and the buffer of one row that the int64 key otherwise serves as (+8).
+# species being sorted: 40 was measured at the bow-shock gate; one sort of 3.4e7 and of 1.7e7
+# particles on one GPU holds 40.2 (fp64, mixed) and 24.2 (compact: the key is the stored int32 cell,
+# and the buffer of one row fits a block the argsort has freed).
 SLOT_BYTES = {"fp64": 64, "mixed": 64, "compact": 56}
-SORT_BYTES = {"fp64": 40, "mixed": 40, "compact": 32}
+SORT_BYTES = {"fp64": 40, "mixed": 40, "compact": 24}
 
 
 @dataclass
