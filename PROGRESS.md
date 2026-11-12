@@ -53,42 +53,23 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D22 Accep
 - Known gaps: injection + filter + zone cost about +55 % over an open step without them (plan, Phase 3); no restart checkpoints (R2); output written
   synchronously by rank 0 (R9: +4 % of a production run on 1 GPU, +13–14 % on 8; a writer thread
   was measured below the 2 % criterion and not adopted).
-- Bow shock (`examples/bow_shock`, gate M3 of the plan; passed in the gate records, FP64 and mixed, and
-  in three more FP64 runs on 8 GPUs): magnetopause at 0.92–0.93 of the pressure-balance distance, shock
-  at 1.38 R_mp (Spreiter 1.37), upstream within 0.11 %, Gauss 4e-14; 46 ms/step, 10.1 GB per GPU. Runs of
-  one seed differ in the third digit; the body charge at the end by 2 % (+730 to +749). Not shown: a
-  constant body charge and absorption rate at the end (three crossings); overshoot against sheath
-  density. Production configuration (`full.yaml`, 600³, 3.4e9 particles, 28800 steps; one run, reported):
-  magnetopause 0.94, shock 1.32 R_mp (Spreiter 1.34), Gauss 8e-14; 2.85 h, 357 ms/step, 79.8 GB per GPU,
-  fill 0.62 (`bench/results/2026-11-11-9ba2a6518-example-bow_shock-full-run-b3d1c288.json`). Not
-  stationary at the end (particle number, body charge); the shock distance depends on the 2 n₀ definition.
-- Bow-shock plan (R1, R6; `docs/plans/2026-11-10-bow-shock.md`): all phases done. Phases 0–4
-  (PIC-D12..D16) gated on d2ac1d9, 84f5808, 7893fec, 98e626b; Phase 5 (the example, gate M3, the sort
-  fix) gated on 39acb7f, production run on 9ba2a65, the review fixes of PR #39 gated on 9b901c1. Merged to main by PR #39;
-  wiki page `Bow-Shock` (EN + JA) published with the merge.
-- Blast wave around a magnetised body (R6; `docs/plans/2026-11-11-blast-wave.md`): Phase 1 done
-  (radial beams, PIC-D17 Accepted: a shell with a radial drift, loaded into the cells its
-  shape reaches; gated on 574c904 in FP64 with the existing gates unchanged, and on ae4bb69 with the example). Phase 2 done:
-  the example (debris shell in 4 beams per species, planner rejections, gate analysis, `full.yaml`, README, CPU tests;
-  MHD scales shared with the bow shock in `pypic/setup/mhd.py`). Phase 3: the gate configuration
-  (8 GPUs; four FP64 runs: 1223a21, the gate records on ae4bb69 and 9bfa1a5, the wiki run on 3752d32; one `mixed` run on 9bfa1a5) passed all seven criteria fixed in the plan: front 2.1 fast speeds, B_z up to 2.7 B0,
-  axes against diagonals 0.2 %, debris extent 1.24 R_m (Eq. 4 of Le et al. 2021: 1.02 R_m; band ± 25 %, so 4 points
-  inside it), plasma ahead within 0.05 %, Gauss 8e-15; 93 ms/step, 21.5 GB per GPU by the planner. The FP64 runs agree in the front
-  criteria in all digits and in the debris extent to 12 digits; the `mixed` run agrees with them to 7 digits. Review of PR #40 (17f1b5f): the shell mass is counted from the centre
-  (peak density 5.1e-9 higher) and the rings of the analysis follow the slice spacing; the records on 17f1b5f (FP64, mixed) pass the same criteria, FP64 front speed and ring mean equal to the runs before in 9 digits. Phase 4 done: production configuration
-  (`full.yaml`, m_i/m_e = 25, 576³, 3.1e9 particles, 2800 steps; one FP64 run on 3752d32, reported): front 2.10 fast speeds, B_z up to 2.7 B0, debris extent 1.24 R_m
-  (22 % above Eq. 4), cavity 0.50 R_B, Gauss 8e-15; 788 s, 282 ms/step, fill 0.67, 66.2 GB per GPU by the planner
-  (`bench/results/2026-11-11-3752d3211-example-blast_wave-full-run-ea70ccc5.json`); its budget changes by 26 % of the debris energy (gate 11 %) and no run
-  without debris exists at that size. Wiki page `Blast-Wave` (EN + JA) with the Home rows: sources in `docs/wiki/`, rendered into the local wiki checkout
-  from a fourth FP64 gate run (3752d32, equal to the records as above); published (wiki 7a6af22). Merged to main by PR #40 (e883591); the production run and the wiki data are older than 17f1b5f.
-  Not shown: the 21–22 % above Eq. 4 at another R_m / d_i, shell shape or seed (2-D fit used with D = 3, shell, equal ion masses, R_m = 8 d_i; the two configurations differ in mass ratio and box width). A trial at R_m = 4 d_i
-  (176³): 4 beams lower the numerical energy gain of the debris from 1.4 % to 0.4 % of its kinetic energy; the
-  debris extent there is 2.1 R_m against 1.0 R_m of Le et al. 2021 (Eq. 4) — another regime than the gate (ρ_d = 0.75 R_m).
-  Phase 0: planner skeleton and null-test analysis in `examples/blast_wave` (no debris yet). N1 (plasma at rest, six `flux` faces, 384³, 1760 steps) passed; N2 (with body and
-  dipole) failed one of seven criteria fixed before the run: the body charge does not level (still
-  rising at 3× the length), while its potential stays within 1.2 T_e / e and the plasma outside
-  2 r_dip is as in N1. The owner made the charge a reported value (amendment). Not shown: a level of
-  the body charge; charge and potential of the body under the debris.
+- Bow shock (R1, R6; `docs/plans/2026-11-10-bow-shock.md`, all phases done, PIC-D12..D16; merged to
+  main by PR #39, wiki page `Bow-Shock`). Gate M3 (8 GPUs, FP64, mixed): magnetopause at 0.92–0.93
+  of the pressure-balance distance, shock at 1.38 R_mp (Spreiter 1.37), Gauss 4e-14; 46 ms/step.
+  Production (`full.yaml`, 600³, 3.4e9 particles; one run, reported;
+  `bench/results/2026-11-11-9ba2a6518-example-bow_shock-full-run-b3d1c288.json`): magnetopause 0.94,
+  shock 1.32 R_mp (Spreiter 1.34), 2.85 h, 79.8 GB per GPU. Not shown: a stationary end (particle
+  number, body charge); the shock distance depends on the 2 n₀ definition.
+- Blast wave (R6; `docs/plans/2026-11-11-blast-wave.md`, all phases done, PIC-D17: radial beams;
+  merged to main by PR #40, e883591; wiki page `Blast-Wave`, 7a6af22). Gate configuration (8 GPUs,
+  FP64 and `mixed`): all seven criteria pass: front 2.1 fast speeds, B_z up to 2.7 B0, debris extent
+  1.24 R_m (Eq. 4 of Le et al. 2021: 1.02 R_m), Gauss 8e-15; 93 ms/step. Production (`full.yaml`,
+  576³, 3.1e9 particles; one FP64 run on 3752d32, reported;
+  `bench/results/2026-11-11-3752d3211-example-blast_wave-full-run-ea70ccc5.json`): the same front,
+  extent 22 % above Eq. 4, budget change 26 % of debris energy (gate 11 %). Not shown: the excess
+  over Eq. 4 at another shell shape or seed; a level of the body charge (null test N2; a reported
+  value by amendment); a run without debris at production size.
+  The status as it was before 2026-11-12, with every figure: `docs/progress/archive/status-2026-11-12.md`.
 - More examples (R6; `docs/plans/2026-11-11-more-examples.md`, PR #41, branch `examples/r6`; not merged; gates recorded on c54e5d1
   in FP64 and mixed): all seven items have a gated or a recorded 8-GPU configuration, results in the plan and the READMEs.
   Gates: `bow_shock/south` and `oblique`, `two_stream/ei_b0`, `filamentation/pair_b0` and `pair_b0_stable` (growth rate with a
