@@ -22,9 +22,11 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import baseline  # noqa: E402
 import census  # noqa: E402
 import orbits  # noqa: E402
 import shockkin as sk  # noqa: E402
+import upstream  # noqa: E402
 
 GAMMA_EDGES = [1.5, 2.0, 3.0, 5.0, np.inf]  # one threshold for all runs: gamma >= 1.5
 BAND_EDGES_DEG = list(range(0, 91, 10))  # foot-point theta_Bn bands
@@ -296,6 +298,8 @@ def selftest() -> int:
 
     census.selfcheck(check)
     orbits.selfcheck(check)
+    baseline.selfcheck(check)
+    upstream.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
@@ -1034,12 +1038,22 @@ def main(argv=None) -> int:
     p = sub.add_parser("census", help="energetic electrons by origin, class, band and result (protocol Sect. 6)")
     p.add_argument("run", type=Path)
     p.add_argument("--null", type=Path, help="null.json of the run without a driver (floors N1, N3, N5)")
+    p = sub.add_parser("n3c", help="fluctuation power upstream of the front against the null run (N3c)")
+    p.add_argument("run")
+    p.add_argument("null")
+    p = sub.add_parser("baseline", help="count model B2 on the measured front against the census (Sect. 3.4)")
+    p.add_argument("run")
+    p.add_argument("--workers", type=int, default=4)
     p = sub.add_parser("tracks", help="measures on the tracked orbits (protocol Sect. 7, N4, f_FN); after census")
     p.add_argument("run")
     p.add_argument("--chunk", type=int, default=20000, help="orbits measured per block")
     p = sub.add_parser("null", help="numerical floor N1, N2, N3, N5 of a run without a driver")
     p.add_argument("run", type=Path)
     args = ap.parse_args(argv)
+    if args.cmd == "n3c":
+        return upstream.cmd_n3c(args)
+    if args.cmd == "baseline":
+        return baseline.cmd_baseline(args)
     if args.cmd == "tracks":
         return orbits.cmd_tracks(args)
     if args.cmd == "census":
