@@ -378,17 +378,18 @@ def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
         assert np.max(np.abs(e - e[0])) / e[0] < 1e-11
 
 
-@pytest.mark.parametrize("marder", [0.0, 0.125])
-def test_filter_and_marder_zone_at_open_faces_keep_gauss(marder):
+@pytest.mark.parametrize("marder,precision", [(0.0, "fp64"), (0.125, "fp64"), (0.125, "compact")])
+def test_filter_and_marder_zone_at_open_faces_keep_gauss(marder, precision):
     """A drifting plasma leaves through open faces with the current filter on (PIC-D15), without
     and with the Marder zone (PIC-D16): the charge left on the face nodes spreads through the
-    filter and the zone works on it, and Gauss's law stays exact at every node behind them."""
+    filter and the zone works on it, and Gauss's law stays exact at every node behind them. The
+    compact storage (PIC-D19) finds the particles near the open faces from their stored cell."""
     cfg = SimConfig(n_cells=(16, 16, 12), dx=(0.5,) * 3, dt=0.2, npml=6,
                     boundaries=(("open", "open"), ("open", "open"), ("periodic", "periodic")),
                     species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.1, 0.05, 0), 0.02)]),
                              SpeciesConfig("i", 1, 16, [Beam(1.0, (0.1, 0.05, 0), 0.001)])],
                     ppc=4, diag_interval=5, gauss_interval=5, current_filter=CurrentFilter(1, True),
-                    marder_zone=marder)
+                    marder_zone=marder, precision=precision)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sim.run(40)
     assert sim.history["lost_charge"][-1] != 0.0

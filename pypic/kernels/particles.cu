@@ -712,12 +712,19 @@ extern "C" __global__ void deposit_rho(PSTORE_RO, const int n, const long long c
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
     if (shell > 0.0) {
-        const double x[3] = {PX(p), PY(p), PZ(p)}, Lg[3] = {LX, LY, LZ}, d[3] = {DX, DY, DZ};
         const bool o0[3] = {BCX0 == BC_OPEN, BCY0 == BC_OPEN, BCZ0 == BC_OPEN};
         const bool o1[3] = {BCX1 == BC_OPEN, BCY1 == BC_OPEN, BCZ1 == BC_OPEN};
         bool in = false;
+#ifdef COMPACT_STORE
+        // a position is its cell plus a fraction below one: the cell decides (the shell in whole cells)
+        const int l = P_c[p], sh = (int)ceil(shell), gn[3] = {GNX, GNY, GNZ};
+        const int c[3] = {l / (NY * NZ) + OXI, l / NZ % NY + OYI, l % NZ + OZI};  // cell of the box
+        for (int a = 0; a < 3; a++) in = in || (o0[a] && c[a] < sh) || (o1[a] && c[a] >= gn[a] - sh);
+#else
+        const double x[3] = {PX(p), PY(p), PZ(p)}, Lg[3] = {LX, LY, LZ}, d[3] = {DX, DY, DZ};
         for (int a = 0; a < 3; a++)
             in = in || (o0[a] && x[a] < shell * d[a]) || (o1[a] && x[a] >= Lg[a] - shell * d[a]);
+#endif
         if (!in) return;
     }
     double X = XI(p), Y = YI(p), Z = ZI(p);
