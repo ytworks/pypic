@@ -905,7 +905,7 @@ History (every output from the one at which the cavity exists):
 
 The pulse steepens to a0 = 5.6 at t = 84 and falls back to 3.9; the cavity widens from 3.9 to 4.7
 with it; the slope stays between 0.41 and 0.46. Electrons are trapped from t = 28 on, all through
-the run (the number still grows by 2.5 per output at the end). The last bin of the u_x histogram is
+the run (the number still grows by 2.6 per output at the end). The last bin of the u_x histogram is
 occupied from t = 168.9: the largest u_x of the last three outputs is not measured.
 
 Diagnostics of the run:
@@ -1085,8 +1085,8 @@ in every digit of the analysis; the centre of the pulse differs by 1.8e-6 at mos
 | 187.7 | 54.4 | 457 | 400 (limit) |
 
 Electrons with u_x > 20 at the end: 54.38 n0 (c/ω_pe)³, for 0.8 µm 1.955e9 electrons and 313 pC;
-mean u_x 146.3, most populated bin 95.5. The largest u_x grows by 1.9 per unit of time over the
-last four outputs. The energy gain of Lu et al. at the dephasing length is 267; the pulse has
+mean u_x 146.3, most populated bin 95.5. The largest u_x grows by 1.9 per unit of time from
+t = 150.2 to the end. The energy gain of Lu et al. at the dephasing length is 267; the pulse has
 crossed 172 of the 267 c/ω_pe of that length, and the largest u_x is above 267 from t = 103.2 on
 (275).
 
