@@ -234,8 +234,8 @@ def _blowout(run, p, info, show_plot: bool, fig_dir: str | None) -> dict:
            "electrons_in_range": float(np.sum(sp.read("electron", last)))}
     res["cavity_radius_over_theory"] = res["cavity_radius"] / th["radius"]
     per_unit = T.electrons_per_unit(p.omega0)
-    res["trapped_electrons_0.8um"] = tr["number"] * per_unit
-    res["trapped_charge_pC_0.8um"] = tr["number"] * per_unit * constants.e * 1e12
+    res["trapped_electrons_800nm"] = tr["number"] * per_unit
+    res["trapped_charge_pC_800nm"] = tr["number"] * per_unit * constants.e * 1e12
     res["history"] = {"t": [e["t"] for e in each], "pulse_center": [e["pulse_center"] for e in each],
                       "a0": [e["a0"] for e in each],
                       "cavity_radius": [e["cavity"]["radius"] if e["cavity"] else float("nan") for e in each],
