@@ -3,6 +3,18 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-12 — Citation check of the survey: 16 corrections
+- An independent check compared about 290 located statements of Sects. 1–8 of the survey with the paper texts.
+  About 280 were confirmed. Three were wrong and 13 imprecise or mis-located; all 16 are corrected in the
+  English and Japanese surveys, and one wording in the summaries.
+- The three wrong statements:
+  - "only one paper gives Mach numbers for SNR shocks": four others quote values (M_A ≈ 20–1000);
+  - "K_ep is degenerate with the magnetic field": the Tycho paper says the X-ray flux fixes K_ep independently
+    of the field (the note `morlino2012strong` is corrected too);
+  - "the 2-D runs last 6–52 Ω_ci⁻¹": two 2-D studies of parallel shocks run longer.
+- Not checked: statements that rest on `hoshino2002nonthermal`, `amano2010critical` and `amano2022theory`
+  (no text at hand), and three values that are garbled or only in figures; the survey marks them.
+
 ## 2026-11-12 — One-page summary of the survey, in English and Japanese
 - Asked by the owner. `survey-snr-electron-injection-summary.md` and its `.ja.md` give the whole picture on one
   page: the problem, what observations fix, the mechanisms by θ_Bn, what decides the answer in a simulation,

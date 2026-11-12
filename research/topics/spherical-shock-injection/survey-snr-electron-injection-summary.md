@@ -17,7 +17,7 @@ the notes in `research/literature/`. Japanese version: `survey-snr-electron-inje
 - Where on the shell electrons are accelerated is disputed. SN 1006 points to the quasi-parallel caps
   (`bocchino2011constraints`; `winner2020evolution`). The radio population of bilateral remnants points to
   quasi-perpendicular shocks (`west2017connection`; Sect. 3.3).
-- No observation measures the injected fraction or identifies the mechanism.
+- No observation measures the injected fraction directly or identifies the mechanism.
 
 ## The mechanisms, by the angle θ_Bn between shock normal and field (Sect. 4)
 

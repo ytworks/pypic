@@ -28,7 +28,7 @@ shocks appear only where they serve as a benchmark for SNR shocks.
    the injection problem. The works do not agree on what the threshold is (Sect. 2).
 2. **Observations** give the result of injection, not the process. Young SNRs hold 10–100 TeV electrons
    (`vink2012supernova` Sect. 6.3.1). Models of Tycho and SN 1006 need K_ep ≈ 10⁻³ (`morlino2012strong` Sect. 3;
-   `mcginness2026sn` Table 1). No observation measures the injected fraction of electrons.
+   `mcginness2026sn` Table 1). The injected fraction of electrons has not been measured directly.
 3. **Obliquity in remnants is contested.** In SN 1006 most works place the efficient acceleration where the shock
    is quasi-parallel (the polar caps). The radio sample of bilateral remnants favours quasi-perpendicular
    acceleration (`west2017connection` Sect. 5). Every global model takes its efficiency law ε(θ_Bn) as an
@@ -61,7 +61,7 @@ shocks appear only where they serve as a benchmark for SNR shocks.
 |---|---|---|
 | Gyroradius ≥ shock width | gap of 10⁵–10⁶ in energy for real shocks; 10³ in an oblique PIC run | `bohdan2023electron` Eq. 1, Sect. 4.3 |
 | Momentum | p_e ≫ m_i V_sh: about 10 MeV/c at V_sh = 0.01 c | `pohl2020pic` Eq. 34; `bohdan2019kineticb` Sect. 4 |
-| Diffusion length ≲ shock thickness | the gyroradius condition is "the most pessimistic"; injection at 0.1–1 MeV | `amano2022nonthermal` Sect. 2.5, Eq. 3 |
+| Gyroradius ≈ dissipation scale of the turbulence | injection at 0.1–1 MeV; the condition on the shock width is called "the most pessimistic" | `amano2022nonthermal` Sect. 2.5, Eq. 3 |
 | Proton injection momentum | electrons join DSA near p_inj ≈ 3 m_p v_u of the protons | `park2015simultaneous` Fig. 3 |
 | Speed | an electron is injected once its speed exceeds v_sh, whatever its gyroradius | `gupta2025speed` Sect. II B, Fig. 2 |
 | Scale of upstream structures | gyroradius ≈ λ/2π of the steepened waves (SLAMS) at high M_A | `zekovic2025slams` Eq. 1 |
@@ -74,9 +74,11 @@ shocks appear only where they serve as a benchmark for SNR shocks.
 - Field: 3–5 μG in the interstellar medium (`reynoso2013radio` Sect. 4; `vink2012supernova` Sect. 11.3) and
   100–600 μG at the rims (`vink2012supernova` Sect. 11.2).
 - Density 0.02–0.3 cm⁻³ (`mcginness2026sn` Sect. 2.1; `morlino2012strong` Sect. 2.1).
-- Mach numbers: only `morlino2012strong` gives them, M_s ≃ 443 and M_A ≃ 15 in the amplified field (Sect. 2.3).
-  With the unamplified 5 μG and 0.3 cm⁻³ the far-upstream values are M_A ≈ 250, ω_pe/Ω_ce ≈ 350 and β ≈ 0.8
-  (our arithmetic).
+- Mach numbers: for Tycho, `morlino2012strong` gives M_s ≃ 443 and M_A ≃ 15 in the amplified field
+  (Sect. 2.3). With the unamplified 5 μG and 0.3 cm⁻³ the far-upstream values are M_A ≈ 250,
+  ω_pe/Ω_ce ≈ 350 and β ≈ 0.8 (our arithmetic). Generic values quoted for SNR shocks: M_A ≈ 20–1000
+  (`bohdan2023electron` Sect. 2), 100–1000 (`amano2007electron` Sect. 3.1), and about 300 with the
+  unamplified field (`riquelme2011electron` Sect. 5).
 - A shock is superluminal, so that no electron can outrun it along the field, only for θ_Bn > 89°
   (`amano2022nonthermal` Sect. 2.1).
 - Radius over shock thickness is about 10¹² (our arithmetic from `vink2012supernova` Sect. 5.2).
@@ -92,11 +94,12 @@ against under 2 % at 5000 km/s (our arithmetic).
 - Thin X-ray synchrotron rims show 10–100 TeV electrons at the forward shocks of young remnants
   (`vink2012supernova` Sect. 6.3.1). The first synchrotron shell was found in SN 1006 (Koyama et al. 1995, not
   read; cited by `vink2012supernova` and `reynolds2004microphysics`).
-- The cut-off photon energy is hν = 1.4 η⁻¹ (V_s / 5000 km/s)² keV, with η the diffusion coefficient in units of
-  the Bohm value (`vink2012supernova` Eq. 52).
+- The cut-off photon energy is hν = 1.4 η⁻¹ [(χ₄ − ¼)/χ₄²] (V_s / 5000 km/s)² keV. Here η is the diffusion
+  coefficient in units of the Bohm value and χ₄ the compression ratio in units of 4 (`vink2012supernova`
+  Eq. 52).
 - Thermal electrons stay cool: kT_e ≤ 5 keV in all young remnants; in SN 1006 kT_e ≈ 1.5 keV against
   528 ± 150 keV for O VII (`vink2012supernova` Sect. 11.1).
-- `vink2012supernova` (Sect. 5.5) calls injection an "outstanding uncertainty".
+- `vink2012supernova` (Sect. 5.5) counts injection among the "outstanding uncertainties".
 
 ### 3.2 How many electrons
 - Tycho: K_ep = 1.6 × 10⁻³ from the radio and X-ray synchrotron emission, a free normalisation of the model
@@ -105,8 +108,11 @@ against under 2 % at 5000 km/s (our arithmetic).
   Electrons are tied to protons by construction there. The same paper quotes a range of 10⁻²–10⁻⁴ for K_ep in
   the literature (Sect. 2.2).
 - At Earth K_ep ≈ 0.01, and young SNRs suggest 10⁻³ or less (`park2015simultaneous`, Introduction).
-- K_ep is degenerate with the magnetic field in these fits (reading of `morlino2012strong` by this survey).
-- No paper measures the fraction of thermal electrons that is injected.
+- In the Tycho model the X-ray flux at the cut-off fixes K_ep independently of the magnetic field strength; the
+  radio flux then constrains the field (`morlino2012strong` Sect. 4.3).
+- The fraction of thermal electrons that is injected has not been measured directly. Model-dependent estimates
+  of 10⁻⁶–10⁻³ are quoted (`riquelme2011electron` Sect. 5; `amano2007electron` Sect. 3.5, after Bamba et al.
+  2003, not read).
 
 ### 3.3 Where on the shell: obliquity
 A spherical remnant in a uniform field has every θ_Bn. SN 1006 has two bright limbs, and the question is whether
@@ -129,7 +135,7 @@ they are polar caps (quasi-parallel) or an equatorial belt (quasi-perpendicular)
 |---|---|---|---|
 | Rothenflug et al. 2004 (not read) | X-ray centre-to-rim ratio of SN 1006 | excludes an equatorial belt | via `bocchino2011constraints` Sect. 1 |
 | `reynolds2004microphysics` | synthetic images with obliquity-dependent diffusion | bright rims "almost certainly perpendicular" (Conclusions) | mean field 10 μG assumed |
-| `bocchino2011constraints` | 3-D MHD and radio maps of SN 1006 | quasi-parallel fits best with the field at 38° ± 4° to the line of sight and a gradient of the field strength (Sect. 3.4.1) | in a uniform field quasi-parallel cannot fit (Sect. 3.3); quasi-perpendicular is "worse", not excluded (Sect. 3.4.2) |
+| `bocchino2011constraints` | 3-D MHD and radio maps of SN 1006 | quasi-parallel fits best with the field at 38° ± 4° to the line of sight and a gradient of the field strength (Sect. 3.4.1) | in a uniform field quasi-parallel cannot fit (Sect. 3.3); quasi-perpendicular is "worse", not excluded (Sect. 5) |
 | `reynoso2013radio` | radio polarimetry of SN 1006 | bright lobes: radial, disordered field, polarisation 0.17; south-east rim: tangential, ordered field, 0.6 ± 0.2 (Sects. 3.1, 3.2) | calls the gradient model "somewhat contrived" (Sect. 1) |
 | `zhou2023magnetic` | X-ray polarimetry of the north-east limb | downstream field radial; polarisation degree 22.4 ± 3.5 % (Table 1) | "consistent with" quasi-parallel; radial and uniform fields cannot be separated (Sect. 3.2) |
 | `giuffrida2022supernova` | post-shock density against azimuth | compression rises from 4 to about 7 towards θ ≈ 0° (Fig. 3b) | about hadrons; no electron number |
@@ -164,8 +170,8 @@ Buneman instability; electrons trapped in the waves gain energy from the motiona
 - Conditions:
   - instability: M_A ≥ [(1+α)/2] (β_e m_i/m_e)^(1/2), with α ≈ 0.2 the reflected-ion fraction
     (`matsumoto2012electron` Eq. 5);
-  - trapping: M_A ≥ (1+α) (m_i/m_e)^(2/3) (`matsumoto2012electron` Eq. 8). This is about 26 at m_i/m_e = 100
-    and about 180 at 1836 (`wieland2016nonrelativistic` Sect. 2.2);
+  - trapping: M_A ≥ (1+α) (m_i/m_e)^(2/3) (`matsumoto2012electron` Eq. 8). This is 25.8 at m_i/m_e = 100
+    (`matsumoto2012electron` Table 1) and about 180 at 1836 (`wieland2016nonrelativistic` Sect. 2.2);
   - the earlier 1-D condition was M_A > 43–75 at the real mass ratio (`hoshino2002nonthermal` Eq. 8).
 - Dimensionality decides the outcome:
   - 1-D: planar waves trap electrons (`amano2007electron`).
@@ -218,12 +224,13 @@ instability shapes the shock.
 - A perpendicular shock at M_A ~ 130 with the field in the plane is Weibel-mediated and shows no electron
   acceleration (`kato2010nonrelativistic`).
 - Reconnection of the Weibel current sheets (Matsumoto et al. 2015, not read) supplies most of the tail at
-  m_i/m_e ≥ 100: 0.4–0.55 % of electrons out of a nonthermal fraction of 0.55–0.7 % (`bohdan2020kinetic`
-  Table 3). The rest is put down to stochastic Fermi-like scattering (`bohdan2019kineticb`).
+  m_i/m_e ≥ 100: 0.4–0.55 % of electrons out of a nonthermal fraction of 0.55–0.7 % in four of the five runs,
+  and 0.13 % out of 0.36 % in the fifth (`bohdan2020kinetic` Table 3). The rest is put down to stochastic
+  Fermi-like scattering (`bohdan2019kineticb`).
 - The nonthermal fraction at a perpendicular shock is about 0.5 %, reaching at most 10–100 kT
   (`bohdan2023electron` Sect. 3.3): this is pre-acceleration, far from the injection threshold.
 - The Weibel field grows as B_sh ≈ 2 √M_A B₀, which raises the injection momentum as √M_A
-  (`bohdan2021magnetic` Eqs. 2, 6).
+  (`bohdan2021magnetic` Eqs. 2, 6; the exponent in Eq. 6 is garbled in the text read and was not verified).
 
 **Electron-driven waves and DSA in 1-D.**
 - θ_Bn = 63°, M_A = 63, m_i/m_e = 100: reflected electrons drive waves far upstream and reach DSA with a p⁻⁴
@@ -243,8 +250,11 @@ instability shapes the shock.
 - Inner foreshock: oblique whistlers that grow into cavities of 1–5 ion skin depths. They confine the reflected
   electrons; the energy gain happens at the shock. Downstream, 0.8 % of the electrons hold 7 % of the energy,
   with an index up to −2.8 (`morris2023preacceleration` Sects. 4.6, 4.8). DSA is not reached.
-- A foreshock needs 125–300 Ω_ci⁻¹ to become steady (`morris2023preacceleration` Sect. 4.5;
-  `morris2022preacceleration` Sect. 5). The 2-D runs of Sect. 5 last 6–52 Ω_ci⁻¹.
+- A foreshock needs about 125 Ω_ci⁻¹ to become steady (`morris2023preacceleration` Sect. 4.5), and slightly
+  more than 300 by another estimate (Bohdan et al. 2022, not read; via `bohdan2023electron` Sect. 4.1). The
+  quasi-perpendicular and oblique 2-D runs of Sect. 5 last 6–52 Ω_ci⁻¹. The 2-D runs of parallel shocks are
+  longer: 61 and 204 Ω_ci⁻¹ (`zekovic2025slams` Table 1) and 130–1930 in thin boxes (`arbutina2021nonlinear`
+  Table I).
 - Pre-existing upstream turbulence: no change at a perpendicular shock (`fulat2023kinetic` Table 1, Fig. 9).
   At 60° it raises the nonthermal fraction from 0.14 % to 0.23 % by number, with the same slope
   (`fulat2026pic` Sect. 3.4). This is one pair of runs.
@@ -271,8 +281,8 @@ instability shapes the shock.
   so a reduced mass ratio switches it off: m_i/m_e = 100 gives two to three orders of magnitude less (Sect. 6).
 - **High M_A** (`zekovic2025slams`): proton-driven waves steepen into large-amplitude structures (SLAMS) with
   B_⊥/B₀ from 3–5 at M_A = 20 to at least 30 at M_A = 300 (Table 1). They trap electrons, and a faster
-  Fermi-type process gives a steep spectrum, slope 5–5.7, up to the DSA threshold (Eq. 7, Fig. 4). No run
-  reaches the transition to DSA (Sect. 5).
+  Fermi-type process gives a steep spectrum up to the DSA threshold: slope 5.0–5.5 in the runs and 4.7–5.7
+  in the model (Eq. 7, Fig. 4). No run reaches the transition to DSA (Sect. 5).
 - **Regime change in 2-D** (`jikei2026dependence`): at θ_Bn = 20°, shocks with M_A below about 100 are
   dominated by Bell-type fields and put about 1.5 % of the shock energy into nonthermal electrons. Above it
   they are Weibel-dominated, with about 15 % (Sect. 3.3). The runs are at trans-relativistic speeds.
@@ -311,7 +321,7 @@ papers state them; their frames differ (see the notes). Outcomes are for electro
 
 | Work | Dim. | m_i/m_e | M_A | β | θ_Bn | v_sh/c | Outcome |
 |---|---|---|---|---|---|---|---|
-| `amano2007electron` | 1-D | 100 | ≈15 | 0.08 each | 70–85° | ≈0.075 | reflected fraction ≈5e-2, 1.5e-2, 2e-3 at 70, 75, 80°; none at 85° (Fig. 7, Sect. 3.3) |
+| `amano2007electron` | 1-D | 100 | ≈15 | 0.08 each | 70–85° | ≈0.075 | reflected fraction ≈5e-2, 1.5e-2, 2e-3 at 70, 75, 80° (read off Fig. 7, Sect. 3.4; not verifiable from the text); none at 85° (Sect. 3.3) |
 | `amano2009electron` | 2-D out | 25 | ≈14 | 0.5 each | 90° | 0.2 (box) | tail of index 2.0–2.5 (Fig. 4) |
 | `ohira2007absence` | 2-D electrostatic, periodic foot | 1836 | not stated | not stated | 90° | 0.02 | heating only |
 | `matsumoto2012electron` | 2-D out | 25, 100 | 14–30 | β_e 0.5, 4.5 | 90° | 0.2 (box) | tails if the trapping condition and low β_e hold (Table 1) |
@@ -334,7 +344,7 @@ papers state them; their frames differ (see the notes). Outcomes are for electro
 | Work | Dim. | m_i/m_e | M_A | β | θ_Bn | v_sh/c | Outcome |
 |---|---|---|---|---|---|---|---|
 | `morris2022preacceleration` | 2-D in (out at 63°, 74.3°) | 64 | 21 | 1 | 30–74.3° | 0.264 | reflected 5 % (30°) → 0.05 % (63°) → 0 (74.3°) |
-| `park2015simultaneous` | 1-D | 100, 400 | 20 | not stated | 30° | 0.1 (flow) | DSA; K_ep = 3.8e-3 |
+| `park2015simultaneous` | 1-D | 100, 400 | 20 | 0.5 (from M_s = 40) | 30° | 0.1 (flow) | DSA; K_ep = 3.8e-3 |
 | `kato2015particle` | 1-D | 30 | ≈28 | 1 | 30° | 0.46 | one injection burst; energy index ≈3.0 |
 | `fang2019early` | 1-D | 30 | 16.5 | not stated | 15, 30, 45° | 0.2 | tails at all three; DSA "not well developed" (Sect. 4) |
 | `crumley2019kinetic` | 2-D in | 64 | 15 | 1 | 10°, 55° | 0.83 | 10°: p^(−4.2); 55°: no tail |
@@ -342,7 +352,7 @@ papers state them; their frames differ (see the notes). Outcomes are for electro
 | `arbutina2021nonlinear` | 2-D thin | 16–100 | 11–16 | not stated | 0° | 0.33–0.4 | p^(−4.2); η ≈ 1e-4 (Sect. IV) |
 | `gupta2024electron` | quasi-1-D, 16 runs | 16–1836 | 5–40 | 0.06–64 | 30° | 0.067–0.267 | nonthermal ≲ 0.5 % by number; p⁻⁴ for M_A, M_s ≳ 10 |
 | `gupta2025speed` | quasi-1-D | 100 | 20, 5 | not stated | 30° | 0.133 | threshold: speed above v_sh |
-| `zekovic2025slams` | 1-D, 2-D in | 32 | 20–300 | not stated | 0° | 0.033–0.33 | slope 5–5.7 below the DSA threshold |
+| `zekovic2025slams` | 1-D, 2-D in | 32 (one run 100) | 20–300 | not stated | 0° | 0.033–0.33 | slope 5.0–5.5 below the DSA threshold |
 | `jikei2026dependence` | 2-D in | 100 | regime change near 100 | not stated | 20° | trans-relativistic | 1.5 % (Bell) against 15 % (Weibel) of the shock energy |
 
 **Test electrons in hybrid or prescribed fields**
@@ -350,8 +360,8 @@ papers state them; their frames differ (see the notes). Outcomes are for electro
 | Work | Method | M_A | θ_Bn | Outcome |
 |---|---|---|---|---|
 | `burgess2006simulations` | 2-D hybrid, test electrons | 5.1, 2.1 | 80–88° | ripples raise the maximum energy almost tenfold (Fig. 5, Sect. 4) |
-| `trotta2019electron` | 2-D and 3-D hybrid, test electrons | 2.9–6.6 | 80–87° | threshold near M = 3.5 (Sect. 5) |
-| `guo2010effect` | 2-D hybrid with imposed turbulence, test electrons | 4.0 | mean 60–90° | up to 200–300 times the initial 100 eV at 90° (Fig. 4) |
+| `trotta2019electron` | 2-D and 3-D hybrid, test electrons | 2.9–6.6 | 80–87° | adiabatic gain only at M = 2.9; the front starts to fluctuate at M = 3.5, and energies rise from there (Sect. 3.3) |
+| `guo2010effect` | 2-D hybrid with imposed turbulence, test electrons | 4.0 in the simulation frame, about 5.6 in the shock frame | mean 60–90° | up to 200–300 times the initial 100 eV at 90° (Fig. 4) |
 | `guo2015acceleration` | 3-D test electrons, prescribed shock and turbulence | assumed ≫ 1 | mean 0–90° | fraction above 10 keV from 0–9 % (weak turbulence) to 7–11 % (strong) across 0–90° (Table 1) |
 
 **Low-Mach reference** (not SNR-like): `guo2014nonthermal`, 2-D, M_s = 3, β_p = 20, θ_Bn = 63°. Shock drift
@@ -399,8 +409,9 @@ directly:
 
 ### 6.3 Protons decide where proton-driven waves exist
 - Hybrid simulations give ion acceleration efficiencies of 5–15 % below about 40°, a drop above 45°, and none
-  above 60° (`caprioli2014simulations` Fig. 3, Sect. 7). Upstream δB/B₀ reaches 3–6 at quasi-parallel shocks
-  and stays below 0.1 at 80° in 3-D (Figs. 4, 14).
+  above 60° (`caprioli2014simulations` Sect. 4, Fig. 3). At quasi-parallel shocks the upstream δB/B₀ reaches
+  3–4 for M = 30 and about 6 for M = 50. At 80° in 3-D the self-generated field component stays below
+  0.1 B₀ (Figs. 4, 14).
 - So on a sphere in a uniform field, proton-driven turbulence exists on the quasi-parallel caps only
   (reading of this survey).
 - For a uniform field the caps with θ_Bn < 45° are 29 % of the sphere, the band from 45° to 75° is 45 %, and
@@ -423,7 +434,7 @@ The local θ_Bn along one front differs from the mean.
   - Proton-driven waves raise the local angle to about 80° (`kato2015particle` Sects. 3.1, 4).
   - Patches beyond arccos(v_sh/c) are superluminal (`gupta2024electron` Sect. 4).
   - For magnetised electrons the parallel shock then resembles a quasi-perpendicular one
-    (`zekovic2025slams` Sects. 4.4, 5; `jikei2026dependence` Sect. 3.3).
+    (`zekovic2025slams` Sects. 4.4, 5; `jikei2026dependence` Sect. 3).
   - The same idea is offered as the link to the radial fields of young remnants (`amano2020observational` p. 5).
 
 ### 6.5 Fronts curved on the large scale
@@ -473,8 +484,9 @@ The local θ_Bn along one front differs from the mean.
   - Only 3-D holds all of them (`riquelme2011electron` Appendix; `matsumoto2017electron`;
     `bohdan2017electron` Sect. 4).
   - "Only 3D simulations can provide a complete picture" (`pohl2020pic` Sect. 5.3).
-- **Run time and box.** A few to a few tens of Ω_ci⁻¹ in 2-D; foreshocks need 125–300 (Sect. 4.2). Several
-  boxes are too narrow to hold ripples (`bohdan2017electron` Sect. 3.2; `arbutina2021nonlinear` Sect. II).
+- **Run time and box.** A few to a few tens of Ω_ci⁻¹ in the quasi-perpendicular and oblique 2-D runs;
+  foreshocks need 125 to more than 300 (Sect. 4.2). Several boxes are too narrow to hold ripples
+  (`bohdan2017electron` Sect. 3.2; `arbutina2021nonlinear` Sect. II).
 - **Numerical drag** on fast particles in PIC (Kato 2013, arXiv:1312.5507, not read; cited by `kato2015particle`,
   `xu2020electron`, `kumar2021nonthermal`).
 
@@ -563,7 +575,10 @@ injection at SNR-like shocks and to obliquity. Five further notes existed alread
 as direct prior work, the introduction, set-up and conclusions were read and the results skimmed for numbers.
 
 **Checks.** The headline numbers of 20 works were checked against the paper texts after the notes were
-written. Numbers were not read off figures, except where a note says so (`amano2007electron` Fig. 7).
+written. An independent check then compared about 290 located statements of Sects. 1–8 with the paper texts:
+about 280 were confirmed, and 16 were corrected in this file. The statements that rest on
+`hoshino2002nonthermal`, `amano2010critical` and `amano2022theory` were not part of that check. Numbers were
+not read off figures, except where a note says so (`amano2007electron` Fig. 7).
 
 **Limits.**
 - Only arXiv could be reached. Works that are not there were not read: the theory of the 1980s and 1990s,
