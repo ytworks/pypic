@@ -163,7 +163,7 @@ EXAMPLES: dict[str, dict] = {
         "cases": {
             "laser_linear": fresh("laser_linear", gpus=8), "beam_linear": fresh("beam_linear", gpus=8),
             "laser_bubble": recorded("output/wakefield/laser_bubble",
-                                     "bench/results/2026-11-12-61f454b3f-example-wakefield-laser_bubble-run-1c8c65d7.json"),
+                                     "bench/results/2026-11-12-da4e27e2c-example-wakefield-laser_bubble-run-b738687c.json"),
         },
         "movies": ["laser_linear", "beam_linear", "laser_bubble"],
         "gif": {"fps": 3},  # a gate run writes nine outputs, the production run twenty
