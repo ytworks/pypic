@@ -42,6 +42,29 @@
 #define XI(p) ((PX(p) - OX) * (1.0 / DX))
 #define YI(p) ((PY(p) - OY) * (1.0 / DY))
 #define ZI(p) ((PZ(p) - OZ) * (1.0 / DZ))
+// Working coordinate: what the kernels that move or place particles (push_deposit,
+// displace_deposit, the loader, the injection) compute in, and what SET_POS takes. This layout:
+// the physical position.
+#define QX(p) PX(p)                              // working coordinate of particle p
+#define QY(p) PY(p)
+#define QZ(p) PZ(p)
+#define WBOX {LX, LY, LZ}                        // the box
+#define WCELL {DX, DY, DZ}                       // one cell
+#define WLO {SX0, SY0, SZ0}                      // physical range of the rank
+#define WHI {SX1, SY1, SZ1}
+#define TO_XI(x) (((x) - OX) * (1.0 / DX))       // working coordinate -> index coordinate
+#define TO_YI(y) (((y) - OY) * (1.0 / DY))
+#define TO_ZI(z) (((z) - OZ) * (1.0 / DZ))
+#define WPHYS(x, d) (x)                          // -> physical position (d: the cell of the axis)
+#define WLEN(s, d) (s)                           // physical length -> working coordinate
+#define WDT(a) DT                                // time step, per cell of axis a where the unit is the cell
+#define WSNAP(x) (x)                             // onto a point that the storage holds
+#define WBELOW(wall) nextafter(wall, 0.0)        // last point below an upper wall
+#define WRAND(c, s, d) (((c) + urand(s)) * (d))  // uniform point of cell c (advances the stream s)
+#define GAMMA_M1(g, u) ((g) - 1.0)               // gamma - 1 of the momentum u with gamma = g
+#define ROUND_U(u)                               // the momentum u as the storage will hold it
+#define PDISP_ARG                                // the remaining set-up displacement: rows 8..10
+#define DISP(a, p) P[(8 + (a)) * cap + p]
 
 // CIC weights of the two ends of a move along one axis, on the 3 nodes from n = min(floor X0, floor X1)
 // (|X1 - X0| < 1): (1 - w, w, 0) for an end in cell n, (0, 1 - w, w) for an end in cell n + 1, with
@@ -141,8 +164,7 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
 
 __device__ __forceinline__ void deposit_global(const double* p0, const double* p1, double qw, double* Jx,
                                                double* Jy, double* Jz) {
-    esirkepov((p0[0] - OX) * (1.0 / DX), (p0[1] - OY) * (1.0 / DY), (p0[2] - OZ) * (1.0 / DZ),
-              (p1[0] - OX) * (1.0 / DX), (p1[1] - OY) * (1.0 / DY), (p1[2] - OZ) * (1.0 / DZ), qw, Jx, Jy, Jz);
+    esirkepov(TO_XI(p0[0]), TO_YI(p0[1]), TO_ZI(p0[2]), TO_XI(p1[0]), TO_YI(p1[1]), TO_ZI(p1[2]), qw, Jx, Jy, Jz);
 }
 
 // Deposit of the part of a path that lies inside the open faces of the box (PIC-D15): the current
@@ -152,7 +174,7 @@ __device__ __forceinline__ void deposit_global(const double* p0, const double* p
 // face this is deposit_global.
 __device__ __forceinline__ void deposit_cut(const double* p0, const double* p1, double qw, double* Jx,
                                             double* Jy, double* Jz) {
-    const double Lg[3] = {LX, LY, LZ};
+    const double Lg[3] = WBOX;
     const bool o0[3] = {BCX0 == BC_OPEN, BCY0 == BC_OPEN, BCZ0 == BC_OPEN};
     const bool o1[3] = {BCX1 == BC_OPEN, BCY1 == BC_OPEN, BCZ1 == BC_OPEN};
     double t0 = 0.0, t1 = 1.0;
@@ -273,7 +295,7 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
         //     returns its neutraliser the same way, with a velocity of the inflow distribution.
         //     Three hits are enough: a reflecting wall is hit once per axis and step, and a returned
         //     neutraliser meets no second paired face (they lie on one axis, injection.check_config) ---
-        const double Lg[3] = {LX, LY, LZ};
+        const double Lg[3] = WBOX;
         const int b0[3] = {BCX0, BCY0, BCZ0};
         const int b1[3] = {BCX1, BCY1, BCZ1};
         // deposit charge: q for plasma species, 0 for test species (they feel the fields only)
@@ -306,12 +328,13 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
             if ((fm >> face) & 1) {
                 unsigned long long sr = hash_key(hash_key(seed ^ RET_SALT, (unsigned long long)step, 0ULL),
                                                  (unsigned long long)PID(p), (unsigned long long)it);
-                lke += w * m * (g1 - 1.0);
+                lke += w * m * GAMMA_M1(g1, u);
                 sample_inflow(rb + (long long)face * nrb * 6, nrb, amin, wall > 0.0 ? -1.0 : 1.0, sr, u);
+                ROUND_U(u);
                 g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
-                lke -= w * m * (g1 - 1.0);
-                for (int a = 0; a < 3; a++) pos1[a] = pw[a] + (trem * DT / g1) * u[a];
-                if (wall > 0.0 && pos1[amin] >= wall) pos1[amin] = nextafter(wall, 0.0);
+                lke -= w * m * GAMMA_M1(g1, u);
+                for (int a = 0; a < 3; a++) pos1[a] = WSNAP(pw[a] + (trem * WDT(a) / g1) * u[a]);
+                if (wall > 0.0 && pos1[amin] >= wall) pos1[amin] = WBELOW(wall);
             } else {
                 pos1[amin] = 2.0 * wall - pos1[amin];
                 u[amin] = -u[amin];
@@ -328,12 +351,13 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
 #ifdef BODY_SPHERE
         // --- absorbing body (PIC-D14): a particle that ends its step inside is removed; its whole
         //     path was deposited, so its charge stays at the nodes of the body ---
-        const double rbx = pos1[0] - BODY_CX, rby = pos1[1] - BODY_CY, rbz = pos1[2] - BODY_CZ;
+        const double rbx = WPHYS(pos1[0], DX) - BODY_CX, rby = WPHYS(pos1[1], DY) - BODY_CY,
+                     rbz = WPHYS(pos1[2], DZ) - BODY_CZ;
         if (!dead && rbx * rbx + rby * rby + rbz * rbz < BODY_R2) {
             if (do_diag) {
                 ke = 0.0; mx = my = mz = 0.0;
             }
-            ake = w * m * (g1 - 1.0);
+            ake = w * m * GAMMA_M1(g1, u);
             aq = qw;  // zero for test species
             an = 1.0;
             SET_W(p, 0.0);
@@ -344,12 +368,12 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
             if (do_diag) {
                 ke = 0.0; mx = my = mz = 0.0;
             }
-            lke += w * m * (g1 - 1.0);
+            lke += w * m * GAMMA_M1(g1, u);
             lq = qw;  // charge lost: zero for test species
             SET_W(p, 0.0);
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
             if (fm & 0x3f00) {  // a carrier that leaves through a paired face: the column owes one
-                const double D[3] = {DX, DY, DZ};
+                const double D[3] = WCELL;
                 for (int a = 0; a < 3; a++) {
                     const int face = pos1[a] < 0.0 ? 2 * a : (pos1[a] >= Lg[a] ? 2 * a + 1 : -1);
                     if (face < 0 || !((fm >> (8 + face)) & 1)) continue;
@@ -367,8 +391,8 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
             // periodic wrap on non-decomposed axes (a step moves a particle by less than a cell,
             // so by at most one period); decomposed axes are wrapped after migration
             const int dec[3] = {DECX, DECY, DECZ};
-            const double slo[3] = {SX0, SY0, SZ0};
-            const double shi[3] = {SX1, SY1, SZ1};
+            const double slo[3] = WLO;
+            const double shi[3] = WHI;
             bool migrate = false;
             for (int a = 0; a < 3; a++) {
                 if (!dec[a]) {
@@ -423,7 +447,7 @@ extern "C" __global__ void flag_dead(PSTORE_RO, const int n, const long long cap
 //      displacement of each particle is stored in rows 8..10 (present only during set-up). One
 //      call moves every particle by at most h_a (< 1 cell) per axis and deposits the current of
 //      that move with Esirkepov; the caller sets E -= DT * J after all rounds, so div E = rho.
-extern "C" __global__ void displace_deposit(PSTORE, const int n, const long long cap, const double hx,
+extern "C" __global__ void displace_deposit(PSTORE PDISP_ARG, const int n, const long long cap, const double hx,
                                             const double hy, const double hz, double* Jx, double* Jy, double* Jz,
                                             const double qdep, int* flag, int* list, const int listcap) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
@@ -432,20 +456,20 @@ extern "C" __global__ void displace_deposit(PSTORE, const int n, const long long
     double rem[3], s[3];
     bool moved = false;
     for (int a = 0; a < 3; a++) {
-        rem[a] = P[(8 + a) * cap + p];
+        rem[a] = DISP(a, p);
         s[a] = fmax(-h[a], fmin(h[a], rem[a]));
         moved |= (s[a] != 0.0);
     }
     if (!moved) return;
-    double p0[3] = {PX(p), PY(p), PZ(p)};
-    double p1[3] = {p0[0] + s[0], p0[1] + s[1], p0[2] + s[2]};
+    double p0[3] = {QX(p), QY(p), QZ(p)};
+    double p1[3] = {WSNAP(p0[0] + WLEN(s[0], DX)), WSNAP(p0[1] + WLEN(s[1], DY)), WSNAP(p0[2] + WLEN(s[2], DZ))};
     if (qdep != 0.0) deposit_global(p0, p1, qdep * PW(p), Jx, Jy, Jz);
-    for (int a = 0; a < 3; a++) P[(8 + a) * cap + p] = rem[a] - s[a];
+    for (int a = 0; a < 3; a++) DISP(a, p) = rem[a] - s[a];
     // periodic wrap on non-decomposed axes; decomposed axes are wrapped after migration
-    const double Lg[3] = {LX, LY, LZ};
+    const double Lg[3] = WBOX;
     const int dec[3] = {DECX, DECY, DECZ};
-    const double slo[3] = {SX0, SY0, SZ0};
-    const double shi[3] = {SX1, SY1, SZ1};
+    const double slo[3] = WLO;
+    const double shi[3] = WHI;
     bool migrate = false;
     for (int a = 0; a < 3; a++) {
         if (!dec[a]) {
@@ -704,16 +728,16 @@ extern "C" __global__ void load_particles(PSTORE, const long long cap, const lon
     int i = (int)(c / nly);
     long long gcell = ((long long)(gx0 + i) * gny + (gy0 + j)) * (long long)((long long)1 << 30) + (gz0 + k);
     unsigned long long sp = hash_key(seed, (unsigned long long)gcell, (unsigned long long)slot);
-    double x = (gx0 + i + urand(sp)) * DX;
-    double y = (gy0 + j + urand(sp)) * DY;
-    double z = (gz0 + k + urand(sp)) * DZ;
+    double x = WRAND(gx0 + i, sp, DX);
+    double y = WRAND(gy0 + j, sp, DY);
+    double z = WRAND(gz0 + k, sp, DZ);
     unsigned long long sm = hash_key(seed ^ (stream * 0x2545F4914F6CDD1DULL + 77ULL), (unsigned long long)gcell,
                                      (unsigned long long)slot);
     double u[3];
     sample_mj(theta, sm, u);
     double vx = udx, vy = udy, vz = udz;
     if (ur != 0.0) {  // radial beam (PIC-D17): the drift ur along the unit vector from the origin
-        const double rx = x - ox, ry = y - oy, rz = z - oz;
+        const double rx = WPHYS(x, DX) - ox, ry = WPHYS(y, DY) - oy, rz = WPHYS(z, DZ) - oz;
         const double r = sqrt(rx * rx + ry * ry + rz * rz);
         const double f = r > 0.0 ? ur / r : 0.0;
         vx = f * rx;
@@ -773,18 +797,19 @@ static const unsigned long long INJ_SALT = 0x5851F42D4C957F2DULL;
 __device__ bool layer_sample(const unsigned long long ks, const unsigned long long gcell, const int* gc, const int slot,
                              const double* tb, double* r0, double* u, double* r1, double& g, unsigned long long& sm) {
     unsigned long long sp = hash_key(ks, gcell, (unsigned long long)slot);
-    r0[0] = (gc[0] + urand(sp)) * DX;
-    r0[1] = (gc[1] + urand(sp)) * DY;
-    r0[2] = (gc[2] + urand(sp)) * DZ;
+    r0[0] = WRAND(gc[0], sp, DX);
+    r0[1] = WRAND(gc[1], sp, DY);
+    r0[2] = WRAND(gc[2], sp, DZ);
     sm = hash_key(ks ^ ((unsigned long long)tb[5] * 0x2545F4914F6CDD1DULL + 77ULL), gcell, (unsigned long long)slot);
     sample_mj(tb[1], sm, u);
     boost_drift(u, tb[2], tb[3], tb[4], sm);
+    ROUND_U(u);
     g = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
-    const double Lg[3] = {LX, LY, LZ};
+    const double Lg[3] = WBOX;
     const int b0[3] = {BCX0, BCY0, BCZ0};
     bool inside = true;
     for (int a = 0; a < 3; a++) {
-        r1[a] = r0[a] + (DT / g) * u[a];
+        r1[a] = WSNAP(r0[a] + (WDT(a) / g) * u[a]);
         if (b0[a] != BC_PERIODIC && (r1[a] < 0.0 || r1[a] >= Lg[a])) inside = false;
     }
     return inside;
@@ -855,11 +880,11 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
         }
     }
     if (!pair) deposit_cut(r0, r1, qw, Jx, Jy, Jz);
-    const double Lg[3] = {LX, LY, LZ};
+    const double Lg[3] = WBOX;
     const int b0[3] = {BCX0, BCY0, BCZ0};
     const int dec[3] = {DECX, DECY, DECZ};
-    const double slo[3] = {SX0, SY0, SZ0};
-    const double shi[3] = {SX1, SY1, SZ1};
+    const double slo[3] = WLO;
+    const double shi[3] = WHI;
     bool migrate = false;
     for (int a = 0; a < 3; a++) {
         if (!dec[a]) {
@@ -880,7 +905,7 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
         SET_ID(p, id_step + tb[6] + cellslot);
         if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = (int)p; }
     }
-    const double ke = w * m * (g - 1.0);
+    const double ke = w * m * GAMMA_M1(g, u);
     atomicAdd(&diag[6], ke);
     atomicAdd(&diag[7], qw);
     atomicAdd(&diag[8], 1.0);
@@ -917,10 +942,11 @@ extern "C" __global__ void inject_partners(PSTORE_AS(Pe), const long long cape, 
     unsigned long long sm = pstate[ie];
     double ue[3];
     sample_inflow(rb + (long long)face * nrb * 6, nrb, face >> 1, (face & 1) ? -1.0 : 1.0, sm, ue);
+    ROUND_U(ue);
     const long long p = ne0 + ie;
     S_SET_MOM(Pe, cape, p, ue[0], ue[1], ue[2]);
     const double we = S_W(Pe, cape, p);
-    const double eke = we * me * (sqrt(1.0 + ue[0] * ue[0] + ue[1] * ue[1] + ue[2] * ue[2]) - 1.0);
+    const double eke = we * me * GAMMA_M1(sqrt(1.0 + ue[0] * ue[0] + ue[1] * ue[1] + ue[2] * ue[2]), ue);
     atomicAdd(&diage[6], eke);
     atomicAdd(&diage[7], qe * we);
     atomicAdd(&diage[8], 1.0);
