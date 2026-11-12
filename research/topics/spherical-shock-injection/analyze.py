@@ -26,6 +26,7 @@ import baseline  # noqa: E402
 import census  # noqa: E402
 import orbits  # noqa: E402
 import potential  # noqa: E402
+import record  # noqa: E402
 import shockkin as sk  # noqa: E402
 import upstream  # noqa: E402
 
@@ -302,6 +303,7 @@ def selftest() -> int:
     baseline.selfcheck(check)
     upstream.selfcheck(check)
     potential.selfcheck(check)
+    record.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
@@ -1054,7 +1056,12 @@ def main(argv=None) -> int:
     p.add_argument("--chunk", type=int, default=20000, help="orbits measured per block")
     p = sub.add_parser("null", help="numerical floor N1, N2, N3, N5 of a run without a driver")
     p.add_argument("run", type=Path)
+    p = sub.add_parser("record", help="write runs/<date>-<commit>-<name>.json and runs/index.json (clean tree)")
+    p.add_argument("run")
+    p.add_argument("name")
     args = ap.parse_args(argv)
+    if args.cmd == "record":
+        return record.cmd_record(args)
     if args.cmd == "n3c":
         return upstream.cmd_n3c(args)
     if args.cmd == "phi":
