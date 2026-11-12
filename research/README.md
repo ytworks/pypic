@@ -45,6 +45,7 @@ against `merge-base(HEAD, origin/main)`.
 research/RESEARCH.md            cross-session memory: topics, engine baseline, change log (trunk only)
 research/archive/change-log.md  older change log entries, verbatim
 research/literature/            one file per work (<citekey>.md; format in its README)
+.claude/agents/research-reviewer.md  research reviewer (research only, never code or engineering)
 research/templates/topic/       README.md, notebook.md, literature.md of a new topic
 research/topics/<topic>/        README.md, notebook.md, literature.md, configs/, analyze.py, runs/, data/
 research/tools/check_branch.py  the branch rules (CI, SessionStart hook, by hand)

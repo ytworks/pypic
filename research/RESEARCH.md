@@ -20,6 +20,15 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 
 ## Change Log
 
+### 2026-11-12 — [design] Research reviewer agent; literature notes on Hoshino's work
+- What: `.claude/agents/research-reviewer.md` is a reviewer for research questions, plans, results and drafts.
+  - It is read-only, and is for research only: never for code, the engine or engineering.
+  - It judges work by the standards visible in 14 papers by M. Hoshino and his group, and by the stance. It does not claim to be the author.
+  - Notes on those papers are in `research/literature/`.
+  - The stance requires a review before every milestone merge into trunk.
+- Why: the owner asked for a reviewer modelled on Hoshino, kept apart from code review.
+- Refs: `.claude/agents/research-reviewer.md`, `research/literature/hoshino*.md`, `amano*.md`, `guo2023magnetic.md`.
+
 ### 2026-11-12 — [design] Research stance in the harness
 - What: `.claude/rules/research/stance.md` is now loaded on every research branch. It summarises the owner's research stance (A. Morihata, "研究とは何か") in our own words, with a link to the source.
   - The topic README sections follow its elements: Background, Research question, Prior work, Idea, Related work and novelty, Approach, Claims and evidence, Publication, Status.
