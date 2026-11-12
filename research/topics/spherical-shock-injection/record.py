@@ -3,7 +3,8 @@
 A record holds the commit, config, seed and GPUs of the run, its wall time, the place and size of its output
 (which stays out of git), the conservation checks, and the summaries of the analysis files. analysis.commit is
 the commit at which the record was written; an analysis file can be older, so its hash and time are kept too.
-A record is written from a clean tree, and the commit of the run must be an ancestor of HEAD.
+A record is written from a tree that is clean outside runs/, and the commit of the run must be an ancestor of
+HEAD. The index is {"entries": [...]} (research/tools/check_branch.py); both files are strict JSON.
 """
 from __future__ import annotations
 
@@ -48,6 +49,17 @@ def _sha(path: Path) -> str:
         for block in iter(lambda: f.read(1 << 20), b""):
             h.update(block)
     return h.hexdigest()
+
+
+def _strict(obj):
+    """obj with every float that is not finite replaced by None (strict JSON has no NaN)."""
+    if isinstance(obj, dict):
+        return {k: _strict(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_strict(v) for v in obj]
+    if isinstance(obj, float) and not np.isfinite(obj):
+        return None
+    return obj
 
 
 def _size(path: Path) -> int:
@@ -130,7 +142,8 @@ def build(run_dir: Path, name: str, root: Path) -> dict:
 
 def cmd_record(args) -> int:
     root = Path(_git("rev-parse", "--show-toplevel"))
-    if _git("status", "--porcelain"):
+    runs = TOPIC / "runs"
+    if _git("status", "--porcelain", "--", ":/", f":(top,exclude){runs.relative_to(root)}"):
         print("the tree is not clean: commit the analysis code before a record is written")
         return 1
     run_dir = Path(args.run)
@@ -138,17 +151,16 @@ def cmd_record(args) -> int:
     if not rec["run"]["commit is an ancestor of the commit of this record"]:
         print(f"the commit of the run {rec['run']['commit']} is not an ancestor of HEAD")
         return 1
-    runs = TOPIC / "runs"
     runs.mkdir(exist_ok=True)
     date = str(rec["created"])[:10]
     path = runs / f"{date}-{rec['run']['commit'][:9]}-{args.name}.json"
-    text = json.dumps(rec, indent=1)
+    text = json.dumps(_strict(rec), indent=1, allow_nan=False)
     if len(text) > 1_000_000:
         print(f"the record is {len(text)} bytes: above the limit of 1 MB of research/")
         return 1
     path.write_text(text + "\n")
     index_path = runs / "index.json"
-    index = json.loads(index_path.read_text()) if index_path.exists() else []
+    index = json.loads(index_path.read_text()).get("entries", []) if index_path.exists() else []
     entry = {"file": path.name, "name": args.name, "created": rec["created"], "commit": rec["run"]["commit"],
              "config": rec["run"]["config"], "wall_time_s": rec["run"]["wall_time_s"],
              "output_bytes": rec["output"]["bytes"],
@@ -156,7 +168,7 @@ def cmd_record(args) -> int:
              "analysis_commit": rec["analysis"]["commit"]}
     index = [e for e in index if e["file"] != path.name] + [entry]
     index.sort(key=lambda e: (e["created"] or "", e["name"]))
-    index_path.write_text(json.dumps(index, indent=1) + "\n")
+    index_path.write_text(json.dumps({"entries": _strict(index)}, indent=1, allow_nan=False) + "\n")
     print(f"wrote {path.relative_to(root)} ({len(text)} bytes); checks "
           + ", ".join(f"{k} {c['max']:.2e} ({'ok' if c['ok'] else 'FAIL'})" for k, c in rec["checks"].items()
                       if isinstance(c, dict)))
@@ -176,6 +188,7 @@ def selfcheck(check) -> None:
     ok = all(c["ok"] for c in good.values() if isinstance(c, dict)) \
         and abs(good["energy budget, relative change (monitored)"] - 0.1) < 1e-12 \
         and not any(c["ok"] for c in bad.values()) \
-        and cen["upstream, largest dump, valid domain"]["n"] == 6 and cen["K1, largest dump, whole front"]["t"] == 1.0
+        and cen["upstream, largest dump, valid domain"]["n"] == 6 and cen["K1, largest dump, whole front"]["t"] == 1.0 \
+        and _strict({"a": [1.0, float("nan")], "b": (float("inf"),)}) == {"a": [1.0, None], "b": [None]}
     check("record, checks of the scalars and the summary of the census", ok,
           "limits of the Gauss law, div B and the fill; the largest dump of the census")
