@@ -3,6 +3,12 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-12 — One-page summary of the survey, in English and Japanese
+- Asked by the owner. `survey-snr-electron-injection-summary.md` and its `.ja.md` give the whole picture on one
+  page: the problem, what observations fix, the mechanisms by θ_Bn, what decides the answer in a simulation,
+  what is supported, disputed and unknown, and what it means for this topic.
+- Every statement is taken from the survey, with its citekeys.
+
 ## 2026-11-12 — Japanese version of the survey
 - Asked by the owner. `survey-snr-electron-injection.ja.md` has the same sections as the English survey, which
   stays the original.

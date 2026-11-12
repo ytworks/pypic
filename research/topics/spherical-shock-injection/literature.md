@@ -4,7 +4,9 @@ This file places the topic in its field. Each work has its own file in `research
 
 **Survey:** `survey-snr-electron-injection.md` (2026-11-12) covers the electron injection problem at supernova
 remnant (SNR) shocks, with 54 works read and full references. This file is the short map and the reading list.
-A Japanese version of the survey is in `survey-snr-electron-injection.ja.md`; the English file is the original.
+A one-page summary is in `survey-snr-electron-injection-summary.md`.
+Japanese versions: `survey-snr-electron-injection.ja.md` and `survey-snr-electron-injection-summary.ja.md`; the
+English files are the originals.
 Section numbers below refer to the survey.
 
 ## Map

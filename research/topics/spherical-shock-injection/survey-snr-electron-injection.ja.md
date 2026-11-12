@@ -2,6 +2,7 @@
 
 テーマ `spherical-shock-injection`。2026-11-12 作成。状態：最初の調査で、レビュー前。
 
+1 ページの要約は `survey-snr-electron-injection-summary.ja.md` にある。
 これは `survey-snr-electron-injection.md`（英語、原本）の日本語版である。節番号と内容は英語版に対応する。
 食い違いがあれば英語版に従う。
 

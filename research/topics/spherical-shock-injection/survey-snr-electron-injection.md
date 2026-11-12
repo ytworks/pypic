@@ -2,6 +2,7 @@
 
 Topic `spherical-shock-injection`. Written 2026-11-12. Status: first survey, not yet reviewed.
 
+A one-page summary is in `survey-snr-electron-injection-summary.md`.
 A Japanese version is in `survey-snr-electron-injection.ja.md`. This English file is the original: where the
 two differ, this one holds, and a change is made here first.
 
