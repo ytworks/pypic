@@ -20,6 +20,14 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 
 ## Change Log
 
+### 2026-11-12 — [design] Research stance in the harness
+- What: `.claude/rules/research/stance.md` is now loaded on every research branch. It summarises the owner's research stance (A. Morihata, "研究とは何か") in our own words, with a link to the source.
+  - The topic README sections follow its elements: Background, Research question, Prior work, Idea, Related work and novelty, Approach, Claims and evidence, Publication, Status.
+  - `check_branch.py` checks those headings.
+  - `.claude/agents/research-*.md` is added to the research paths, for the research reviewer.
+- Why: the owner asked for a stance that holds in every session without being restated.
+- Refs: `.claude/rules/research/stance.md`, `research/templates/topic/README.md`.
+
 ### 2026-11-12 — [design] Research branches and their harness
 - What: `research/trunk` was cut from main 15e5c2c. It is never merged into main and takes main only.
   - Topics are `research/<topic>`.

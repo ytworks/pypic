@@ -32,6 +32,7 @@ A research branch changes only paths that main does not have:
 - `research/`
 - `.claude/rules/research/`
 - `.claude/skills/research-*/`
+- `.claude/agents/research-*.md`
 - `.github/workflows/research.yml`
 
 The one exception is the hooks it adds to `.claude/settings.json`. Every other file stays as main has it, so git

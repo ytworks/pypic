@@ -28,6 +28,8 @@ def bash(command):
     ("Write", {"file_path": "PROGRESS.md"}, 2),
     ("Edit", {"file_path": "research/topics/foo/README.md"}, 0),
     ("Write", {"file_path": ".claude/rules/research/stance.md"}, 0),
+    ("Write", {"file_path": ".claude/agents/research-reviewer.md"}, 0),
+    ("Write", {"file_path": ".claude/agents/code-reviewer.md"}, 2),
     ("Write", {"file_path": os.devnull}, 0),  # outside the repository
     (*bash("git push origin HEAD:main"), 2),
     (*bash("git push -u origin research/trunk"), 0),

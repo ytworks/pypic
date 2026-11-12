@@ -29,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-RESEARCH_PREFIXES = ("research/", ".claude/rules/research/", ".claude/skills/research-")
+RESEARCH_PREFIXES = ("research/", ".claude/rules/research/", ".claude/skills/research-", ".claude/agents/research-")
 # The only file research branches share with main: the research hooks are added to it.
 RESEARCH_FILES = (".github/workflows/research.yml", ".claude/settings.json")
 TRUNK = "research/trunk"

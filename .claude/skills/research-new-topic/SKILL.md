@@ -16,13 +16,16 @@ description: Start a new research topic (theme) on its own branch research/<topi
 3. **Scaffold:** `cp -r research/templates/topic research/topics/<slug>`, then replace the placeholders.
 4. **Fill in the README with the user.** Write each section in their words, following
    `.claude/rules/research/stance.md`:
-   - the Question;
-   - Why it matters;
-   - Prior work and our position;
-   - the Approach, with its criteria and null tests fixed before any run.
+   - Background;
+   - Research question;
+   - Prior work;
+   - Idea;
+   - Related work and novelty;
+   - Approach, with its criteria and null tests fixed before any run.
 
    Leave a section marked open rather than inventing content.
    Add the works found to `research/literature/` and relate them in the topic's `literature.md`.
+   Then have the `research-reviewer` agent review the README, and show the review to the user.
 5. **Check:** `python research/tools/check_branch.py --worktree`.
 6. **Commit:** `research(<slug>): start topic`. Push with `git push -u origin research/<slug>`.
 7. **Register on trunk.** Add the topic's row to the Topics table of `research/RESEARCH.md`, on

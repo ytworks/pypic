@@ -21,8 +21,9 @@ cut from them. Research mode means `research/RESEARCH.md` exists. Layout and pro
 
 ## What a research branch may change (keeps every merge of main conflict-free)
 - Only these paths: `research/**`, `.claude/rules/research/**`, `.claude/skills/research-*/**`,
-  `.github/workflows/research.yml`, and the research hooks in `.claude/settings.json`. Every other
-  file stays as main has it. `research/tools/check_branch.py` checks this, and the PreToolUse hook enforces it.
+  `.claude/agents/research-*.md`, `.github/workflows/research.yml`, and the research hooks in
+  `.claude/settings.json`. Every other file stays as main has it. `research/tools/check_branch.py`
+  checks this, and the PreToolUse hook enforces it.
 - A topic branch changes only `research/topics/<topic>/**` and `research/literature/*.md`. Shared
   research files change on trunk; the topic then takes trunk.
 - If a merge of main ever conflicts, take main's side. The exception is `.claude/settings.json`: keep the hooks of both sides.
