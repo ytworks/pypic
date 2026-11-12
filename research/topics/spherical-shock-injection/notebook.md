@@ -3,6 +3,30 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-12 — Survey: electron injection at supernova remnant shocks
+- Asked by the owner: survey the prior work on the electron injection problem at SNR shocks, in markdown, with
+  the citations kept.
+- Done:
+  - arXiv searches by keyword (12 queries, 238 new results), then by author and title, then reference lists;
+  - 54 works selected, full texts from arXiv, read by nine readers in groups (observations; surfing line;
+    perpendicular SNR series; foreshock and reviews; quasi-parallel; thresholds 2021–2026; shock drift theory;
+    geometry);
+  - one note per work in `research/literature/`;
+  - the headline numbers of 20 works checked against the paper texts;
+  - the survey written: `survey-snr-electron-injection.md`.
+- Main findings:
+  - mechanisms are sorted by obliquity, and each is known from planar runs at one or a few angles;
+  - no study covers the range of θ_Bn with one parameter set;
+  - global models of remnants assume the efficiency law ε(θ_Bn);
+  - SN 1006 points to quasi-parallel acceleration and the radio population to quasi-perpendicular;
+  - no kinetic simulation of a curved front at SNR-like parameters was found.
+- Not done:
+  - the bow-shock works on curved shocks (not on arXiv) are not read, so the last finding is not certain;
+  - relativistic shocks and wakefield acceleration were not covered;
+  - the survey has not been reviewed by the research reviewer.
+- Corrected along the way: the reference of `amano2022theory` (ApJ 927, 132).
+- No decision on the research question; it stays with the owner.
+
 ## 2026-11-12 — First review (purpose stage)
 - Review: `reviews/2026-11-12-purpose.md`. Verdict:
   - "every mechanism over all θ_Bn" needs rethinking (a programme, not one question);

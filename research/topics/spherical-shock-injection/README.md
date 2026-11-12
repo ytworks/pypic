@@ -28,8 +28,9 @@ including unknown ones:
     (hoshino2012stochastic).
 
   This is not the whole picture: amano2022theory (Sect. 4.5, Eq. 22) already limits stochastic shock drift
-  acceleration by the curvature of the bow shock (correction from the review of 2026-11-12). How far the
-  literature treats curvature is for the survey to establish.
+  acceleration by the curvature of the bow shock (correction from the review of 2026-11-12). The survey of
+  2026-11-12 found curved fronts treated for the Earth's bow shock only, in works that are not yet read
+  (`survey-snr-electron-injection.md`, Sect. 6.5).
 - **Real shocks are curved:** supernova blast waves, planetary bow shocks, shocks driven by coronal
   mass ejections, laser-driven shocks. On a spherical shock in a uniform field, θ_Bn runs
   continuously from 90° at the equator to 0° at the poles. The front is curved, and a blast wave
@@ -62,7 +63,18 @@ Draft (the owner's purpose; to be narrowed after the survey and the review):
 8. Unknown mechanisms: energy gain that none of the above accounts for.
 
 ## Prior work
-Open: the survey has not been done. The works read so far (notes in `research/literature/`):
+Surveyed for supernova remnant shocks on 2026-11-12: `survey-snr-electron-injection.md` (54 works read, with
+references; the map by line of work is in `literature.md`). What it establishes for this topic:
+- **Mechanisms are known by obliquity**, each from planar simulations at one or a few angles: surfing, shock
+  drift with scattering, whistlers and Weibel turbulence at quasi-perpendicular shocks; an electron foreshock
+  at oblique shocks; reflection and proton-driven waves at quasi-parallel shocks (survey Sect. 4).
+- **No study covers the range of θ_Bn with one set of parameters** (survey Sect. 6.1).
+- **Models of whole remnants assume the efficiency law ε(θ_Bn)**; SN 1006 and the radio population of remnants
+  point in opposite directions (survey Sect. 3.3).
+- **Curved fronts:** treated for the bow shock only (Krauss-Varban & Burgess 1991; Vandas 1995, 2001; Savoini &
+  Lembège 2001). These are the direct predecessors for curvature and are not yet read.
+
+The works read before the survey:
 - **hoshino2002nonthermal:** electron surfing at high-Mach shocks. Threshold M_A > 43–75 at the
   real mass ratio (Eq. 8). 1-D, m_i/m_e = 20.
 - **amano2010critical:** critical Mach number M_A/√β_e ≳ 30 for injection (Eq. 3). Linear
@@ -72,8 +84,7 @@ Open: the survey has not been done. The works read so far (notes in `research/li
 - **hoshino2012stochastic:** stochastic (second-order Fermi type) acceleration in multiple islands,
   for reconnection.
 
-Further candidates are listed in `literature.md`. They are not yet read and are not cited here
-until they are.
+Works still to read are listed in `literature.md`.
 
 ## Idea
 Open; one candidate, a hypothesis:
@@ -89,12 +100,13 @@ Open; one candidate, a hypothesis:
   This is to be assessed.
 
 ## Related work and novelty
-Open: no systematic survey yet. Planned searches:
-- citations of the notes above, in both directions;
-- keywords: curved or spherical shock electron acceleration, blast wave PIC electron injection,
-  θ_Bn dependence of electron acceleration, shock rippling and electron acceleration;
-- 2015–2026 of ApJ, PRL, JGR Space Physics and Phys. Plasmas;
-- later papers of the same groups.
+A first systematic search was done on 2026-11-12 (arXiv, by keyword, author and reference lists; log in the
+survey, Sect. 9). Still missing:
+- the bow-shock literature on curved shocks (J. Geophys. Res., not on arXiv);
+- forward citations of the key works through a citation index;
+- the heliospheric literature on electrons at interplanetary and coronal shocks.
+
+The gaps that the survey finds relative to this topic are in its Sect. 8.3.
 
 **Candidate novelty (unverified):** attributing electron injection to its mechanisms over the whole
 range of θ_Bn on one curved 3-D full-PIC shock, and finding the channels that exist only on a
@@ -133,7 +145,7 @@ Open.
 2026-11-12: the purpose is stated and the branch exists.
 
 Missing:
-- the survey (Prior work, Related work and novelty);
+- the curved-shock part of the survey (Prior work, Related work and novelty);
 - a narrowed research question;
 - a confirmed idea;
 - the driver and parameters, and the criteria and null tests.
@@ -141,4 +153,10 @@ Missing:
 Reviewed 2026-11-12 (`reviews/2026-11-12-purpose.md`): the purpose is a programme, not yet a question.
 The reviewer proposes to narrow it to the θ_Bn at which injection switches on, and to its scaling with
 m_i/m_e and β_e. That decision is the owner's and is open.
-Next: the owner's decision on the question; the survey, starting with the curved-shock works the review names.
+
+Surveyed 2026-11-12: electron injection at supernova remnant shocks (`survey-snr-electron-injection.md`).
+
+Next:
+- the owner's decision on the question;
+- the curved-shock works for the bow shock, which need access beyond arXiv;
+- a research-reviewer review of the survey.
