@@ -3,6 +3,57 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Null run of L: the numerical floor; front measurement revised to protocol Sect. 4
+- **Run L-null.** `configs/explore-L-null.yaml` (no debris), 8 GPUs, commit `0114ef9`, seed 12345, 2960 steps in
+  778 s (262 ms per step, 1.16 ns per particle and step). Output
+  `output/research/spherical-shock-injection/L-null`, 15 GB, not in git (tracks 11 GB, reduced 4.3 GB).
+  Gauss law ≤ 2.2 × 10⁻¹⁵ and div B ≤ 1.6 × 10⁻¹⁵ at the 10 steps that record them; fill ≤ 0.667.
+- **Energy.** The budget grows linearly to +12.7 % at t = 740: numerical heating at 2 particles per cell, all
+  of it in the electrons (electron kinetic energy +10.1 %, ion +0.2 %).
+- **N1 (counts).** No electron with γ ≥ 1.5 in any of the 41 dumps, whatever its origin; largest γ 1.374; at
+  most 15 per dump above γ = 1.25. With a floor of 0 the count criterion of a signal in L is the fixed one:
+  100 or more.
+- **N2 (temperature).** T_e in the corner column goes 0.01000 → 0.01095 at t = 740, nearly linearly (0.01004,
+  0.01029, 0.01054, 0.01075 at t = 148, 296, 444, 592). The meridional map is uniform at t = 740: median
+  0.0110–0.0111 in every ring, 5–95 % range 0.0104–0.0117. Above E = 0.1 the corner spectrum holds 1.37 times
+  the Maxwell–Jüttner count at the fitted T (214 against 156 in weight); almost nothing above 0.2, none above
+  0.5. T_i stays 0.0099. The sound speed from the measured temperatures goes 0.0455 → 0.0466.
+- **N3 (scattering).** 191 335 tracked electrons, 167 026 of them in the box to the end. Pitch-angle rate ν
+  at lags 4 / 16 / 64, by speed: v < 0.1: 2.6e-2 / 1.6e-2 / 8.4e-3; 0.1–0.2 (the bulk, 158 731 orbits):
+  1.2e-2 / 7.8e-3 / 5.0e-3; 0.2–0.3: 5.0e-3 / 3.5e-3 / 2.6e-3; v > 0.3 (484 orbits): 2.5e-3 / 1.8e-3 / 1.3e-3.
+  ν falls with the lag, so the motion is not a pure diffusion in pitch angle. |γ(end) − γ(0)|: median 0.010,
+  99 % 0.058, largest 0.143; 63 orbits change by 0.1 or more.
+  - Consequence, before L is seen: for the bulk electrons ν τ exceeds 0.1 once a layer takes 20 or more to
+    cross (ν τ = 0.16–0.32 at τ = 20), and the dwell of 66 gives 0.33–0.55. For v > 0.3 it is 0.09–0.17 at 66.
+    Unless L's measured layer is thinner than that, B2 will carry the note "loss cone filled numerically" and
+    no mechanism that needs scattering can be assigned from these runs.
+- **N5 (birth radius and ρ_P).** The birth cell decoded from the id lies within 0.25 d_e of the position at
+  t = 0 for every tracked electron: the decoding is right. |ρ_P − ρ_birth| (median / 99 % / 99.9 % / max):
+  0.26 / 0.99 / 1.26 / 1.92 d_e at t = 0 (the gyroradius), 0.76 / 2.90 / 3.71 / 5.29 at t = 740. The drift of
+  ρ_P itself grows as √t: 99.9 % within 1.07 (t = 74), 2.20 (t = 296), 3.51 d_e (t = 740). A Δρ of one
+  d_i = 4 d_e in L is therefore above the 99.9 % level of the null at every time.
+- **Front measurement, revised to the protocol's Sect. 4** (`analyze.py front`, `shockkin.py`). Run on L-null
+  as its null test: 0 of 738 (time, θ) bins show a front in both planes; nothing valid, nothing usable.
+  23 of 23 self-tests pass; the new ones are a clean spherical front (flags all true, speed error against its
+  own σ_V 1.3), and three fronts that must fail (planes 15 % apart, a ramp 20 d_e wide, debris 5 d_e behind).
+- **Choices made while writing the code, where the protocol leaves the reading open.** None changes a number
+  of the protocol.
+  1. Ion-flow check (Sect. 4): from `flux:i` / `n:i`, not from `ekin:i`. The energy density cannot separate
+     the bulk flow from the thermal motion. The criterion (30 %) is unchanged.
+  2. Agreement of V_HT: bins in which every compared value is superluminal (V_HT ≥ 1) count as agreeing.
+     A ratio of two infinite speeds carries no information.
+  3. "The four quadrants agree within 15 %": the spread among the four single-quadrant fits and the folded
+     fit, per plane.
+  4. R is the mean of the two planes (`slice_y`, `slice_x`) where both show a front, and missing otherwise.
+  5. Outputs in a row for criterion d: ceil(2/Ω_ci/Δt − 0.1) = 6 / 11 / 15 for L / M / H, as the protocol says.
+  6. The mid-ramp B surface is searched only up to 3 d_i ahead of the density front, and is missing when it
+     lies more than 3 d_i behind it.
+  7. The comparison of V_HT between thresholds uses the fits, not the differences.
+  8. E_th and v_f use the measured upstream temperature at each output (N2), since T_e rises by 9.5 %.
+- **Units confirmed on the null** (needed by the checks above): the ion spectrum of `spec_up` is in m_e c²
+  (T_i = 0.0099); `n:i` is in n₀ (noise 0.36 per cell at 2 per cell); `flux:i` is n v in c (noise 0.0096).
+- Next: run L from the commit that holds this entry.
+
 ## 2026-11-13 — Review R1 of the protocol; cadence check; protocol revised before the first run
 - **Review R1** (`reviews/2026-11-13-protocol-r1.md`, the research reviewer, on Sects. 3–8 at `ec6470e`). Its
   verdict: the structure is right and the algebra of S0 correct, but three things would let a false "hypothesis

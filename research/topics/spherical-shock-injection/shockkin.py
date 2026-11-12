@@ -29,6 +29,11 @@ def sound_speed(v_a: float, beta: float) -> float:
     return v_a * np.sqrt(0.5 * GAMMA_AD * beta)
 
 
+def sound_speed_of(temp_e, temp_i, m_i: float):
+    """The same sound speed from the temperatures (m_e c^2) and the ion mass (m_e): beta = 2 n (T_e + T_i) / B^2."""
+    return np.sqrt(GAMMA_AD * (np.asarray(temp_e, float) + np.asarray(temp_i, float)) / m_i)
+
+
 def fast_speed(v_a, c_s, theta_bn):
     """Fast magnetosonic speed for propagation at the angle theta_bn (radians) to the field."""
     s = v_a ** 2 + c_s ** 2
@@ -321,6 +326,30 @@ def guiding_centre(x, y, ux, uy, b0: float, charge: float = -1.0):
     return x + uy / (charge * b0), y - ux / (charge * b0)
 
 
+def canonical_radius(x, y, ux, uy, b0: float, charge: float = -1.0):
+    """Radius rho_P of the flux surface that the canonical angular momentum names, for the uniform
+    field b0 along z: rho_P^2 = 2 P_phi / (q b0) = rho^2 + 2 (x u_y - y u_x) / (q b0), x and y from
+    the axis. It equals rho_gc^2 - rho_L^2 and is conserved where the fields are axisymmetric; it is
+    a radius only where the field is the uniform one (upstream). The sign of the square is kept for
+    orbits that enclose the axis."""
+    sq = x ** 2 + y ** 2 + 2.0 * (x * uy - y * ux) / (charge * b0)
+    return np.sign(sq) * np.sqrt(np.abs(sq))
+
+
+def birth_cell(ids, n_cells, ppc: int):
+    """Cell (ix, iy, iz) in which an ambient particle was loaded: id = ppc * cell + slot with
+    cell = (ix * ny + iy) * nz + iz. Holds for ids below ppc * (number of cells) only."""
+    lin = np.asarray(ids, dtype=np.int64) // int(ppc)
+    ny, nz = int(n_cells[1]), int(n_cells[2])
+    return lin // (ny * nz), (lin // nz) % ny, lin % nz
+
+
+def birth_radius(ids, n_cells, dx, ppc: int, centre):
+    """Cylindrical radius (about the axis along z through `centre`) of the centre of the birth cell."""
+    ix, iy, _ = birth_cell(ids, n_cells, ppc)
+    return np.hypot((ix + 0.5) * dx[0] - centre[0], (iy + 0.5) * dx[1] - centre[1])
+
+
 def thermal_bound(temp: float, n_total: float, n_max: float = 10.0) -> float:
     """Kinetic energy above which a Maxwell-Juttner distribution of temperature temp holds fewer
     than n_max of n_total electrons (the bound E_th of the per-electron test B1)."""
@@ -527,16 +556,21 @@ def front_kinematics(theta, t, radius, window: int = 5) -> dict:
     radius: (n_t, n_theta) on the uniform bin centres theta in (0, pi/2), NaN where no front.
     R_t is the slope of a straight line through `window` outputs (NaN unless all are present);
     R_theta is a central difference, with the symmetry about the axis and the equator at the
-    two ends and a one-sided difference beside a missing bin.
-    Returns dict(r_t, r_theta, v_n, cos_tbn, tbn, v_ht), each (n_t, n_theta)."""
+    two ends and a one-sided difference beside a missing bin. sigma_v is the standard error of
+    that slope (from the residuals of the line), carried to the normal speed.
+    Returns dict(r_t, r_theta, v_n, sigma_v, cos_tbn, tbn, v_ht), each (n_t, n_theta)."""
     theta, t, radius = np.asarray(theta, float), np.asarray(t, float), np.asarray(radius, float)
     n_t = len(t)
     h = window // 2
     r_t = np.full(radius.shape, np.nan)
+    r_t_err = np.full(radius.shape, np.nan)
     for i in range(h, n_t - h):
         tt = t[i - h:i + h + 1] - t[i]
         rr = radius[i - h:i + h + 1]
-        r_t[i] = np.sum((tt - tt.mean())[:, None] * (rr - rr.mean(axis=0)), axis=0) / np.sum((tt - tt.mean()) ** 2)
+        dt_c, dr_c = (tt - tt.mean())[:, None], rr - rr.mean(axis=0)
+        stt = np.sum(dt_c ** 2)
+        r_t[i] = np.sum(dt_c * dr_c, axis=0) / stt
+        r_t_err[i] = np.sqrt(np.sum((dr_c - r_t[i] * dt_c) ** 2, axis=0) / (window - 2) / stt)
     dth = theta[1] - theta[0]
     ext = np.concatenate([radius[:, :1], radius, radius[:, -1:]], axis=1)  # mirror images at both ends
     left, right = ext[:, :-2], ext[:, 2:]
@@ -549,8 +583,28 @@ def front_kinematics(theta, t, radius, window: int = 5) -> dict:
         cos_tbn = np.abs(den) / norm
         v_ht = np.where(den > 0, r_t * radius / den, np.inf)
         v_ht = np.where(np.isfinite(r_t) & np.isfinite(den), v_ht, np.nan)
-    return {"r_t": r_t, "r_theta": r_theta, "v_n": r_t * radius / norm, "cos_tbn": cos_tbn,
-            "tbn": np.arccos(np.clip(cos_tbn, 0.0, 1.0)), "v_ht": v_ht}
+    return {"r_t": r_t, "r_theta": r_theta, "v_n": r_t * radius / norm, "sigma_v": r_t_err * radius / norm,
+            "cos_tbn": cos_tbn, "tbn": np.arccos(np.clip(cos_tbn, 0.0, 1.0)), "v_ht": v_ht}
+
+
+def vht_agree(ref, values, tol: float):
+    """Do foot-point speeds agree? values: (k, ...) against the reference ref (...).
+
+    True where the largest difference among the values and the reference is at most tol x |ref|,
+    and where all of them are superluminal (>= 1: no reflection is possible by any of them, and
+    the size of an infinite speed has no meaning). A missing value (NaN) never agrees."""
+    ref = np.asarray(ref, float)
+    allv = np.concatenate([ref[None], np.asarray(values, float)], axis=0)
+    with np.errstate(invalid="ignore"):
+        sup = (allv >= 1.0).all(axis=0)
+        spread = allv.max(axis=0) - allv.min(axis=0)
+        return sup | (np.isfinite(allv).all(axis=0) & (spread <= tol * np.abs(ref)))
+
+
+def outputs_in(duration: float, dt_out: float) -> int:
+    """Number of outputs in a row that stands for a duration: duration / dt_out rounded up, where a
+    tenth of an output interval is not counted (2 / Omega_ci: 6 in L, 11 in M, 15 in H)."""
+    return int(np.ceil(duration / dt_out - 0.1))
 
 
 def _in_a_row(mask, n: int):
@@ -569,20 +623,26 @@ def _in_a_row(mask, n: int):
     return out
 
 
-def valid_domain(radius, r_debris, v_n, tbn, v_a: float, c_s: float, d_i: float, r_lo: float, r_hi: float,
-                 gap_di: float = 2.0, mach_fast: float = 1.5, in_a_row: int = 5) -> dict:
+def valid_domain(radius, r_debris, r_bmax, v_n, sigma_v, tbn, t, v_a: float, c_s, omega_ci: float, r_outer: float,
+                 lead: float = 0.7, mach: float = 1.5, mach_low: float = 1.1, age: float = 2.0) -> dict:
     """The valid shock domain of the protocol (Sect. 4) on the (time, theta) bins.
 
-    Returns the masks a (front exists), b (ahead of the debris ions by gap_di d_i; true where
-    no debris edge is found), c (normal speed >= mach_fast x fast speed at the local theta_Bn),
-    d (a-c in `in_a_row` outputs in a row), e (r_lo <= R <= r_hi) and valid (d and e)."""
+    c_s: the upstream sound speed, a number or one value per output (n_t,). Returns the masks
+    a (front exists), b (the debris edge lies behind the position of B_max and the front leads it
+    by lead x V_n / Omega_ci; true where no debris edge is found), c (V_n >= mach x v_f at the
+    local theta_Bn and V_n - 2 sigma_V > mach_low x v_f), d (a-c in a row over age / Omega_ci),
+    e (t >= age / Omega_ci and R <= r_outer - V_n / Omega_ci), valid (d and e), and n_row."""
+    t = np.asarray(t, float)
+    c_s = np.broadcast_to(np.asarray(c_s, float), t.shape)[:, None]
+    n_row = outputs_in(age / omega_ci, float(np.median(np.diff(t))))
     a = np.isfinite(radius)
     with np.errstate(invalid="ignore"):
-        b = a & (~np.isfinite(r_debris) | (radius - r_debris >= gap_di * d_i))
-        c = a & (v_n >= mach_fast * fast_speed(v_a, c_s, tbn))
-        e = a & (radius >= r_lo) & (radius <= r_hi)
-    d = _in_a_row(a & b & c, in_a_row)
-    return {"a": a, "b": b, "c": c, "d": d, "e": e, "valid": d & e}
+        v_f = fast_speed(v_a, c_s, tbn)
+        b = a & (~np.isfinite(r_debris) | ((r_debris < r_bmax) & (radius - r_debris >= lead * v_n / omega_ci)))
+        c = a & (v_n >= mach * v_f) & (v_n - 2.0 * sigma_v > mach_low * v_f)
+        e = a & (t[:, None] >= age / omega_ci) & (radius <= r_outer - v_n / omega_ci)
+    d = _in_a_row(a & b & c, n_row)
+    return {"a": a, "b": b, "c": c, "d": d, "e": e, "valid": d & e, "n_row": n_row, "v_f": v_f}
 
 
 def fit_temperature(hist, edges, t_guess: float, lo: float = 0.5, hi: float = 5.0):
