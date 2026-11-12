@@ -75,6 +75,8 @@ t < L_x/(1 + β_sh) に制限されます。
 | `pair_2d` | {{ r.pair_2d.dims_eff }} 次元 | {{ r.pair_2d.beta_sh | .3f }} / {{ r.pair_2d.beta_sh_theory | .3f }} | {{ r.pair_2d.beta_sh_rel_error | +.1% }} | {{ r.pair_2d.compression | .2f }} / {{ r.pair_2d.compression_theory | .2f }} | {{ r.pair_2d.compression_rel_error | +.1% }} | ±10 % |
 | `pair_2d_long` | {{ r.pair_2d_long.dims_eff }} 次元 | {{ r.pair_2d_long.beta_sh | .3f }} / {{ r.pair_2d_long.beta_sh_theory | .3f }} | {{ r.pair_2d_long.beta_sh_rel_error | +.1% }} | {{ r.pair_2d_long.compression | .2f }} / {{ r.pair_2d_long.compression_theory | .2f }} | {{ r.pair_2d_long.compression_rel_error | +.1% }} | 報告のみ |
 | `pair_2d_long_run2` | {{ r.pair_2d_long_run2.dims_eff }} 次元 | {{ r.pair_2d_long_run2.beta_sh | .3f }} / {{ r.pair_2d_long_run2.beta_sh_theory | .3f }} | {{ r.pair_2d_long_run2.beta_sh_rel_error | +.1% }} | {{ r.pair_2d_long_run2.compression | .2f }} / {{ r.pair_2d_long_run2.compression_theory | .2f }} | {{ r.pair_2d_long_run2.compression_rel_error | +.1% }} | 報告のみ |
+| `pair_2d_t4000` | {{ r.pair_2d_t4000.dims_eff }} 次元 | {{ r.pair_2d_t4000.beta_sh | .3f }} / {{ r.pair_2d_t4000.beta_sh_theory | .3f }} | {{ r.pair_2d_t4000.beta_sh_rel_error | +.1% }} | {{ r.pair_2d_t4000.compression | .2f }} / {{ r.pair_2d_t4000.compression_theory | .2f }} | {{ r.pair_2d_t4000.compression_rel_error | +.1% }} | 報告のみ |
+| `pair_2d_tail` | {{ r.pair_2d_tail.dims_eff }} 次元 | {{ r.pair_2d_tail.beta_sh | .3f }} / {{ r.pair_2d_tail.beta_sh_theory | .3f }} | {{ r.pair_2d_tail.beta_sh_rel_error | +.1% }} | {{ r.pair_2d_tail.compression | .2f }} / {{ r.pair_2d_tail.compression_theory | .2f }} | {{ r.pair_2d_tail.compression_rel_error | +.1% }} | 報告のみ |
 | `pair_3d` | {{ r.pair_3d.dims_eff }} 次元 | {{ r.pair_3d.beta_sh | .3f }} / {{ r.pair_3d.beta_sh_theory | .3f }} | {{ r.pair_3d.beta_sh_rel_error | +.1% }} | {{ r.pair_3d.compression | .2f }} / {{ r.pair_3d.compression_theory | .2f }} | {{ r.pair_3d.compression_rel_error | +.1% }} | 報告のみ |
 
 3 次元の run は 3 次元気体の値（β_sh ≈ 1/3、n₂/n₁ ≈ 4）に、準 2 次元の run は 2 次元気体の値（β_sh ≈ 1/2、
@@ -92,10 +94,12 @@ n₂/n₁ ≈ 3）に跳びます。衝撃波は、粒子がいくつの方向�
 
 `pair_3d`（3 次元、t = 600）。
 
-<details><summary>pair_2d（ゲート）と長時間 run の 2 つ目の実現</summary>
+<details><summary>pair_2d（ゲート）、長時間 run の 2 つ目の実現、t = 4000 と t = 8000 までの run</summary>
 
 ![pair_2d](images/relativistic_shock/pair_2d-shock.png)
 ![pair_2d_long_run2](images/relativistic_shock/pair_2d_long_run2-shock.png)
+![pair_2d_t4000](images/relativistic_shock/pair_2d_t4000-shock.png)
+![pair_2d_tail](images/relativistic_shock/pair_2d_tail-shock.png)
 
 </details>
 
@@ -105,12 +109,33 @@ n₂/n₁ ≈ 3）に跳びます。衝撃波は、粒子がいくつの方向�
 |---|---|---|---|---|
 | `pair_2d_long` | {{ r.pair_2d_long.nonthermal_fraction | .1% }} | {{ r.pair_2d_long.tail_index_window_p | .2f }} ± {{ r.pair_2d_long.tail_index_window_err | .2f }} | α = {{ r.pair_2d_long.gamma_max_growth_exponent | .2f }} | {{ r.pair_2d_long.eps_B_end | .4f }} |
 | `pair_2d_long_run2` | {{ r.pair_2d_long_run2.nonthermal_fraction | .1% }} | {{ r.pair_2d_long_run2.tail_index_window_p | .2f }} ± {{ r.pair_2d_long_run2.tail_index_window_err | .2f }} | α = {{ r.pair_2d_long_run2.gamma_max_growth_exponent | .2f }} | {{ r.pair_2d_long_run2.eps_B_end | .4f }} |
+| `pair_2d_t4000`（t = 4000） | {{ r.pair_2d_t4000.nonthermal_fraction | .1% }} | {{ r.pair_2d_t4000.tail_index_window_p | .2f }} ± {{ r.pair_2d_t4000.tail_index_window_err | .2f }} | α = {{ r.pair_2d_t4000.gamma_max_growth_exponent | .2f }} | {{ r.pair_2d_t4000.eps_B_end | .4f }} |
+| `pair_2d_tail`（t = 8000） | {{ r.pair_2d_tail.nonthermal_fraction | .1% }} | {{ r.pair_2d_tail.tail_index_window_p | .2f }} ± {{ r.pair_2d_tail.tail_index_window_err | .2f }} | α = {{ r.pair_2d_tail.gamma_max_growth_exponent | .2f }} | {{ r.pair_2d_tail.eps_B_end | .4f }} |
 | 文献（2 次元、収束後） | — | ≈ 2.4 | α = 0.5 | — |
 
-テイルはできていますが、t = 2000 ω_pe⁻¹（相対論的プラズマ時間 √γ₀/ω_pe の約 520 倍）ではまだ若く、その指数
-（{{ r.pair_2d_long.tail_index_window_p | .1f }}）は収束値 2.4 よりずっと急です。Spitkovsky はこれを約 8700
-ω_pe⁻¹ で測っています。収束したテイルには t ≳ 8000 ω_pe⁻¹ と、準 2 次元で約 10⁹ 個の粒子が必要です
-（ロードマップ項目 R11）。
+**t = 8000 ω_pe⁻¹ まで、伸びたテイルは現れません。** `pair_2d_long` とその 2 つ目の実現は t = 2000
+（相対論的プラズマ時間 √γ₀/ω_pe の約 520 倍）で終わります。`pair_2d_t4000` と `pair_2d_tail` は、同じ設定を
+より長い計算領域で t = 4000 と t = 8000 まで進めたものです（後者の粒子数は
+{{ c.pair_2d_tail.particles | , }}）。
+
+- **指数**: t = 2000 で {{ r.pair_2d_long.tail_index_window_p | .2f }} と
+  {{ r.pair_2d_long_run2.tail_index_window_p | .2f }}、t = 4000 で
+  {{ r.pair_2d_t4000.tail_index_window_p | .2f }} ± {{ r.pair_2d_t4000.tail_index_window_err | .2f }}
+  （スペクトルの時刻 t = {{ r.pair_2d_t4000.t_spectrum | .0f }}）、t = 8000 の run で
+  {{ r.pair_2d_tail.tail_index_window_p | .2f }} ± {{ r.pair_2d_tail.tail_index_window_err | .2f }}
+  （t = {{ r.pair_2d_tail.t_spectrum | .0f }}）です。フィットの区間はどれも、γ dN/dγ のピークの 3 倍から
+  カットオフの 0.7 倍まで（最後の run では γ ≈ {{ r.pair_2d_tail.tail_window.0 | .0f }}–{{ r.pair_2d_tail.tail_window.1 | .0f }}）
+  です。指数は収束値 2.4 に近づきません（Spitkovsky (2008) はこれを約 8700 ω_pe⁻¹ で測っています）。
+- **最大エネルギー**: スペクトルの最大の γ は `pair_2d_t4000` の終了時に
+  {{ r.pair_2d_t4000.gamma_max_t.-1 | .0f }}、`pair_2d_tail` の終了時に
+  {{ r.pair_2d_tail.gamma_max_t.-1 | .0f }} です。増加は +13 % で、
+  γ_max ∝ t^1/2 なら +41 % になるはずです。フィットした指数 α は run が長いほど小さくなります（表の右から
+  2 列目）。
+- **非熱的な割合**: 4 つの run すべてで 15–18 % です。
+
+この設定（横幅 62 c/ω_pe = 相対論的スキン長の 16 倍、セルあたり 8 粒子、4 パスの電流フィルタ）では、時間を
+延ばすだけでは発表されているテイルになりません。どの条件がテイルを抑えているかは、ここでは切り分けて
+いません（ロードマップ項目 R11）。
 
 ## 補足
 

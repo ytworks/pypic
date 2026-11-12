@@ -455,15 +455,19 @@ class Simulation:
         return fields
 
     def _set_initial_fields(self) -> bool:
-        """Uniform E0 and the initial_fields list (PIC-D9). Returns True if any field was set."""
+        """Uniform E0 and the initial_fields list (PIC-D9). Returns True if any field was set.
+        E0 may be tangential to reflecting faces (PIC-D18, explicit solver): the wall condition
+        applied below zeroes it on the wall, which is a conductor at rest in a plasma that
+        carries E = -v x B."""
         cfg, g = self.cfg, self.grid
         E0 = tuple(float(e) for e in cfg.E0)
         for c, e in enumerate(E0):
             if e != 0.0:
                 for a in range(3):
-                    if a != c and cfg.boundaries[a][0] != "periodic":
-                        raise ValueError(f"E0 component {'xyz'[c]} is tangential to the conducting faces of "
-                                         f"axis {'xyz'[a]}")
+                    kinds = set(cfg.boundaries[a]) - {"periodic"}
+                    if a != c and kinds and (kinds != {"reflecting"} or cfg.solver != "explicit"):
+                        raise ValueError(f"E0 component {'xyz'[c]} is tangential to the faces of axis {'xyz'[a]}: "
+                                         "allowed at reflecting faces with the explicit solver only (PIC-D18)")
                 getattr(g, "E" + "xyz"[c])[...] += e
         from .initial_fields import apply_initial_fields
 

@@ -11,6 +11,9 @@ The planner takes dimensionless numbers (mass ratio, Alfven Mach number, omega_p
 magnetopause distance in ion skin depths) and sets the dipole moment from the pressure balance at
 the wanted magnetopause distance R_mp (theory.py). Lengths of the box, of the body and of the
 diagnostics are given in units of R_mp.
+
+``planet: false`` leaves out the sphere and its dipole: the wind alone, the null test of the faces
+and of the external fields (analyze.py evaluates it as such).
 """
 from __future__ import annotations
 
@@ -59,6 +62,7 @@ class BowShockParams:
     body_radius: float = 1.0 / 1.5  # in R_mp
     core: float = 0.2  # regularisation length of the dipole in R_mp (inside the body)
     dipole: tuple = (0.0, 0.0, -1.0)  # direction of the moment
+    planet: bool = True  # false: no sphere and no dipole (null test of the wind)
     # --- box and numerics ---
     box: tuple = (6.0, 8.0, 8.0)  # in R_mp
     upstream: float = 2.5  # distance of the planet's centre from the upstream face in R_mp
@@ -71,6 +75,7 @@ class BowShockParams:
     capacity_factor: float = 2.0  # the sheath compresses the plasma: room for the fullest rank
     # --- output ---
     coarse: float = 0.2  # block size of the 3-D output in R_mp
+    upstream_z: float | None = None  # lower edge of the upstream region above the centre in R_mp (oblique IMF)
     slice_coarsen: int = 1  # block size of the two slices in cells
     seed: int = 12345
     overrides: dict = field(default_factory=dict)  # any SimConfig field
@@ -115,7 +120,7 @@ def plan_bow_shock(p: BowShockParams, n_gpus: int = 1):
     moment = T.dipole_moment(r_mp, v, p.mass_ratio)
     m_dir = _unit(p.dipole, "dipole")
     # the largest external field a particle can meet: the pole of the body's surface
-    wce_dt = (2.0 * moment / radius ** 3 + b_imf) * dt
+    wce_dt = ((2.0 * moment / radius ** 3 if p.planet else 0.0) + b_imf) * dt
     if wce_dt > WCE_DT_MAX:
         raise ValueError(f"Omega_ce dt = {wce_dt:.2f} at the surface of the body (limit {WCE_DT_MAX:g}): "
                          f"raise body_radius or cells_per_de")
@@ -127,9 +132,11 @@ def plan_bow_shock(p: BowShockParams, n_gpus: int = 1):
     species = [SpeciesConfig("e", -1.0, 1.0, [Beam(1.0, u, theta_e)]),
                SpeciesConfig("i", 1.0, p.mass_ratio, [Beam(1.0, u, theta_e * p.ti_te / p.mass_ratio)])]
     c3 = max(1, int(round(p.coarse * r_mp / dx)))
-    if not all(T.upstream_blocks(n_cells, (c3,) * 3, (dx,) * 3, r_mp)):
+    # an oblique IMF has a foreshock on one side: the upstream region is then the other side only
+    z_range = None if p.upstream_z is None else (center[2] + p.upstream_z * r_mp, L[2])
+    if not all(T.upstream_blocks(n_cells, (c3,) * 3, (dx,) * 3, r_mp, z_range)):
         raise ValueError(f"coarse = {p.coarse:g} R_mp leaves no block of the 3-D output inside the upstream region "
-                         f"(x from {T.UPSTREAM_X[0]:g} to {T.UPSTREAM_X[1]:g} R_mp): lower coarse")
+                         f"(x from {T.UPSTREAM_X[0]:g} to {T.UPSTREAM_X[1]:g} R_mp): lower coarse or upstream_z")
     cs = int(p.slice_coarsen)
     moments = ["n:e", "n:i", "flux:e", "flux:i", "ekin:e", "ekin:i", "E", "B", "rho"]
     in_plane = ["n:e", "n:i", "flux:i", "B"]
@@ -145,11 +152,12 @@ def plan_bow_shock(p: BowShockParams, n_gpus: int = 1):
     except ValueError:
         dims = None
     omega_ci = b_imf / p.mass_ratio
+    dipoles = [Dipole(tuple(moment * c for c in m_dir), center, core)] if p.planet else []
     cfg = SimConfig(
         n_cells=n_cells, dx=(dx,) * 3, dt=dt, n_steps=n_steps, species=species, ppc=p.ppc, seed=p.seed, dims=dims,
         boundaries=(("open", "open"),) * 3, npml=p.npml, capacity_factor=p.capacity_factor,
-        external_fields=ExternalFields(E=E, B=B, dipoles=[Dipole(tuple(moment * c for c in m_dir), center, core)]),
-        body=Body(center=center, radius=radius),
+        external_fields=ExternalFields(E=E, B=B, dipoles=dipoles),
+        body=Body(center=center, radius=radius) if p.planet else None,
         injection=Injection(faces={"x-": "paired", "y-": "flux", "y+": "flux", "z-": "flux", "z+": "flux"},
                             neutralizer="e"),
         current_filter=CurrentFilter(p.filter_passes, True), marder_zone=p.marder_zone,
@@ -176,7 +184,12 @@ def plan_bow_shock(p: BowShockParams, n_gpus: int = 1):
     mem = (slots * SLOT_BYTES[cfg.precision] + slots / 2 * SORT_BYTES[cfg.precision]
            + padded * 8 * (31 + n_out)) / 1e9 + 1.0
     beta = mhd.plasma_beta(p.vte, p.ti_te, b_imf)
-    x_mhd = mhd.compression(p.mach_alfven, beta)
+    # shock on the subsolar line: its normal is the flow direction, at the angle theta_bn to the IMF
+    cos2 = b_dir[0] ** 2
+    x_mhd = T.oblique_compression(p.mach_alfven, beta, cos2)
+    kind = "perpendicular" if cos2 == 0.0 else f"oblique (theta_Bn = {math.degrees(math.acos(abs(b_dir[0]))):.0f} deg)"
+    # the equatorial field of the dipole is along -moment: an IMF along +moment meets it antiparallel
+    antiparallel = sum(b * m for b, m in zip(b_dir, m_dir)) > 0.0
     lam_d = p.vte  # Debye length in d_e
     info = {
         "r_mp": r_mp, "d_i": math.sqrt(p.mass_ratio), "center": list(center), "body_radius": radius, "core": core,
@@ -187,22 +200,25 @@ def plan_bow_shock(p: BowShockParams, n_gpus: int = 1):
         "shock_standoff_spreiter": T.shock_standoff(r_mp, x_mhd),
         "crossing_time": t_cross, "crossing_steps": cross_steps, "omega_ci_t_end": omega_ci * cfg.n_steps * cfg.dt,
         "wce_dt_surface": wce_dt, "debye_cells": lam_d / dx, "particles": n_part, "memory_per_gpu_GB": mem,
-        "id_fraction": ids / ID_LIMIT, "coarse_cells": c3, "dims": cfg.dims, "params": asdict(p)}
+        "id_fraction": ids / ID_LIMIT, "coarse_cells": c3, "dims": cfg.dims, "params": asdict(p),
+        "planet": p.planet, "antiparallel": antiparallel, "cos2_bn": cos2, "upstream_z_range": z_range}
     lines = [
         "=== pypic bow-shock planner (magnetised planet in the solar wind) ===",
         f"wind: m_i/m_e={p.mass_ratio:g}, M_A={p.mach_alfven:g} (fast Mach {info['mach_fast']:.2f}), "
         f"v_sw={v:.4f} c, B_imf={b_imf:g} along {tuple(round(c, 3) for c in b_dir)}, beta={beta:.2f}, "
         f"v_te={p.vte:g} c (Debye length {lam_d / dx:.2f} dx)",
-        f"planet: R_mp={r_mp:g} d_e = {p.dp:g} d_i ({r_mp / dx:.0f} cells), body radius {radius:.2f}, "
-        f"centre ({center[0]:g}, {center[1]:g}, {center[2]:g}); dipole moment {moment:.1f} along "
-        f"{tuple(round(c, 3) for c in m_dir)}, core {core:g}; Omega_ce dt <= {wce_dt:.2f} at the surface",
+        (f"planet: R_mp={r_mp:g} d_e = {p.dp:g} d_i ({r_mp / dx:.0f} cells), body radius {radius:.2f}, "
+         f"centre ({center[0]:g}, {center[1]:g}, {center[2]:g}); dipole moment {moment:.1f} along "
+         f"{tuple(round(c, 3) for c in m_dir)}, core {core:g}; Omega_ce dt <= {wce_dt:.2f} at the surface"
+         + ("; IMF antiparallel to the dipole field on the day side" if antiparallel else "")) if p.planet else
+        f"no planet (null test of the wind): lengths in R_mp={r_mp:g} d_e = {p.dp:g} d_i ({r_mp / dx:.0f} cells)",
         f"grid {cfg.n_cells}, dx={dx:g}, L=({L[0]:g}, {L[1]:g}, {L[2]:g}) d_e, dt={cfg.dt:g}, {cfg.n_steps} steps = "
         f"{p.crossings:g} crossings of {cross_steps} steps = {info['omega_ci_t_end']:.1f} / Omega_ci",
         f"{n_part:,} particles ({cfg.ppc} per cell and species), capacity factor {cfg.capacity_factor:g}; "
         f"memory up to {mem:.1f} GB/GPU on {gpus} GPU(s), rank grid {cfg.dims}; ids {info['id_fraction']:.1e} of 2^53",
         f"faces: x- paired inflow, y and z flux, x+ outflow; filter {p.filter_passes}+comp, Marder zone "
         f"{cfg.marder_zone:g}, npml {cfg.npml}",
-        f"theory: perpendicular MHD shock n2/n1={x_mhd:.2f}; sheath (Spreiter) {info['sheath_spreiter']:.2f} R_mp, "
+        f"theory: {kind} MHD shock n2/n1={x_mhd:.2f}; sheath (Spreiter) {info['sheath_spreiter']:.2f} R_mp, "
         f"shock at {info['shock_standoff_spreiter']:.1f} d_e from the centre",
         f"output: 3-D moments in blocks of {c3} cells every {every_3d} steps, slices z and y through the centre "
         f"every {every_slice} steps",

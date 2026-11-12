@@ -1,0 +1,16 @@
+# The ei case in a uniform magnetic field along the drift, Omega_ce = omega_pe. The electrostatic mode
+# with k along B0 does not feel the field: the growth rate of the k_max mode stays that of ei.
+mixture: e-i
+mass_ratio: 1836.15267
+Z: 1
+mode: electron
+u_drift: 0.2
+beam_fraction: 0.5
+T_e_eV: 51.1
+T_i_eV: 5.11
+B0: [1.0, 0.0, 0.0]      # in m_e omega_pe / e: Omega_ce = omega_pe
+solver: explicit
+n_wavelengths: 4
+transverse_ratio: 0.25
+ppc: 16
+growth_times: 30

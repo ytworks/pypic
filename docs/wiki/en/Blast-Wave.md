@@ -135,6 +135,18 @@ The gate criteria were fixed before the first run.
   did not show a level of the charge; the potential of the body is reported, not gated.
 - **Particle number**: the particle arrays reach {{ r.gate.fill_max | .0% }} of their capacity on the
   fullest rank.
+- **A larger R_m / d_i** (`rm12`, a recorded run): R_m = {{ c.rm12.params.rm }} d_i against
+  {{ c.gate.params.rm }} d_i in the run above, {{ c.rm12.particles | , }} particles. The debris ions reach
+  {{ r.rm12.debris_extent | .1f }} d_e across the field, {{ r.rm12.debris_extent_ratio | .2f }} times the
+  scaling of Le et al. (2021), against {{ r.gate.debris_extent_ratio | .2f }} times in the run above. The
+  front moves at {{ r.rm12.front_mach_fast | .2f }} times the fast magnetosonic speed and the largest ring
+  mean of B_z is {{ r.rm12.compression | .2f }} B₀. The run passes the gate criteria.
+
+  <details><summary>Front, debris and cavity of `rm12`</summary>
+
+  ![rm12](images/blast_wave/rm12-blast_wave.png)
+
+  </details>
 - **Run-to-run differences**: this run and three earlier FP64 runs of the configuration with the same
   seed give the same front speed, ring mean and symmetry in all digits and the same Δ98 in 12 digits;
   the other values differ by 4e-5 of their value or less. A run with `precision: mixed` passes the same

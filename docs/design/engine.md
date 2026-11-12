@@ -1,8 +1,8 @@
 # Engine design
 
 Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12..D16 2026-11-11, bow-shock plan;
-PIC-D17 2026-11-11, blast-wave plan); PIC-D11 **Proposed** (2026-11-10, #10); PIC-D19 **Proposed**
-(2026-11-12, compact-storage plan).
+PIC-D17 2026-11-11, blast-wave plan; PIC-D18 2026-11-12, more-examples plan); PIC-D11 **Proposed**
+(2026-11-10, #10); PIC-D19 **Proposed** (2026-11-12, compact-storage plan).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -81,7 +81,7 @@ same physical macro-particles on any number of GPUs.
   - They are loaded after the plasma species, so they never change the plasma's random numbers.
   - Explicit particle lists get ids after all beam ids.
 - **Initial fields**:
-  - Uniform `E0`. It is rejected if it is tangential to a conducting face.
+  - Uniform `E0`. Tangential to a face it is allowed at reflecting faces with the explicit solver (PIC-D18) and rejected otherwise.
   - Plane waves that are the exact discrete eigenmode of each solver (Yee with the stored-B half-step average, or Crank–Nicolson).
   - 1-D profiles (`pypic.profiles`) of a component along another axis, so the divergence is zero bitwise.
 - **Density profiles** (`Beam.profile`): the profile sets the particle weights; shapes below 1e-10 are cut and those particles removed. Equal profiles keep the plasma exactly neutral, and neutrality is checked slot by slot.
@@ -270,6 +270,26 @@ Measured (2026-11-11, RTX PRO 6000; diagnostic only):
 - **Decomposition:** an ambient plasma entering through six `flux` faces, an absorbing sphere and a drifting shell of two more species (two beams each) in 16×24×12 cells; with the 2×2 rank grid the block lies across the rank face along x, the sphere on it, and the two ranks of the high half of y load no shell particle. 1 GPU against 2×2: the same ids, the same counts (9748 shell particles loaded, 1264 of them in the high half after 40 steps, 44 absorbed, 5002 injected), histories within 1e-10, Gauss 1.9e-15.
 - **Gate** (`blast_wave:gate`, ae4bb69, 8 GPUs, FP64; `bench/results/2026-11-11-ae4bb69c6-gpu-gates.json`): a debris shell of two species with four beams each (about 37e6 of the 943e6 particles) in 384³ cells with six `flux` faces and the absorbing sphere, 1760 steps: Gauss 7.9e-15, div B 9.0e-15, largest `fill` 0.67 with `capacity_factor` 1.5; all criteria of the example passed, and the other 22 gates of the record with it.
 - **Gate with `precision: mixed`** (PIC-D11; 9bfa1a5, 8 GPUs; `bench/results/2026-11-11-9bfa1a537-gpu-gates-mixed.json`, after the FP64 record of the same commit): the same configuration passes all criteria: Gauss 6.9e-15, div B 8.6e-15, largest `fill` 0.67; the speed of the front and the debris extent have 7 digits or more in common with FP64.
+
+### PIC-D18 — A uniform `E0` tangential to a reflecting face: the wall is a conductor at rest in a plasma that carries E = −v × B (2026-11-11) — Status: Accepted
+Plan: `docs/plans/2026-11-11-more-examples.md` (Stage 4). Accepted 2026-11-12 with the gate record of `relativistic_shock:pair_2d_sigma` on c54e5d1 (FP64 and mixed).
+- A component of `E0` may be tangential to the faces of an axis when both faces of that axis are reflecting and the solver is the explicit one. Refused at construction, as before: such a component when a face of the axis is open, and with the implicit solver. The plane waves and the 1-D profiles of `initial_fields` keep refusing a tangential E.
+- **Mechanism:** no new code path. `_set_initial_fields` adds `E0` to the Yee arrays and then applies the wall condition (`apply_bc_E`), as it did before: the tangential field is zero on the wall plane from step 0 and `E0` everywhere else. The field depends on the wall-normal coordinate only and has no component along it, so its divergence is zero and Gauss's law is not touched.
+- **What the wall does:** a plasma that drifts at v with `B0` and `E0 = −v × B0` is force free in the interior. At the wall the curl of E is not zero: a front leaves each wall at c. The plasma that drifts into a wall is stopped and compressed there (a piston in a magnetised flow); the plasma that drifts away from the other wall leaves a vacuum behind it. A point at the distance d from the nearer wall is as in the unbounded plasma until t = d / c.
+- **Against `external_fields.E` (PIC-D12):** an external field is not in the Yee arrays; a wall acts on the difference field only and does not short the external E. It stays allowed tangential to any face. A configuration has one or the other (`external_fields` is refused together with `B0` / `E0`).
+
+Why: the piston method (a flow into a reflecting wall, `examples/relativistic_shock`) had no magnetised case: the flow must carry the motional field E = −v × B, which is tangential to the wall, and that was refused for every face that is not periodic. The refusal protected the open faces, where the CPML would absorb a field that is meant to stay; at a conducting wall the tangential field has a physical meaning.
+
+Amendment to the plan: the plan also asked to refuse `external_fields.E` tangential to a reflecting face. Not done: PIC-D12 (Accepted) allows an external field tangential to any face and `tests/gpu/mgpu_migrate.py` (variant `dipole`) runs with one at reflecting z faces.
+
+Not established: the implicit solver (refused); a face pair of one reflecting and one open face (refused); `E0` together with a body or an injection face on another axis (no run).
+
+Measured (2026-11-11, RTX PRO 6000, 1 GPU, FP64; diagnostic only):
+- **Test** (`test_exb_drifting_plasma_between_reflecting_walls_keeps_its_drift`): a cold pair plasma, u = (−0.5, 0, 0), `B0` = 0.5 z, `E0` = −v × `B0`, 128×4×4 cells of 0.25, 8 per cell, reflecting x faces, 71 steps of 0.1 (half a gyration period). Farther than c t + 2 from both walls: largest change of a momentum component 1.3e-5 u (limit 1e-4), E_y and B_z within 1.1e-4 and 9.4e-6 of their initial values (limit 5e-4); Gauss 1.6e-14, div B 1.1e-14. The code before the change raises at construction. E_y is exactly 0 on the wall plane before the first step.
+- **The same plasma with periodic x** (96 cells): momentum 1.3e-5 u, E_y 8.5e-5 — the interior values above are those of the unbounded plasma, not an effect of the walls.
+- **At the walls** (same run): density up to 3.5 n_0 within 2 of the wall the plasma runs into, mean u_x there +0.08 (stopped); no particle within 2 of the other wall.
+- **Other cases** (96 cells, by hand, region c t + 1; the edge of that region still holds the foot of the front): θ = 1e-4: means of the momentum change ≤ 1.5e-4 u; u = 3, B = 1, 100 steps: 2.4e-4 u, Gauss 4.0e-14; dt = 0.05: 1.6e-4 u.
+- **Gate record** (2026-11-12, c54e5d1, 8 GPUs; `bench/results/2026-11-12-c54e5d104-gpu-gates.json` and `…-mixed.json`): `relativistic_shock:pair_2d_sigma` (σ = 0.3, piston with `E0` tangential to the reflecting x faces) passes in FP64 and mixed: β_sh −7.2 %, n₂/n₁ +4.2 % / +4.4 %, field jump +4.0 % against the magnetised jump conditions (limits 10 %).
 
 ### PIC-D19 — Compact particle storage: the cell and the position within it in 2^-32 of a cell; momenta stay float64 (2026-11-12) — Status: Proposed
 Plan: `docs/plans/2026-11-11-compact-storage.md` (A0 to A2). The mode is written and compiles (`scripts/check_kernels.py`, two cases). Gates: the 21 explicit gates ALL PASSED with `precision: compact` on 2c8aa5f, 8 GPUs, beside the records in `fp64` and `mixed` of the same commit (2026-11-12, `bench/results/2026-11-12-2c8aa5f8e-gpu-gates-compact.json`). The decision stays Proposed until the owner decides on the memory criterion of R5 (under Measured) and on the default precision. What is below is the design; under "Measured" are the prototypes of A0, which are not the product kernels, the gyration runs that decided the momenta, and the speed, the device memory and the gates of the product kernels.

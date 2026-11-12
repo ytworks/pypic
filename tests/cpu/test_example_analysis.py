@@ -115,6 +115,87 @@ def test_bow_shock_upstream_deviation_is_nan_without_a_measurement():
     assert up["blocks"] == 0 and np.isnan(up["deviation"])
 
 
+def test_bow_shock_upstream_region_follows_the_side_chosen_for_an_oblique_imf():
+    from types import SimpleNamespace
+
+    B = _example("bow_shock")
+    v, n_cells, block = 0.25, (48, 64, 64), 4  # box 24 x 32 x 32, centre of z at 16; blocks of 2
+    shape = tuple(n // block for n in n_cells)
+    z = (np.arange(shape[2]) + 0.5) * 2.0
+    wind = np.ones(shape)
+    disturbed = wind * np.where(z < 16.0, 1.3, 1.0)  # 30 % more density on the side z < z_c only
+    data = {}
+    for it, d in ((0, wind), (100, disturbed), (200, disturbed)):
+        for sp in "ei":
+            data[it, f"n:{sp}"], data[it, f"fluxx:{sp}"] = d, d * v
+    f = SimpleNamespace(iterations=[0, 100, 200], get=lambda it, name: SimpleNamespace(data=data[it, name]))
+    run = SimpleNamespace(fields=lambda name: f, n_cells=n_cells, dx=(0.5, 0.5, 0.5),
+                          config={"output": {"diagnostics": [{"name": "coarse", "coarsen": [block] * 3}]}})
+    info = {"r_mp": 10.0, "v_sw": v, "crossing_steps": 100, "center": [12.0, 16.0, 16.0]}
+    assert B.upstream_state(run, info)["deviation"] == pytest.approx(0.15)  # half of the whole region
+    up = B.upstream_state(run, {**info, "upstream_z_range": (21.0, 32.0)})  # z - z_c >= 0.5 R_mp
+    assert up["blocks"] == 3 * 12 * 3 and up["deviation"] == pytest.approx(0.0, abs=1e-12)
+    assert up["foreshock"]["blocks"] == up["blocks"] and up["foreshock"]["deviation"] == pytest.approx(0.3)
+
+
+def test_bow_shock_field_reversal_is_counted_between_the_shock_and_the_body():
+    B = _example("bow_shock")
+    x = np.linspace(0.0, 50.0, 501)
+    bz = np.interp(x, [0.0, 29.0, 31.0, 50.0], [-1.0, -3.0, 5.0, 8.0])  # crosses zero at 29.75
+    one = B.reversal(x, bz, 20.0, 45.0)
+    assert one["count"] == 1 and one["x"] == pytest.approx(29.75, abs=1e-9)
+    # a second and a third change inside the interval: not a single reversal, no position
+    three = B.reversal(x, bz * np.where((x > 35.0) & (x < 40.0), -1.0, 1.0), 20.0, 45.0)
+    assert three["count"] == 3 and np.isnan(three["x"])
+    # outside the interval they do not count; without a shock (nan) nothing lies between
+    assert B.reversal(x, bz, 20.0, 34.0)["count"] == 1 and B.reversal(x, bz, 31.0, 45.0)["count"] == 0
+    assert B.reversal(x, bz, float("nan"), 45.0)["count"] == 0
+
+
+def test_bow_shock_null_history_measures_density_velocity_and_temperature_per_region():
+    from types import SimpleNamespace
+
+    B = _example("bow_shock")
+    v, t0, m, shape = 0.25, 0.01, 16.0, (8, 6, 6)
+
+    def moments(density, ux, uz, temp):
+        """Moments of a wind with the given density, velocity (ux, 0, uz) and temperature per block."""
+        gu = 1.0 / np.sqrt(1.0 - ux * ux - uz * uz)
+        return {"n": density, "fluxx": density * ux, "fluxy": 0.0 * density, "fluxz": density * uz,
+                "ekin": density * (m * (gu - 1.0) + 1.5 * temp)}
+
+    one = np.ones(shape)
+    late = np.ones(shape)
+    late[:2] = 1.1  # the slab at x-: 10 % more density, a velocity of 0.02 |v| along z, twice the temperature
+    data = {0: moments(one, v * one, 0.0 * one, t0 * one),
+            480: moments(late, v * one, np.where(late > 1.0, 0.02 * v, 0.0), np.where(late > 1.0, 2.0, 1.0) * t0)}
+    f = SimpleNamespace(iterations=[0, 480],
+                        get=lambda it, name: SimpleNamespace(data=data[it][name.split(":")[0]]))
+    run = SimpleNamespace(fields=lambda name: f, species_info={"e": {"mass": m}, "i": {"mass": m}})
+    h = B.null_history(run, {"v_sw": v})
+    assert h["regions"] == ["interior", "x-", "x+", "y-", "y+", "z-", "z+"]
+    k = h["regions"].index("x-")
+    assert h["e"]["density"][k, 1] == pytest.approx(1.1) and h["e"]["density"][0, 1] == pytest.approx(1.0)
+    assert h["e"]["velocity"][k, 1] == pytest.approx(0.02) and h["e"]["velocity"][0, 1] == pytest.approx(0.0, abs=1e-12)
+    assert h["e"]["temperature"][k, 1] == pytest.approx(2.0)  # the drift does not count as heat
+    assert h["i"]["temperature"][0, 1] == pytest.approx(1.0)
+    # the slab at y- crosses the disturbed one: 2 of its 8 planes along x
+    assert h["e"]["density"][h["regions"].index("y-"), 1] == pytest.approx(1.0 + 0.1 * 2 / 8)
+
+
+def test_bow_shock_null_test_does_not_pass_a_species_that_was_not_measured():
+    B = _example("bow_shock")
+
+    def res(ion):
+        return {"gauss_max": 1e-13, "density": {"e": {"value": 0.01}, "i": {"value": ion}},
+                "velocity": {"e": {"value": 0.01}, "i": {"value": ion}}, "temperature_interior_end": {"e": 1.0},
+                "electric_ratio": 1.0, "magnetic_ratio": 1.0}
+
+    assert all(B.null_checks(res(0.01)).values())
+    lost = B.null_checks(res(float("nan")))  # the ions after the electrons: a nan must not be skipped
+    assert not lost["density"] and not lost["velocity"] and lost["gauss"]
+
+
 def test_blast_wave_front_and_debris_extent_are_recovered_from_synthetic_planes():
     from scipy.special import erfinv
 
@@ -226,3 +307,33 @@ def test_blast_wave_gate_fails_without_a_measurement():
     # a front so far out that no block lies ahead of it: nothing was measured
     out = ahead({0: 0.0, 50: 60.0, 100: 60.0}, {0: 1.0, 100: 1.0})
     assert out["blocks"][1] == 0 and np.isnan(out["deviation"])
+
+
+def test_filamentation_stable_ratio_compares_the_modes_2_to_10_from_a_tenth_of_the_run():
+    spec = importlib.util.spec_from_file_location("filamentation_analyze", ROOT / "examples/filamentation/analyze.py")
+    F = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(F)
+    t = np.linspace(0.0, 100.0, 101)
+    gated = np.where(t < 10.0, 5.0, np.exp(0.5 * (t - 10.0) / 90.0))  # amplitude e^0.5 from t = 10 to the end
+    amps = [np.exp(t)] + [gated] * 9 + [np.exp(t)] * 6  # modes 1 and 11..16 are not part of the criterion
+    assert F.stable_ratio(t, amps, 100.0) == pytest.approx(np.e)
+
+
+def test_filamentation_stable_plot_draws_only_the_modes_of_the_run(tmp_path):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    spec = importlib.util.spec_from_file_location("filamentation_analyze", ROOT / "examples/filamentation/analyze.py")
+    F = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(F)
+    t = np.linspace(0.0, 100.0, 101)
+    info = {"omega_c": 0.6, "omega_c_critical": 0.4}
+    res = F._stable(str(tmp_path), t, [np.ones_like(t)] * 4, info, 100.0, 1e-13, True, None)  # n_modes = 4: no m = 8
+    assert res["passed"] and Path(res["plot"]).exists()
+
+
+def test_shock_field_ahead_is_nan_when_the_shock_leaves_no_room_ahead():
+    S = _example("relativistic_shock")
+    assert all(np.isnan(v) for v in S.field_ahead(np.array([])).values())
+    got = S.field_ahead(np.array([0.9, 1.1, 1.3]))
+    assert got["field_ahead_mean"] == pytest.approx(1.1) and got["field_ahead_max_deviation"] == pytest.approx(0.3)

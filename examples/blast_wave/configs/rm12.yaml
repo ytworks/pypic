@@ -1,0 +1,10 @@
+# Larger R_m / d_i: the gate with R_m = 12 d_i = 96 cells (R_B = 99.8 d_e, debris gyroradius 0.25 R_m
+# instead of 0.375). 576^3 cells (half-width 1.44 R_B), 3.1e9 ambient particles; about 69 GB per GPU on 8 GPUs.
+mass_ratio: 16
+mach_alfven: 3
+wpe_wce: 4
+vte: 0.1
+rm: 12
+half_width: 1.44
+ppc: 8
+run: 1.25

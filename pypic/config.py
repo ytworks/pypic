@@ -131,7 +131,8 @@ class Dipole:
 class ExternalFields:
     """Static fields the particles feel in addition to the Yee fields (PIC-D12): a uniform E, a
     uniform B and dipoles. The Yee fields are then the difference to them, so an external field
-    may be normal or tangential to any face, unlike B0 / E0. Explicit solver only."""
+    may be normal or tangential to any face and no wall shorts it (E0 at a reflecting face: PIC-D18).
+    Explicit solver only."""
 
     E: tuple = (0.0, 0.0, 0.0)
     B: tuple = (0.0, 0.0, 0.0)
@@ -371,7 +372,7 @@ class SimConfig:
     seed: int = 12345
     dims: tuple | None = None  # rank grid (px,py,pz); None = automatic
     B0: tuple = (0.0, 0.0, 0.0)  # uniform external/initial magnetic field
-    E0: tuple = (0.0, 0.0, 0.0)  # uniform initial electric field (no conducting face tangential to it)
+    E0: tuple = (0.0, 0.0, 0.0)  # uniform initial electric field; tangential to reflecting faces only (PIC-D18)
     # initial fields added to B0 / E0 (PIC-D9), each divergence-free by construction:
     #  {"kind": "plane_wave", "axis": "x", "mode": 1, "polarization": "y", "amplitude": a, "phase": 0,
     #   "direction": 1}   exact discrete eigenmode of the solver (Yee or Crank-Nicolson)
