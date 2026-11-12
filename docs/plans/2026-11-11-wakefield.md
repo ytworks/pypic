@@ -1187,3 +1187,18 @@ What the merge changed in this piece:
 
 The records on d523e3b are those of this piece before the review fixes and the merge. The
 `pypic/` tree of the merged head is the tree of no record: its GPU tests and gates are open.
+
+### Amendment (2026-11-12): one pull request for R3, R5, R6 and R8, gated once
+
+Owner instruction (2026-11-12, after the review of 00c07ee and a078127): the three pull
+requests become one, the review fix goes into it, and the GPU runs are cut down: what is on the
+branch now and the fix are verified together. That replaces "three pull requests, each with
+its own full gate run" of the owner's plan and the merge order of the amendment above:
+
+- PR #42 (this branch, base `main`) is the one pull request. It holds PR #41 and PR #43 by the
+  merges 2263870 and 969e73d. PR #41 and PR #43 are closed without a merge of their own.
+- The gate run that had started on 969e73d was stopped in its first gate; it left no record.
+- The review fix (the direction of the field in the filamentation planner) is described in
+  `docs/plans/2026-11-11-more-examples.md` (last sections). It is in `examples/`.
+- One full gate run on the head that holds the fix: `fp64` (with `pytest tests/gpu`), `mixed`
+  and `compact`, 8 GPUs. No GPU run before it for the fix, which is a planner on the CPU.

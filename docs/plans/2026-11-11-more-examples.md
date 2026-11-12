@@ -641,3 +641,21 @@ shipped filamentation configs are equal before and after (1 and 8 GPUs), and the
 the review ran end to end on 1 GPU. Seen there and not examined: `pair_b0_stable` with
 `n_modes = 4` (a longer run, three modes in the sum) gives a mode-energy ratio of 9.9, above the
 limit e².
+
+### Review fix (2026-11-12, second round): the direction of the field
+
+One finding of the review of 00c07ee, in `examples/filamentation/plan.py`: the stability test
+of the first round compared the signed Ω with the marginal one, so a field against the drift
+(`b0 < 0`) at or above the marginal strength was taken as unstable and the planner raised
+(`b0 = -1`: ZeroDivisionError; `b0 = -1.5`: math domain error; both planned before 00c07ee).
+`stable` is Ω² ≥ A now, as in `filamentation_growth`. CPU test: `b0` and `-b0` give the same
+verdict, growth rates and run length and opposite `B0`, for 0.5, 1 and 1.5 times the marginal
+field (fails on the code before the fix, checked once). No file under `pypic/` changes.
+
+### Amendment (2026-11-12): one pull request
+
+Owner instruction (2026-11-12, after this review): the three pull requests become one, the
+fixes go into it and it is gated once. The branch `wakefield` (PR #42) holds this branch by the
+merges 031851c and 2263870; PR #41 is closed without a merge of its own, its commits and review
+comments stay. The gate records on c54e5d1 are those of this piece alone; the gates of the one
+pull request are in `docs/plans/2026-11-11-wakefield.md` (last sections).

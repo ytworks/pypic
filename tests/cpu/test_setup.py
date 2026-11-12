@@ -239,6 +239,13 @@ def test_filamentation_planner_takes_the_field_along_the_drift_from_the_marginal
         F.plan_filamentation(F.FilamentationParams(b0=0.98))
     _, _, short = F.plan_filamentation(F.FilamentationParams(b0=0.98, n_modes=32))
     assert not short["stable"] and short["gamma_theory"][15] == 0.0 < short["gamma_theory"][16]
+    # the direction of the field does not matter: Omega enters by its square
+    for b0 in (0.5, 1.0, 1.5):
+        cfg_p, _, plus = F.plan_filamentation(F.FilamentationParams(b0=b0, gate_m_min=4))
+        cfg_m, _, minus = F.plan_filamentation(F.FilamentationParams(b0=-b0, gate_m_min=4))
+        assert minus["stable"] == plus["stable"] == (b0 >= 1.0)
+        assert minus["gamma_theory"] == plus["gamma_theory"] and cfg_m.n_steps == cfg_p.n_steps
+        assert tuple(cfg_m.B0) == (-cfg_p.B0[0], 0.0, 0.0)
 
 
 def test_shock_planner_gives_the_magnetised_flow_its_motional_field():

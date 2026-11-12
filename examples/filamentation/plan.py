@@ -76,7 +76,7 @@ def plan_filamentation(p: FilamentationParams, n_gpus: int = 1):
     gam_free = filamentation_species(ks, species)
     g_max = float(gam.max())
     # stable at every k, not only at the analysed ones: Omega^2 >= A (filamentation_growth)
-    stable = bool(omega_c >= w_crit)
+    stable = bool(omega_c ** 2 >= w_crit ** 2)  # by the square: the direction of B0 does not matter
     if not stable and g_max == 0.0:
         b = sum(bm.density * s.charge ** 2 / s.mass / (1 + bm.drift[0] ** 2) ** 1.5 for s in species for bm in s.beams)
         m_first = int(math.floor(math.sqrt(b * omega_c ** 2 / (w_crit ** 2 - omega_c ** 2)) / ks[0])) + 1

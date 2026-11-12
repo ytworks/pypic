@@ -1411,3 +1411,11 @@ New against the records of 2c8aa5f: `two-stream:ei_b0` and the five example gate
 
 What the records do not cover: `compact` with the implicit solver (refused); the 104 GPU tests
 run once, with the `fp64` gates.
+
+### Amendment (2026-11-12): one pull request
+
+Owner instruction (2026-11-12): the three pull requests become one, with one gate run. The
+branch `wakefield` (PR #42) holds this branch by the merges 2263870 and 969e73d; PR #43 is
+closed without a merge of its own, its commits and review comments stay. That replaces the
+fixed merge order of "Stacked on PR #41". The records on a213c5d are those of this piece with
+PR #41; the gates of the one pull request are in `docs/plans/2026-11-11-wakefield.md`.
