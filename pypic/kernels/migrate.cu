@@ -3,6 +3,11 @@
 // message), the holes they leave are filled from the tail, and for each decomposed axis the
 // buffer is split into the particles for the low / high neighbour and those that stay.
 // nrow is the number of rows of P (8, or more while the initial displacement is applied).
+// With the compact storage (PIC-D19) the buffer holds the same 8 (or 11) doubles per particle:
+// the working coordinate of particles.cu (the index coordinate of the box, exact), the momentum
+// (the stored float), w, id and the remaining displacement (Dsp; not read when nrow == 8). The
+// receiving rank finds the cell in its own arrays from that coordinate; the classification and
+// the wrap take the limits and the period in cells.
 
 __device__ __forceinline__ int lower_bound(const int* __restrict__ a, const int n, const int v) {
     int lo = 0, hi = n;
@@ -15,6 +20,20 @@ __device__ __forceinline__ int lower_bound(const int* __restrict__ a, const int 
 }
 
 // Q[j] = particle idx[j] for the k flagged particles (full: every particle, idx is not read).
+#ifdef COMPACT_STORE
+extern "C" __global__ void mig_take(PSTORE_RO, const double* __restrict__ Dsp, const long long cap, const int nrow,
+                                    const int* __restrict__ idx, const int k, const int full,
+                                    double* __restrict__ Q) {
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+    if (j >= k) return;
+    const int p = full ? j : idx[j];
+    double* q = Q + (long long)j * nrow;
+    q[0] = QX(p); q[1] = QY(p); q[2] = QZ(p);
+    q[3] = PUX(p); q[4] = PUY(p); q[5] = PUZ(p);
+    q[6] = PW(p); q[7] = PID(p);
+    for (int r = 8; r < nrow; r++) q[r] = Dsp[(r - 8) * cap + p];
+}
+#else
 extern "C" __global__ void mig_take(const double* __restrict__ P, const long long cap, const int nrow,
                                     const int* __restrict__ idx, const int k, const int full,
                                     double* __restrict__ Q) {
@@ -23,10 +42,30 @@ extern "C" __global__ void mig_take(const double* __restrict__ P, const long lon
     const int p = full ? j : idx[j];
     for (int r = 0; r < nrow; r++) Q[(long long)j * nrow + r] = P[r * cap + p];
 }
+#endif
 
 // idx (ascending) holds the k flagged slots of n = nk + k particles. nh of them are below nk:
 // these holes take the nh particles of the tail [nk, n) that are not flagged, both in ascending
 // order, which leaves the nk remaining particles in [0, nk).
+#ifdef COMPACT_STORE
+extern "C" __global__ void mig_fill(PSTORE, double* Dsp, const long long cap, const int nrow,
+                                    const int* __restrict__ idx, const int k, const int nk) {
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+    if (j >= k) return;
+    const int t = nk + j;
+    const int pos = lower_bound(idx, k, t);
+    if (pos < k && idx[pos] == t) return;  // a flagged slot of the tail
+    const int nh = lower_bound(idx, k, nk);
+    const int hole = idx[j - (pos - nh)];  // pos - nh flagged slots of the tail precede t
+    P_c[hole] = P_c[t];
+    for (int r = 0; r < 2; r++) P_w[r * cap + hole] = P_w[r * cap + t];
+    for (int r = 0; r < 3; r++) {
+        P_f[r * cap + hole] = P_f[r * cap + t];
+        P_u[r * cap + hole] = P_u[r * cap + t];
+    }
+    for (int r = 8; r < nrow; r++) Dsp[(r - 8) * cap + hole] = Dsp[(r - 8) * cap + t];
+}
+#else
 extern "C" __global__ void mig_fill(double* P, const long long cap, const int nrow, const int* __restrict__ idx,
                                     const int k, const int nk) {
     int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -38,6 +77,7 @@ extern "C" __global__ void mig_fill(double* P, const long long cap, const int nr
     const int hole = idx[j - (pos - nh)];  // pos - nh flagged slots of the tail precede t
     for (int r = 0; r < nrow; r++) P[r * cap + hole] = P[r * cap + t];
 }
+#endif
 
 // Class of the m buffered particles along one axis: 0 to the low neighbour (x < x_lo), 1 to the
 // high neighbour (x >= x_hi), 2 stays, 3 dead (w == 0). At a global non-periodic face there is
@@ -76,12 +116,27 @@ extern "C" __global__ void mig_pack(const double* __restrict__ Q, const int nrow
 }
 
 // Append the m buffered particles behind the n particles of P.
+#ifdef COMPACT_STORE
+extern "C" __global__ void mig_append(PSTORE, double* Dsp, const long long cap, const int nrow, const int n,
+                                      const double* __restrict__ Q, const int m) {
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+    if (j >= m) return;
+    const double* q = Q + (long long)j * nrow;
+    const int p = n + j;
+    SET_POS(p, q[0], q[1], q[2]);
+    SET_MOM(p, q[3], q[4], q[5]);
+    SET_W(p, q[6]);
+    SET_ID(p, q[7]);
+    for (int r = 8; r < nrow; r++) Dsp[(r - 8) * cap + p] = q[r];
+}
+#else
 extern "C" __global__ void mig_append(double* __restrict__ P, const long long cap, const int nrow, const int n,
                                       const double* __restrict__ Q, const int m) {
     int j = blockIdx.x * blockDim.x + threadIdx.x;
     if (j >= m) return;
     for (int r = 0; r < nrow; r++) P[r * cap + n + j] = Q[(long long)j * nrow + r];
 }
+#endif
 
 // out = the n keys in ascending order, by counting: key j goes to the slot given by the number of
 // keys before it in the order (equal keys in index order, which makes the result that of a sort

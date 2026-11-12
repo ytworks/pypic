@@ -380,5 +380,12 @@ Written before the code; what the code ends up doing differently is noted here w
   two words of three float32). Classification by the global cell against the integer range of
   the rank, the periodic wrap `± GN` in integers; the receiver turns the global cell into its
   local linear cell.
+  Changed while writing the code (2026-11-12): the record is 8 doubles, as in `fp64` — the
+  global index coordinate (exact, see above), the three momenta as the doubles of the stored
+  floats, weight, id — and 3 more while the set-up displacement is applied. Reason: the buffer
+  kernels `mig_classify` and `mig_pack` and the exchange code then serve both layouts unchanged
+  (the limits and the period are passed in cells), only `mig_take`, `mig_fill` and `mig_append`
+  get a compact body, and the `fp64` module keeps its PTX. Cost: 64 bytes per migrating particle
+  in the message in place of 56; the store itself is not affected.
 - New defines: `COMPACT_STORE`, `GNX / GNY / GNZ` (global cells per axis); `OXI ..` also in
   compact.
