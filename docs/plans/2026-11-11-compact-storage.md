@@ -1131,7 +1131,7 @@ Result (2026-11-12, b2d9e76, the same sequence and machine, no other job on the 
   most.
 - `kernel_rho` with `--phases`, medians: 1.156 ms in the bow shock (before 2.539; `mixed`
   1.586) and 2.172 ms in the blast wave (before 5.404; `mixed` 3.125). The other parts are
-  within 0.1 ms of the table above (`kernel_push` of `compact` 18.319 and 42.893 ms).
+  within 0.11 ms of the table above (`kernel_push` of `compact` 18.319 and 42.893 ms).
 - Whole step of `compact` now: 10.5 % below `mixed` and 20.0 % below `fp64` in the bow shock,
   12.0 % and 20.2 % in the blast wave (medians of this measurement).
 - Test: `test_filter_and_marder_zone_at_open_faces_keep_gauss` runs in `compact` too (the charge
