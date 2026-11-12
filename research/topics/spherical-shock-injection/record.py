@@ -27,6 +27,10 @@ METRICS = {
     "null": ("T0", "N1_max_per_dump>=1.5"),
     "cadence": ("n_tracked", "n_stay", "coarsest_passing"),
     "census": ("n_dumps", "b_max", "b_cell_max", "tau_dwell", "N3b"),
+    "census-tau": ("n_dumps", "b_max", "b_cell_max", "tau_dwell", "tau_dwell_protocol"),
+    "r2null": ("gyro_period", "window", "n_stay", "retention"),
+    "r2": ("null", "dwell", "pre-valid bins", "protocol Sect. 4", "regime", "epsilon", "ramp",
+           "N3 for thermal electrons", "id history", "downstream branch of C1", "tau_dwell rule"),
     "tracks": ("n_tracked", "stride", "all_by_category", "n_gamma_max>=1.25", "n_gamma_max>=1.5",
                "gamma_max>=1.5_by_category", "N4", "reflections, all energies", "reflections",
                "K2 several encounters, gamma_out >= 1.5", "K3 superluminal foot, mu not conserved, gamma_out >= 1.5",
@@ -133,7 +137,7 @@ def build(run_dir: Path, name: str, root: Path) -> dict:
         rec["analysis"]["files"][path.name] = {
             "sha256": _sha(path), "written": datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")}
         keep = {k: data[k] for k in METRICS.get(path.stem, ()) if k in data}
-        if path.stem == "census":
+        if path.stem in ("census", "census-tau"):
             keep.update(census_summary(data))
         if keep:
             rec["analysis"]["metrics"][path.stem] = keep

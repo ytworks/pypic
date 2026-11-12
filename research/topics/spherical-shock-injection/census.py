@@ -732,6 +732,9 @@ def cmd_census(args) -> int:
         print("no fitted front in analysis/front.json: run the command front first; nothing to classify against")
         return 1
     null = json.loads(Path(args.null).read_text()) if args.null else None
+    stem, tau_protocol = "census", model.tau_dwell
+    if getattr(args, "tau", None):  # the replacement rule of protocol Sect. 3.2; the first result is kept
+        model.tau_dwell, stem = float(args.tau), "census-tau"
     r_debris = np.load(run_dir / "analysis" / "front.npz")["r_debris_thr"][:, 0, :]
     down_rows, temp_down = downstream_reference(run, model, r_debris)
     p = run.particles("hot_e")
@@ -756,6 +759,7 @@ def cmd_census(args) -> int:
     out.update({"run": str(run_dir), "commit": run.info.get("git_commit"),
                 "null": str(args.null) if args.null else None,
                 "b_max": model.b_max, "b_cell_max": model.b_cell_max, "tau_dwell": model.tau_dwell,
+                "tau_dwell_protocol": tau_protocol,
                 "layer_dumps_S2": int(np.ceil(10 * 2 * np.pi / model.b0 / model.dt)),
                 "layer_dumps_undetermined": int(np.ceil(3 * 2 * np.pi / model.b0 / model.dt)),
                 "E_th": [float(sk.thermal_bound(model.temp_upstream(t), model.n_total)) for t in times[::8]],
@@ -768,11 +772,11 @@ def cmd_census(args) -> int:
                           "downstream reference: slab |y| < 8 d_e, lab-frame energies (the bulk flow is included)",
                           "N3b: both dumps need gamma >= 1.25, so the energy change of the lowest bin is biased"]})
     dest = run_dir / "analysis"
-    (dest / "census.json").write_text(json.dumps(out, indent=1))
+    (dest / f"{stem}.json").write_text(json.dumps(out, indent=1))
     small = {k: (v.astype(np.float32) if v.dtype == np.float64 and k not in ("t",) else v) for k, v in rec.items()}
-    np.savez_compressed(dest / "census.npz", all_table=all_t, up_table=up_t, n3b=acc, times=times, **small)
+    np.savez_compressed(dest / f"{stem}.npz", all_table=all_t, up_table=up_t, n3b=acc, times=times, **small)
     report(out)
-    print(f"wrote {dest / 'census.json'} and census.npz ({len(rec['id'])} electron records)")
+    print(f"wrote {dest / (stem + '.json')} and {stem}.npz ({len(rec['id'])} electron records)")
     return 0
 
 

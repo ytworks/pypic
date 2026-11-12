@@ -26,6 +26,7 @@ import baseline  # noqa: E402
 import census  # noqa: E402
 import orbits  # noqa: E402
 import potential  # noqa: E402
+import r2checks  # noqa: E402
 import record  # noqa: E402
 import shockkin as sk  # noqa: E402
 import upstream  # noqa: E402
@@ -304,6 +305,7 @@ def selftest() -> int:
     upstream.selfcheck(check)
     potential.selfcheck(check)
     record.selfcheck(check)
+    r2checks.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
@@ -1042,6 +1044,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("census", help="energetic electrons by origin, class, band and result (protocol Sect. 6)")
     p.add_argument("run", type=Path)
     p.add_argument("--null", type=Path, help="null.json of the run without a driver (floors N1, N3, N5)")
+    p.add_argument("--tau", type=float, help="tau_dwell that replaces 3 gyro-periods (the rule of protocol "
+                   "Sect. 3.2); the result goes to analysis/census-tau.json and .npz, census.json is kept")
     p = sub.add_parser("n3c", help="fluctuation power upstream of the front against the null run (N3c)")
     p.add_argument("run")
     p.add_argument("null")
@@ -1056,12 +1060,25 @@ def main(argv=None) -> int:
     p.add_argument("--chunk", type=int, default=20000, help="orbits measured per block")
     p = sub.add_parser("null", help="numerical floor N1, N2, N3, N5 of a run without a driver")
     p.add_argument("run", type=Path)
+    p = sub.add_parser("r2null", help="review R2: retention of the magnetic moment in a run without a driver")
+    p.add_argument("run")
+    p.add_argument("--gaps", type=float, nargs="+", default=[150.0, 250.0, 420.0],
+                   help="times between the two windows, besides 0 and 3 gyro-periods")
+    p.add_argument("--starts", type=float, nargs="+", default=[0.0, 100.0, 200.0], help="start of the first window")
+    p.add_argument("--chunk", type=int, default=40000)
+    p = sub.add_parser("r2", help="review R2: pre-valid bins, regime, epsilon, ramp width, thermal nu tau, ids")
+    p.add_argument("run")
+    p.add_argument("--null", required=True, help="directory of the null run (its analysis/null.json)")
     p = sub.add_parser("record", help="write runs/<date>-<commit>-<name>.json and runs/index.json (clean tree)")
     p.add_argument("run")
     p.add_argument("name")
     args = ap.parse_args(argv)
     if args.cmd == "record":
         return record.cmd_record(args)
+    if args.cmd == "r2null":
+        return r2checks.cmd_r2null(args)
+    if args.cmd == "r2":
+        return r2checks.cmd_r2(args)
     if args.cmd == "n3c":
         return upstream.cmd_n3c(args)
     if args.cmd == "phi":
