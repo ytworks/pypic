@@ -667,7 +667,7 @@ smallest to largest of the three.
 | 1 | mixed | 18.75, 18.20, 18.20 | 16.944–16.947 | 0.442 |
 | 1 | compact | 20.19, 19.95, 19.95 | 18.859–18.862 | 0.283–0.284 |
 | 8 | fp64 | 3.71, 3.69, 3.65 | 2.762–2.778 | 0.102–0.107 |
-| 8 | mixed | 3.32, 3.29, 3.32 | 2.306–2.310 | 0.103–0.111 |
+| 8 | mixed | 3.32, 3.29, 3.31 | 2.306–2.310 | 0.103–0.111 |
 | 8 | compact | 3.41, 3.43, 3.44 | 2.477–2.483 | 0.071–0.080 |
 
 Judged as A0 fixed it (change of `kernel_push` plus `sort`, medians, relative to the `mixed`
@@ -704,3 +704,78 @@ against the split): the field modules are identical; each particle module has th
 of lines; in the two periodic cases the lines are the same set in another order; in the six
 others two register names are exchanged in 6 or 16 lines and the rest is the same set in
 another order. No instruction is added, removed or changed in kind.
+
+### Integer route, step 2: the step that meets nothing (b830153)
+
+In the compact build `push_deposit` starts from the stored integers and leaves them only where
+a step meets something.
+
+- The cell is decoded once (`load_cell`). The gather weights come from the cell and the
+  fraction q (`yee_weights_cell`): q · 2^-32 from the node and (q + 2^31 mod 2^32) · 2^-32
+  from the half-integer node, both exact in a double and rounded once to float.
+- The end point is put on the lattice by one integer rounding per axis,
+  `s1 = rn((w0 + u dt / (γ dx)) · 2^32)` with w0 the stored fraction: the change of cell is
+  `s1 >> 32` and the new fraction the lower 32 bits. It depends on the stored fraction and on
+  u only, not on the cell or the rank layout. Both paths below take this end point (the
+  general path had `WSNAP` of the end point in the global index coordinate before).
+- A step is "inner" when its end cell lies inside the box on every axis that is not periodic
+  and its end point lies outside the body. Such a step meets no wall, no cut and no removal.
+  Its shapes are built from the integers (`axis_shape_cells`) and deposited by
+  `esirkepov_shapes`; the cell is wrapped on a periodic axis that is not decomposed; the
+  particle is listed for migration when its end cell leaves the rank on a decomposed axis;
+  cell and fraction are stored directly (`store_cell`).
+- Every other step takes the general code as it was (wall loop, `deposit_cut`, removal at
+  open faces, the body), in the global index coordinate.
+- No new `#define`: `pypic/kernelsrc.py` and the cases of `scripts/check_kernels.py` are
+  unchanged.
+
+Checked (2026-11-12):
+
+- Against a build with the route switched off (`inner = false`: every step takes the general
+  path), one GPU, `ppc = 8`, electrons in two beams and ions, three cases: periodic, 16×8×8;
+  reflecting on all faces, 16×8×8; open in x, reflecting in y, periodic in z with an absorbing
+  sphere, 20³. The stored cells, fractions, momenta and weights and the particle counts have
+  the same bits after 1 step and after 31 steps in all three. J differs by 3.9e-16 at most
+  (largest |J| 0.45), E by 1.7e-16 at most, the history by 3.6e-14 at most (the budget, 20.3).
+  Whether two runs of one build differ as much was not measured.
+- `python scripts/check_kernels.py` passes, `pytest tests/cpu`: 72 passed; on 4 GPUs
+  `pytest tests/gpu -k "compact or boris or reduced_precision or esirkepov"`: 12 passed.
+- PTX of the eight cases, b830153 against cee6abe: the field modules are identical. The six
+  particle modules without `COMPACT_STORE` have the same number of lines and the same set of
+  lines, 12 to 42 of them at another position (the one change outside `COMPACT_STORE` is that
+  `axis_shape` calls the new `axis_shape_cells`). The two compact particle modules grow from
+  18,952 to 18,988 and from 23,343 to 23,756 lines.
+
+### Second measurement (2026-11-12, b830153, no other job on the GPUs): faster than `mixed`
+
+The benchmark, the script and the order of the runs of the first measurement.
+
+| GPUs | precision | ms / step, three runs | `kernel_push` ms | `sort` ms |
+|---|---|---|---|---|
+| 1 | fp64 | 23.16, 22.01, 22.01 | 20.868–20.869 | 0.442 |
+| 1 | mixed | 19.08, 18.20, 18.20 | 16.945–16.946 | 0.441–0.442 |
+| 1 | compact | 15.40, 15.32, 15.33 | 14.238–14.246 | 0.283–0.284 |
+| 8 | fp64 | 3.65, 3.61, 3.66 | 2.763–2.784 | 0.106–0.109 |
+| 8 | mixed | 3.33, 3.25, 3.32 | 2.288–2.292 | 0.102–0.108 |
+| 8 | compact | 2.86, 2.97, 2.99 | 1.950–1.958 | 0.077–0.078 |
+
+Judged as before (change of `kernel_push` plus `sort`, medians, relative to the `mixed` step of
+the baseline): −2.707 − 0.159 = −2.866 ms on 1 GPU, −15.8 % of the step; −0.338 − 0.028 =
+−0.366 ms on 8 GPUs, −10.8 % of the step. The A0 criterion ("compact goes on: not more than
+2 % slower than `mixed`") is met by the product kernel of b830153. The push alone is −14.9 %
+(1 GPU) and −10.0 % (8 GPUs) of the step; prototype (a) of A0 had −13.0 % and −9.7 %.
+
+Whole step without `--phases`, medians: 15.33 ms against 18.20 (`mixed`) and 22.01 (`fp64`) on
+1 GPU, which is 0.305, 0.362 and 0.437 ns per particle and step; 2.97 ms against 3.32 and 3.65
+on 8 GPUs. That is 15.8 % and 10.4 % below `mixed`, 30.4 % and 18.6 % below `fp64`.
+
+Limits of this result:
+
+- One benchmark, periodic and without a body: every step is inner. The speed of a build with
+  walls, open faces or a body, where the test for the inner step is paid and some steps take
+  the general path, is not measured.
+- The `kernel_push` of `mixed` on 8 GPUs is 0.017 ms lower than in the first measurement (the
+  ranges 2.288–2.292 and 2.306–2.310 do not overlap; on 1 GPU and in `fp64` they do). The
+  `mixed` particle PTX of the two commits has the same lines in another order. Not examined.
+- The correction of one figure of the first table: the third `mixed` run on 8 GPUs was
+  3.31 ms (3.3146), not 3.32.

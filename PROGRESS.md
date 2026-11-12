@@ -38,7 +38,7 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss max 7.6e-12,
   implicit energy 1.9e-10; 17 example gates (ANA-D2, with `bow_shock:gate` and `blast_wave:gate`) pass; 93 GPU tests pass.
 - Mixed precision (PIC-D11, Proposed): 21 explicit gates ALL PASSED with `precision: mixed` on e321bd2 (`bench/results/2026-11-12-e321bd238-gpu-gates-mixed.json`), Gauss max 7.6e-12; `blast_wave:gate` (radial beams) is among them.
-- Compact storage (PIC-D19, Proposed): float64 momenta, 56 bytes per slot — float32 momenta showed a secular trend of |u| in the gyration runs (second condition of the owner's decision not met). No gate record yet; the commits after e321bd2 on `perf/compact-storage` change `pypic/` and are not gated.
+- Compact storage (PIC-D19, Proposed): float64 momenta, 56 bytes per slot — float32 momenta showed a secular trend of |u| in the gyration runs (second condition of the owner's decision not met). Speed of the product kernels in the two-stream benchmark (b830153, 50,331,648 particles, medians of three): 2.97 ms/step on 8 GPUs against 3.32 `mixed` and 3.65 `fp64`, 15.33 / 18.20 / 22.01 on 1 GPU. No gate record yet; the commits after e321bd2 on `perf/compact-storage` change `pypic/` and are not gated.
 - Open flow: a magnetised wind through one paired and four flux faces with filter and Marder zone
   stays uniform for three crossings at the bow-shock gate size (null test M2, two field geometries,
   passed; plan Phase 3). Not shown: longer runs; the magnetic energy of the oblique case had not levelled.
@@ -92,6 +92,11 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-12 — [progress] Compact push: integer route for the step that meets nothing; faster than `mixed` in the benchmark
+- What: `push_deposit` of `precision: compact` snaps the end point from the stored fraction; a step that meets no wall, cut, removal or body is gathered, deposited, wrapped and stored on the stored integers, the others take the general path. Speed (b830153, 50,331,648 particles, medians of three): `kernel_push` + `sort` −10.8 % of the `mixed` step on 8 GPUs, −15.8 % on 1 GPU; the A0 criterion (not more than 2 % slower than `mixed`) is met. Not gated; the benchmark is periodic.
+- Why: the first measurement of the product kernel (5edc7f9) was +4.3 % / +9.7 %, above the criterion; the integer shapes of the design had not been carried out in the code.
+- Refs: PIC-D19; `docs/plans/2026-11-11-compact-storage.md` ("A2 — speed of the product kernels"); cee6abe, b830153; PR #43
 
 ### 2026-11-12 — [design] PIC-D19: float32 momenta dropped (secular trend of |u| in gyration); compact stores float64 momenta, 56 bytes per slot
 - What: changes the entry "PIC-D19 compact particle storage (Proposed): 44 bytes per slot" below. Product kernel of f322fe2 (float32 stored momenta, FP64 Boris), 1,024 particles per |u| in a uniform B: the group mean of the relative change of |u| is −19.6 / +21.5 / −15.9 / +16.4 standard errors from zero after 2,301,952 steps (|u| = 1, 2, 5, 11.3; a second seed alike; 7 of 8 other |u| at 9.2 to 26.0); |u| = 1 drifts −6.5e-12 to −7.1e-12 per step from 143,872 steps on. Float64 storage (`mixed`; `compact` after the change): within 1.8 standard errors. `CompactSpecies.U` is float64, `SLOT_BYTES` compact 56, `ROUND_U` / `GAMMA_M1` removed; the Boris gyration test runs in `compact` too; 9 compact / Boris GPU tests pass; FP64, mixed and implicit PTX unchanged.
