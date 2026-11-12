@@ -1239,3 +1239,56 @@ Not examined, and left so: `reduce_ghosts` of the blast wave differing between t
 the first bow-shock run of a sequence being slower; the speed of a build with reflecting walls
 at production size; which arrays make the grid term of the blast-wave planner larger than the
 measured one; the difference column of `mixed` against `fp64` above.
+
+## A3 — gates at the final head (2026-11-12, 2c8aa5f, 8 GPUs): ALL PASSED in the three precisions
+
+`scripts/gpu_gates.py --gpus 8` in `fp64` (with `pytest tests/gpu`), then `--precision mixed`,
+then `--precision compact`, on the clean commit 2c8aa5f, no other job on the GPUs. The commits
+after it change no file under `pypic/`, `scripts/`, `tests/` or `examples/`.
+
+| record (`bench/results/2026-11-12-2c8aa5f8e-…`) | precision | gates | result |
+|---|---|---|---|
+| `gpu-gates.json` | fp64 | 102 GPU tests; five two-stream gates (with `ei_implicit`); 17 example gates | ALL PASSED |
+| `gpu-gates-mixed.json` | mixed | four two-stream gates; 17 example gates | ALL PASSED |
+| `gpu-gates-compact.json` | compact | four two-stream gates; 17 example gates | ALL PASSED |
+
+The criteria are the same in the three precisions (the contracts of
+`.claude/rules/numerics-invariants.md` and the analyses of the examples).
+
+| value | fp64 | mixed | compact | limit |
+|---|---|---|---|---|
+| growth error of `ei` / `ep` / `eip` | +2.95 / −1.68 / −2.26 % | the same | the same | 10 % |
+| growth error of `buneman` | −4.66 % | −5.14 % | −5.14 % | 10 % |
+| growth error and energy error of `ei_implicit` | +3.52 %, 1.9e-10 | not run | not run | 10 %, 1e-8 |
+| largest Gauss residual of all gates | 7.6e-12 (`buneman`) | 7.6e-12 (`buneman`) | 1.9e-13 (`filamentation:pair`) | 1e-10 |
+| Gauss residual of the four explicit two-stream gates | 8.5e-13 to 7.6e-12 | 8.4e-13 to 7.6e-12 | 1.2e-14 to 4.6e-14 | 1e-10 |
+| largest div B of all gates (`plasma_waves:perpendicular`) | 9.2e-13 | 8.6e-13 | 8.7e-13 | 1e-12 |
+| `bow_shock:gate`: magnetopause / shock, in R_mp | 0.923 / 1.379 | 0.916 / 1.379 | 0.921 / 1.380 | analysis of the example |
+| `bow_shock:gate`: Gauss residual | 4.3e-14 | 3.8e-14 | 3.9e-14 | 1e-10 |
+| `blast_wave:gate`: front speed in fast speeds | 2.102916 | 2.102916 | 2.102916 | analysis of the example |
+| `blast_wave:gate`: `energy_budget_change` | 0.109002 | 0.109000 | 0.108993 | reported |
+| `blast_wave:gate`: Gauss residual | 6.8e-15 | 6.5e-15 | 7.3e-15 | 1e-10 |
+
+- The fitted growth rates of `ep` and `eip` have the same digits in the three records; that of
+  `ei` is the same in `fp64` and `mixed` and differs in the 8th digit in `compact`.
+- `buneman` fits 0.050969 in `mixed` and `compact` here; the `mixed` record of e321bd2 has
+  0.051226, which is the `fp64` value in 7 digits. The `mixed` records on main hold one or the
+  other of the two values (0.050969 on 158bc20, 5d7015a, 7893fec, d2ac1d9 and 9bfa1a5;
+  0.051226 on 14392c7, 84f5808, 98e626b, 39acb7f, 9b901c1 and 17f1b5f). `fp64` has had
+  0.05122590431927053 in every record. Which of the two a `mixed` run gives was not examined.
+- The Gauss residual of `compact` is 11 to 940 times below that of `fp64` in ten gates (the
+  four two-stream gates, both `plasma_waves`, `landau`, `relativistic`, `plasma_expansion`,
+  `relativistic_shock`; `plasma_waves:perpendicular` 5.3e-15 against 5.0e-12). In the other
+  six with a residual (`dawson`, `wavebreaking`, `filamentation`, `reconnection`, `bow_shock`,
+  `blast_wave`) the `fp64` residual is 0.93 to 2.3 times that of `compact`. The periodic
+  prototypes of A0 had 4.4e-15 against the 5.9e-13 of the engine.
+- The five `particle_orbits` gates: `mixed` equals `fp64` in every value of `gyration` and
+  `exb`; `compact` differs from `fp64` in three of the six values of each (the convergence
+  ratio by 2.2e-4 and 5.7e-6).
+- `fp64` against the record of e321bd2 (A1): 151 of 252 values that are not timings are equal
+  in all digits; `mixed`: 133 of 246. The five `particle_orbits` gates are equal in all digits
+  and every other gate differs in some value, as between the records of e321bd2 and 17f1b5f
+  (A1).
+
+What the records do not cover: `compact` with the implicit solver (refused); the 102 GPU tests
+run once, with the `fp64` gates (the tests of the mode set `precision: compact` themselves).
