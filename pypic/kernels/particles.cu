@@ -2,12 +2,94 @@
 // Esirkepov charge-conserving current deposition (CIC = cubic super-particles).
 //
 // Particle storage. A kernel of this file reaches a particle only through the accessors below, so
-// the layout behind them can change with the build (PIC-D19). This layout: S[row * cap + p],
-// rows = x, y, z, ux, uy, uz, w, id (u = gamma v, c = 1; the id is an integer-valued double).
-// cap is 64-bit (row * cap exceeds 2^31 for large species); n and p stay int.
-// Exceptions: the remaining displacement of displace_deposit (rows 8..10, set-up only), and the
-// row copies of migrate.cu.
+// the layout behind them changes with the build (PIC-D19). cap is 64-bit (row * cap exceeds 2^31
+// for large species); n and p stay int. Exceptions: the remaining displacement of displace_deposit
+// (set-up only), and the row copies of migrate.cu.
 
+#ifdef COMPACT_STORE
+// Compact layout, 44 bytes per particle in four arrays:
+//   S_w[row * cap + p]  rows = w, id (double; the id is an integer-valued double)
+//   S_c[p]              the cell of the particle in the arrays of this rank (IDX, int)
+//   S_f[a * cap + p]    the position within that cell along axis a, in units of 2^-32 cell (unsigned int)
+//   S_u[a * cap + p]    the momentum (float; u = gamma v, c = 1)
+// A position is a point of a lattice of 2^-32 cell. Its index coordinate cell + f * 2^-32 is exact in
+// a double while |cell| < 2^21, in the arrays of the rank and in the box (Simulation checks the grid).
+#define TWO32 4294967296.0
+#define ITWO32 (1.0 / 4294967296.0)
+#define PSTORE_AS(S) double* S##_w, int* S##_c, unsigned int* S##_f, float* S##_u
+#define PSTORE PSTORE_AS(P)
+#define PSTORE_RO \
+    const double* __restrict__ P_w, const int* __restrict__ P_c, const unsigned int* __restrict__ P_f, \
+    const float* __restrict__ P_u
+// index coordinate (cells from the first one of the arrays of this rank) of particle p of the storage S
+#define S_XI(S, cap, p) ((double)((S##_c)[(p)] / (NY * NZ)) + (double)(S##_f)[(p)] * ITWO32)
+#define S_YI(S, cap, p) ((double)((S##_c)[(p)] / NZ % NY) + (double)(S##_f)[(cap) + (p)] * ITWO32)
+#define S_ZI(S, cap, p) ((double)((S##_c)[(p)] % NZ) + (double)(S##_f)[2 * (cap) + (p)] * ITWO32)
+// values of particle p of the storage (S, cap): physical position, momentum, weight, id
+#define S_X(S, cap, p) ((S_XI(S, cap, p) + (double)(OXI)) * DX)
+#define S_Y(S, cap, p) ((S_YI(S, cap, p) + (double)(OYI)) * DY)
+#define S_Z(S, cap, p) ((S_ZI(S, cap, p) + (double)(OZI)) * DZ)
+#define S_UX(S, cap, p) ((double)(S##_u)[(p)])
+#define S_UY(S, cap, p) ((double)(S##_u)[(cap) + (p)])
+#define S_UZ(S, cap, p) ((double)(S##_u)[2 * (cap) + (p)])
+#define S_W(S, cap, p) (+(S##_w)[(p)])
+#define S_ID(S, cap, p) (+(S##_w)[(cap) + (p)])
+#define S_SET_POS(S, cap, p, x, y, z) store_pos(S##_c, S##_f, cap, p, x, y, z)
+#define S_SET_MOM(S, cap, p, ux, uy, uz) \
+    { (S##_u)[(p)] = (float)(ux); (S##_u)[(cap) + (p)] = (float)(uy); (S##_u)[2 * (cap) + (p)] = (float)(uz); }
+#define S_SET_W(S, cap, p, w) { (S##_w)[(p)] = (w); }
+#define S_SET_ID(S, cap, p, id) { (S##_w)[(cap) + (p)] = (id); }
+#define XI(p) S_XI(P, cap, p)
+#define YI(p) S_YI(P, cap, p)
+#define ZI(p) S_ZI(P, cap, p)
+// Working coordinate: what the kernels that move or place particles (push_deposit,
+// displace_deposit, the loader, the injection) compute in, and what SET_POS takes. This layout:
+// the index coordinate of the box (cells from its lower corner). Walls, the range of the rank and
+// the period are integers there, so a reflection, a wrap and the change of rank keep a lattice
+// point exact; every point handed to SET_POS is first put on the lattice (WSNAP, WRAND).
+#define QX(p) (XI(p) + (double)(OXI))            // working coordinate of particle p
+#define QY(p) (YI(p) + (double)(OYI))
+#define QZ(p) (ZI(p) + (double)(OZI))
+#define WBOX {(double)(GNX), (double)(GNY), (double)(GNZ)}     // the box
+#define WCELL {1.0, 1.0, 1.0}                                  // one cell
+#define WLO {(double)(SX0I), (double)(SY0I), (double)(SZ0I)}   // physical range of the rank
+#define WHI {(double)(SX1I), (double)(SY1I), (double)(SZ1I)}
+#define TO_XI(x) ((x) - (double)(OXI))           // working coordinate -> index coordinate
+#define TO_YI(y) ((y) - (double)(OYI))
+#define TO_ZI(z) ((z) - (double)(OZI))
+#define WPHYS(x, d) ((x) * (d))                  // -> physical position (d: the cell of the axis)
+#define WLEN(s, d) ((s) * (1.0 / (d)))           // physical length -> working coordinate
+#define WDT(a) ((a) == 0 ? DT / DX : ((a) == 1 ? DT / DY : DT / DZ))  // time step per cell of axis a
+#define WSNAP(x) (rint((x) * TWO32) * ITWO32)    // onto a point that the storage holds
+#define WBELOW(wall) ((wall) - ITWO32)           // last point below an upper wall
+// uniform point of cell c (advances the stream s): the upper 32 bits of the number urand takes
+#define WRAND(c, s, d) ((double)(c) + (double)(splitmix64(s) >> 32) * ITWO32)
+// gamma - 1 of the momentum u with gamma = g, without the cancellation of g - 1
+#define GAMMA_M1(g, u) (((u)[0] * (u)[0] + (u)[1] * (u)[1] + (u)[2] * (u)[2]) / ((g) + 1.0))
+// the momentum u as the storage will hold it
+#define ROUND_U(u) \
+    { (u)[0] = (double)(float)(u)[0]; (u)[1] = (double)(float)(u)[1]; (u)[2] = (double)(float)(u)[2]; }
+#define PDISP_ARG , double* Dsp                  // the remaining set-up displacement: its own array
+#define DISP(a, p) Dsp[(a) * cap + p]
+
+// Stores the lattice point (x, y, z) of the working coordinate: at most one cell outside the
+// physical range of the rank, so its cell is one of the arrays of the rank.
+__device__ __forceinline__ void store_pos(int* C, unsigned int* F, const long long cap, const long long p,
+                                          const double x, const double y, const double z) {
+    const double X[3] = {x, y, z};
+    const int off[3] = {OXI, OYI, OZI};
+    int c[3];
+#pragma unroll
+    for (int a = 0; a < 3; a++) {
+        const double g = floor(X[a]);
+        c[a] = (int)g - off[a];
+        F[a * cap + p] = (unsigned int)((X[a] - g) * TWO32);
+    }
+    C[p] = (int)IDX(c[0], c[1], c[2]);
+}
+#else
+// Layout of doubles: S[row * cap + p], rows = x, y, z, ux, uy, uz, w, id (u = gamma v, c = 1; the id
+// is an integer-valued double); the remaining displacement of displace_deposit in rows 8..10.
 #define PSTORE_AS(S) double* S                     // the storage of a species as kernel parameters
 #define PSTORE PSTORE_AS(P)
 #define PSTORE_RO const double* __restrict__ P
@@ -25,19 +107,6 @@
     { (S)[3 * (cap) + (p)] = (ux); (S)[4 * (cap) + (p)] = (uy); (S)[5 * (cap) + (p)] = (uz); }
 #define S_SET_W(S, cap, p, w) { (S)[6 * (cap) + (p)] = (w); }
 #define S_SET_ID(S, cap, p, id) { (S)[7 * (cap) + (p)] = (id); }
-// the same for the storage (P, cap) of the kernel
-#define PX(p) S_X(P, cap, p)
-#define PY(p) S_Y(P, cap, p)
-#define PZ(p) S_Z(P, cap, p)
-#define PUX(p) S_UX(P, cap, p)
-#define PUY(p) S_UY(P, cap, p)
-#define PUZ(p) S_UZ(P, cap, p)
-#define PW(p) S_W(P, cap, p)
-#define PID(p) S_ID(P, cap, p)
-#define SET_POS(p, x, y, z) S_SET_POS(P, cap, p, x, y, z)
-#define SET_MOM(p, ux, uy, uz) S_SET_MOM(P, cap, p, ux, uy, uz)
-#define SET_W(p, w) S_SET_W(P, cap, p, w)
-#define SET_ID(p, id) S_SET_ID(P, cap, p, id)
 // index coordinate: cells from the first one of the arrays of this rank
 #define XI(p) ((PX(p) - OX) * (1.0 / DX))
 #define YI(p) ((PY(p) - OY) * (1.0 / DY))
@@ -65,6 +134,20 @@
 #define ROUND_U(u)                               // the momentum u as the storage will hold it
 #define PDISP_ARG                                // the remaining set-up displacement: rows 8..10
 #define DISP(a, p) P[(8 + (a)) * cap + p]
+#endif
+// the same for the storage (P, cap) of the kernel
+#define PX(p) S_X(P, cap, p)
+#define PY(p) S_Y(P, cap, p)
+#define PZ(p) S_Z(P, cap, p)
+#define PUX(p) S_UX(P, cap, p)
+#define PUY(p) S_UY(P, cap, p)
+#define PUZ(p) S_UZ(P, cap, p)
+#define PW(p) S_W(P, cap, p)
+#define PID(p) S_ID(P, cap, p)
+#define SET_POS(p, x, y, z) S_SET_POS(P, cap, p, x, y, z)
+#define SET_MOM(p, ux, uy, uz) S_SET_MOM(P, cap, p, ux, uy, uz)
+#define SET_W(p, w) S_SET_W(P, cap, p, w)
+#define SET_ID(p, id) S_SET_ID(P, cap, p, id)
 
 // CIC weights of the two ends of a move along one axis, on the 3 nodes from n = min(floor X0, floor X1)
 // (|X1 - X0| < 1): (1 - w, w, 0) for an end in cell n, (0, 1 - w, w) for an end in cell n + 1, with
@@ -240,7 +323,7 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
 #endif
     if (p < n) {
         const double w = PW(p);
-        double pos0[3] = {PX(p), PY(p), PZ(p)};
+        double pos0[3] = {QX(p), QY(p), QZ(p)};
         double u[3] = {PUX(p), PUY(p), PUZ(p)};
 #ifdef MIXED_GATHER
         YeeWeightsF yw;
@@ -280,9 +363,16 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
         u[0] = urx + ex;
         u[1] = ury + ey;
         u[2] = urz + ez;  // second half electric kick
+        ROUND_U(u);       // the particle moves with the momentum that is stored
         double g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+#ifdef COMPACT_STORE
+        const double rg = 1.0 / g1;
+        double pos1[3] = {WSNAP(pos0[0] + (rg * (DT / DX)) * u[0]), WSNAP(pos0[1] + (rg * (DT / DY)) * u[1]),
+                          WSNAP(pos0[2] + (rg * (DT / DZ)) * u[2])};
+#else
         const double dtg = DT / g1;
         double pos1[3] = {pos0[0] + dtg * u[0], pos0[1] + dtg * u[1], pos0[2] + dtg * u[2]};
+#endif
         if (do_diag) {
             const double g0 = sqrt(1.0 + PUX(p) * PUX(p) + PUY(p) * PUY(p) + PUZ(p) * PUZ(p));
             ke = w * m * (0.5 * (g0 + g1) - 1.0);

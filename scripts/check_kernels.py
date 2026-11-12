@@ -48,6 +48,11 @@ CASES = [
      ((O, O), (O, O), (O, O)), "explicit", 0.1, 0.05, 1, None),
     ("explicit open, absorbing sphere (PIC-D14), mixed-precision gather", (32, 16, 16), (2, 1, 1), 1,
      ((O, O), (O, O), (P, P)), "mixed", 0.1, 0.05, 0, Body(center=(1.6, 0.8, 0.8), radius=0.3)),
+    ("explicit compact storage (PIC-D19), periodic, 1 rank", (16, 8, 8), (1, 1, 1), 0, ((P, P), (P, P), (P, P)),
+     "compact", 0.1, 0.05, 0, None),
+    ("explicit compact storage, open+reflecting, paired face x-, absorbing sphere, decomposed rank",
+     (32, 16, 16), (2, 1, 2), 1, ((O, O), (O, O), (R, R)), "compact", 0.1, 0.05, 1,
+     Body(center=(1.6, 0.8, 0.8), radius=0.3)),
 ]
 
 
@@ -102,7 +107,8 @@ def main() -> int:
         ghost = 2 if not implicit else int(math.ceil(dt / h)) + 2
         decomp = Decomposition.build(n_cells, dims, rank, bc, npml=6)
         gdef = grid_defines(decomp, (h, h, h), dt, ghost, use_pml=not implicit and any(O in b for b in bc))
-        pdef = particle_defines(gdef, mixed=solver == "mixed", paired_faces=paired, body=body)
+        pdef = particle_defines(gdef, mixed=solver == "mixed", paired_faces=paired, body=body,
+                                compact=solver == "compact")
         units = [("fields", FIELD_SOURCES, gdef), ("particles", PARTICLE_SOURCES, pdef)]
         for unit, sources, defs in units:
             src = assemble_source(sources, defs)

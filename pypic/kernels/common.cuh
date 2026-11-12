@@ -75,14 +75,19 @@ __device__ __forceinline__ double interp_w(const double* __restrict__ F, const Y
 #ifdef MIXED_GATHER
 // PIC-D11: E and B gathered from float32 copies. The weights come from global index coordinates
 // (x / dx), computed in FP64 and rounded once to float, so they do not depend on the rank layout.
+// With the compact storage (PIC-D19) x is that coordinate already.
 struct YeeWeightsF {
     int in[3], ih[3];
     float wn[3], wh[3];
 };
 
 __device__ __forceinline__ void yee_weights_global(const double* x, YeeWeightsF& w) {
-    const double inv[3] = {1.0 / DX, 1.0 / DY, 1.0 / DZ};
     const int off[3] = {OXI, OYI, OZI};
+#ifdef COMPACT_STORE
+    const double inv[3] = {1.0, 1.0, 1.0};
+#else
+    const double inv[3] = {1.0 / DX, 1.0 / DY, 1.0 / DZ};
+#endif
 #pragma unroll
     for (int a = 0; a < 3; a++) {
         double fn = x[a] * inv[a], fh = fn - 0.5;
