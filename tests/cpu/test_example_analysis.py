@@ -371,3 +371,17 @@ def test_wakefield_gate_keeps_the_driver_and_the_fit_inside_the_moving_window(co
         assert hi - lo >= wavelengths * 2.0 * np.pi * W.PL.speed(p) - 1e-9
         assert p.ramp[1] < lo and hi < p.ramp[2]  # on the plateau
     assert info["x_low_end"] == pytest.approx(window.shift_after(cfg, cfg.n_steps) * cfg.dx[0])
+
+
+@pytest.mark.parametrize("config", ["laser_linear", "beam_linear", "laser_bubble"])
+def test_wakefield_plan_records_the_gauss_check_through_the_whole_run(config):
+    """The engine records the Gauss check at the steps of the history that are multiples of its interval:
+    the plan puts at least 20 of them into the run (the production run had two: steps 0 and 14,516 of 19,120)."""
+    import yaml
+
+    W = _example("wakefield")
+    with open(ROOT / f"examples/wakefield/configs/{config}.yaml") as f:
+        p = W.PL.params_from_dict(yaml.safe_load(f))
+    cfg = W.PL.plan_wakefield(p, n_gpus=8)[0]
+    recorded = [s for s in range(0, cfg.n_steps + 1, cfg.diag_interval) if s % cfg.gauss_interval == 0]
+    assert len(recorded) >= 20 and recorded[-1] >= 0.9 * cfg.n_steps

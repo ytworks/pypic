@@ -246,10 +246,12 @@ def plan_wakefield(p: WakeParams, n_gpus: int = 1):
         dims = auto_dims(n_gpus, n_cells)
     except ValueError:
         dims = None
+    every = max(1, n_steps // 500)
     cfg = SimConfig(n_cells=n_cells, dx=(dx, dy, dy), dt=dt, n_steps=n_steps, species=species, ppc=p.ppc,
                     lattice=p.lattice, seed=p.seed, dims=dims, boundaries=bc, lasers=lasers, window=win,
-                    diag_interval=max(1, n_steps // 500),
-                    gauss_interval=max(1, n_steps // 25), sort_interval=50,
+                    diag_interval=every,
+                    # the Gauss check is recorded only at a step of the history: a multiple of its interval
+                    gauss_interval=20 * every, sort_interval=50,
                     output=OutputConfig(diagnostics=diags, timescales={"plasma_period": 2.0 * math.pi,
                                                                        "t_end": n_steps * dt}))
     if p.overrides:
