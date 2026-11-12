@@ -93,3 +93,8 @@ class Decomposition:
             pml_hi = npml if (c == dims[a] - 1 and hi_bc == "open") else 0
             axes.append(AxisLayout(n_phys, c * n_phys, pml_lo, pml_hi, nb(c - 1), nb(c + 1), c, dims[a]))
         return cls(n_cells, dims, rank, tuple(tuple(b) for b in bc), npml, axes)
+
+    def x_low(self, ghost: int) -> int:
+        """Cells that the arrays of the first rank hold below the box along x: the ghost cells and
+        the absorbing layer of an open face. The same number on every rank."""
+        return ghost + (self.npml if self.bc[0][0] == "open" else 0)

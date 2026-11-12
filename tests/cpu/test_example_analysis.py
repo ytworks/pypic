@@ -70,19 +70,21 @@ def test_the_flux_panel_draws_frames_without_a_measurable_flux():
 
 
 def _example(name):
-    """examples/<name>/analyze.py; its ``import theory`` must not meet the theory module of another example."""
+    """examples/<name>/analyze.py; its ``import theory`` and ``import plan`` must not meet the modules of
+    another example."""
     import sys
 
     folder = ROOT / "examples" / name
     spec = importlib.util.spec_from_file_location(f"{name}_analyze", folder / "analyze.py")
     mod = importlib.util.module_from_spec(spec)
-    other = sys.modules.pop("theory", None)
+    others = {m: sys.modules.pop(m, None) for m in ("theory", "plan")}
     try:
         spec.loader.exec_module(mod)
     finally:
-        sys.modules.pop("theory", None)
-        if other is not None:
-            sys.modules["theory"] = other
+        for m, other in others.items():
+            sys.modules.pop(m, None)
+            if other is not None:
+                sys.modules[m] = other
         if str(folder) in sys.path:
             sys.path.remove(str(folder))
     return mod
@@ -113,6 +115,87 @@ def test_bow_shock_upstream_deviation_is_nan_without_a_measurement():
     # blocks of 12 cells: none lies inside the region, so nothing was measured
     up = state(12, {0: 1.0, 100: 1.0, 200: 1.0})
     assert up["blocks"] == 0 and np.isnan(up["deviation"])
+
+
+def test_bow_shock_upstream_region_follows_the_side_chosen_for_an_oblique_imf():
+    from types import SimpleNamespace
+
+    B = _example("bow_shock")
+    v, n_cells, block = 0.25, (48, 64, 64), 4  # box 24 x 32 x 32, centre of z at 16; blocks of 2
+    shape = tuple(n // block for n in n_cells)
+    z = (np.arange(shape[2]) + 0.5) * 2.0
+    wind = np.ones(shape)
+    disturbed = wind * np.where(z < 16.0, 1.3, 1.0)  # 30 % more density on the side z < z_c only
+    data = {}
+    for it, d in ((0, wind), (100, disturbed), (200, disturbed)):
+        for sp in "ei":
+            data[it, f"n:{sp}"], data[it, f"fluxx:{sp}"] = d, d * v
+    f = SimpleNamespace(iterations=[0, 100, 200], get=lambda it, name: SimpleNamespace(data=data[it, name]))
+    run = SimpleNamespace(fields=lambda name: f, n_cells=n_cells, dx=(0.5, 0.5, 0.5),
+                          config={"output": {"diagnostics": [{"name": "coarse", "coarsen": [block] * 3}]}})
+    info = {"r_mp": 10.0, "v_sw": v, "crossing_steps": 100, "center": [12.0, 16.0, 16.0]}
+    assert B.upstream_state(run, info)["deviation"] == pytest.approx(0.15)  # half of the whole region
+    up = B.upstream_state(run, {**info, "upstream_z_range": (21.0, 32.0)})  # z - z_c >= 0.5 R_mp
+    assert up["blocks"] == 3 * 12 * 3 and up["deviation"] == pytest.approx(0.0, abs=1e-12)
+    assert up["foreshock"]["blocks"] == up["blocks"] and up["foreshock"]["deviation"] == pytest.approx(0.3)
+
+
+def test_bow_shock_field_reversal_is_counted_between_the_shock_and_the_body():
+    B = _example("bow_shock")
+    x = np.linspace(0.0, 50.0, 501)
+    bz = np.interp(x, [0.0, 29.0, 31.0, 50.0], [-1.0, -3.0, 5.0, 8.0])  # crosses zero at 29.75
+    one = B.reversal(x, bz, 20.0, 45.0)
+    assert one["count"] == 1 and one["x"] == pytest.approx(29.75, abs=1e-9)
+    # a second and a third change inside the interval: not a single reversal, no position
+    three = B.reversal(x, bz * np.where((x > 35.0) & (x < 40.0), -1.0, 1.0), 20.0, 45.0)
+    assert three["count"] == 3 and np.isnan(three["x"])
+    # outside the interval they do not count; without a shock (nan) nothing lies between
+    assert B.reversal(x, bz, 20.0, 34.0)["count"] == 1 and B.reversal(x, bz, 31.0, 45.0)["count"] == 0
+    assert B.reversal(x, bz, float("nan"), 45.0)["count"] == 0
+
+
+def test_bow_shock_null_history_measures_density_velocity_and_temperature_per_region():
+    from types import SimpleNamespace
+
+    B = _example("bow_shock")
+    v, t0, m, shape = 0.25, 0.01, 16.0, (8, 6, 6)
+
+    def moments(density, ux, uz, temp):
+        """Moments of a wind with the given density, velocity (ux, 0, uz) and temperature per block."""
+        gu = 1.0 / np.sqrt(1.0 - ux * ux - uz * uz)
+        return {"n": density, "fluxx": density * ux, "fluxy": 0.0 * density, "fluxz": density * uz,
+                "ekin": density * (m * (gu - 1.0) + 1.5 * temp)}
+
+    one = np.ones(shape)
+    late = np.ones(shape)
+    late[:2] = 1.1  # the slab at x-: 10 % more density, a velocity of 0.02 |v| along z, twice the temperature
+    data = {0: moments(one, v * one, 0.0 * one, t0 * one),
+            480: moments(late, v * one, np.where(late > 1.0, 0.02 * v, 0.0), np.where(late > 1.0, 2.0, 1.0) * t0)}
+    f = SimpleNamespace(iterations=[0, 480],
+                        get=lambda it, name: SimpleNamespace(data=data[it][name.split(":")[0]]))
+    run = SimpleNamespace(fields=lambda name: f, species_info={"e": {"mass": m}, "i": {"mass": m}})
+    h = B.null_history(run, {"v_sw": v})
+    assert h["regions"] == ["interior", "x-", "x+", "y-", "y+", "z-", "z+"]
+    k = h["regions"].index("x-")
+    assert h["e"]["density"][k, 1] == pytest.approx(1.1) and h["e"]["density"][0, 1] == pytest.approx(1.0)
+    assert h["e"]["velocity"][k, 1] == pytest.approx(0.02) and h["e"]["velocity"][0, 1] == pytest.approx(0.0, abs=1e-12)
+    assert h["e"]["temperature"][k, 1] == pytest.approx(2.0)  # the drift does not count as heat
+    assert h["i"]["temperature"][0, 1] == pytest.approx(1.0)
+    # the slab at y- crosses the disturbed one: 2 of its 8 planes along x
+    assert h["e"]["density"][h["regions"].index("y-"), 1] == pytest.approx(1.0 + 0.1 * 2 / 8)
+
+
+def test_bow_shock_null_test_does_not_pass_a_species_that_was_not_measured():
+    B = _example("bow_shock")
+
+    def res(ion):
+        return {"gauss_max": 1e-13, "density": {"e": {"value": 0.01}, "i": {"value": ion}},
+                "velocity": {"e": {"value": 0.01}, "i": {"value": ion}}, "temperature_interior_end": {"e": 1.0},
+                "electric_ratio": 1.0, "magnetic_ratio": 1.0}
+
+    assert all(B.null_checks(res(0.01)).values())
+    lost = B.null_checks(res(float("nan")))  # the ions after the electrons: a nan must not be skipped
+    assert not lost["density"] and not lost["velocity"] and lost["gauss"]
 
 
 def test_blast_wave_front_and_debris_extent_are_recovered_from_synthetic_planes():
@@ -226,3 +309,261 @@ def test_blast_wave_gate_fails_without_a_measurement():
     # a front so far out that no block lies ahead of it: nothing was measured
     out = ahead({0: 0.0, 50: 60.0, 100: 60.0}, {0: 1.0, 100: 1.0})
     assert out["blocks"][1] == 0 and np.isnan(out["deviation"])
+
+
+def test_filamentation_stable_ratio_compares_the_modes_2_to_10_from_a_tenth_of_the_run():
+    spec = importlib.util.spec_from_file_location("filamentation_analyze", ROOT / "examples/filamentation/analyze.py")
+    F = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(F)
+    t = np.linspace(0.0, 100.0, 101)
+    gated = np.where(t < 10.0, 5.0, np.exp(0.5 * (t - 10.0) / 90.0))  # amplitude e^0.5 from t = 10 to the end
+    amps = [np.exp(t)] + [gated] * 9 + [np.exp(t)] * 6  # modes 1 and 11..16 are not part of the criterion
+    assert F.stable_ratio(t, amps, 100.0) == pytest.approx(np.e)
+
+
+def test_filamentation_stable_plot_draws_only_the_modes_of_the_run(tmp_path):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    spec = importlib.util.spec_from_file_location("filamentation_analyze", ROOT / "examples/filamentation/analyze.py")
+    F = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(F)
+    t = np.linspace(0.0, 100.0, 101)
+    info = {"omega_c": 0.6, "omega_c_critical": 0.4}
+    res = F._stable(str(tmp_path), t, [np.ones_like(t)] * 4, info, 100.0, 1e-13, True, None)  # n_modes = 4: no m = 8
+    assert res["passed"] and Path(res["plot"]).exists()
+
+
+def test_shock_field_ahead_is_nan_when_the_shock_leaves_no_room_ahead():
+    S = _example("relativistic_shock")
+    assert all(np.isnan(v) for v in S.field_ahead(np.array([])).values())
+    got = S.field_ahead(np.array([0.9, 1.1, 1.3]))
+    assert got["field_ahead_mean"] == pytest.approx(1.1) and got["field_ahead_max_deviation"] == pytest.approx(0.3)
+
+
+def _wake_planes(W, p, t, ex, er, x_low=0.0, on_nodes=None):
+    """A stand-in for the output of the plane through the axis: E_x(x, r) on its edges and E_z = +-E_r, in a
+    box that begins at x_low; ``on_nodes``: further planes, as functions of x and z on the nodes. Every
+    output (one per time of t) reads the same planes."""
+    from types import SimpleNamespace
+
+    dx, dz, _ = W.PL.cells(p)
+    xs = {"Ex": x_low + (np.arange(p.nx) + 0.5) * dx, "Ez": x_low + np.arange(p.nx) * dx}
+    zs = {"Ex": np.arange(p.n_perp) * dz, "Ez": (np.arange(p.n_perp) + 0.5) * dz}
+    zc = 0.5 * p.width
+    planes = {"Ex": ex(xs["Ex"][:, None], np.abs(zs["Ex"][None, :] - zc)),
+              "Ez": er(xs["Ez"][:, None], np.abs(zs["Ez"][None, :] - zc)) * np.sign(zs["Ez"][None, :] - zc)}
+    for name, f in (on_nodes or {}).items():
+        xs[name], zs[name] = xs["Ez"], zs["Ex"]
+        planes[name] = f(xs[name][:, None], zs[name][None, :]) * np.ones((p.nx, p.n_perp))
+    return SimpleNamespace(t=np.atleast_1d(np.asarray(t, dtype=float)), plane_axes=lambda c, i=None: (xs[c], zs[c]),
+                           read=lambda c, i: planes[c])
+
+
+def _wake_run(W, p, series, monkeypatch, shift=0, front_cell=None):
+    """``analyze`` of the example reads this run: the plan of p and the outputs ``series`` of the plane through
+    the axis, in a window that has gone ``shift`` cells at each of them."""
+    from types import SimpleNamespace
+
+    cfg, _, info = W.PL.plan_wakefield(p)
+    series.window_shift = np.full(len(series.t), shift)
+    run = SimpleNamespace(meta={"planner": info}, dx=cfg.dx, scalars={"gauss": np.array([1e-12])},
+                          window={"front_cell": front_cell} if cfg.window else None, series=lambda name: series)
+    monkeypatch.setattr(W, "open_run", lambda path: run)
+    return cfg
+
+
+def test_wakefield_measurement_recovers_a_planted_wake_of_a_pulse():
+    """The wake of the theory with 1.03 times its amplitude, 1.004 times its wavenumber and 0.95 times its
+    radial field: the fits return these three numbers (the lines at waist / 2 lie between samples)."""
+    W = _example("wakefield")
+    p = W.PL.WakeParams()
+    g = W.PL.laser_geometry(p)
+    k, phase = 1.004 / g["v_g"], 0.7
+
+    def potential(x, r):  # written out here, not taken from the planner
+        f2 = 1.0 + ((x - g["focus"]) / g["rayleigh"]) ** 2
+        a2 = p.a0 ** 2 / f2 / np.sqrt(1.0 - 1.0 / p.omega0 ** 2)
+        return (a2 * 0.25 * p.duration * np.sqrt(0.5 * np.pi) * np.exp(-p.duration ** 2 / 8.0)
+                * np.exp(-2.0 * r ** 2 / (p.waist ** 2 * f2))), p.waist ** 2 * f2
+
+    def ex(x, r):
+        return 1.03 * potential(x, r)[0] / g["v_g"] * np.cos(k * x + phase) + 2e-5
+
+    def er(x, r):
+        phi, w2 = potential(x, r)
+        return -0.95 * 1.03 * 4.0 * r / w2 * phi * np.sin(k * x + phase) - 1e-5
+
+    m = W._measure(p, _wake_planes(W, p, W.PL.arrival_time(p, p.x_end), ex, er), 0)
+    assert m["window"] == pytest.approx([9.0, 48.0], abs=1e-6)
+    assert m["amplitude_ratio"] == pytest.approx(1.03, rel=1e-3)
+    assert m["k_times_speed"] == pytest.approx(1.004, rel=1e-5)
+    assert m["phase"] == pytest.approx(phase, abs=1e-3) and m["offset"] == pytest.approx(2e-5, rel=1e-2)
+    assert m["Er_over_Ex_ratio"] == pytest.approx(0.95, rel=2e-3)
+    # the same wake seen by a moving window whose lower face is at x = 39.74: the fit keeps 1 c/omega_pe
+    # from the face and has 1.2 wavelengths left, from which it returns the same numbers
+    p.nx, p.focus = 1152, g["focus"]
+    m = W._measure(p, _wake_planes(W, p, W.PL.arrival_time(p, p.x_end), ex, er, x_low=39.74), 0)
+    assert m["window"] == pytest.approx([40.74, 48.0], abs=1e-6)
+    assert m["amplitude_ratio"] == pytest.approx(1.03, rel=1e-3)
+    assert m["k_times_speed"] == pytest.approx(1.004, rel=1e-4)
+    assert m["Er_over_Ex_ratio"] == pytest.approx(0.95, rel=2e-3)
+
+
+def test_wakefield_analysis_of_a_run_with_one_output_gives_the_verdict_of_the_last_frame(monkeypatch):
+    """n_out = 1 writes the plane at t = 0 and at the end. At t = 0 the pulse has not reached the plasma: there
+    is no interval behind it to fit, and the amplitude of the output before the last is nan (review of PR #42:
+    the analysis ended with an IndexError there). The last frame holds the wake of the theory with 1.03 times
+    its amplitude and 1.004 times its wavenumber, inside the gate."""
+    W = _example("wakefield")
+    p = W.PL.WakeParams(n_out=1)
+    g = W.PL.laser_geometry(p)
+    t_end = W.PL.arrival_time(p, p.x_end)
+    k = 1.004 / g["v_g"]
+
+    def potential(x, r):
+        f2 = 1.0 + ((x - g["focus"]) / g["rayleigh"]) ** 2
+        a2 = p.a0 ** 2 / f2 / np.sqrt(1.0 - 1.0 / p.omega0 ** 2)
+        return (a2 * 0.25 * p.duration * np.sqrt(0.5 * np.pi) * np.exp(-p.duration ** 2 / 8.0)
+                * np.exp(-2.0 * r ** 2 / (p.waist ** 2 * f2))), p.waist ** 2 * f2
+
+    def er(x, r):
+        phi, w2 = potential(x, r)
+        return -1.03 * 4.0 * r / w2 * phi * np.sin(k * x + 0.7)
+
+    s = _wake_planes(W, p, [0.0, t_end], lambda x, r: 1.03 * potential(x, r)[0] / g["v_g"] * np.cos(k * x + 0.7), er,
+                     on_nodes={"n:electron": lambda x, z: 1.0, "Ey": lambda x, z: np.exp(-(x - p.x_end) ** 2)})
+    _wake_run(W, p, s, monkeypatch)
+    res = W.analyze("run", show_plot=False)
+    assert np.isnan(res["amplitude_ratio_previous_output"]) and res["t_previous_output"] == 0.0
+    assert res["t"] == t_end and res["amplitude_ratio"] == pytest.approx(1.03, rel=1e-3) and res["passed"]
+    assert res["pulse_center_measured"] == pytest.approx(p.x_end, abs=1e-6)
+
+
+def test_wakefield_analysis_of_a_blowout_box_without_the_driver_is_the_null_test(monkeypatch):
+    """laser_bubble.yaml with drive: false writes E_x, E_z and the electron density, and no E_y: the analysis
+    is the null test, against the E_x of the blowout prediction (sqrt(a0) = 2), and not the report of a cavity
+    (review of PR #42: that one read E_y and ended with a KeyError)."""
+    import yaml
+
+    from pypic import window
+
+    W = _example("wakefield")
+    with open(ROOT / "examples/wakefield/configs/laser_bubble.yaml") as f:
+        p = W.PL.params_from_dict({**yaml.safe_load(f), "drive": False})
+    cfg = W.PL.plan_wakefield(p)[0]
+    shift, front = window.shift_after(cfg, cfg.n_steps), window.front_cell(cfg)
+    x_front = (front + shift) * cfg.dx[0]
+    s = _wake_planes(W, p, np.linspace(0.0, cfg.n_steps * cfg.dt, 3), lambda x, r: 0.004 * np.cos(x) + 0.0 * r,
+                     lambda x, r: 0.0 * x * r, x_low=shift * cfg.dx[0],
+                     on_nodes={"n:electron": lambda x, z: 1.0 * (x < x_front)})
+    _wake_run(W, p, s, monkeypatch, shift=shift, front_cell=front)
+    res = W.analyze("run", show_plot=False)
+    assert res["predicted_amplitude"] == 2.0 and res["Ex_axis_max_over_predicted"] == pytest.approx(0.002, rel=1e-3)
+    assert res["density_plateau"] == pytest.approx(1.0) and res["passed"]
+
+
+def test_wakefield_measurement_recovers_a_planted_wake_of_a_bunch():
+    """A wake with 0.97 times the amplitude of the theory on the axis, the phase 0.1 behind the bunch
+    and 0.7 of the axis value at r = sigma_r."""
+    W = _example("wakefield")
+    p = W.PL.WakeParams(driver="bunch", nx=900, n_perp=192, dx=0.125, ramp=(2.0, 5.0, 107.0, 110.0), x_end=100.0)
+    beta = W.PL.speed(p)
+    t = 88.5
+    xb = p.start + beta * t
+    amp = 0.97 * W.PL.wake_amplitude(p, 0.0)[0][0]
+
+    def ex(x, r):
+        return amp * 0.7 ** (r / p.sigma_r) ** 2 * np.cos(0.99 / beta * (x - xb) + 0.1)
+
+    m = W._measure(p, _wake_planes(W, p, t, ex, lambda x, r: 0.0 * x * r), 0)
+    assert m["window"] == pytest.approx([xb - 5.0 - 10.0 * np.pi * beta, xb - 5.0])
+    assert m["amplitude_ratio"] == pytest.approx(0.97, rel=1e-4) and m["k_times_speed"] == pytest.approx(0.99, rel=1e-5)
+    assert m["phase"] == pytest.approx(0.1, abs=1e-4) and m["R_ratio"] == pytest.approx(0.7, rel=1e-4)
+
+
+def test_wakefield_blowout_report_recovers_a_planted_cavity_field_and_bunch():
+    """Behind a pulse at x = 122 a sphere of radius 3.5 without electrons around x = 117.4, in which
+    E_x = 0.45 (x - 117.4) on the axis; a smaller hole behind it and the vacuum ahead of the plasma are not
+    taken for the cavity, and the other rising zeros of E_x are not taken for the one inside it. From a
+    histogram over u_x the electrons at and above u_x = 20 are counted."""
+    from types import SimpleNamespace
+
+    W = _example("wakefield")
+    p = W.PL.WakeParams(regime="blowout", a0=4.0, nx=1536, n_perp=320, width=40.0, ramp=(4.0, 8.0, 190.0, 194.0))
+    dx, dz, _ = W.PL.cells(p)
+    x_low, zc = 100.0, 20.0
+    xn, xh, z = x_low + np.arange(p.nx) * dx, x_low + (np.arange(p.nx) + 0.5) * dx, np.arange(p.n_perp) * dz
+    r2 = (z[None, :] - zc) ** 2
+    density = np.ones((p.nx, p.n_perp))
+    density[(xn[:, None] - 117.4) ** 2 + r2 < 3.5 ** 2] = 0.0
+    density[(xn[:, None] - 110.5) ** 2 + r2 < 2.0 ** 2] = 0.0
+    density[xn > 124.0] = 0.0
+    ex = 0.45 * (np.mod(xh - 117.4 + 3.5, 7.0) - 3.5)
+    ey = 3.2 * p.omega0 * np.exp(-((xn - 122.0) / 2.0) ** 2) * np.cos(p.omega0 * xn)
+    planes = {"n:electron": density, "Ex": np.repeat(ex[:, None], p.n_perp, axis=1),
+              "Ey": ey[:, None] * np.exp(-r2 / 16.0)}
+    s = SimpleNamespace(t=np.array([120.0]), read=lambda c, i: planes[c],
+                        plane_axes=lambda c, i=None: (xh if c == "Ex" else xn, z))
+    b = W._bubble(p, s, 0)
+    assert b["a0"] == pytest.approx(3.2, rel=1e-2) and b["pulse_center"] == pytest.approx(122.0, abs=0.02)
+    assert b["cavity"]["radius"] == pytest.approx(3.5, abs=dz)
+    assert b["cavity"]["x_widest"] == pytest.approx(117.4, abs=dz)
+    assert b["cavity"]["x_back"] == pytest.approx(113.9, abs=2.0 * dz)
+    assert b["cavity"]["x_front"] == pytest.approx(120.9, abs=2.0 * dz)
+    assert b["Ex_zero"] == pytest.approx(117.4, abs=1e-9) and b["Ex_slope"] == pytest.approx(0.45, rel=1e-9)
+    assert b["Ex_max"] == pytest.approx(1.575, abs=0.45 * dx) and b["Ex_min"] == pytest.approx(-1.575, abs=0.45 * dx)
+
+    edges = np.linspace(-20.0, 400.0, 421)
+    counts = np.zeros(420)
+    counts[15:25] = 1e4  # the plasma
+    counts[39], counts[40] = 7.0, 1.0  # the bins below and at u_x = 20
+    counts[120:170] = 0.06  # 3 between u_x = 100 and 150
+    t = W.trapped(edges, counts, 20.0)
+    assert t["number"] == pytest.approx(4.0) and t["u_max"] == 150.0 and not t["at_range_limit"]
+    assert t["u_peak"] == 20.5 and t["u_mean"] == pytest.approx((20.5 + 0.06 * 50 * 125.0) / 4.0)
+    counts[-1] = 0.1
+    t = W.trapped(edges, counts, 20.0)
+    assert t["u_max"] == 400.0 and t["at_range_limit"]
+    assert W.trapped(edges, np.zeros(420), 20.0)["number"] == 0.0
+
+
+@pytest.mark.parametrize("config, wavelengths", [("laser_linear", 1.0), ("beam_linear", 5.0)])
+def test_wakefield_gate_keeps_the_driver_and_the_fit_inside_the_moving_window(config, wavelengths):
+    """The gate configurations run in a moving window: the engine accepts them, the window starts when the
+    driver is ``window_lead`` behind the x+ wall, and at the two outputs that are analysed the interval of the
+    fit lies in the box behind the driver and holds at least this many wavelengths of the wake."""
+    import yaml
+
+    from pypic import antenna, window
+
+    W = _example("wakefield")
+    with open(ROOT / f"examples/wakefield/configs/{config}.yaml") as f:
+        p = W.PL.params_from_dict(yaml.safe_load(f))
+    cfg, report, info = W.PL.plan_wakefield(p, n_gpus=8)
+    assert window.check_config(cfg) and antenna.check_config(cfg) == (p.driver == "laser")
+    length = cfg.n_cells[0] * cfg.dx[0]
+    assert W.PL.driver_position(p, cfg.window.start) == pytest.approx(length - p.window_lead, abs=1e-9)
+    every = cfg.n_steps // p.n_out
+    for steps in (cfg.n_steps - every, cfg.n_steps):
+        low = window.shift_after(cfg, steps) * cfg.dx[0]
+        x_driver = W.PL.driver_position(p, steps * cfg.dt)
+        lo, hi = W._window(p, x_driver, low)
+        assert low + 1.0 <= lo < hi < x_driver < low + length - p.window_margin
+        assert hi - lo >= wavelengths * 2.0 * np.pi * W.PL.speed(p) - 1e-9
+        assert p.ramp[1] < lo and hi < p.ramp[2]  # on the plateau
+    assert info["x_low_end"] == pytest.approx(window.shift_after(cfg, cfg.n_steps) * cfg.dx[0])
+
+
+@pytest.mark.parametrize("config", ["laser_linear", "beam_linear", "laser_bubble"])
+def test_wakefield_plan_records_the_gauss_check_through_the_whole_run(config):
+    """The engine records the Gauss check at the steps of the history that are multiples of its interval:
+    the plan puts at least 20 of them into the run (the production run had two: steps 0 and 14,516 of 19,120)."""
+    import yaml
+
+    W = _example("wakefield")
+    with open(ROOT / f"examples/wakefield/configs/{config}.yaml") as f:
+        p = W.PL.params_from_dict(yaml.safe_load(f))
+    cfg = W.PL.plan_wakefield(p, n_gpus=8)[0]
+    recorded = [s for s in range(0, cfg.n_steps + 1, cfg.diag_interval) if s % cfg.gauss_interval == 0]
+    assert len(recorded) >= 20 and recorded[-1] >= 0.9 * cfg.n_steps

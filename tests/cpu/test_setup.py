@@ -122,12 +122,53 @@ def test_bow_shock_planner_gives_a_configuration_the_engine_accepts():
         assert external.check_config(cfg) and injection.check_config(cfg) and body.check_config(cfg, reach)
         assert math.prod(cfg.dims) == 8 and "bow-shock planner" in report
     assert abs(info["r_mp"] - 20.0) < 1e-12  # 5 d_i with m_i / m_e = 16
+    # the configurations of the IMF: which side the dipole field opposes, and where the wind is measured
+    plans = {}
+    for name in ("gate", "south", "oblique"):
+        with open(os.path.join(os.path.dirname(path), name + ".yaml")) as f:
+            plans[name] = P.plan_bow_shock(P.params_from_dict(yaml.safe_load(f)), n_gpus=8)[2]
+    assert [plans[n]["antiparallel"] for n in plans] == [False, True, False]
+    assert plans["gate"]["upstream_z_range"] is None and plans["gate"]["cos2_bn"] == 0.0
+    zc, lz = plans["oblique"]["center"][2], plans["oblique"]["upstream_z_range"]
+    assert lz[0] == pytest.approx(zc + 1.5 * 20.0) and abs(plans["oblique"]["cos2_bn"] - 0.5) < 1e-12
+    assert plans["oblique"]["compression_mhd"] > plans["gate"]["compression_mhd"]
+    # the null test of the wind: no dipole and no body, and the engine's checks still accept it
+    cfg, report, info = P.plan_bow_shock(P.params_from_dict({**params, "planet": False}), n_gpus=8)
+    assert cfg.body is None and not cfg.external_fields.dipoles and not info["planet"]
+    assert external.check_config(cfg) and injection.check_config(cfg) and not body.check_config(cfg, reach)
     # a body so small that the dipole field at its surface cannot be resolved in time is refused
     with pytest.raises(ValueError, match="Omega_ce dt"):
         P.plan_bow_shock(P.params_from_dict({**params, "body_radius": 0.4}))
     # output blocks so large that none lies inside the upstream region: its gate could not be measured
     with pytest.raises(ValueError, match="upstream region"):
         P.plan_bow_shock(P.params_from_dict({**params, "coarse": 0.5}))
+
+
+def test_planners_count_the_particle_memory_of_the_precision():
+    import os
+
+    import yaml
+
+    from pypic.config import SLOT_BYTES
+    from pypic.setup.planner import TwoStreamParams, plan_two_stream
+
+    def two_stream(precision):
+        cfg, _, info = plan_two_stream(TwoStreamParams(overrides={"precision": precision}), n_gpus=2)
+        return info["memory_per_gpu_GB"] * 2e9, info["particles"] * cfg.capacity_factor
+
+    (fp64, slots), (mixed, _), (compact, _) = (two_stream(p) for p in ("fp64", "mixed", "compact"))
+    # mixed changes the gather only; compact stores every slot in fewer bytes, the grid as before
+    assert mixed == fp64
+    assert abs((fp64 - compact) / slots - (SLOT_BYTES["fp64"] - SLOT_BYTES["compact"])) < 1e-9
+    for name in ("bow_shock", "blast_wave"):
+        P = _example_planner(name)
+        with open(os.path.join(os.path.dirname(P.__file__), "configs", "gate.yaml")) as f:
+            params = yaml.safe_load(f)
+        mem = {}
+        for precision in ("fp64", "mixed", "compact"):
+            p = P.params_from_dict({**params, "overrides": {"precision": precision}})
+            mem[precision] = getattr(P, f"plan_{name}")(p, n_gpus=8)[2]["memory_per_gpu_GB"]
+        assert mem["compact"] < mem["mixed"] == mem["fp64"], name
 
 
 def test_blast_wave_planner_gives_a_configuration_the_engine_accepts():
@@ -178,3 +219,49 @@ def test_blast_wave_planner_gives_a_configuration_the_engine_accepts():
             ("Omega_ce dt", 8, {"body_radius": 0.3, "dipole_radius": 0.5})):
         with pytest.raises(ValueError, match=match):
             plan(n_gpus, **over)
+
+
+def test_filamentation_planner_takes_the_field_along_the_drift_from_the_marginal_one():
+    F = _example_planner("filamentation")
+    free_cfg, _, free = F.plan_filamentation(F.FilamentationParams())
+    assert tuple(free_cfg.B0) == (0.0, 0.0, 0.0) and not free["stable"]
+    g = math.sqrt(1.25)
+    marginal = (0.5 / g) * math.sqrt(2.0 / g)  # beta omega_p,tot / sqrt(gamma), omega_p,tot^2 = 2
+    cfg, _, info = F.plan_filamentation(F.FilamentationParams(b0=0.5, gate_m_min=4))
+    assert tuple(cfg.B0) == pytest.approx((0.5 * marginal * g, 0.0, 0.0))  # B0 = Omega gamma m / |q|
+    assert info["gamma_theory"][0] == 0.0 and 0.0 < info["gamma_max"] < free["gamma_max"]
+    assert info["gate_modes"] == [4, 10] and not info["stable"]
+    stable_cfg, _, stable = F.plan_filamentation(F.FilamentationParams(b0=1.5))
+    assert stable["stable"] and max(stable["gamma_theory"]) == 0.0
+    assert stable_cfg.n_steps == free_cfg.n_steps  # no growth time of its own: the length of the free case
+    # just below the marginal field only short wavelengths grow: not stable, and refused unless they are analysed
+    with pytest.raises(ValueError, match="n_modes"):
+        F.plan_filamentation(F.FilamentationParams(b0=0.98))
+    _, _, short = F.plan_filamentation(F.FilamentationParams(b0=0.98, n_modes=32))
+    assert not short["stable"] and short["gamma_theory"][15] == 0.0 < short["gamma_theory"][16]
+    # the direction of the field does not matter: Omega enters by its square
+    for b0 in (0.5, 1.0, 1.5):
+        cfg_p, _, plus = F.plan_filamentation(F.FilamentationParams(b0=b0, gate_m_min=4))
+        cfg_m, _, minus = F.plan_filamentation(F.FilamentationParams(b0=-b0, gate_m_min=4))
+        assert minus["stable"] == plus["stable"] == (b0 >= 1.0)
+        assert minus["gamma_theory"] == plus["gamma_theory"] and cfg_m.n_steps == cfg_p.n_steps
+        assert tuple(cfg_m.B0) == (-cfg_p.B0[0], 0.0, 0.0)
+
+
+def test_shock_planner_gives_the_magnetised_flow_its_motional_field():
+    """sigma sets B1 from the enthalpy flux of the flow, the field direction the axis, and E0 is
+    -v x B0 (force-free flow, PIC-D18); the box follows the faster magnetised shock."""
+    S = _example_planner("relativistic_shock")
+    free_cfg, _, free = S.plan_shock(S.ShockParams(t_end=50.0))
+    assert tuple(free_cfg.B0) == tuple(free_cfg.E0) == (0.0, 0.0, 0.0)
+    for name, axis, dims in (("out", 2, 2), ("in", 1, 3)):
+        cfg, _, info = S.plan_shock(S.ShockParams(sigma=0.3, field=name, t_end=50.0))
+        u = cfg.species[0].beams[0].drift
+        gamma = math.sqrt(1 + sum(c * c for c in u))
+        v, B = [c / gamma for c in u], cfg.B0
+        mass = sum(b.density * s.mass for s in cfg.species for b in s.beams)
+        assert B[axis] ** 2 == pytest.approx(0.3 * gamma * mass) and sum(c * c for c in B) == B[axis] ** 2
+        v_x_B = (v[1] * B[2] - v[2] * B[1], v[2] * B[0] - v[0] * B[2], v[0] * B[1] - v[1] * B[0])
+        assert tuple(cfg.E0) == pytest.approx(tuple(-c for c in v_x_B), abs=1e-14)
+        assert info["dims_eff"] == dims and info["jump"]["beta_sh"] > free["jump"]["beta_sh"]
+        assert cfg.n_cells[0] > free_cfg.n_cells[0]

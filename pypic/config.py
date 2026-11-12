@@ -24,8 +24,11 @@ class Beam:
     perturbation: list = field(default_factory=list)
     # density profile along one axis: n(x) = density * shape(x) >= 0 (pypic.profiles), e.g.
     # {"axis": "x", "shape": "step", "x0": 0.0, "x1": 50.0}; beams of all species share positions,
-    # so equal profiles keep the plasma exactly neutral; particles where shape < 1e-10 are dropped
-    profile: dict | None = None
+    # so equal profiles keep the plasma exactly neutral; particles where shape < 1e-10 are dropped.
+    # A list of such profiles with different axes among x, y, z is their product (PIC-D21): a
+    # bunch. It is loaded only into the cells in which every shape reaches 1e-10, and the beams of
+    # the plasma species that load the same cells must be neutral together (as for a radial profile)
+    profile: dict | list | None = None
     # radial beam (PIC-D17): ``origin`` is a point in c/omega_pe. A profile with "axis": "r" is a
     # shape of the distance from it, and ``drift_radial`` is a proper velocity along the unit vector
     # from it (0 at the origin itself). A radial profile is loaded only into the cells its support
@@ -36,13 +39,20 @@ class Beam:
     def __post_init__(self):
         self.drift = tuple(self.drift)
         self.drift_radial = float(self.drift_radial)
-        if self.profile is not None:
+        if isinstance(self.profile, (list, tuple)):
+            from .profiles import validate
+
+            self.profile = [validate(p, extra=("axis",)) for p in self.profile]
+            axes = [p.get("axis", "x") for p in self.profile]
+            if not axes or any(a not in ("x", "y", "z") for a in axes) or len(set(axes)) != len(axes):
+                raise ValueError("a list of profiles needs one profile per axis among x, y, z")
+        elif self.profile is not None:
             from .profiles import validate
 
             self.profile = validate(self.profile, extra=("axis",))
             if self.profile.get("axis", "x") not in ("x", "y", "z", "r"):
                 raise ValueError("profile axis must be x, y, z or r")
-        radial_profile = self.profile is not None and self.profile.get("axis", "x") == "r"
+        radial_profile = isinstance(self.profile, dict) and self.profile.get("axis", "x") == "r"
         if self.origin is None:
             if radial_profile or self.drift_radial:
                 raise ValueError("a radial profile or drift_radial needs an origin")
@@ -128,10 +138,82 @@ class Dipole:
 
 
 @dataclass
+class Laser:
+    """Laser antenna (PIC-D20): a magnetisation on the cell layer that holds ``plane_x`` whose
+    current, a discrete curl, emits the same pulse towards +x and towards -x. The pulse towards +x
+    is a Gaussian beam with the waist ``waist`` at ``focus_x`` (``waist: None``: a plane wave), with
+    E along ``polarization`` and the peak amplitude E = a0 * omega at the focus. Explicit solver only.
+
+    ``envelope``: ``{"shape": "gaussian", "duration": tau, "t_peak": t0}`` is exp(-(t - t0)^2 /
+    tau^2) for the field at the plane, from t = 0 on (choose t0 of several tau); ``{"shape":
+    "flat", "ramp": T}`` rises as sin^2 over T and stays at 1. ``center``: (y, z) of the axis,
+    default the middle of the box. ``phase``: the carrier is cos(omega (t - x / v) + phase) on the
+    axis at the focus, t counted like the envelope at the plane."""
+
+    plane_x: float
+    a0: float
+    omega: float
+    envelope: dict
+    polarization: str = "y"
+    waist: float | None = None
+    focus_x: float | None = None
+    center: tuple | None = None
+    phase: float = 0.0
+
+    def __post_init__(self):
+        self.plane_x, self.a0, self.omega, self.phase = (
+            float(self.plane_x), float(self.a0), float(self.omega), float(self.phase))
+        if self.polarization not in ("y", "z"):
+            raise ValueError("laser polarization must be 'y' or 'z'")
+        if not self.omega > 0.0:
+            raise ValueError("laser omega must be > 0")
+        if self.waist is not None:
+            self.waist = float(self.waist)
+            if not self.waist > 0.0:
+                raise ValueError("laser waist must be > 0 (None: a plane wave)")
+        self.focus_x = self.plane_x if self.focus_x is None else float(self.focus_x)
+        if self.center is not None:
+            self.center = tuple(float(v) for v in self.center)
+            if len(self.center) != 2:
+                raise ValueError("laser center is (y, z)")
+        env = dict(self.envelope)
+        shape = env.pop("shape", None)
+        need = {"gaussian": ("duration", "t_peak"), "flat": ("ramp",)}
+        if shape not in need:
+            raise ValueError("laser envelope shape must be 'gaussian' or 'flat'")
+        if set(env) != set(need[shape]):
+            raise ValueError(f"laser envelope '{shape}' takes exactly {need[shape]}")
+        env = {k: float(v) for k, v in env.items()}
+        if not env[need[shape][0]] > 0.0:
+            raise ValueError(f"laser envelope {need[shape][0]} must be > 0")
+        self.envelope = {"shape": shape, **env}
+
+
+@dataclass
+class Window:
+    """Moving window (PIC-D22): from the time ``start`` on the box follows a driver along +x at the
+    speed of light, one cell at a time; positions stay those of the laboratory. x- must be open
+    and x+ reflecting. The plasma is loaded up to ``margin`` (a length, c/omega_pe) before the x+
+    wall, and every cell that enters the box behind this vacuum margin is loaded as at the start
+    of the run. Explicit solver only."""
+
+    start: float = 0.0
+    margin: float = 1.0
+
+    def __post_init__(self):
+        self.start, self.margin = float(self.start), float(self.margin)
+        if not self.start >= 0.0:
+            raise ValueError("window.start must be >= 0")
+        if not self.margin > 0.0:
+            raise ValueError("window.margin must be > 0")
+
+
+@dataclass
 class ExternalFields:
     """Static fields the particles feel in addition to the Yee fields (PIC-D12): a uniform E, a
     uniform B and dipoles. The Yee fields are then the difference to them, so an external field
-    may be normal or tangential to any face, unlike B0 / E0. Explicit solver only."""
+    may be normal or tangential to any face and no wall shorts it (E0 at a reflecting face: PIC-D18).
+    Explicit solver only."""
 
     E: tuple = (0.0, 0.0, 0.0)
     B: tuple = (0.0, 0.0, 0.0)
@@ -183,6 +265,14 @@ ID_LIMIT = 2 ** 53  # particle ids (PIC-D8): float64 represents every integer be
 # Particle slots of one species on one GPU: the kernels index particles with int (thread index, n);
 # row offsets row * cap are 64-bit.
 MAX_CAPACITY = 2 ** 31 - 1
+# Device bytes by precision, for the memory estimates of the planners. SLOT_BYTES: one particle slot
+# (fp64, mixed: 8 rows of float64; compact, PIC-D19: weight and id in float64, the cell in int32,
+# three uint32 and three float64). SORT_BYTES: the temporaries of the sort per particle of the
+# species being sorted: 40 was measured at the bow-shock gate; one sort of 3.4e7 and of 1.7e7
+# particles on one GPU holds 40.2 (fp64, mixed) and 24.2 (compact: the key is the stored int32 cell,
+# and the buffer of one row fits a block the argsort has freed).
+SLOT_BYTES = {"fp64": 64, "mixed": 64, "compact": 56}
+SORT_BYTES = {"fp64": 40, "mixed": 40, "compact": 24}
 
 
 @dataclass
@@ -361,9 +451,12 @@ class SimConfig:
     species: list = field(default_factory=list)  # list[SpeciesConfig]
     ppc: int = 16  # particle positions per cell (every beam gets one particle per position)
     seed: int = 12345
+    # places of the ppc particles of a cell (PIC-D23): None = random (seed, global cell, slot);
+    # (a, b, c) with a b c = ppc = a regular lattice of a x b x c places, the same in every cell
+    lattice: tuple | None = None
     dims: tuple | None = None  # rank grid (px,py,pz); None = automatic
     B0: tuple = (0.0, 0.0, 0.0)  # uniform external/initial magnetic field
-    E0: tuple = (0.0, 0.0, 0.0)  # uniform initial electric field (no conducting face tangential to it)
+    E0: tuple = (0.0, 0.0, 0.0)  # uniform initial electric field; tangential to reflecting faces only (PIC-D18)
     # initial fields added to B0 / E0 (PIC-D9), each divergence-free by construction:
     #  {"kind": "plane_wave", "axis": "x", "mode": 1, "polarization": "y", "amplitude": a, "phase": 0,
     #   "direction": 1}   exact discrete eigenmode of the solver (Yee or Crank-Nicolson)
@@ -376,8 +469,11 @@ class SimConfig:
     diag_interval: int = 10  # energy / momentum history (and the scalars output) every N steps
     gauss_interval: int = 100  # 0 disables the Gauss/divB check
     sort_interval: int = 50
-    # "fp64" | "mixed": mixed gathers E and B for the explicit push from float32 copies (PIC-D11,
-    # Proposed); positions, momenta, the pusher and the current deposit stay FP64
+    # "fp64" | "mixed" | "compact". mixed gathers E and B for the explicit push from float32 copies
+    # (PIC-D11, Proposed); positions, momenta, the pusher and the current deposit stay FP64.
+    # compact (PIC-D19, Proposed; explicit solver) also stores a particle in 56 bytes in place of
+    # 64: cell and position within the cell in 2^-32 of a cell; momenta, pusher and current deposit
+    # stay FP64
     precision: str = "fp64"
     implicit: ImplicitConfig = field(default_factory=ImplicitConfig)
     current_filter: CurrentFilter = field(default_factory=CurrentFilter)
@@ -385,6 +481,8 @@ class SimConfig:
     external_fields: ExternalFields = field(default_factory=ExternalFields)
     injection: Injection = field(default_factory=Injection)  # plasma entering through open faces (PIC-D13)
     body: Body | None = None  # absorbing sphere (PIC-D14)
+    lasers: list = field(default_factory=list)  # list[Laser]: laser antennas (PIC-D20)
+    window: Window | None = None  # moving window along +x (PIC-D22)
     # Marder number (0 < nu <= 1/6; 0 = off) of the zone at the open faces (PIC-D16): every step
     # div E - rho diffuses in the absorbing layer and the first nodes inside, where the removed and
     # the entering particles leave charge that no deposit balances. Explicit solver only.
@@ -400,6 +498,11 @@ class SimConfig:
             raise ValueError("capacity_factor must be >= 1")
         if not 0.0 <= float(self.marder_zone) <= 1.0 / 6.0:
             raise ValueError("marder_zone is a Marder number: 0 (off) or 0 < nu <= 1/6")
+        if self.lattice is not None:
+            lat = tuple(self.lattice)
+            if len(lat) != 3 or any(int(v) != v or v < 1 for v in lat) or lat[0] * lat[1] * lat[2] != self.ppc:
+                raise ValueError(f"lattice {lat} must be three positive integers with the product ppc = {self.ppc}")
+            self.lattice = tuple(int(v) for v in lat)
 
     def to_dict(self):
         return asdict(self)
@@ -424,10 +527,13 @@ class SimConfig:
         inj = inj if isinstance(inj, Injection) else Injection(**inj)
         body = d.pop("body", None)
         body = body if body is None or isinstance(body, Body) else Body(**body)
-        for k in ("n_cells", "dx", "B0", "E0", "dims"):
+        lasers = [v if isinstance(v, Laser) else Laser(**v) for v in d.pop("lasers", [])]
+        window = d.pop("window", None)
+        window = window if window is None or isinstance(window, Window) else Window(**window)
+        for k in ("n_cells", "dx", "B0", "E0", "dims", "lattice"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:
             d["boundaries"] = tuple(tuple(b) for b in d["boundaries"])
         return cls(species=sp, implicit=imp, output=out, current_filter=flt, external_fields=ext,
-                   injection=inj, body=body, **d)
+                   injection=inj, body=body, lasers=lasers, window=window, **d)

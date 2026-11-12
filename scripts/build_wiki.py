@@ -122,6 +122,12 @@ EXAMPLES: dict[str, dict] = {
                                           "pair_2d_long-run-40c0ca85.json"),
             "pair_3d": recorded("output/relativistic_shock/pair_3d",
                                 "bench/results/2026-11-09-3bec889ef-example-relativistic_shock-pair_3d.json"),
+            "pair_2d_t4000": recorded("output/relativistic_shock/pair_2d_t4000",
+                                      "bench/results/2026-11-11-29451458d-example-relativistic_shock-"
+                                      "pair_2d_t4000-run-014c11db.json"),
+            "pair_2d_tail": recorded("output/relativistic_shock/pair_2d_tail",
+                                     "bench/results/2026-11-11-29451458d-example-relativistic_shock-"
+                                     "pair_2d_tail-run-b012ba98.json"),
         },
         "movies": ["pair_2d"],
         "summary": {"kind": "results", "file": "jump_conditions.png"},
@@ -137,6 +143,9 @@ EXAMPLES: dict[str, dict] = {
             "pair_sigma10_large_run2": recorded("output/reconnection/pair_sigma10_large_run2",
                                                 "bench/results/2026-11-10-d9637cd9f-example-reconnection-"
                                                 "pair_sigma10_large-run-e879cfd6.json"),
+            "pair_sigma10_xl": recorded("output/reconnection/pair_sigma10_xl",
+                                        "bench/results/2026-11-11-29451458d-example-reconnection-"
+                                        "pair_sigma10_xl-run-0e8c5abd.json"),
         },
         "movies": ["pair_sigma10_large_run2"],
         "gif": {"dpi": 52},
@@ -146,15 +155,35 @@ EXAMPLES: dict[str, dict] = {
     "bow_shock": {
         "page": "Bow-Shock",
         "title": {"en": "Bow shock of a magnetised planet", "ja": "磁化惑星のバウショック"},
-        "cases": {"gate": fresh("gate", gpus=8)},
+        "cases": {
+            "gate": fresh("gate", gpus=8),
+            "dp10": recorded("output/bow_shock/dp10",
+                             "bench/results/2026-11-11-4d55109b5-example-bow_shock-dp10-run-4b073ac2.json"),
+        },
         "movies": ["gate"],
         "summary": {"kind": "results", "file": "standoff.png"},
     },
     "blast_wave": {
         "page": "Blast-Wave",
         "title": {"en": "Blast wave around a magnetised body", "ja": "磁化天体のまわりの爆風"},
-        "cases": {"gate": fresh("gate", gpus=8)},
+        "cases": {
+            "gate": fresh("gate", gpus=8),
+            "rm12": recorded("output/blast_wave/rm12",
+                             "bench/results/2026-11-11-c58f533c5-example-blast_wave-rm12-run-031fb299.json"),
+        },
         "movies": ["gate"],
+    },
+    "wakefield": {
+        "page": "Plasma-Wakefield",
+        "title": {"en": "Plasma wakefield of a laser pulse and of an electron bunch",
+                  "ja": "レーザーパルスと電子バンチのプラズマ航跡場"},
+        "cases": {
+            "laser_linear": fresh("laser_linear", gpus=8), "beam_linear": fresh("beam_linear", gpus=8),
+            "laser_bubble": recorded("output/wakefield/laser_bubble",
+                                     "bench/results/2026-11-12-da4e27e2c-example-wakefield-laser_bubble-run-b738687c.json"),
+        },
+        "movies": ["laser_linear", "beam_linear", "laser_bubble"],
+        "gif": {"fps": 3},  # a gate run writes nine outputs, the production run twenty
     },
 }
 
@@ -234,8 +263,9 @@ def _species(sp: dict) -> str:
             s += ", u=(" + ", ".join(f"{x:.4g}" for x in u) + ")"
         s += f", θ={b['theta']:.3g}"
         if b.get("profile"):
-            pr = b["profile"]
-            s += f", {pr.get('shape')} along {pr.get('axis')}"
+            pr = b["profile"]  # one shape, or a product of shapes along several axes (PIC-D21)
+            s += ", " + " × ".join(f"{p.get('shape')} along {p.get('axis')}"
+                                   for p in (pr if isinstance(pr, list) else [pr]))
         if b.get("perturbation"):
             s += ", perturbation: " + ", ".join(_perturbation(p) for p in b["perturbation"])
         beams.append(s)
@@ -265,8 +295,17 @@ def conditions(d: Path) -> dict:
     body = cfg.get("body")
     if body:
         bnd.append(f"absorbing {body['shape']}: radius {body['radius']:.4g} at " + _vec(body["center"]))
+    if cfg.get("window"):
+        bnd.append(f"moving window: speed c from t = {cfg['window']['start']:.4g}")
     filt = cfg.get("current_filter") or {}
     fields = []
+    for la in cfg.get("lasers") or []:
+        s = f"laser antenna at x = {la['plane_x']:.4g}: a0 = {la['a0']:g}, ω = {la['omega']:g}"
+        if la.get("waist"):
+            s += f"; waist {la['waist']:g}"
+            if la.get("focus_x") is not None:
+                s += f"; focus at x = {la['focus_x']:.4g}"
+        fields.append(s)
     if any(abs(x) > 0 for x in cfg.get("B0", [0, 0, 0])):
         fields.append("B0=" + _vec(cfg["B0"]))
     if any(abs(x) > 0 for x in cfg.get("E0", [0, 0, 0])):
@@ -286,6 +325,7 @@ def conditions(d: Path) -> dict:
         "particles": npart,
         "species": [_species(s) for s in cfg["species"]], "boundaries": bnd,
         "fields": fields, "filter_passes": int(filt.get("passes", 0) or 0),
+        "window": r.get("window"),  # of a moving-window run: start, margin and the number of shifts
         "gpus": meta_run.get("gpus", r.get("world_size")), "wall_time_s": meta_run.get("wall_time_s"),
         "params": r["meta"].get("params", {}),
         "planner": {k: v for k, v in r["meta"].get("planner", {}).items() if k != "params"},

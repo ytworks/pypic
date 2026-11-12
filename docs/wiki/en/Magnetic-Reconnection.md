@@ -106,10 +106,11 @@ published ≈ 0.1. Ψ_y₁ = max_x A_z − min_x A_z is taken along the fixed li
 the lower sheet). This is a different measure from the X/O-point flux of the field-line chart: when the sheet
 bends, the fixed line also crosses the bulging field lines and Ψ_y₁ grows although no extra flux reconnects. **Right**: the final spectrum with the power-law fit over σ/2 ≤ γ − 1 ≤ 5σ.
 
-<details><summary>The second realization and the gate run</summary>
+<details><summary>The second realization, the gate run and the run in twice the box</summary>
 
 ![large run, second realization](images/reconnection/pair_sigma10_large_run2-reconnection.png)
 ![gate run](images/reconnection/pair_sigma10-reconnection.png)
+![xl run](images/reconnection/pair_sigma10_xl-reconnection.png)
 
 </details>
 
@@ -118,6 +119,7 @@ bends, the fixed line also crosses the bulging field lines and Ψ_y₁ grows alt
 | `pair_sigma10` (gate) | 100 × 100 | {{ r.pair_sigma10.power_law_index | .2f }} ± {{ r.pair_sigma10.power_law_err | .2f }} | {{ r.pair_sigma10.werner2016_index | .2f }} | {{ r.pair_sigma10.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10.equilibrium_max_dev_over_B0 | .4f }} |
 | `pair_sigma10_large` | 400 × 200 | {{ r.pair_sigma10_large.power_law_index | .2f }} ± {{ r.pair_sigma10_large.power_law_err | .2f }} | {{ r.pair_sigma10_large.werner2016_index | .2f }} | {{ r.pair_sigma10_large.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10_large.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10_large.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10_large.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10_large.equilibrium_max_dev_over_B0 | .4f }} |
 | `pair_sigma10_large_run2` | 400 × 200 | {{ r.pair_sigma10_large_run2.power_law_index | .2f }} ± {{ r.pair_sigma10_large_run2.power_law_err | .2f }} | {{ r.pair_sigma10_large_run2.werner2016_index | .2f }} | {{ r.pair_sigma10_large_run2.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10_large_run2.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10_large_run2.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10_large_run2.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10_large_run2.equilibrium_max_dev_over_B0 | .4f }} |
+| `pair_sigma10_xl` | 800 × 400 | {{ r.pair_sigma10_xl.power_law_index | .2f }} ± {{ r.pair_sigma10_xl.power_law_err | .2f }} | {{ r.pair_sigma10_xl.werner2016_index | .2f }} | {{ r.pair_sigma10_xl.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10_xl.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10_xl.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10_xl.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10_xl.equilibrium_max_dev_over_B0 | .4f }} |
 
 - **Gate** (`pair_sigma10`): before the tearing onset (t ≤ 10) the B_x(y) profile stays within 5 % of B₀
   of the analytic equilibrium, and Gauss's law holds ({{ r.pair_sigma10.gauss_max | .1e }}). Everything
@@ -125,6 +127,14 @@ bends, the fixed line also crosses the bulging field lines and Ψ_y₁ grows alt
 - **Rates**: the peak comes from the initial tearing. The mean over the active phase is close to the
   published 0.1 v_A in the gate box and lower in the large box. There the rate shows the initial peak and
   then several later bursts (middle panel above), which the example README attributes to plasmoid mergers.
+- **Twice the box and twice the time** (`pair_sigma10_xl`, 800 × 400 c/ω_pe, to t = 4000 ω_pe⁻¹,
+  {{ c.pair_sigma10_xl.particles | , }} particles): the index is
+  {{ r.pair_sigma10_xl.power_law_index | .2f }} ± {{ r.pair_sigma10_xl.power_law_err | .2f }}, against
+  {{ r.pair_sigma10_large.power_law_index | .2f }} and {{ r.pair_sigma10_large_run2.power_law_index | .2f }}
+  in the half-size box and {{ r.pair_sigma10_xl.werner2016_index | .2f }} from Werner et al. (2016). The
+  index does not depend on the box within 0.06. The high-energy cut-off of the spectrum is 17–32 % higher
+  than in the half-size box, not twice as high, and equal to it at equal time; the example README has the
+  table.
 - **Acceleration channel**: the 1 % most energetic tracked electrons gained essentially nothing from the
   field component along B (E∥ share ≈ 0); their energy came from E⊥, the motional field of the outflows
   and plasmoids. The tracks are sampled every 2.5 ω_pe⁻¹, so this split is indicative.

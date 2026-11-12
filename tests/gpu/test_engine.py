@@ -2,11 +2,13 @@
 Skipped as a whole without CuPy or a CUDA device (tests/gpu/conftest.py)."""
 from __future__ import annotations
 
+import functools
 import json
 import math
 import os
 import subprocess
 import sys
+import tempfile
 
 import cupy as cp
 import numpy as np
@@ -14,7 +16,7 @@ import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
 from pypic.body import relax_edges
-from pypic.config import Body, CurrentFilter, ExternalFields, Injection
+from pypic.config import Body, CurrentFilter, ExternalFields, Injection, Laser, Window
 from pypic.parallel.comm import SelfComm
 from pypic.simulation import Simulation
 
@@ -34,19 +36,18 @@ def plasma(solver="explicit", bc=None, n=(16, 8, 8), dt=None, drift=0.2, theta=1
 
 def inject(sp, pos, u, w=1e-20):
     pos, u = np.atleast_2d(pos), np.atleast_2d(u)
-    n = len(pos)
-    sp.ensure_capacity(n)
-    sp.P[:3, :n] = cp.asarray(pos.T)
-    sp.P[3:6, :n] = cp.asarray(u.T)
-    sp.P[6, :n] = w
-    sp.n = n
+    blk = np.zeros((8, len(pos)))
+    blk[:3], blk[3:6], blk[6] = pos.T, u.T, w
+    sp.n = 0
+    sp.append(blk)
 
 
 # ----------------------------------------------------------------------- pusher
-def test_boris_gyration_conserves_gamma_and_period():
+@pytest.mark.parametrize("precision", ["fp64", "compact"])
+def test_boris_gyration_conserves_gamma_and_period(precision):
     B = 0.5
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, species=[SpeciesConfig("e", -1, 1, [])],
-                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0)
+                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0, precision=precision)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sp = sim.species[0]
     u0 = 2.0  # relativistic: gamma = sqrt(5)
@@ -58,7 +59,7 @@ def test_boris_gyration_conserves_gamma_and_period():
     ang = []
     for _ in range(nst):
         sim.step()
-        ux, uy = float(sp.P[3, 0]), float(sp.P[4, 0])
+        ux, uy = float(sp.mom(0)[0]), float(sp.mom(1)[0])
         assert abs(math.hypot(ux, uy) - u0) < 1e-13  # |u| exactly conserved by the rotation
         ang.append(math.atan2(uy, ux))
     # Boris phase error: the rotation angle per step is 2 atan(wc dt/2)
@@ -80,7 +81,7 @@ def test_exb_drift():
     xs = []
     for _ in range(nst):
         sim.step()
-        xs.append(float(sp.P[0, 0]))
+        xs.append(float(sp.pos(0)[0]))
     xs = np.unwrap(np.array(xs) / sim.grid.L[0] * 2 * np.pi) * sim.grid.L[0] / (2 * np.pi)
     vd = (xs[-1] - x0) / (nst * cfg.dt)
     assert abs(vd - E / B) < 0.01 * E / B
@@ -100,10 +101,38 @@ def test_external_uniform_fields_give_the_orbits_of_grid_fields(precision):
         sim = Simulation(cfg, comm=SelfComm(), verbose=False)
         for _ in range(200):
             sim.step()
-        orbits.append(cp.asnumpy(sim.species[0].P[:6, :50]))
+        orbits.append(cp.asnumpy(sim.species[0].rows()[:6, :50]))
         sim.close()
     assert np.array_equal(*orbits)
     assert np.max(np.abs(orbits[0][3:] - np.asarray(pts).T[3:])) > 0.1  # the fields did act
+
+
+def test_exb_drifting_plasma_between_reflecting_walls_keeps_its_drift():
+    """A cold pair plasma that drifts at -beta0 along x in B0 = B z and E0 = -v x B0, between
+    reflecting x walls to which E0 is tangential (PIC-D18): the walls act on the plasma only inside
+    their light cones. Outside them the particles keep the drift and the fields their values."""
+    u0, B, nx, dx, dt, steps = 0.5, 0.5, 128, 0.25, 0.1, 71  # 71 steps = half a gyration period
+    beta0 = u0 / math.sqrt(1 + u0 * u0)
+    bc = (("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic"))
+    beam = [Beam(1.0, (-u0, 0, 0), 0.0)]
+    cfg = SimConfig(n_cells=(nx, 4, 4), dx=(dx,) * 3, dt=dt, ppc=8, boundaries=bc, B0=(0, 0, B), E0=(0, -beta0 * B, 0),
+                    species=[SpeciesConfig("e", -1, 1, beam), SpeciesConfig("p", 1, 1, beam)],
+                    diag_interval=5, gauss_interval=5)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run(steps)
+    reach = steps * dt + 2.0  # the light cone of a wall and two skin depths
+    for sp in sim.species:
+        P = sp.rows()
+        inside = (P[0] > reach) & (P[0] < nx * dx - reach)
+        assert int(inside.sum()) > sp.n // 4
+        du = cp.stack([P[3] + u0, P[4], P[5]])[:, inside]
+        assert float(cp.max(cp.abs(du))) < 1e-4 * u0
+    g = sim.grid
+    cells = slice(int(reach / dx) + 1, nx - int(reach / dx) - 1)
+    for F, value in ((g.Ey, -beta0 * B), (g.Bz, B)):
+        assert float(cp.max(cp.abs(F[g.physical_slice()][cells] / value - 1))) < 5e-4
+    assert np.nanmax(sim.history["gauss"]) < 1e-10
+    sim.close()
 
 
 # ------------------------------------------------------------ conservation laws
@@ -181,7 +210,7 @@ def test_perturbation_is_gauss_exact_with_the_requested_density(solver):
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     assert sim.gauss_error()[0] < 1e-13
     sp = sim.species[0]
-    x, w = cp.asnumpy(sp.P[0, : sp.n]), cp.asnumpy(sp.P[6, : sp.n])
+    x, w = cp.asnumpy(sp.pos(0)), cp.asnumpy(sp.weight())
     L = sim.grid.L[0]
     k = 2 * math.pi * m / L
     nk = abs(np.sum(w * np.exp(-1j * k * x)) / np.sum(w))
@@ -269,7 +298,7 @@ def test_density_profile_is_exact_and_neutral():
                     diag_interval=5, gauss_interval=5)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     e = sim.species[0]
-    assert e.n == 12 * 4 * 4 * 8 and float(cp.max(e.P[0, : e.n])) < 3.0
+    assert e.n == 12 * 4 * 4 * 8 and float(cp.max(e.pos(0))) < 3.0
     assert sim.gauss_error()[0] < 1e-13
     sim.run(20)
     assert np.nanmax(sim.history["gauss"]) < 1e-12
@@ -379,17 +408,18 @@ def test_current_filter_keeps_gauss_and_implicit_energy(solver, bc):
         assert np.max(np.abs(e - e[0])) / e[0] < 1e-11
 
 
-@pytest.mark.parametrize("marder", [0.0, 0.125])
-def test_filter_and_marder_zone_at_open_faces_keep_gauss(marder):
+@pytest.mark.parametrize("marder,precision", [(0.0, "fp64"), (0.125, "fp64"), (0.125, "compact")])
+def test_filter_and_marder_zone_at_open_faces_keep_gauss(marder, precision):
     """A drifting plasma leaves through open faces with the current filter on (PIC-D15), without
     and with the Marder zone (PIC-D16): the charge left on the face nodes spreads through the
-    filter and the zone works on it, and Gauss's law stays exact at every node behind them."""
+    filter and the zone works on it, and Gauss's law stays exact at every node behind them. The
+    compact storage (PIC-D19) finds the particles near the open faces from their stored cell."""
     cfg = SimConfig(n_cells=(16, 16, 12), dx=(0.5,) * 3, dt=0.2, npml=6,
                     boundaries=(("open", "open"), ("open", "open"), ("periodic", "periodic")),
                     species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.1, 0.05, 0), 0.02)]),
                              SpeciesConfig("i", 1, 16, [Beam(1.0, (0.1, 0.05, 0), 0.001)])],
                     ppc=4, diag_interval=5, gauss_interval=5, current_filter=CurrentFilter(1, True),
-                    marder_zone=marder)
+                    marder_zone=marder, precision=precision)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sim.run(40)
     assert sim.history["lost_charge"][-1] != 0.0
@@ -455,7 +485,7 @@ def test_absorbing_sphere_keeps_the_charge_of_the_particles_it_took(passes):
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
 
     def inside():
-        r2 = [sum((sp.P[a, : sp.n] - sphere.center[a]) ** 2 for a in range(3)) for sp in sim.species]
+        r2 = [sum((sp.pos(a) - sphere.center[a]) ** 2 for a in range(3)) for sp in sim.species]
         return sum(int((v < sphere.radius**2).sum()) for v in r2)
 
     n0 = sim.total_particles()
@@ -508,7 +538,7 @@ def test_absorbed_particle_is_booked_with_its_energy_and_charge():
     ke = w * (math.sqrt(1.0 + u * u) - 1.0)
     sim.run(6)  # 0.089 per step: both are inside after 5 steps
     h = sim.history
-    assert (e.n, t.n) == (1, 0) and abs(float(e.P[1, 0]) - 5.3) < 1e-12
+    assert (e.n, t.n) == (1, 0) and abs(float(e.pos(1)[0]) - 5.3) < 1e-12
     assert h["n_absorbed"][0] == 0 and h["n_absorbed"][-1] == 2
     assert abs(h["absorbed_kinetic"][-1] - ke) < 1e-12 * ke and abs(h["absorbed_charge"][-1] + w) < 1e-12 * w
     assert abs(h["kinetic"][-1] - ke) < 1e-12 * ke  # of the electron that is left
@@ -523,31 +553,82 @@ def test_sort_orders_by_cell_and_keeps_every_particle():
     sim.run(2)
     for sp in sim.species:
         n = sp.n
-        before = [cp.asnumpy(A[:, :n]) for A in (sp.P, sp.Pn)]
+        before = [cp.asnumpy(A) for A in (sp.rows(), sp.Pn[:, :n])]
         sp.sort(sim.k_cell)
-        after = [cp.asnumpy(A[:, :n]) for A in (sp.P, sp.Pn)]
+        after = [cp.asnumpy(A) for A in (sp.rows(), sp.Pn[:, :n])]
         assert not np.array_equal(before[0][7], after[0][7])  # the particles were out of order
         by_id0, by_id1 = np.argsort(before[0][7]), np.argsort(after[0][7])
         for b, a in zip(before, after):
             assert np.array_equal(b[:, by_id0], a[:, by_id1])
         key = cp.empty(n, dtype=cp.int64)
-        launch(sim.k_cell, n, (sp.P, np.int32(n), np.int64(sp.cap), key))
+        launch(sim.k_cell, n, (*sp.store, np.int32(n), np.int64(sp.cap), key))
         assert bool((key[1:] >= key[:-1]).all())
 
 
-def test_sort_of_a_growing_species_does_not_grow_the_memory_pool():
-    """Regression: CuPy's pool keeps a freed block only for requests that fit, so the temporaries of
-    the sorts of a species that gains particles (injection) piled up until the device was full."""
-    sim = plasma("explicit", sort_interval=0)
+def test_compact_rows_of_a_selection_build_only_the_selected_particles():
+    """rows(sel) of the compact storage (PIC-D19) gives the columns of rows() for an index array and
+    for a mask, and with an index array it asks for no memory that grows with the particle count
+    (the sparse particle and track outputs)."""
+    from cupy.cuda import memory_hook
+
+    class Asked(memory_hook.MemoryHook):
+        name = "asked"
+
+        def __init__(self):
+            self.sizes = []
+
+        def malloc_preprocess(self, **kw):
+            self.sizes.append(kw["size"])
+
+    sp = plasma(n=(32, 16, 16), precision="compact").species[0]
+    full = sp.rows()
+    idx = cp.asarray([0, sp.n // 2, sp.n - 1])
+    mask = cp.zeros(sp.n, dtype=cp.bool_)
+    mask[idx] = True
+    with Asked() as hook:
+        got = sp.rows(idx)
+    assert hook.sizes and max(hook.sizes) < sp.n  # bytes: not even one per particle
+    assert bool(cp.all(got == full[:, idx])) and bool(cp.all(sp.rows(mask) == full[:, idx]))
+
+
+def test_compact_sort_orders_by_the_stored_cell_and_keeps_every_particle():
+    """The sort of the compact storage (PIC-D19) moves whole particles: every value follows the same
+    order, and the stored cells come out ascending."""
+    sim = plasma(sort_interval=0, precision="compact")
+    sim.run(2)
+    for sp in sim.species:
+        before = cp.asnumpy(sp.rows())
+        sp.sort()
+        after = cp.asnumpy(sp.rows())
+        assert not np.array_equal(before[7], after[7])  # the particles were out of order
+        assert np.array_equal(before[:, np.argsort(before[7])], after[:, np.argsort(after[7])])
+        assert bool((sp.C[1:sp.n] >= sp.C[:sp.n - 1]).all())
+
+
+@pytest.mark.parametrize("precision", ["fp64", "compact"])
+def test_sorts_of_a_changing_particle_number_hold_the_memory_of_the_largest_sort(precision):
+    """Regression: the temporaries of the sorts piled up in CuPy's pool when a species gained
+    particles (injection), and also when its number fell and rose again below its largest (a rank
+    of the blast wave)."""
+    from pypic.particles import sort_memory
+
+    sim = plasma("explicit", sort_interval=0, precision=precision)
     sp = sim.species[0]
-    pool = cp.get_default_memory_pool()
-    pool.free_all_blocks()
-    n, held = sp.n, []
-    for part in (0.5, 0.75, 1.0):
-        sp.n = int(part * n)
-        sp.sort(sim.k_cell)
-        held.append(pool.total_bytes())
-    assert held[1] == held[0] and held[2] == held[0], held
+    pools = cp.get_default_memory_pool(), sort_memory.pool
+    n = sp.n
+
+    def held_after(parts):
+        sort_memory.release()
+        held = []
+        for part in parts:
+            sp.n = int(part * n)
+            sp.sort(sim.k_cell)
+            held.append(sum(pool.total_bytes() for pool in pools))
+        return held
+
+    (one,) = held_after([1.0])
+    held = held_after([0.5, 0.75, 1.0, 0.6, 0.7, 0.8])
+    assert held[2:] == [one] * 4, (one, held)  # as after one sort of all particles from empty pools
 
 
 BIG_CAP = 360_000_000  # 6 * cap > 2**31: the weight row starts beyond int32 offsets (issue #11)
@@ -559,14 +640,14 @@ def test_particle_rows_beyond_int32_offsets():
     ref = plasma("explicit", sort_interval=5)
     sim = plasma("explicit", sort_interval=5)
     sp = sim.species[0]
-    ids = cp.asnumpy(sp.P[7, : sp.n]).copy()
+    ids = cp.asnumpy(sp.ids()).copy()
     sp.ensure_capacity(BIG_CAP)
     assert 6 * sp.cap > 2**31
     ref.run(10)
     sim.run(10)
     assert np.nanmax(sim.history["gauss"]) < 1e-12
     np.testing.assert_allclose(sim.history["total"], ref.history["total"], rtol=1e-12)
-    assert np.array_equal(np.sort(cp.asnumpy(sp.P[7, : sp.n])), np.sort(ids))
+    assert np.array_equal(np.sort(cp.asnumpy(sp.ids())), np.sort(ids))
     del sim, sp
     cp.get_default_memory_pool().free_all_blocks()
 
@@ -586,7 +667,7 @@ def test_reflecting_keeps_particles():
     assert sim.total_particles() == n0
     L = sim.grid.L
     for sp in sim.species:
-        x = cp.asnumpy(sp.P[:3, : sp.n])
+        x = cp.asnumpy(sp.rows()[:3])
         for a in range(3):
             assert x[a].min() >= 0.0 and x[a].max() <= L[a]
 
@@ -653,10 +734,10 @@ def test_cold_diagonal_inflow_through_two_faces_fills_the_edge_once():
     for sp, d in zip(sim.species, sim.sdiag):
         assert abs(float(d[8]) - swept) < 5 * math.sqrt(swept)
         # straight orbits: floor(x / a) counts the steps since the particle crossed x = 0
-        kx, ky = (np.floor(cp.asnumpy(sp.P[c, : sp.n]) / a) for c in (0, 1))
+        kx, ky = (np.floor(cp.asnumpy(sp.pos(c)) / a) for c in (0, 1))
         entered = np.minimum(kx, ky) < steps
         assert abs(np.count_nonzero(entered & (kx == ky)) - edge_trials * p) < 5 * math.sqrt(edge_trials * p * (1 - p))
-    ids = cp.concatenate([sp.P[7, : sp.n] for sp in sim.species])
+    ids = cp.concatenate([sp.ids() for sp in sim.species])
     assert int(cp.unique(ids).size) == int(ids.size)
     assert max(sim.history["electric"]) < 1e-20
 
@@ -682,7 +763,7 @@ def test_paired_face_keeps_the_charge_that_crossed_it_at_zero():
     assert i[5] > 0.0 and bank < 0.25 * i[5]  # ions left through the face and most were paid for
     assert float(sim.bank.min()) >= 0.0  # and none was paid for twice
     assert abs(crossed + bank) < 1e-9
-    assert abs(sum(float(sp.q * sp.P[6, : sp.n].sum()) for sp in sim.species) - crossed) < 1e-9
+    assert abs(sum(float(sp.q * sp.weight().sum()) for sp in sim.species) - crossed) < 1e-9
     assert np.nanmax(h["gauss"]) < 1e-10
     _, mean, var = inflow_moments(drift, theta)
     w = sim.grid.cell_volume / cfg.ppc
@@ -718,7 +799,7 @@ def test_radial_shell_has_the_mass_and_the_momentum_of_its_shape():
     w0 = n0 * sim.grid.cell_volume / sim.cfg.ppc
     sigma = math.sqrt(w0 * n0 * np.sum(4 * np.pi * r * r * f * f) * (r[1] - r[0]))
     for sp, full, th in zip(sim.species, ref.species, (theta, theta / 16)):
-        P, Q = cp.asnumpy(sp.P[:, : sp.n]), cp.asnumpy(full.P[:, : full.n])
+        P, Q = cp.asnumpy(sp.rows()), cp.asnumpy(full.rows())
         d = P[:3] - np.asarray(origin)[:, None]
         w = P[6]
         assert abs(w.sum() - mass) < 5 * sigma
@@ -765,6 +846,13 @@ def test_vacuum_wave_dispersion():
     assert abs((phase - expected + math.pi) % (2 * math.pi) - math.pi) < 0.05
 
 
+def test_progress_line_of_a_run_that_starts_without_energy(capsys):
+    """Without an initial energy there is no E0 to divide by: the line gives the absolute change."""
+    cfg = SimConfig(n_cells=(8, 4, 4), dx=(0.1,) * 3, dt=0.05, species=[], diag_interval=1, gauss_interval=0)
+    Simulation(cfg, comm=SelfComm(), verbose=True).run(2, progress=1)
+    assert " dE=+0.000e+00" in capsys.readouterr().out
+
+
 def test_cpml_absorbs_pulse():
     N, dx = 96, 0.1
     cfg = SimConfig(n_cells=(N, 4, 4), dx=(dx,) * 3, dt=0.05, species=[], npml=12,
@@ -782,6 +870,87 @@ def test_cpml_absorbs_pulse():
     sim.run(400)  # pulse travels 20 c/omega_pe >> half box
     e1 = sum(g.field_energy())
     assert e1 / e0 < 1e-4, e1 / e0
+
+
+@pytest.mark.parametrize("pol", ["y", "z"])
+def test_laser_antenna_emits_the_paraxial_beam(pol):
+    """A steady beam from the antenna in vacuum (PIC-D20), emitted one Rayleigh length before its
+    focus: amplitude and width at the focus and one Rayleigh length behind it follow the paraxial
+    beam of the grid, the antenna sends the same power forwards and backwards, its work is the
+    power through the two planes, the energy budget stops changing once the box is full, and no
+    charge is left. (The budget itself keeps an offset that does not grow: the record takes B at
+    t^n, and B_n^2 is above the B^(n-1/2) . B^(n+1/2) of the leapfrog energy by tan^2(omega dt / 2).)"""
+    from pypic.antenna import diffraction_wavenumber, wavenumber
+
+    lam, per = 2.0 * math.pi, 16  # omega = 1; steps per period
+    n, dx, dt = (336, 96, 96), (lam / 12, lam / 6, lam / 6), lam / per
+    ia, focus, far, w0 = 12, 164, 316, 2.0 * lam
+    cfg = SimConfig(n_cells=n, dx=dx, dt=dt, species=[], npml=10, boundaries=(("open", "open"),) * 3,
+                    lasers=[Laser(plane_x=(ia + 0.5) * dx[0], a0=1.0, omega=1.0, polarization=pol, waist=w0,
+                                  focus_x=focus * dx[0], envelope={"shape": "flat", "ramp": 4.0 * lam})],
+                    diag_interval=per, gauss_interval=per)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    g = sim.grid
+    sx, sy, sz = g.physical_slice()
+    c = 1 if pol == "y" else 2
+    E, B = (g.Ex, g.Ey, g.Ez), (g.Bx, g.By, g.Bz)
+
+    def power(i):
+        """Power through the node plane i towards +x, B averaged across the plane."""
+        i += sx.start
+        s0, s1 = (i, sy, sz), (i - 1, sy, sz)
+        return float(cp.sum(E[1][s0] * (B[2][s0] + B[2][s1]) - E[2][s0] * (B[1][s0] + B[1][s1]))) * 0.5 * dx[1] * dx[2]
+
+    sim.run(34 * per)  # the ramp and the way to the far plane take 30 periods
+    e2 = {i: cp.zeros((n[1], n[2])) for i in (focus, far)}
+    fwd = bwd = 0.0
+    for _ in range(per):
+        sim.step()
+        for i, acc in e2.items():
+            acc += E[c][i + sx.start, sy, sz] ** 2
+        fwd += power(ia + 1 + 8) / per  # the planes mirror each other about the antenna
+        bwd -= power(ia - 8) / per
+    sim.step()  # records the step after the period
+    h = sim.history
+
+    k = wavenumber(1.0, dx[0], dt)
+    zr = 0.5 * diffraction_wavenumber(k, dx[0]) * w0 ** 2
+    pos = [(np.arange(n[a]) + (0.5 if a == c else 0.0)) * dx[a] - 0.5 * n[a] * dx[a] for a in (1, 2)]
+    r2 = pos[0][:, None] ** 2 + pos[1][None, :] ** 2
+    for i, acc in e2.items():
+        w = w0 * math.sqrt(1.0 + (((i - focus) * dx[0]) / zr) ** 2)
+        amp2 = cp.asnumpy(acc) * 2.0 / per  # squared amplitude: twice the mean square over a period
+        sel = r2 < w * w
+        slope, const = np.polyfit(r2[sel], np.log(amp2[sel]), 1)  # ln A^2 = ln A0^2 - 2 r^2 / w^2
+        assert abs(math.sqrt(-2.0 / slope) / w - 1.0) < 0.02, (i, math.sqrt(-2.0 / slope), w)
+        assert abs(math.exp(0.5 * const) / (w0 / w) - 1.0) < 0.02, (i, math.exp(0.5 * const), w0 / w)
+    assert abs(fwd / bwd - 1.0) < 0.01, (fwd, bwd)
+    work = (h["antenna"][-1] - h["antenna"][-2]) / (per * dt)
+    assert abs(work / (fwd + bwd) - 1.0) < 0.01, (work, fwd, bwd)
+    assert abs(h["budget"][-1] - h["budget"][-2]) < 0.01 * work * per * dt, (h["budget"][-2:], work * per * dt)
+    assert np.nanmax(h["gauss"]) < 1e-10 and np.nanmax(h["divB"]) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+@pytest.mark.parametrize("pol,dims", [("y", "2,2,1"), ("z", "2,1,2")])
+def test_laser_antenna_is_decomposition_independent(pol, dims):
+    """A focused pulse from an antenna whose two node planes lie on either side of a rank face, the
+    axis of the beam on the rank faces across it (PIC-D20): 1 GPU and 4 GPUs give the same history of
+    the field energy, of the work of the antenna and of the flux through the open faces."""
+    script = os.path.join(HERE, "mgpu_antenna.py")
+    outs = {}
+    for n, d in ((1, "1,1,1"), (4, dims)):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, d, pol],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    ref, o = outs[1], outs[4]
+    assert ref["antenna"][-1] > 0.0 and ref["boundary_flux"][-1] > 0.5 * ref["antenna"][-1]
+    for k in ("electric", "magnetic", "antenna", "boundary_flux"):
+        a, b = np.asarray(ref[k]), np.asarray(o[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
 
 
 def test_two_stream_growth_matches_theory(tmp_path):
@@ -873,19 +1042,24 @@ def test_migration_lists_are_ordered_like_a_sort(name, dtype):
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
-def test_mixed_gather_is_decomposition_independent():
+@pytest.mark.parametrize("precision", ["mixed", "compact"])
+def test_reduced_precision_is_decomposition_independent(precision):
     """The float32 gather (PIC-D11) takes its weights from global coordinates: 1 GPU and a 2x2
-    rank grid give the same run, Gauss's law holds, and it stays close to the FP64 run."""
+    rank grid give the same run, Gauss's law holds, and it stays close to the FP64 run. So does the
+    compact storage (PIC-D19), whose loaded lattice points are the same on both rank grids."""
     script = os.path.join(HERE, "mgpu_migrate.py")
     outs = {}
-    for n, dims, variant in ((1, "1,1,1", "mixed"), (4, "2,2,1", "mixed"), (1, "1,1,1", "plain")):
+    for n, dims, variant in ((1, "1,1,1", precision), (4, "2,2,1", precision), (1, "1,1,1", "plain")):
         r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims, variant],
                            capture_output=True, text=True, timeout=600)
         assert r.returncode == 0, r.stderr[-2000:]
         outs[(n, variant)] = json.loads(r.stdout.strip().splitlines()[-1])
-    a, b = (np.asarray(outs[(n, "mixed")]["kinetic"]) for n in (1, 4))
+    for k in ("ids", "lattice"):
+        assert outs[(4, precision)][k] == outs[(1, precision)][k], k
+    assert (outs[(1, precision)]["lattice"] is not None) == (precision == "compact")
+    a, b = (np.asarray(outs[(n, precision)]["kinetic"]) for n in (1, 4))
     assert np.max(np.abs(a - b) / np.abs(a)) < 1e-10
-    assert np.nanmax(np.asarray(outs[(4, "mixed")]["gauss"], dtype=float)) < 1e-12
+    assert np.nanmax(np.asarray(outs[(4, precision)]["gauss"], dtype=float)) < 1e-12
     f = np.asarray(outs[(1, "plain")]["kinetic"])
     assert np.max(np.abs(a - f) / np.abs(f)) < 1e-5
 
@@ -907,14 +1081,14 @@ def test_external_dipole_is_decomposition_independent():
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
-@pytest.mark.parametrize("variant", ["inject", "inject_filter", "body", "mixed"])
+@pytest.mark.parametrize("variant", ["inject", "inject_filter", "body", "mixed", "compact"])
 def test_open_flow_is_decomposition_independent(variant):
     """A magnetised oblique flow through six open faces, one paired and four flux (PIC-D13): what
     enters depends on (seed, step, global cell, slot) only, so 1 GPU and a 2x2 rank grid give the
     same run, the same particles and the same charge in the bank, and Gauss's law holds. With the
     current filter and the Marder zone too (``inject_filter``, PIC-D15 and PIC-D16), with an absorbing
-    sphere on the edge shared by the ranks (``body``, PIC-D14), and with all of them, a dipole in the
-    sphere and the float32 gather (``mixed``)."""
+    sphere on the edge shared by the ranks (``body``, PIC-D14), with all of them, a dipole in the
+    sphere and the float32 gather (``mixed``), and with the compact storage too (``compact``, PIC-D19)."""
     script = os.path.join(HERE, "mgpu_open_flow.py")
     outs = {}
     for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
@@ -925,7 +1099,7 @@ def test_open_flow_is_decomposition_independent(variant):
     ref, o = outs[1], outs[4]
     assert o["ids"] == ref["ids"] and o["n_injected"] == ref["n_injected"] and o["n_absorbed"] == ref["n_absorbed"]
     assert ref["n_injected"][-1] > 0 and ref["bank"] > 0.0
-    assert (ref["n_absorbed"][-1] > 0) == (variant in ("body", "mixed"))
+    assert (ref["n_absorbed"][-1] > 0) == (variant in ("body", "mixed", "compact"))
     for k in ("kinetic", "electric", "lost_charge", "injected_charge", "absorbed_kinetic", "absorbed_charge", "bank"):
         a, b = np.asarray(ref[k]), np.asarray(o[k])
         assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
@@ -956,9 +1130,321 @@ def test_radial_shell_is_decomposition_independent():
     assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
 
 
-def test_mixed_precision_is_explicit_only():
+def _wakefield_theory():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "wakefield_theory", os.path.join(HERE, "..", "..", "examples", "wakefield", "theory.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_bunch_on_its_partner_builds_the_field_of_the_gaussian_bunch():
+    """A rigid Gaussian bunch with gamma = 10 that starts on a partner of the opposite charge at
+    rest, in vacuum (PIC-D21), sigma = 8 cells. After 40 sigma the fields in its mid-plane are those
+    of the steady bunch: E_r within 3 % between 0.56 and 1.94 sigma (the start on the partner
+    leaves 0.8 % to 1.6 % there), B_theta = beta E_r within 1 %. The fields are means over the circle
+    of each radius, with 64 particles per cell: on four lines with 8 per cell the shot noise of the
+    bunch is larger than the limits. No charge is left anywhere."""
+    from scipy.ndimage import map_coordinates
+
+    T = _wakefield_theory()
+    cells, gamma, nb, n, steps = 8, 10.0, 0.05, (448, 192, 192), 640  # lengths in sigma
+    dx, beta = 1.0 / cells, math.sqrt(1.0 - 1.0 / gamma ** 2)
+    x0, j0 = 8.0, n[1] // 2  # the axis lies on the nodes j0, j0 across the box
+
+    def bunch(u):
+        shape = {"shape": "gauss", "width": math.sqrt(2.0)}
+        return [Beam(nb, drift=(u, 0.0, 0.0),
+                     profile=[{**shape, "axis": a, "center": c} for a, c in zip("xyz", (x0, j0 * dx, j0 * dx))])]
+
+    cfg = SimConfig(n_cells=n, dx=(dx,) * 3, dt=0.5 * dx, ppc=64, npml=10, boundaries=(("open", "open"),) * 3,
+                    species=[SpeciesConfig("b", -1, 1e6, bunch(gamma * beta)), SpeciesConfig("p", 1, 1e6, bunch(0.0))],
+                    diag_interval=64, gauss_interval=64)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    assert sim.gauss_error()[0] < 1e-10
+    sim.run(steps)
+    g = sim.grid
+    sx, sy, sz = g.physical_slice()
+    xc = (x0 + beta * steps * cfg.dt) / dx  # centre of the bunch in cells
+    m = np.arange(4, 16)
+
+    phi = (np.arange(64) + 0.5) * (2.0 * math.pi / 64)
+    cos, sin = np.cos(phi), np.sin(phi)
+    ring = (m[:, None] + 0.5) * np.stack([cos, sin])[:, None, :]  # (y, z) in cells from the axis
+
+    def plane(F, stagger, across):
+        """F at the centre of the bunch along x (the parabola through the three nearest planes), on
+        the circles of the radii (m + 1/2) dx about the axis (bilinear in the plane). ``stagger``:
+        the offset of F along x, ``across``: the axis across x along which F sits half a cell up."""
+        ic = round(xc - stagger)
+        s = xc - stagger - ic
+        a, b = sy.start + j0, sz.start + j0
+        lo, mid, hi = cp.asnumpy(F[sx.start + ic - 1:sx.start + ic + 2, a - 20:a + 20, b - 20:b + 20])
+        v = mid + 0.5 * s * (hi - lo) + 0.5 * s * s * (hi - 2.0 * mid + lo)
+        off = (0.5, 0.0) if across == 1 else (0.0, 0.5)
+        return map_coordinates(v, [20.0 + ring[0] - off[0], 20.0 + ring[1] - off[1]], order=1)
+
+    # E_y and B_z sit half a cell up along y, E_z and B_y along z
+    e_r = np.mean(plane(g.Ey, 0.0, 1) * cos + plane(g.Ez, 0.0, 2) * sin, axis=1)
+    b_th = np.mean(plane(g.Bz, 0.5, 1) * cos - plane(g.By, 0.5, 2) * sin, axis=1)
+    steady = -T.bunch_field((m + 0.5) * dx, 1.0, 1.0, gamma, T.bunch_charge(nb, 1.0, 1.0))
+    assert np.max(np.abs(e_r / steady - 1.0)) <= 0.03, e_r / steady
+    assert np.max(np.abs(b_th / (beta * e_r) - 1.0)) <= 0.01, b_th / (beta * e_r)
+    sim.step()  # records the step of the comparison
+    assert np.nanmax(sim.history["gauss"]) < 1e-10 and np.nanmax(sim.history["divB"]) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+def test_bunch_is_decomposition_independent():
+    """A bunch on its partner (PIC-D21), loaded into a block of cells in the low half of x: the two
+    ranks of the high half of x of the 2x2 rank grid load no particle and later hold the whole
+    bunch. 1 GPU and the 2x2 grid give the same run and the same particles, and Gauss's law holds."""
+    script = os.path.join(HERE, "mgpu_bunch.py")
+    outs = {}
+    for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), script, dims],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        outs[n] = json.loads(r.stdout.strip().splitlines()[-1])
+    ref, o = outs[1], outs[4]
+    for k in ("ids", "n_particles", "far", "bunch"):
+        assert o[k] == ref[k], k
+    assert ref["bunch"] > 0 and ref["far"] == ref["bunch"]
+    for k in ("kinetic", "electric", "magnetic"):
+        a, b = np.asarray(ref[k]), np.asarray(o[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
+
+
+@pytest.mark.parametrize("n, dims, precision", [(1, "1,1,1", "fp64"), (4, "2,2,1", "fp64"),
+                                                (4, "2,2,1", "compact")])
+def test_lattice_places_follow_the_global_cell_and_give_a_uniform_density(n, dims, precision):
+    """Lattice places (PIC-D23): on one rank and on 2x2 ranks every particle sits at the place of
+    its (global cell, slot), and the charge density of one species alone is uniform to round-off;
+    also with the compact storage (PIC-D19), which holds these places exactly."""
+    if cp.cuda.runtime.getDeviceCount() < n:
+        pytest.skip(f"needs >= {n} GPUs")
+    r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), os.path.join(HERE, "mgpu_lattice.py"),
+                        dims, precision], capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stderr[-2000:]
+    o = json.loads(r.stdout.strip().splitlines()[-1])
+    assert o["n"] == 16 * 8 * 8 * 16 and o["wrong"] == 0
+    assert o["density_deviation"] < 1e-13
+
+
+@functools.lru_cache(maxsize=None)
+def _window_run(dims: str, case: str) -> dict:
+    n = math.prod(int(v) for v in dims.split(","))
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "E.npy")  # written by the cases laser and static
+        r = subprocess.run([sys.executable, "-m", "pypic.launch", "-n", str(n), os.path.join(HERE, "mgpu_window.py"),
+                            dims, case, path], capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, r.stderr[-2000:]
+        o = json.loads(r.stdout.strip().splitlines()[-1])
+        if os.path.exists(path):
+            o["E"] = np.load(path)
+            o["out"] = _window_output(os.path.join(tmp, case))
+        if case.startswith("pulse"):
+            from pypic.analysis import open_run
+
+            dump = open_run(os.path.join(tmp, case)).fields("dump")
+            o["t"] = dump.times
+            x0 = np.array([dump.get(it, "Ey").coords[0][0] for it in dump.iterations])
+            o["first_plane"] = np.rint((x0 - x0[0]) / 0.05).astype(int)  # laboratory plane of the first one
+            # field energy per plane (up to the cell volume), per output
+            o["energy"] = np.array([sum((dump.get(it, c).data ** 2).sum(axis=(1, 2)) for c in dump.components)
+                                    for it in dump.iterations])
+    return o
+
+
+def _window_output(path: str) -> dict:
+    """The output of a laser run of mgpu_window.py as the reader gives it, x in the laboratory."""
+    from pypic.analysis import open_run
+
+    run = open_run(path)
+    dump, plane, line, hist, sc = (run.fields("dump"), run.series("plane"), run.series("line"), run.series("hist"),
+                                   run.scalars)
+    last = len(plane.t) - 1
+    o = {"window": run.window, "scalars": (sc.step, sc.window_shift),
+         "shifts": [s.window_shift.tolist() for s in (plane, line, hist)],
+         "dump": {it: (dump.get(it, "Ey").coords[0], dump.get(it, "Ey").data, dump.get(it, "Jy").data)
+                  for it in dump.iterations},
+         "plane": (plane.plane_axes("Ey", last)[0], plane.read("Ey", last)),
+         "line": (line.x("n:e", last), line.read("n:e", last)),
+         "hist": (hist.edges[0] + hist.window_shift[last] * run.dx[0], hist.read("e", last)),
+         "x": np.sort(run.particles("part").get(512, "e")["x"])}
+    for s in (plane, line, hist, sc):
+        s.close()
+    return o
+
+
+@pytest.mark.parametrize("case", ["warm", "cold"])
+def test_moving_window_shift_keeps_the_current_of_the_step_at_its_laboratory_place(case):
+    """The outputs read J after a step (the current at t - dt / 2, OUT-D5). The shift of the window
+    that follows the step moves it one plane down with the fields. warm: the plane that enters is
+    moved to the present; the current of that move is taken out of E and is no part of J. cold: a
+    plasma at rest with an antenna (review of PR #42: J was zero after the shift with a warm plane,
+    and one cell too far up after the one with a cold plane)."""
+    theta = 4e-3 if case == "warm" else 0.0
+    pulse = Laser(plane_x=3.05, a0=0.1, omega=5.0, envelope={"shape": "gaussian", "duration": 0.3, "t_peak": 0.0})
+    cfg = SimConfig(n_cells=(64, 16, 16), dx=(0.1,) * 3, dt=0.045, n_steps=8, npml=8, ppc=4,
+                    species=[SpeciesConfig("e", -1, 1, [Beam(1.0, theta=theta)]),
+                             SpeciesConfig("i", 1, 100, [Beam(1.0, theta=theta)])],
+                    lasers=[] if theta else [pulse], window=Window(start=0.0, margin=1.0),
+                    boundaries=(("open", "reflecting"), ("periodic", "periodic"), ("periodic", "periodic")),
+                    diag_interval=0, gauss_interval=0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    g = sim.grid
+
+    def current():
+        return cp.stack([J[g.physical_slice()] for J in (g.Jx, g.Jy, g.Jz)])
+
+    seen, shift = [], g.shift_x
+
+    def spy():
+        seen.append(current())
+        shift()
+
+    g.shift_x = spy
+    while not seen:
+        sim.step()
+    before, after = seen[0], current()
+    assert sim.window_shift == 1 and bool(cp.any(before[:, 1:] != 0))
+    assert bool(cp.all(after[:, :-1] == before[:, 1:])) and not bool(cp.any(after[:, -1]))
+
+
+def test_moving_window_leaves_a_plasma_at_rest_as_it_was_loaded():
+    """Moving window (PIC-D22) over a warm plasma at rest, 400 shifts (six box lengths: every
+    particle at the end came in through a loaded plane). The plasma in the window is the loaded
+    one: density, no mean velocity, no heating, per slab of eight cells; Gauss's law and div B
+    hold through the shifts."""
+    o = _window_run("1,1,1", "thermal")
+    assert o["shift"] == 400
+    full = o["front"] // o["slab"]  # slabs that the plasma fills
+    density, ux, u2 = (np.asarray(o[k]) for k in ("density", "ux", "u2"))
+    assert np.max(np.abs(density[:full] - 1.0)) <= 0.025, density
+    assert abs(density[full] - (o["front"] % o["slab"]) / o["slab"]) <= 0.025 and not density[full + 1:].any(), density
+    assert np.max(np.abs(ux[:full + 1])) < 0.02 * math.sqrt(o["theta"]), ux
+    assert np.max(u2[:full + 1]) <= 1.05 * 3.0 * o["theta"], u2
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
+@pytest.mark.parametrize("dims", ["2,2,1", "1,2,2"])
+def test_moving_window_is_decomposition_independent(dims):
+    """The window split along x (the shift crosses a rank face, the loaded plane lies in the last
+    ranks) and along y and z (the loaded plane lies in every rank): the histories of the plasma are
+    those of one GPU, and the test particles of a run without fields are the same particles, by a
+    hash of (id, position, momentum) summed over them."""
+    ref, o = _window_run("1,1,1", "thermal"), _window_run(dims, "thermal")
+    assert o["n_particles"] == ref["n_particles"] and o["n"] == ref["n"]
+    for k in ("kinetic", "electric", "magnetic", "window_out", "budget"):
+        a, b = np.asarray(ref[k]), np.asarray(o[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
+    ref, o = _window_run("1,1,1", "tracers"), _window_run(dims, "tracers")
+    assert ref["shift"] == 400 and ref["n"] > 0
+    assert {**o, "probe_ranks": 1} == ref
+    # the two ranks that share the middle plane along x give one particle the same charge on
+    # every node, bit for bit (a difference there moves charge without a current)
+    assert o["probe_ranks"] == int(dims[0]) and o["probe_spread"] == 0.0 and o["probe_charge"] > 0
+
+
+@pytest.mark.parametrize("dims", ["1,1,1", "2,2,1"])
+def test_moving_window_gives_the_fields_of_the_box_at_rest(dims):
+    """A focused laser pulse in a cold plasma, with absorbing layers across the window: after 200
+    shifts E in the window (farther than 32 cells from x-, where the window has dropped the plasma
+    behind it) is E on the same laboratory cells of a box at rest that holds the whole path. The
+    two runs deposit in another order, so the bits differ."""
+    if cp.cuda.runtime.getDeviceCount() < math.prod(int(v) for v in dims.split(",")):
+        pytest.skip("needs >= 4 GPUs")
+    ref, o = _window_run("1,1,1", "static"), _window_run(dims, "laser")
+    assert o["shift"] == 200
+    scale = np.max(np.abs(ref["E"]))
+    assert scale > 0.1  # the pulse (a0 omega = 1 at the focus) is in the region
+    assert np.max(np.abs(o["E"] - ref["E"])) <= 1e-6 * scale
+    assert np.nanmax(np.asarray(o["gauss"], dtype=float)) < 1e-10
+    assert np.nanmax(np.asarray(o["divB"], dtype=float)) < 1e-12
+
+
+def test_moving_window_output_is_in_laboratory_coordinates():
+    """Output of a run with a moving window (OUT-D5): the regions of the diagnostics are places in
+    the window, and with the shift that every output records the reader gives laboratory places.
+    The field dump at 85 and at 200 shifts, and at the end the slice, the lineout, the particles of
+    a region and the x histogram, are those of the box at rest at the same laboratory places. Both
+    dumps follow a shift: J_y, the current of the step before it, has gone down with the fields,
+    through the rank face along x too (review of PR #42: it was left one cell up)."""
+    if cp.cuda.runtime.getDeviceCount() < 4:
+        pytest.skip("needs >= 4 GPUs")
+    ref, o = _window_run("1,1,1", "static")["out"], _window_run("2,2,1", "laser")["out"]
+    assert ref["window"] is None and ref["shifts"] == [[0, 0, 0]] * 3
+    assert o["window"]["window_shift_end"] == 200 and o["shifts"] == [[0, 85, 200]] * 3
+    step, shift = o["scalars"]  # a record every 8 steps; the one of step 504 is the last
+    assert shift[0] == 0 and shift[step == 256] == 85 and step[-1] == 504 and shift[-1] == 196
+    for it, n_shift in ((256, 85), (512, 200)):
+        (x, ey, jy), (xr, eyr, jyr) = o["dump"][it], ref["dump"][it]
+        assert ey.shape[0] == 96 and abs(x[0] - (32 + n_shift) * 0.05) < 1e-12  # Ey sits on the nodes along x
+        i = int(np.argmin(np.abs(xr - x[0])))
+        assert np.max(np.abs(xr[i:i + 96] - x)) < 1e-12
+        scale = np.max(np.abs(eyr))
+        assert scale > 0.1 and np.max(np.abs(ey - eyr[i:i + 96])) <= 1e-6 * scale
+        scale = np.max(np.abs(jyr[i:i + 96]))
+        assert scale > 0.01 and np.max(np.abs(jy - jyr[i:i + 96])) <= 1e-6 * scale
+    for k, scale in (("plane", np.max(np.abs(ref["plane"][1]))), ("line", 1.0)):
+        (x, v), (xr, vr) = o[k], ref[k]
+        assert np.max(np.abs(x[32:] - xr[232:])) < 1e-12
+        assert scale > 0.1 and np.max(np.abs(v[32:] - vr[232:])) <= 1e-6 * scale, k
+    (e, h), (er, hr) = o["hist"], ref["hist"]
+    assert np.max(np.abs(e - er)) < 1e-12 and h[2:17].min() > 0 and not h[:2].any() and not h[17:].any()
+    assert np.max(np.abs(h - hr)) <= 1e-9 * h.max()
+    x, xr = o["x"], ref["x"]
+    assert len(x) == len(xr) > 0 and x[0] >= 240 * 0.05 and x[-1] < 300 * 0.05
+    assert np.max(np.abs(x - xr)) < 1e-9
+
+
+@pytest.mark.parametrize("dims", ["1,1,1", "2,1,1"])
+def test_moving_window_lets_a_pulse_out_through_its_lower_face(dims):
+    """The antenna emits the same pulse towards -x. It runs into the lower face of the window
+    (open: an absorbing layer that every shift moves), which comes towards it, and has left by
+    t = 3.8. From then on the field energy in the 28 planes behind the forward pulse is the one of
+    the box at rest at the same laboratory planes (the slow short waves of the forward pulse,
+    which the Yee scheme leaves behind), up to 1e-4 of the energy of the pulse."""
+    if cp.cuda.runtime.getDeviceCount() < 2 and dims != "1,1,1":
+        pytest.skip("needs >= 2 GPUs")
+    o, ref = _window_run(dims, "pulse"), _window_run("1,1,1", "pulse_static")
+    assert o["shift"] == 200 and o["first_plane"][-1] == 200
+    t, behind, ahead = o["t"], o["energy"][:, :28].sum(axis=1), o["energy"][:, 28:].sum(axis=1)
+    pulse = ahead[-1]
+    assert abs(behind.max() / pulse - 1.0) < 0.01 and 2.5 < t[np.argmax(behind)] < 2.9  # the pulse towards -x
+    late = t >= 3.8
+    rest = np.array([ref["energy"][i, s:s + 28].sum() for i, s in enumerate(o["first_plane"])])
+    assert np.abs(behind - rest)[late].max() <= 1e-4 * pulse
+    assert behind[late].min() <= 1e-9 * pulse  # after the pulse left, before the short waves arrive
+
+
+@pytest.mark.parametrize("precision", ["mixed", "compact"])
+def test_reduced_precision_is_explicit_only(precision):
     with pytest.raises(ValueError, match="explicit"):
-        plasma("implicit", precision="mixed")
+        plasma("implicit", precision=precision)
+
+
+def test_compact_load_is_the_fp64_load_on_the_lattice():
+    """The compact loader (PIC-D19) keeps the upper 32 bits of the random number of the FP64 loader:
+    the same particles, each less than 2^-32 of a cell below its FP64 position, with the same
+    momentum."""
+    f, c = (plasma(precision=p) for p in ("fp64", "compact"))
+    for a, b in zip(f.species, c.species):
+        A, B = (cp.asnumpy(s.rows()) for s in (a, b))
+        A, B = A[:, np.argsort(A[7])], B[:, np.argsort(B[7])]
+        assert np.array_equal(A[6:], B[6:])  # weights and ids
+        d = A[:3] - B[:3]
+        assert d.min() > -1e-15 and d.max() < 0.2 * 2.0**-32 + 1e-15
+        assert np.array_equal(B[3:6], A[3:6])
 
 
 # --------------------------------------------------------- review regressions
@@ -1082,7 +1568,7 @@ def test_maxwell_juttner_sampling(theta):
                     diag_interval=0, gauss_interval=0)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sp = sim.species[0]
-    u = cp.asnumpy(sp.P[3:6, : sp.n])
+    u = cp.asnumpy(sp.rows()[3:6])
     eps = np.sqrt(1 + (u ** 2).sum(0)) - 1
     expected = kve(1, 1 / theta) / kve(2, 1 / theta) + 3 * theta - 1
     assert abs(eps.mean() - expected) < 5 * eps.std() / math.sqrt(eps.size)
@@ -1139,12 +1625,12 @@ def test_unconverged_implicit_step_is_not_committed():
     sim = plasma("implicit", drift=0.3, theta=0.01)
     sim.run(2)
     sim.cfg.implicit.picard_maxit = 1
-    P0 = [sp.P[:, : sp.n].copy() for sp in sim.species]
+    P0 = [sp.rows().copy() for sp in sim.species]
     E0 = sim.grid.Ex.copy()
     with pytest.raises(ImplicitStepError):
         sim.step()
     for sp, p in zip(sim.species, P0):
-        assert bool(cp.all(sp.P[:, : sp.n] == p))
+        assert bool(cp.all(sp.rows() == p))
     assert bool(cp.all(sim.grid.Ex == E0))
 
 
@@ -1170,6 +1656,6 @@ def test_implicit_reflection_with_displacement_beyond_half_box_conserves_charge(
     inject(p, [0.1, 2.3, 2.3], [0.0, 0.0, 0.0], w=1e-3)  # neutral start: rho = 0, E = 0
     assert sim.gauss_error()[0] < 1e-15
     sim.step()
-    x = float(e.P[0, 0])
-    assert 4.0 < x < 8.0 and float(e.P[3, 0]) > 0  # reflected past the box centre
+    x = float(e.pos(0)[0])
+    assert 4.0 < x < 8.0 and float(e.mom(0)[0]) > 0  # reflected past the box centre
     assert sim.gauss_error()[0] < 1e-12

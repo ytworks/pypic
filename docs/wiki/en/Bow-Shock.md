@@ -123,6 +123,19 @@ The gate criteria were fixed before the first run.
 - **Run-to-run differences**: the GPU deposit adds currents atomically in an order that differs from
   run to run. Runs of this configuration with the same seed differ in the third digit of the
   distances above and by 2 % in the charge of the body (+730 to +749 in four runs).
+- **A larger magnetosphere** (`dp10`, a recorded run): R_mp = {{ c.dp10.params.dp }} d_i against
+  {{ c.gate.params.dp }} d_i in the run above, {{ c.dp10.particles | , }} particles at the start. The
+  magnetopause lies at {{ r.dp10.magnetopause | .3f }} R_mp and the shock at {{ r.dp10.shock | .3f }} R_mp
+  ({{ r.dp10.shock_spreiter | .3f }} from Spreiter et al. 1966); the largest density on the subsolar line
+  is {{ r.dp10.compression | .2f }} n₀ and the sheath is {{ r.dp10.sheath | .2f }} of the magnetopause
+  distance thick. The run passes the gate criteria; it is the second point of the chart of the stand-off
+  distances.
+
+  <details><summary>Subsolar line of `dp10`</summary>
+
+  ![dp10](images/bow_shock/dp10-bow_shock.png)
+
+  </details>
 - **Energy** is monitored only (explicit scheme).
 
 ## Reproduce

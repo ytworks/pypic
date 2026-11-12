@@ -203,6 +203,24 @@ def test_a_failed_replacement_keeps_the_old_images(tmp_path, monkeypatch):
     assert not (tmp_path / "data.json").exists()
 
 
+def test_conditions_of_a_run_with_a_laser_a_bunch_and_a_moving_window(tmp_path):
+    B = _builder()
+    shape = [{"shape": "gauss", "axis": ax, "width": 1.4, "center": 12.0} for ax in "xyz"]
+    beam = {"density": 0.05, "drift": [9.95, 0.0, 0.0], "theta": 0.0, "profile": shape}
+    cfg = {"ppc": 8, "boundaries": [["open", "reflecting"], ["periodic", "periodic"], ["periodic", "periodic"]],
+           "species": [{"name": "bunch", "charge": -1.0, "mass": 1e6, "beams": [beam]}],
+           "lasers": [{"plane_x": 2.0, "a0": 0.1, "omega": 10.0, "waist": 4.0, "focus_x": 31.4}],
+           "window": {"start": 20.7, "margin": 1.0}}
+    run = {"solver": "explicit", "n_cells": [8, 4, 4], "L": [8.0, 4.0, 4.0], "dx": [1.0, 1.0, 1.0], "dt": 0.5,
+           "n_steps": 10, "config": cfg, "meta": {}, "window": {"start": 20.7, "window_shift_end": 3}}
+    (tmp_path / "run.json").write_text(json.dumps(run))
+    c = B.conditions(tmp_path)
+    assert c["species"] == ["bunch (q=-1, m=1e+06): n=0.05, u=(9.95, 0, 0), θ=0, "
+                            "gauss along x × gauss along y × gauss along z"]
+    assert c["fields"] == ["laser antenna at x = 2: a0 = 0.1, ω = 10; waist 4; focus at x = 31.4"]
+    assert c["boundaries"][-1] == "moving window: speed c from t = 20.7" and c["window"]["window_shift_end"] == 3
+
+
 def test_analysis_figures_are_written_into_the_collects_own_directory(tmp_path, monkeypatch):
     import sys
     import types

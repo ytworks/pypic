@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 
 
@@ -113,21 +115,22 @@ def _no_constant(token):
     raise ValueError(token)
 
 
-def test_a_mixed_precision_gate_record_says_so_everywhere(tmp_path):
-    """PR #18 review: a precision: mixed gate record (PIC-D11) must be traceable as such, in the
-    file, its index entry and its name; an entry that hides the precision is rejected."""
+@pytest.mark.parametrize("precision", ["mixed", "compact"])
+def test_a_reduced_precision_gate_record_says_so_everywhere(tmp_path, precision):
+    """PR #18 review: a precision: mixed or compact gate record (PIC-D11, PIC-D19) must be traceable as
+    such, in the file, its index entry and its name; an entry that hides the precision is rejected."""
     root = _repo(tmp_path, "def analyze(run_dir, show_plot=False):\n    return {'passed': True}\n")
     res = root / "bench" / "results"
     res.mkdir(parents=True)
-    fname = "2026-11-10-0123456789-gpu-gates-mixed.json"
+    fname = f"2026-11-10-0123456789-gpu-gates-{precision}.json"
     rec = {"date": "2026-11-10", "commit": "0123456789abcdef", "dirty": False, "gpus": 8, "gpu_name": "GPU",
-           "quick": False, "all_passed": True, "precision": "mixed",
+           "quick": False, "all_passed": True, "precision": precision,
            "gates": [{"name": "two-stream:ei", "passed": True, "metrics": {"gauss_max": 1e-12}, "criteria": {}}]}
     (res / fname).write_text(json.dumps(rec))
     entry = {"file": fname, **{k: rec[k] for k in ("date", "commit", "dirty", "gpus", "gpu_name", "all_passed")}}
     (res / "index.json").write_text(json.dumps({"entries": [entry]}))
     r = _verify(root)
     assert r.returncode == 1 and "precision differs" in r.stderr
-    (res / "index.json").write_text(json.dumps({"entries": [{**entry, "precision": "mixed"}]}))
+    (res / "index.json").write_text(json.dumps({"entries": [{**entry, "precision": precision}]}))
     r = _verify(root)
     assert r.returncode == 0, r.stderr

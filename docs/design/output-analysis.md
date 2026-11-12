@@ -1,7 +1,8 @@
 # Output and analysis design
 
 Status: **Accepted** (2026-11-09, PR #2). Plan: `docs/plans/2026-11-09-output-analysis-examples.md`.
-Decisions: OUT-D1..D4, ANA-D1..D3.
+OUT-D5 **Accepted** (2026-11-12, wakefield plan).
+Decisions: OUT-D1..D5, ANA-D1..D3.
 Applies to: `pypic/output/` (schedule, writers, GPU diagnostics, manager), `pypic/analysis/`,
 `pypic/setup/runner.py`, every `examples/<name>/`.
 
@@ -76,6 +77,18 @@ time-averaged over the interval as an anti-aliasing filter; tracks: 16 per short
 dumps: a fixed number). Aliasing / under-sampling warnings and a storage table are part of the
 planner report; `budget_GB` widens only `auto` cadences and refuses fixed ones that do not fit.
 
+### OUT-D5 — Moving window: diagnostics are placed in the window, the files give laboratory places (2026-11-12) — Status: Accepted
+Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 4). Accepted with the gate records of d523e3b (FP64 and `precision: mixed`; `bench/results/2026-11-12-d523e3bbb-gpu-gates.json`, `-mixed.json`); the amendment of 2026-11-12 (the J of an output) is gated on 300c1a4 (`bench/results/2026-11-12-300c1a498-gpu-gates.json`, `-mixed.json`). The window itself: PIC-D22 (`docs/design/engine.md`).
+- **Placed in the window:** with `window:` the `region` of a diagnostic, the place of a slice plane and the x range and x bins of a histogram are coordinates of the window: the diagnostic follows the driver. A particle region and a histogram filter compare `x − window_shift · dx`.
+- **Written:** `window_shift`, the cells that the window has moved at the output (the record of a step precedes the shift at its end, PIC-D22). Field dumps: `gridGlobalOffset[0] = (region_lo + window_shift) dx` per iteration (openPMD). Reduced series (lineout, modes, slice, kspectrum, histogram): a dataset `window_shift` (int64) with one value per row, only in a run with a window. `scalars.h5`: `window_shift` per row. `run.json`: `window: {start, margin_cells, front_cell, window_shift_end}`, or null. Particle and track positions are laboratory positions as they are stored. The J of an output is the current of the step before it (at t − dt / 2); the shift at the end of that step moves it one plane down with the fields (PIC-D22), so it lies at the laboratory places that the offset gives (review of PR #42: it lay one cell too far up, and was zero after a shift that loads a warm plane).
+- **Reader:** `Run.window`; `Series.window_shift` (zeros without a window); `Series.x(comp, i)`, `plane_axes(comp, i)` and `extent(comp, i)` give the laboratory x of the output i, and positions in the window without i. The edges of an x histogram stay those of the window (`edges + window_shift[i] dx` in the laboratory). `FieldSeries.get` and the XDMF index take the offset of the iteration.
+
+Why: what a window run looks at moves with the driver, so a region fixed in the window is the useful one and the arrays keep one shape; one integer per row gives the laboratory place back exactly, where an axis of doubles per row would cost more and round.
+
+Not established: a time-averaged output (`average`, the `auto` cadence of spectral kinds) averages at fixed places of the window over an interval in which the window moves, and its row carries the shift of the output step; the phase of a Fourier mode along x refers to the window. Neither is used by a recorded run.
+
+Measured (2026-11-12, RTX PRO 6000; diagnostic only): the laser run of W2 with a window on 2×2×1 GPUs against the box at rest on 1 GPU, regions at the same laboratory places, outputs at 85 and 200 shifts: dump coordinates within 1.8e-15, dump E_y within 6.0e-15 of its maximum, slice 2.2e-15, lineout of the density 9.5e-15, x histogram 2.2e-16 (relative), the same 245,716 particles of a region with positions within 5.3e-15. With J moved by the shift (0e34252; the same two runs, the two dumps): J_y within 4.4e-13 and 9.4e-13 of its maximum in the window, E_y within 3.0e-15 and 5.0e-15 of the largest E_y of the box at rest.
+
 ### PIC-D8 — Persistent particle ids (see `docs/design/engine.md`)
 
 ### ANA-D1 — Analysis package on CPU only
@@ -97,12 +110,19 @@ gate configs and also requires Gauss ≤ 1e-10. Criteria (fixed before the gate 
 | landau_damping:dawson / relativistic | sheet frequency within 1 % (amplitude 2 %) / exact relativistic period within 0.5 % |
 | landau_damping:wavebreaking | first crossing time within 5 % of arcsin(ω_pe / k v₀) |
 | filamentation:pair | median growth-rate error ≤ 10 % over m = 2…10 (common linear window) |
+| filamentation:pair_b0 | flow-aligned B0 at half the stabilising field: median growth-rate error ≤ 10 % over m = 4…10 against the relation with Ω (`pypic.theory.streaming.filamentation_growth`) |
+| filamentation:pair_b0_stable | B0 at 1.5 times the stabilising field: Σ\|B_m\|² (m = 2…10) at the end ≤ e² times its value at 10 % of the run |
 | particle_orbits:* | position error ≤ 2 % of the orbit size and error ratio Δt / (Δt/2) in [3, 5] |
 | plasma_expansion:isothermal_hydrogen | self-similar ion velocity within 10 %, E_max within 20 % (median) |
 | relativistic_shock:pair_2d | shock speed and compression within 10 % of the Synge-gas jump conditions |
+| relativistic_shock:pair_2d_sigma | σ = 0.3, field out of the plane: shock speed and compression within 10 % of the magnetised jump conditions; mean downstream B_z / B1 within 10 % of the compression |
 | reconnection:pair_sigma10 | B_x(y) within 5 % of B0 of the Harris sheet before the onset |
 | bow_shock:gate | upstream density and u_x within 5 % of the wind over the last crossing; sheath compression ≥ 2; magnetopause within 25 % of the pressure-balance distance; shock upstream of it (definitions in docs/plans/2026-11-10-bow-shock.md) |
+| bow_shock:south | the criteria of bow_shock:gate; B_z reverses once between the shock and the body, at x_rev with \|x_rev / R_mp − 1\| ≤ 0.25 |
+| bow_shock:oblique | the criteria of bow_shock:gate with the upstream state taken at z − z_c ≥ 1.5 R_mp (definitions of the three in docs/plans/2026-11-11-more-examples.md) |
 | blast_wave:gate | front faster than the fast magnetosonic speed and largest ring mean of B_z above 1.5 B0 while the front is between 0.3 and 0.7 R_B; front radii on the axes and the diagonals within 5 %; largest extent of the debris ions within 25 % of Eq. 4 of Le et al. 2021 (D = 3) and reached before the end; ambient densities and \|B\| ahead of the front within 5 % of step 0; div B ≤ 1e-12 (definitions in docs/plans/2026-11-11-blast-wave.md) |
+| wakefield:laser_linear | fit of the on-axis E_x behind the pulse, c A_th(x) cos(k x + φ) + b with the linear theory A_th at the place: \|c − 1\| ≤ 5 %, \|k v_g − 1\| ≤ 2 %; E_r / E_x at r = w / 2 within 10 % (definitions in docs/plans/2026-11-11-wakefield.md) |
+| wakefield:beam_linear | the same fit over five wavelengths behind the bunch: \|c − 1\| ≤ 5 %, \|k β − 1\| ≤ 2 %; amplitude at r = σ_r over the one on the axis within 10 % of R(σ_r) / R(0) |
 
 Why: agreement with analytic and linear theory is the test policy's observable result.
 - Where the model and collisionless PIC differ physically, the tolerance sits above the measured, explained offset. The case is Mora's isothermal electrons; see examples/plasma_expansion/README.md.

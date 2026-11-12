@@ -49,10 +49,11 @@ class SlicePanel(Panel):
     """A component of a slice diagnostic. `scale` multiplies the data. `blank=(centre, radius)` leaves
     out the part of the plane inside a sphere (an absorbing body: the dipole field in there would set
     the colour scale). `vlim=(low, high)` fixes the colour range; the default is the robust range of
-    the frames."""
+    the frames. With a moving window every frame shows the plane at its laboratory place (OUT-D5)."""
 
     def __init__(self, run, diag, comp, signed=None, log=False, label=None, scale=1.0, blank=None, vlim=None):
         self.s = run.series(diag)
+        self.moving = bool(np.any(self.s.window_shift))
         self.comp = comp
         self.signed = (comp[:1] in "EBJ" and len(comp) == 2) if signed is None else signed
         self.log = log
@@ -97,6 +98,10 @@ class SlicePanel(Panel):
         if self.log:
             d = np.where(d > 0, d, np.nan)
         self.im.set_data(np.asarray(d).T)
+        if self.moving:
+            ext = self.s.extent(self.comp, i)
+            self.im.set_extent(ext)
+            self.ax.set_xlim(ext[0], ext[1])
         self.ax.set_title(f"{self.label}  t={self.t[i]:.1f}")
 
 
@@ -213,6 +218,10 @@ class PhasePanel(Panel):
         self.edges = self.s.edges
         self.q = self.s.quantities
         self.log = log
+        # x of a histogram is the place in the window (OUT-D5): a frame shows its laboratory place, on
+        # whichever axis of the picture x is
+        self.ix = list(self.q).index("x") if "x" in self.q and np.any(self.s.window_shift) else None
+        self.shift = self.s.window_shift * run.dx[0]
 
     def times(self):
         return self.t
@@ -234,6 +243,11 @@ class PhasePanel(Panel):
         if self.log:
             d = np.where(d > 0, d, np.nan)
         self.im.set_data(np.asarray(d).T)
+        if self.ix is not None:
+            ext = [[e[0], e[-1]] for e in self.edges]
+            ext[self.ix] = [v + self.shift[i] for v in ext[self.ix]]
+            self.im.set_extent(ext[0] + ext[1])
+            (self.ax.set_ylim if self.ix else self.ax.set_xlim)(*ext[self.ix])
         self.ax.set_title(f"{self.sp} ({self.q[0]}, {self.q[1]})  t={self.t[i]:.1f}")
 
 

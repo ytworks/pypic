@@ -69,6 +69,7 @@ class Run:
         self.species_info = {s["name"]: s for s in i["species"]}
         self.units = Units(i["units"]["n0_m3"])
         self.diag = {d["name"]: d for d in i["diagnostics"]}
+        self.window = i.get("window")  # moving window (OUT-D5): None without one
         self._scalars = None
 
     @property
@@ -177,7 +178,17 @@ class Series:
         return self._ds("step")[:]
 
     def keys(self) -> list[str]:
-        return [k for k in self.f.keys() if k not in ("t", "step")]
+        return [k for k in self.f.keys() if k not in ("t", "step", "window_shift")]
+
+    @property
+    def window_shift(self) -> np.ndarray:
+        """Cells that the moving window had gone at every output (zeros without a window)."""
+        if "window_shift" in self.f:
+            return self._ds("window_shift")[:]
+        return np.zeros(len(self.t), dtype=np.int64)
+
+    def _window_x(self, i) -> float:
+        return 0.0 if i is None or "window_shift" not in self.f else float(self._ds("window_shift")[i]) * self.run.dx[0]
 
     def __getitem__(self, k) -> np.ndarray:
         return self._ds(k)[:]
@@ -198,14 +209,18 @@ class Series:
         return list(self.layout.get("components", self.keys()))
 
     # ---------------------------------------------------------- coordinates
-    def x(self, comp: str) -> np.ndarray:
-        """Lineout: sample positions along the profile axis (Yee staggering included)."""
+    def x(self, comp: str, i: int | None = None) -> np.ndarray:
+        """Lineout: sample positions along the profile axis (Yee staggering included). With a
+        moving window they are positions in the window; give the output ``i`` for the laboratory
+        positions of that output (OUT-D5)."""
         a = "xyz".index(self.layout["axis"])
         n = self.run.n_cells[a]
-        return (np.arange(n) + stagger_of(comp)[a]) * self.run.dx[a]
+        return (np.arange(n) + stagger_of(comp)[a]) * self.run.dx[a] + (0.0 if a else self._window_x(i))
 
-    def plane_axes(self, comp: str) -> tuple:
-        """Slice: coordinates of the two in-plane axes (block-averaged sample positions)."""
+    def plane_axes(self, comp: str, i: int | None = None) -> tuple:
+        """Slice: coordinates of the two in-plane axes (block-averaged sample positions). With a
+        moving window x is the position in the window; give the output ``i`` for the laboratory
+        positions of that output (OUT-D5)."""
         a = "xyz".index(self.layout["axis"])
         c = self.run.config["output"]["diagnostics"]
         dcfg = next(d for d in c if d["name"] == self.layout["name"])
@@ -216,11 +231,11 @@ class Series:
                 continue
             n = -(-self.run.n_cells[b] // co[b])
             pos = ((co[b] - 1) / 2 + stagger_of(comp)[b]) / co[b]
-            out.append((np.arange(n) + pos) * self.run.dx[b] * co[b])
+            out.append((np.arange(n) + pos) * self.run.dx[b] * co[b] + (0.0 if b else self._window_x(i)))
         return tuple(out)
 
-    def extent(self, comp: str):
-        a, b = self.plane_axes(comp)
+    def extent(self, comp: str, i: int | None = None):
+        a, b = self.plane_axes(comp, i)
         return _extent(a, b)
 
     @property

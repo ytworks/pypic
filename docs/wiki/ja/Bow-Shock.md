@@ -112,6 +112,18 @@ v_sw = {{ c.gate.planner.v_sw | .3f }} c で進みます。IMF は +z、双極�
   {{ r.gate.fill_max | .0% }} まで埋まります。
 - **run ごとの差**: GPU の電流堆積はアトミック加算で、加算の順序が run ごとに変わります。同じシードで
   この設定を繰り返し実行すると、上の距離は 3 桁目が、球の電荷は 2 % 異なります（4 回の実行で +730 から +749）。
+- **より大きい磁気圏**（`dp10`、記録つきの run）: R_mp = {{ c.dp10.params.dp }} d_i（上の run は
+  {{ c.gate.params.dp }} d_i）、開始時の粒子数は {{ c.dp10.particles | , }} 個です。磁気圏界面は
+  {{ r.dp10.magnetopause | .3f }} R_mp、衝撃波は {{ r.dp10.shock | .3f }} R_mp にあります（Spreiter et al.
+  1966 の値は {{ r.dp10.shock_spreiter | .3f }}）。日下点線上の最大密度は {{ r.dp10.compression | .2f }} n₀、
+  シースの厚さは磁気圏界面の距離の {{ r.dp10.sheath | .2f }} 倍です。この run はゲートの基準を満たします。
+  stand-off 距離の図の 2 つ目の点がこの run です。
+
+  <details><summary>`dp10` の日下点線</summary>
+
+  ![dp10](images/bow_shock/dp10-bow_shock.png)
+
+  </details>
 - **エネルギー**は監視のみです（explicit スキーム）。
 
 ## 再現方法

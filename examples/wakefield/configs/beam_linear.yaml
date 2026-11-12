@@ -1,0 +1,19 @@
+# Linear wake of a rigid electron bunch (gate): n_b = 0.05 n0, sigma_x = sigma_r = 1 c/omega_pe,
+# gamma = 10, on a heavy partner at rest; conducting transverse walls. The box (48 c/omega_pe)
+# follows the bunch; the box at rest of the whole plasma: nx=900, window_lead=null.
+driver: bunch
+nx: 384
+window_lead: 8
+n_perp: 192
+width: 24
+dx: 0.125
+transverse: reflecting
+ramp: [2, 5, 107, 110]
+x_end: 100
+bunch_density: 0.05
+sigma_x: 1
+sigma_r: 1
+gamma: 10
+start: 12
+ppc: 8
+lattice: [2, 2, 2]

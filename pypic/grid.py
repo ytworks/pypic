@@ -405,6 +405,48 @@ class YeeGrid:
     def curl_B(self, B, out, s=1.0):
         launch(self.k_curl_B, self.n_update, (*B, *out, np.float64(s)))
 
+    def shift_x(self):
+        """Moving window (PIC-D22): E, B, the memory of the PML and J go one plane down along x. The
+        plane that enters at the upper end is zero, but for E_x of the new wall cell, which takes
+        the value of the cell below it: div E = 0 at the node between them (the caller refuses
+        charge there). B, and the memory of the PML, are valid afterwards with their ghosts; the
+        caller ends with ``apply_bc_E()`` and ``fill_ghosts`` of E, after it has taken the current
+        of the plane it loads out of E. J is the current of the step before the shift, which the
+        outputs read (OUT-D5): it stays at its laboratory place on the physical nodes."""
+        ax = self.d.axes[0]
+        # The psi of a layer across the window lies in every rank of a row along x, and the plane
+        # above comes from the neighbour (psiE is updated on the owned range only). The psi of the
+        # layer at x- is zero above that layer: nothing to fetch, and the neighbour may have no
+        # layer at all (the two sides of a face must make the same exchange)
+        psi_x = self.use_pml and any(a.pml_lo or a.pml_hi for a in self.d.axes[1:])
+        if psi_x:
+            self.fill_ghosts(self.psiE, axes=(0,))
+        # the plane of J above a rank comes from the neighbour (reduce_ghosts has left zeros there)
+        self.fill_ghosts((self.Jx, self.Jy, self.Jz), axes=(0,))
+        if getattr(self, "_shift_tmp", None) is None:
+            self._shift_tmp = cp.empty(self.shape)
+
+        def down(arr):
+            out = self._shift_tmp
+            out[:-1] = arr[1:]
+            out[-1] = 0
+            self._shift_tmp = arr
+            return out
+
+        for name in FIELD_NAMES + ("Jx", "Jy", "Jz"):
+            setattr(self, name, down(getattr(self, name)))
+        if self.use_pml:
+            self.psiE = [down(p) for p in self.psiE]
+            self.psiB = [down(p) for p in self.psiB]
+        if ax.hi is None:
+            w = self.g + ax.n_int
+            self.Ex[w - 1] = self.Ex[w - 2]
+        # the outermost ghost plane of B and of psiB is not kept up to date by push_B
+        self.apply_bc_B()
+        self.fill_ghosts((self.Bx, self.By, self.Bz), axes=(0,))
+        if psi_x:
+            self.fill_ghosts(self.psiB, axes=(0,))
+
     def zero_J(self):
         self.Jx.fill(0)
         self.Jy.fill(0)

@@ -1,0 +1,88 @@
+{
+  "type": "example",
+  "date": "2026-11-11",
+  "commit": "4d55109b5f6da9256e6ae58f1c6c8bd0b7671770",
+  "dirty": false,
+  "run_id": "4b073ac2",
+  "run_started": "2026-11-11T21:07:55+09:00",
+  "gpus": 8,
+  "analysis_commit": "b5c05489839dc9408bdfc3b5bafb1ec566101c47",
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "example": "bow_shock",
+  "config": "dp10",
+  "params": {
+    "mass_ratio": 16,
+    "mach_alfven": 4,
+    "wpe_wce": 4,
+    "vte": 0.1,
+    "dp": 10,
+    "box": [
+      6,
+      8,
+      8
+    ],
+    "ppc": 8,
+    "crossings": 3
+  },
+  "run": {
+    "wall_time_s": 3606.698347921949,
+    "ns_per_particle_step": 0.7229139780692282,
+    "gpus": 8,
+    "steps": 11520
+  },
+  "passed": true,
+  "metrics": {
+    "gauss_max": 4.746897319662935e-14,
+    "r_mp": 40.0,
+    "upstream_deviation": 0.0005366991297146573,
+    "upstream": {
+      "e": {
+        "density": 0.0004922901764246035,
+        "u_x": 0.0005366991297146573,
+        "n_end": 1.0004450259362954,
+        "u_x_end": 0.9994992645475912
+      },
+      "i": {
+        "density": 0.00048175950380713317,
+        "u_x": 0.00048153552570140423,
+        "n_end": 1.0004330423400127,
+        "u_x_end": 0.9995553183256412
+      }
+    },
+    "compression": 3.773735429127093,
+    "x_compression": 46.25,
+    "compression_mhd": 2.9653419658152917,
+    "x_magnetopause": 62.38554154506456,
+    "magnetopause": 0.9403614613733859,
+    "x_shock": 42.45350039399438,
+    "shock": 1.4386624901501404,
+    "shock_spreiter": 1.3709521575187251,
+    "sheath": 0.5299037117588722,
+    "sheath_spreiter": 0.3709521575187251,
+    "magnetopause_magnetic": 0.9729946633886069,
+    "wind_density": 0.9949607254315768,
+    "flank": {
+      "plus": 2.3535446891874905,
+      "minus": 2.3413935503864938,
+      "asymmetry": 0.0025881360267050726
+    },
+    "body_charge": 1668.234375,
+    "absorbed_per_step": [
+      5752.353645833334,
+      2293.5606770833333,
+      926.0484210526316
+    ],
+    "fill_max": 0.5670222103806211,
+    "particles_start": 3135541246.0,
+    "particles_end": 3464555371.0,
+    "checks": {
+      "gauss": true,
+      "upstream": true,
+      "compression": true,
+      "magnetopause": true,
+      "shock_upstream": true
+    },
+    "passed": true
+  },
+  "note": "R6: bow shock at Dp = 10 (R_mp = 80 cells). Peak device memory 75,017 MiB on the largest GPU (planner 78.6 GB); all criteria of bow_shock:gate hold."
+}

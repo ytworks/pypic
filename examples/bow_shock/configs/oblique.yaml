@@ -1,0 +1,14 @@
+# The gate configuration with the IMF at 45 degrees to the flow, in the x-z plane. The shock is
+# quasi-parallel on the side z < z_c (foreshock) and quasi-perpendicular on the side z > z_c: the
+# upstream state is measured at z - z_c >= 1.5 R_mp. Null test of this wind (no planet, 4 crossings):
+#   --set planet=false --set crossings=4
+mass_ratio: 16
+mach_alfven: 4
+wpe_wce: 4
+vte: 0.1
+dp: 5
+box: [6, 8, 8]
+ppc: 8
+crossings: 3
+imf: [1, 0, 1]
+upstream_z: 1.5

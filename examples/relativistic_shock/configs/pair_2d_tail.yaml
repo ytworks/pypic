@@ -1,0 +1,9 @@
+# Production: the Fermi tail to t = 8000/omega_pe (2070 relativistic plasma times; Spitkovsky 2008b
+# measured p ~ 2.4 at about 2250): 32512 x 160 x 4 cells, 3.3e8 particles, 41312 steps.
+gamma0: 15
+t_end: 8000
+cells_per_skin: 10
+Ly_skin: 16
+nz: 4
+ppc: 8
+filter_passes: 4

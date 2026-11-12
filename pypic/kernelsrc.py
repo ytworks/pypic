@@ -62,20 +62,52 @@ def grid_defines(decomp: Decomposition, dx, dt: float, ghost: int, use_pml: bool
     return D
 
 
-def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0, body=None) -> dict:
+def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0, body=None, window: int = 0,
+                     x_low: int = 0, lattice=None, compact: bool = False) -> dict:
     """Particle kernels share the grid constants (no CPML terms) plus the path-segment bound.
     ``mixed`` (PIC-D11): the explicit push gathers E and B from float32 copies; OXI.. are the
     global cell indices of local index 0, so the gather weights come from global coordinates and
     are the same on every rank layout. ``paired_faces`` (PIC-D13): bit ``2 * axis + side`` per
     paired injection face; 0 compiles the push without the return of the neutraliser. ``body``
-    (PIC-D14): the absorbing sphere of the configuration, or None."""
+    (PIC-D14): the absorbing sphere of the configuration, or None. ``window`` (PIC-D22): 0 compiles
+    the kernels of a box at rest; a moving window passes the number of its simulation, because the
+    kernels then read the shift and the faces along x from the device array ``window_state`` of
+    their module, and two simulations of one process must not share a module. ``x_low`` (with a
+    window): the cells that the arrays of the first rank hold below the box along x, the same
+    number on every rank; with OXI it gives the kernels an index coordinate along x that depends on
+    the rank only by a whole number of cells (XIDX in ``common.cuh``). ``lattice``
+    (PIC-D23): the places per axis of the particles of a cell, or None for random places. ``compact``
+    (PIC-D19): the particles are stored as cell, position within the cell and float64 momenta; the
+    gather is the one of ``mixed``, GNX.. are the global cells per axis and S?0I / S?1I the physical
+    range of the rank in global cells."""
     D = dict(grid_defs)
     D.pop("USE_PML", None)
     D["MAXSEG"] = 3 * (D["GH"] + 2) + 4
     D["PAIRED_FACES"] = int(paired_faces)
     D.update(body_defines(body))
-    if mixed:
+    if window:
+        D["MOVING_WINDOW"] = int(window)
+        D["OXI"] = int(round(D["OX"] / D["DX"]))  # the global cell of local index 0
+        D["XLOW"] = int(x_low)
+        if D["OXI"] + D["XLOW"] < 0:
+            raise ValueError("x_low is below the cells that this rank holds below the box along x")
+    if lattice is not None:
+        for c, v in zip("XYZ", lattice):
+            D[f"LATTICE_{c}"] = int(v)
+    if mixed or compact:
         D["MIXED_GATHER"] = 1
         for c in "XYZ":
             D[f"O{c}I"] = int(round(D[f"O{c}"] / D[f"D{c}"]))
+    if compact:
+        D["COMPACT_STORE"] = 1
+        if D["NX"] * D["NY"] * D["NZ"] >= 2 ** 31:
+            raise ValueError("precision='compact': the cells of one rank (with ghosts) must be fewer than 2**31, "
+                             "the range of the stored cell; use more ranks")
+        for c in "XYZ":
+            D[f"GN{c}"] = int(round(D[f"L{c}"] / D[f"D{c}"]))
+            if D[f"GN{c}"] + 2 * D["GH"] > 2 ** 20:
+                raise ValueError(f"precision='compact': more than 2**20 cells along {c.lower()} (with ghosts); the "
+                                 "index coordinate would not be exact in 2**-32 of a cell")
+            D[f"S{c}0I"] = int(round(D[f"S{c}0"] / D[f"D{c}"]))
+            D[f"S{c}1I"] = int(round(D[f"S{c}1"] / D[f"D{c}"]))
     return D

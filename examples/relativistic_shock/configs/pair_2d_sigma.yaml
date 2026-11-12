@@ -1,0 +1,12 @@
+# Quasi-2-D magnetised pair shock (gate): gamma0 = 15, sigma = 0.3, field out of the plane (along z).
+# The flow carries E = -v x B, tangential to the reflecting walls (PIC-D18). Jump conditions of a
+# 2-D gas with a perpendicular field: beta_sh ~ 0.645 c, n2/n1 = B2/B1 ~ 2.55.
+gamma0: 15
+sigma: 0.3
+field: out
+t_end: 400
+cells_per_skin: 10
+Ly_skin: 8
+nz: 4
+ppc: 4
+filter_passes: 4

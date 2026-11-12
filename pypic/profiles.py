@@ -79,16 +79,22 @@ CUT = 1e-10  # a density shape below this value loads no particle (Beam.profile)
 _SUPPORT_SAMPLES = 1 << 16
 
 
-def support(spec: dict, rmax: float) -> float:
-    """Radius up to which the shape of a radial profile loads particles: an upper bound of the
-    largest r in [0, rmax] with shape(r) >= CUT, at most rmax; 0 where the shape is below CUT
-    everywhere. The shape is sampled at rmax / 2^16 and the bound is one sample beyond the last
-    one that reaches CUT, so a part of the shape narrower than a sample can be missed."""
-    r = np.linspace(0.0, float(rmax), _SUPPORT_SAMPLES + 1)
-    hit = np.nonzero(evaluate(spec, r) >= CUT)[0]
+def support_interval(spec: dict, length: float) -> tuple[float, float]:
+    """Bounds (lo, hi) of the part of [0, length] in which the shape loads particles: every x with
+    shape(x) >= CUT lies in [lo, hi]; (0, 0) where the shape is below CUT everywhere. The shape is
+    sampled at length / 2^16 and each bound is one sample beyond the outermost one that reaches
+    CUT, so a part of the shape narrower than a sample can be missed."""
+    x = np.linspace(0.0, float(length), _SUPPORT_SAMPLES + 1)
+    hit = np.nonzero(evaluate(spec, x) >= CUT)[0]
     if hit.size == 0:
-        return 0.0
-    return float(r[min(int(hit[-1]) + 1, _SUPPORT_SAMPLES)])
+        return 0.0, 0.0
+    return float(x[max(int(hit[0]) - 1, 0)]), float(x[min(int(hit[-1]) + 1, _SUPPORT_SAMPLES)])
+
+
+def support(spec: dict, rmax: float) -> float:
+    """Radius up to which the shape of a radial profile loads particles: the upper bound of
+    ``support_interval`` on [0, rmax]."""
+    return support_interval(spec, rmax)[1]
 
 
 def invert_cos_density(x0, alpha: float, k: float, phase: float = 0.0, xp=np, iterations: int = 64):

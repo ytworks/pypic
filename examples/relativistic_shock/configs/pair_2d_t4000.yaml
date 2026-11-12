@@ -1,0 +1,9 @@
+# Production: pair_2d_long to twice the time (t = 4000/omega_pe = 1030 relativistic plasma times):
+# 16256 x 160 x 4 cells, 1.7e8 particles, 20656 steps.
+gamma0: 15
+t_end: 4000
+cells_per_skin: 10
+Ly_skin: 16
+nz: 4
+ppc: 8
+filter_passes: 4

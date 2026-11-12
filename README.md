@@ -119,6 +119,7 @@ Each example has the same structure:
 | [`reconnection`](examples/reconnection) | σ = 10 pair reconnection, plasmoids, power law | Harris equilibrium; published rate and index (empirical) | equilibrium 1.1 % of B₀; rate ≈ 0.1–0.2; p = 2.4 (small box) |
 | [`bow_shock`](examples/bow_shock) | 3-D bow shock of a magnetised planet in the solar wind (open box, dipole, absorbing sphere) | pressure-balance magnetopause; Spreiter et al. (1966) stand-off; perpendicular MHD shock (reported) | magnetopause 0.92 to 0.93 R_mp; shock 1.38 R_mp (1.37); upstream within 0.1 % |
 | [`blast_wave`](examples/blast_wave) | 3-D blast wave: a debris shell expanding from a magnetised body into a magnetised plasma at rest (open box, radial beams, dipole, absorbing sphere) | fast magnetosonic speed; debris extent of Le et al. (2021), Eq. 4 with D = 3; perpendicular MHD shock (reported) | front at 2.1 fast speeds, B_z up to 2.7 B₀; debris extent 1.24 R_m (1.02); plasma ahead within 0.05 % |
+| [`wakefield`](examples/wakefield) | plasma wake of a laser pulse and of a rigid electron bunch in a box that follows the driver (antenna, bunch on a heavy partner, moving window); cavity behind an a₀ = 4 pulse (recorded run) | linear cold-plasma wake (Schroeder et al. 2011; Muggli 2020); scalings of Lu et al. (2007) (reported) | amplitude −1.3 % (pulse), +0.5 % (bunch); wavelength −0.02 %, −0.25 % |
 
 New set-up features these examples use (all engine-level; see `docs/design/engine.md` PIC-D9, PIC-D10):
 
@@ -138,6 +139,13 @@ Open-flow features that `bow_shock` and `blast_wave` use (explicit scheme only; 
 - **`capacity_factor`** sizes the particle arrays for a run that gains particles; the history key `fill` reports how full they are.
 
 `blast_wave` also uses **radial beams** (`Beam.origin`, `Beam.drift_radial`, profile axis `"r"`; PIC-D17): a density shape of the distance from a point and a drift along the radius, loaded only into the cells the shape reaches. Both schemes load them; only the explicit one was run with them.
+
+Driver features that `wakefield` uses (explicit scheme only; PIC-D20 to PIC-D23, OUT-D5):
+
+- **Laser antenna** (`lasers`): a Gaussian beam or a plane wave emitted from a plane inside the box, towards +x and towards −x. Its current is a discrete curl, so it carries no charge; the history key `antenna` holds its work.
+- **Bunches** (`Beam.profile` as a list of 1-D shapes): a bunch is loaded on a heavy partner of the opposite charge at the same places, so the box is neutral at the start and the field of the bunch builds up as it moves.
+- **Lattice places** (`lattice`): the particles of a cell on a regular a × b × c lattice instead of random places, for a cold plasma without density noise.
+- **Moving window** (`window`): the box follows a driver along +x at the speed of light, one cell at a time, and loads the plasma ahead plane by plane. Positions stay those of the laboratory; the output files give laboratory places, and diagnostics regions are window coordinates.
 
 ## Using it as a library
 
@@ -288,8 +296,9 @@ These are the 3-D two-stream examples run on 8 GPUs with each configuration's de
   | Step time | 22.0 ms | 11.5 ms | 6.0 ms | 3.4 ms |
   | Speed-up | 1.0× | 1.9× | 3.6× | 6.4× |
 
-  A single GPU runs at 0.44 ns per particle per step (0.36 with `precision: mixed`). Measured
-  with `scripts/bench_step.py` (no output, history every 10 steps).
+  A single GPU runs at 0.44 ns per particle per step (0.36 with `precision: mixed`, 0.30 with
+  `precision: compact`). Measured with `scripts/bench_step.py` (no output, history every 10
+  steps).
 - **Implicit cost**: a step costs about 22× an explicit one on one GPU (5–6 Picard iterations × about 15 CG iterations). In exchange it allows Δx ≫ λ_De and cΔt/Δx ≥ 1.
 
 ## Layout
@@ -324,4 +333,4 @@ bench/results/           recorded GPU gate evidence (index.json)
 - **Implicit open boundaries**: the matched conductive layer accounts for dissipated energy exactly, but absorbs less well than CPML.
 - **`mode: buneman`**: carries a net current, so the k=0 mode oscillates at ω_pe.
 - **Particle ids**: every particle carries an id (8th storage row, +14 % particle memory).
-- **Precision**: double precision only for now. Planned next: a float32 mode, shared-memory current deposition, and overlapping communication with computation.
+- **Precision** (`precision:` in the configuration; explicit solver): `fp64`, the default, is double precision throughout. `mixed` gathers the fields at the particles from float32 copies (PIC-D11). `compact` does the same and stores a position as a cell and a 32-bit fraction of the cell, 56 bytes per particle slot in place of 64 (PIC-D19); momenta, weights, the Boris push, the current deposit and the field solver stay in double precision in every mode. Float32 momenta were measured and not adopted: the mean of \|u\| of gyrating particles drifts. The implicit solver takes `fp64` only.

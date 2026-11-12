@@ -8,6 +8,8 @@
 //   SX0 SX1 ...     physical bounds of the local sub-domain
 //   BCX0 BCX1 ...   particle/field boundary type at global faces (0 periodic, 1 open, 2 reflecting)
 //   DECX DECY DECZ  1 if the axis is decomposed over more than one rank
+//   MOVING_WINDOW   defined for a run with a moving window (PIC-D22); its value numbers the
+//                   simulation, so that two of them in one process never share window_state
 #pragma once
 
 #define BC_PERIODIC 0
@@ -18,6 +20,42 @@
 // index steps of one node along x and y (along z: 1)
 #define STRIDE_I ((long long)NY * NZ)
 #define STRIDE_J ((long long)NZ)
+
+// Moving window (PIC-D22). Positions stay laboratory positions; the arrays hold the cells
+// s .. s + n along x after s shifts. XIDX is the index coordinate along x in the local arrays;
+// FLO / FHI are the positions of the lower and upper face of the box along axis a; RX0 / RX1 are
+// the bounds of the rank along x. Without a window they are the compile-time constants. With a
+// window they read window_state, which the kernel window_set writes after every shift:
+// [0] the shift s in cells, [1] [2] the faces x- and x+, [3] [4] the bounds of the rank along x
+// (the doubles that the migration compares with).
+//
+// XIDX with a window does not depend on the rank or on s but for a whole number of cells, bit for
+// bit: the deposit of a path starts exactly where the deposit of the step before has ended, also
+// when the particle has changed rank or the window has shifted in between. It is built in three
+// steps. The product x * (1 / dx) is rounded by itself (__dmul_rn: the compiler would otherwise
+// fuse it with the subtraction). XLOW, the cells that the arrays of the first rank hold below the
+// box, is added: the sum is the same on every rank and is not negative for a position inside the
+// arrays. Then an integer is taken away, the global cell OXI of local index 0 plus XLOW plus s;
+// it is not negative on any rank, so this subtraction is exact. (The form (x - OX) / dx - s of a
+// box at rest rounds x - OX with the origin of the rank. Two ranks then give one position index
+// coordinates that differ by a constant part of the rounding unit of x, which grows with the
+// place of the window, and a particle that changes rank moves its charge by that much without a
+// current.) Not window-aware (refused with a window): the injection kernels and the bank, the
+// body, implicit.cu.
+#ifdef MOVING_WINDOW
+__device__ double window_state[5];
+#define XIDX(x) ((__dmul_rn((x), 1.0 / DX) + XLOW) - ((double)(OXI + XLOW) + window_state[0]))
+#define FLO(a) ((a) == 0 ? window_state[1] : 0.0)
+#define FHI(a) ((a) == 0 ? window_state[2] : Lg[a])
+#define RX0 window_state[3]
+#define RX1 window_state[4]
+#else
+#define XIDX(x) (((x) - OX) * (1.0 / DX))
+#define FLO(a) 0.0
+#define FHI(a) Lg[a]
+#define RX0 SX0
+#define RX1 SX1
+#endif
 
 // Trilinear interpolation of a staggered Yee component.
 // (X,Y,Z) are local index coordinates (node i at integer i); (sx,sy,sz) are the
@@ -75,14 +113,33 @@ __device__ __forceinline__ double interp_w(const double* __restrict__ F, const Y
 #ifdef MIXED_GATHER
 // PIC-D11: E and B gathered from float32 copies. The weights come from global index coordinates
 // (x / dx), computed in FP64 and rounded once to float, so they do not depend on the rank layout.
+// With the compact storage (PIC-D19) they come from the stored integers (yee_weights_cell).
 struct YeeWeightsF {
     int in[3], ih[3];
     float wn[3], wh[3];
 };
 
+#ifdef COMPACT_STORE
+// c: the cell of the particle in the arrays of the rank, q: its position within the cell in units of
+// 2^-32 cell. The fraction from the half-integer node below is q + 2^31 modulo 2^32; both fractions
+// are exact in a double and rounded once to float.
+__device__ __forceinline__ void yee_weights_cell(const int* c, const unsigned int* q, YeeWeightsF& w) {
+#pragma unroll
+    for (int a = 0; a < 3; a++) {
+        w.in[a] = c[a];
+        w.ih[a] = q[a] < 0x80000000u ? c[a] - 1 : c[a];
+        w.wn[a] = (float)((double)q[a] * (1.0 / 4294967296.0));
+        w.wh[a] = (float)((double)(q[a] ^ 0x80000000u) * (1.0 / 4294967296.0));
+    }
+}
+#else
 __device__ __forceinline__ void yee_weights_global(const double* x, YeeWeightsF& w) {
     const double inv[3] = {1.0 / DX, 1.0 / DY, 1.0 / DZ};
+#ifdef MOVING_WINDOW
+    const int off[3] = {OXI + (int)window_state[0], OYI, OZI};
+#else
     const int off[3] = {OXI, OYI, OZI};
+#endif
 #pragma unroll
     for (int a = 0; a < 3; a++) {
         double fn = x[a] * inv[a], fh = fn - 0.5;
@@ -93,6 +150,7 @@ __device__ __forceinline__ void yee_weights_global(const double* x, YeeWeightsF&
         w.wh[a] = (float)(fh - gh);
     }
 }
+#endif
 
 __device__ __forceinline__ float interp_f(const float* __restrict__ F, const YeeWeightsF& w, int hx, int hy,
                                           int hz) {

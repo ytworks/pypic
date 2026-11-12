@@ -11,6 +11,7 @@
 import sys
 
 import cupy as cp
+import numpy as np
 
 from pypic import Beam, SimConfig, SpeciesConfig
 from pypic.simulation import ImplicitStepError, Simulation
@@ -20,12 +21,10 @@ bc = (("reflecting", "reflecting"), ("periodic", "periodic"), ("periodic", "peri
 
 
 def put(sp, pos, u, w=1e-3):
-    sp.ensure_capacity(1)
-    sp.P[:, 0] = 0
-    sp.P[0:3, 0] = cp.asarray(pos)
-    sp.P[3:6, 0] = cp.asarray(u)
-    sp.P[6, 0] = w
-    sp.n = 1
+    blk = np.zeros((8, 1))
+    blk[0:3, 0], blk[3:6, 0], blk[6, 0] = pos, u, w
+    sp.n = 0
+    sp.append(blk)
 
 
 if case == "edge":

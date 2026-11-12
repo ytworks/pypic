@@ -1,16 +1,172 @@
 // Explicit particle kernels: relativistic Buneman-Boris push fused with
 // Esirkepov charge-conserving current deposition (CIC = cubic super-particles).
-// Particle storage: P[row * cap + p], rows = x, y, z, ux, uy, uz, w, id  (u = gamma v, c = 1).
-// cap is 64-bit (row * cap exceeds 2^31 for large species); n and p stay int.
+//
+// Particle storage. A kernel of this file reaches a particle only through the accessors below, so
+// the layout behind them changes with the build (PIC-D19). cap is 64-bit (row * cap exceeds 2^31
+// for large species); n and p stay int. Exceptions: the remaining displacement of displace_deposit
+// (set-up only), and the row copies of migrate.cu.
 
-#define PX(p) P[(p)]
-#define PY(p) P[cap + (p)]
-#define PZ(p) P[2 * cap + (p)]
-#define PUX(p) P[3 * cap + (p)]
-#define PUY(p) P[4 * cap + (p)]
-#define PUZ(p) P[5 * cap + (p)]
-#define PW(p) P[6 * cap + (p)]
-#define PID(p) P[7 * cap + (p)]
+#if defined(COMPACT_STORE) && defined(MOVING_WINDOW)
+#error "the compact storage has no moving window (PIC-D19, PIC-D22)"
+#endif
+#ifdef COMPACT_STORE
+// Compact layout, 56 bytes per particle in four arrays:
+//   S_w[row * cap + p]  rows = w, id (double; the id is an integer-valued double)
+//   S_c[p]              the cell of the particle in the arrays of this rank (IDX, int)
+//   S_f[a * cap + p]    the position within that cell along axis a, in units of 2^-32 cell (unsigned int)
+//   S_u[a * cap + p]    the momentum (double; u = gamma v, c = 1)
+// A position is a point of a lattice of 2^-32 cell. Its index coordinate cell + f * 2^-32 is exact in
+// a double while |cell| < 2^21, in the arrays of the rank and in the box (Simulation checks the grid).
+#define TWO32 4294967296.0
+#define ITWO32 (1.0 / 4294967296.0)
+#define PSTORE_AS(S) double* S##_w, int* S##_c, unsigned int* S##_f, double* S##_u
+#define PSTORE PSTORE_AS(P)
+#define PSTORE_RO \
+    const double* __restrict__ P_w, const int* __restrict__ P_c, const unsigned int* __restrict__ P_f, \
+    const double* __restrict__ P_u
+// index coordinate (cells from the first one of the arrays of this rank) of particle p of the storage S
+#define S_XI(S, cap, p) ((double)((S##_c)[(p)] / (NY * NZ)) + (double)(S##_f)[(p)] * ITWO32)
+#define S_YI(S, cap, p) ((double)((S##_c)[(p)] / NZ % NY) + (double)(S##_f)[(cap) + (p)] * ITWO32)
+#define S_ZI(S, cap, p) ((double)((S##_c)[(p)] % NZ) + (double)(S##_f)[2 * (cap) + (p)] * ITWO32)
+// values of particle p of the storage (S, cap): physical position, momentum, weight, id
+#define S_X(S, cap, p) ((S_XI(S, cap, p) + (double)(OXI)) * DX)
+#define S_Y(S, cap, p) ((S_YI(S, cap, p) + (double)(OYI)) * DY)
+#define S_Z(S, cap, p) ((S_ZI(S, cap, p) + (double)(OZI)) * DZ)
+#define S_UX(S, cap, p) (+(S##_u)[(p)])
+#define S_UY(S, cap, p) (+(S##_u)[(cap) + (p)])
+#define S_UZ(S, cap, p) (+(S##_u)[2 * (cap) + (p)])
+#define S_W(S, cap, p) (+(S##_w)[(p)])
+#define S_ID(S, cap, p) (+(S##_w)[(cap) + (p)])
+#define S_SET_POS(S, cap, p, x, y, z) store_pos(S##_c, S##_f, cap, p, x, y, z)
+#define S_SET_MOM(S, cap, p, ux, uy, uz) \
+    { (S##_u)[(p)] = (ux); (S##_u)[(cap) + (p)] = (uy); (S##_u)[2 * (cap) + (p)] = (uz); }
+#define S_SET_W(S, cap, p, w) { (S##_w)[(p)] = (w); }
+#define S_SET_ID(S, cap, p, id) { (S##_w)[(cap) + (p)] = (id); }
+#define XI(p) S_XI(P, cap, p)
+#define YI(p) S_YI(P, cap, p)
+#define ZI(p) S_ZI(P, cap, p)
+// Working coordinate: what the kernels that move or place particles (push_deposit,
+// displace_deposit, the loader, the injection) compute in, and what SET_POS takes. This layout:
+// the index coordinate of the box (cells from its lower corner). Walls, the range of the rank and
+// the period are integers there, so a reflection, a wrap and the change of rank keep a lattice
+// point exact; every point handed to SET_POS is first put on the lattice (WSNAP, WRAND).
+#define QX(p) (XI(p) + (double)(OXI))            // working coordinate of particle p
+#define QY(p) (YI(p) + (double)(OYI))
+#define QZ(p) (ZI(p) + (double)(OZI))
+#define WBOX {(double)(GNX), (double)(GNY), (double)(GNZ)}     // the box
+#define WCELL {1.0, 1.0, 1.0}                                  // one cell
+#define WLO {(double)(SX0I), (double)(SY0I), (double)(SZ0I)}   // physical range of the rank
+#define WHI {(double)(SX1I), (double)(SY1I), (double)(SZ1I)}
+#define TO_XI(x) ((x) - (double)(OXI))           // working coordinate -> index coordinate
+#define TO_YI(y) ((y) - (double)(OYI))
+#define TO_ZI(z) ((z) - (double)(OZI))
+#define WPHYS(x, d) ((x) * (d))                  // -> physical position (d: the cell of the axis)
+#define WLEN(s, d) ((s) * (1.0 / (d)))           // physical length -> working coordinate
+#define WDT(a) ((a) == 0 ? DT / DX : ((a) == 1 ? DT / DY : DT / DZ))  // time step per cell of axis a
+#define WSNAP(x) (rint((x) * TWO32) * ITWO32)    // onto a point that the storage holds
+#define WBELOW(wall) ((wall) - ITWO32)           // last point below an upper wall
+// uniform point of cell c (advances the stream s): the upper 32 bits of the number urand takes
+#define WRAND(c, s, d) ((double)(c) + (double)(splitmix64(s) >> 32) * ITWO32)
+#define WPOINT(c, f, d) WSNAP((double)(c) + (f))
+#define PDISP_ARG , double* Dsp                  // the remaining set-up displacement: its own array
+#define DISP(a, p) Dsp[(a) * cap + p]
+
+// Stores the lattice point (x, y, z) of the working coordinate: at most one cell outside the
+// physical range of the rank, so its cell is one of the arrays of the rank.
+__device__ __forceinline__ void store_pos(int* C, unsigned int* F, const long long cap, const long long p,
+                                          const double x, const double y, const double z) {
+    const double X[3] = {x, y, z};
+    const int off[3] = {OXI, OYI, OZI};
+    int c[3];
+#pragma unroll
+    for (int a = 0; a < 3; a++) {
+        const double g = floor(X[a]);
+        c[a] = (int)g - off[a];
+        F[a * cap + p] = (unsigned int)((X[a] - g) * TWO32);
+    }
+    C[p] = (int)IDX(c[0], c[1], c[2]);
+}
+
+// The stored integers of particle p: c = its cell along the three axes (arrays of this rank), q = the
+// position within that cell. The integer route of push_deposit computes in these.
+__device__ __forceinline__ void load_cell(const int* C, const unsigned int* F, const long long cap, const long long p,
+                                          int* c, unsigned int* q) {
+    const int l = C[p];
+    c[0] = l / (NY * NZ);
+    c[1] = l / NZ % NY;
+    c[2] = l % NZ;
+#pragma unroll
+    for (int a = 0; a < 3; a++) q[a] = F[a * cap + p];
+}
+
+__device__ __forceinline__ void store_cell(int* C, unsigned int* F, const long long cap, const long long p,
+                                           const int* c, const unsigned int* q) {
+    C[p] = (int)IDX(c[0], c[1], c[2]);
+#pragma unroll
+    for (int a = 0; a < 3; a++) F[a * cap + p] = q[a];
+}
+#define GET_CELL(p, c, q) load_cell(P_c, P_f, cap, p, c, q)
+#define SET_CELL(p, c, q) store_cell(P_c, P_f, cap, p, c, q)
+#else
+// Layout of doubles: S[row * cap + p], rows = x, y, z, ux, uy, uz, w, id (u = gamma v, c = 1; the id
+// is an integer-valued double); the remaining displacement of displace_deposit in rows 8..10.
+#define PSTORE_AS(S) double* S                     // the storage of a species as kernel parameters
+#define PSTORE PSTORE_AS(P)
+#define PSTORE_RO const double* __restrict__ P
+// values of particle p of the storage (S, cap): physical position, momentum, weight, id
+#define S_X(S, cap, p) (+(S)[(p)])
+#define S_Y(S, cap, p) (+(S)[(cap) + (p)])
+#define S_Z(S, cap, p) (+(S)[2 * (cap) + (p)])
+#define S_UX(S, cap, p) (+(S)[3 * (cap) + (p)])
+#define S_UY(S, cap, p) (+(S)[4 * (cap) + (p)])
+#define S_UZ(S, cap, p) (+(S)[5 * (cap) + (p)])
+#define S_W(S, cap, p) (+(S)[6 * (cap) + (p)])
+#define S_ID(S, cap, p) (+(S)[7 * (cap) + (p)])
+#define S_SET_POS(S, cap, p, x, y, z) { (S)[(p)] = (x); (S)[(cap) + (p)] = (y); (S)[2 * (cap) + (p)] = (z); }
+#define S_SET_MOM(S, cap, p, ux, uy, uz) \
+    { (S)[3 * (cap) + (p)] = (ux); (S)[4 * (cap) + (p)] = (uy); (S)[5 * (cap) + (p)] = (uz); }
+#define S_SET_W(S, cap, p, w) { (S)[6 * (cap) + (p)] = (w); }
+#define S_SET_ID(S, cap, p, id) { (S)[7 * (cap) + (p)] = (id); }
+// index coordinate: cells from the first one of the arrays of this rank
+#define XI(p) XIDX(PX(p))
+#define YI(p) ((PY(p) - OY) * (1.0 / DY))
+#define ZI(p) ((PZ(p) - OZ) * (1.0 / DZ))
+// Working coordinate: what the kernels that move or place particles (push_deposit,
+// displace_deposit, the loader, the injection) compute in, and what SET_POS takes. This layout:
+// the physical position.
+#define QX(p) PX(p)                              // working coordinate of particle p
+#define QY(p) PY(p)
+#define QZ(p) PZ(p)
+#define WBOX {LX, LY, LZ}                        // the box
+#define WCELL {DX, DY, DZ}                       // one cell
+#define WLO {RX0, SY0, SZ0}                      // physical range of the rank
+#define WHI {RX1, SY1, SZ1}
+#define TO_XI(x) XIDX(x)                         // working coordinate -> index coordinate
+#define TO_YI(y) (((y) - OY) * (1.0 / DY))
+#define TO_ZI(z) (((z) - OZ) * (1.0 / DZ))
+#define WPHYS(x, d) (x)                          // -> physical position (d: the cell of the axis)
+#define WLEN(s, d) (s)                           // physical length -> working coordinate
+#define WDT(a) DT                                // time step, per cell of axis a where the unit is the cell
+#define WSNAP(x) (x)                             // onto a point that the storage holds
+#define WBELOW(wall) nextafter(wall, 0.0)        // last point below an upper wall
+#define WRAND(c, s, d) (((c) + urand(s)) * (d))  // uniform point of cell c (advances the stream s)
+#define WPOINT(c, f, d) (((c) + (f)) * (d))      // the point at the fraction f of cell c
+#define PDISP_ARG                                // the remaining set-up displacement: rows 8..10
+#define DISP(a, p) P[(8 + (a)) * cap + p]
+#endif
+// the same for the storage (P, cap) of the kernel
+#define PX(p) S_X(P, cap, p)
+#define PY(p) S_Y(P, cap, p)
+#define PZ(p) S_Z(P, cap, p)
+#define PUX(p) S_UX(P, cap, p)
+#define PUY(p) S_UY(P, cap, p)
+#define PUZ(p) S_UZ(P, cap, p)
+#define PW(p) S_W(P, cap, p)
+#define PID(p) S_ID(P, cap, p)
+#define SET_POS(p, x, y, z) S_SET_POS(P, cap, p, x, y, z)
+#define SET_MOM(p, ux, uy, uz) S_SET_MOM(P, cap, p, ux, uy, uz)
+#define SET_W(p, w) S_SET_W(P, cap, p, w)
+#define SET_ID(p, id) S_SET_ID(P, cap, p, id)
 
 // CIC weights of the two ends of a move along one axis, on the 3 nodes from n = min(floor X0, floor X1)
 // (|X1 - X0| < 1): (1 - w, w, 0) for an end in cell n, (0, 1 - w, w) for an end in cell n + 1, with
@@ -21,10 +177,10 @@ struct AxisShape {
     double S0[3], dS[3];
 };
 
-__device__ __forceinline__ void axis_shape(const double X0, const double X1, AxisShape& s) {
-    const double f0 = floor(X0), f1 = floor(X1);
-    const int c0 = (int)f0, c1 = (int)f1;
-    const double w0 = X0 - f0, w1 = X1 - f1, v0 = 1.0 - w0, v1 = 1.0 - w1;
+// The ends given as cell and position within the cell.
+__device__ __forceinline__ void axis_shape_cells(const int c0, const double w0, const int c1, const double w1,
+                                                 AxisShape& s) {
+    const double v0 = 1.0 - w0, v1 = 1.0 - w1;
     const bool up0 = c0 > c1, up1 = c1 > c0;  // this end is in cell n + 1
     s.n = up0 ? c1 : c0;
     s.wide = c0 != c1;
@@ -36,18 +192,20 @@ __device__ __forceinline__ void axis_shape(const double X0, const double X1, Axi
     s.dS[2] = (up1 ? w1 : 0.0) - s.S0[2];
 }
 
-// Esirkepov deposition of a straight segment (X0,Y0,Z0)->(X1,Y1,Z1) in local index
-// coordinates. |X1-X0| < 1 is required. qw = charge * weight.
+__device__ __forceinline__ void axis_shape(const double X0, const double X1, AxisShape& s) {
+    const double f0 = floor(X0), f1 = floor(X1);
+    axis_shape_cells((int)f0, X0 - f0, (int)f1, X1 - f1, s);
+}
+
+// Esirkepov deposition of a straight segment with the shapes x, y, z of its ends (axis_shape) in the
+// arrays of the rank; mx, my, mz: the ends differ along that axis. qw = charge * weight.
 // The current along an axis is the prefix sum of -c dS over its nodes: two faces carry current (the
 // second only for a wide move; the third sum is sum dS = 0), each times the transverse weight
 //   W(b, c) = S0 S0' + (dS S0' + S0 dS') / 2 + dS dS' / 3 = S0'[c] A[b] + dS'[c] B[b],
 // A = S0 + dS / 2, B = S0 / 2 + dS / 3. An axis without displacement carries no current.
-__device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, double X1, double Y1, double Z1, double qw,
-                                          double* Jx, double* Jy, double* Jz) {
-    AxisShape x, y, z;
-    axis_shape(X0, X1, x);
-    axis_shape(Y0, Y1, y);
-    axis_shape(Z0, Z1, z);
+__device__ __forceinline__ void esirkepov_shapes(const AxisShape& x, const AxisShape& y, const AxisShape& z,
+                                                 const bool mx, const bool my, const bool mz, const double qw,
+                                                 double* Jx, double* Jy, double* Jz) {
     const double third = 1.0 / 3.0;
     double Ax[3], Bx[3], Ay[3], By[3];
 #pragma unroll
@@ -58,7 +216,7 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
         By[a] = 0.5 * y.S0[a] + third * y.dS[a];
     }
     const long long base = IDX(x.n, y.n, z.n);
-    if (X1 != X0) {
+    if (mx) {
         const double cx = qw * (1.0 / (DY * DZ * DT));
         const double f0 = -cx * x.dS[0], f1 = f0 - cx * x.dS[1];
 #pragma unroll
@@ -74,7 +232,7 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
             }
         }
     }
-    if (Y1 != Y0) {
+    if (my) {
         const double cy = qw * (1.0 / (DX * DZ * DT));
         const double f0 = -cy * y.dS[0], f1 = f0 - cy * y.dS[1];
 #pragma unroll
@@ -90,7 +248,7 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
             }
         }
     }
-    if (Z1 != Z0) {
+    if (mz) {
         const double cz = qw * (1.0 / (DX * DY * DT));
         const double f0 = -cz * z.dS[0], f1 = f0 - cz * z.dS[1];
 #pragma unroll
@@ -108,10 +266,19 @@ __device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, doubl
     }
 }
 
+// The same for the segment (X0,Y0,Z0)->(X1,Y1,Z1) in local index coordinates; |X1-X0| < 1 is required.
+__device__ __forceinline__ void esirkepov(double X0, double Y0, double Z0, double X1, double Y1, double Z1, double qw,
+                                          double* Jx, double* Jy, double* Jz) {
+    AxisShape x, y, z;
+    axis_shape(X0, X1, x);
+    axis_shape(Y0, Y1, y);
+    axis_shape(Z0, Z1, z);
+    esirkepov_shapes(x, y, z, X1 != X0, Y1 != Y0, Z1 != Z0, qw, Jx, Jy, Jz);
+}
+
 __device__ __forceinline__ void deposit_global(const double* p0, const double* p1, double qw, double* Jx,
                                                double* Jy, double* Jz) {
-    esirkepov((p0[0] - OX) * (1.0 / DX), (p0[1] - OY) * (1.0 / DY), (p0[2] - OZ) * (1.0 / DZ),
-              (p1[0] - OX) * (1.0 / DX), (p1[1] - OY) * (1.0 / DY), (p1[2] - OZ) * (1.0 / DZ), qw, Jx, Jy, Jz);
+    esirkepov(TO_XI(p0[0]), TO_YI(p0[1]), TO_ZI(p0[2]), TO_XI(p1[0]), TO_YI(p1[1]), TO_ZI(p1[2]), qw, Jx, Jy, Jz);
 }
 
 // Deposit of the part of a path that lies inside the open faces of the box (PIC-D15): the current
@@ -121,21 +288,21 @@ __device__ __forceinline__ void deposit_global(const double* p0, const double* p
 // face this is deposit_global.
 __device__ __forceinline__ void deposit_cut(const double* p0, const double* p1, double qw, double* Jx,
                                             double* Jy, double* Jz) {
-    const double Lg[3] = {LX, LY, LZ};
+    const double Lg[3] = WBOX;
     const bool o0[3] = {BCX0 == BC_OPEN, BCY0 == BC_OPEN, BCZ0 == BC_OPEN};
     const bool o1[3] = {BCX1 == BC_OPEN, BCY1 == BC_OPEN, BCZ1 == BC_OPEN};
     double t0 = 0.0, t1 = 1.0;
     for (int a = 0; a < 3; a++) {
         const double d = p1[a] - p0[a];
         if (o0[a]) {
-            if (p0[a] < 0.0 && p1[a] < 0.0) return;
-            if (p0[a] < 0.0) t0 = fmax(t0, (0.0 - p0[a]) / d);
-            else if (p1[a] < 0.0) t1 = fmin(t1, (0.0 - p0[a]) / d);
+            if (p0[a] < FLO(a) && p1[a] < FLO(a)) return;
+            if (p0[a] < FLO(a)) t0 = fmax(t0, (FLO(a) - p0[a]) / d);
+            else if (p1[a] < FLO(a)) t1 = fmin(t1, (FLO(a) - p0[a]) / d);
         }
         if (o1[a]) {
-            if (p0[a] >= Lg[a] && p1[a] >= Lg[a]) return;
-            if (p0[a] >= Lg[a]) t0 = fmax(t0, (Lg[a] - p0[a]) / d);
-            else if (p1[a] >= Lg[a]) t1 = fmin(t1, (Lg[a] - p0[a]) / d);
+            if (p0[a] >= FHI(a) && p1[a] >= FHI(a)) return;
+            if (p0[a] >= FHI(a)) t0 = fmax(t0, (FHI(a) - p0[a]) / d);
+            else if (p1[a] >= FHI(a)) t1 = fmin(t1, (FHI(a) - p0[a]) / d);
         }
     }
     if (t0 == 0.0 && t1 == 1.0) {
@@ -148,8 +315,8 @@ __device__ __forceinline__ void deposit_cut(const double* p0, const double* p1, 
         const double d = p1[a] - p0[a];
         q0[a] = t0 > 0.0 ? p0[a] + t0 * d : p0[a];
         q1[a] = t1 < 1.0 ? p0[a] + t1 * d : p1[a];
-        if (o0[a]) { q0[a] = fmax(q0[a], 0.0); q1[a] = fmax(q1[a], 0.0); }
-        if (o1[a]) { q0[a] = fmin(q0[a], Lg[a]); q1[a] = fmin(q1[a], Lg[a]); }
+        if (o0[a]) { q0[a] = fmax(q0[a], FLO(a)); q1[a] = fmax(q1[a], FLO(a)); }
+        if (o1[a]) { q0[a] = fmin(q0[a], FHI(a)); q1[a] = fmin(q1[a], FHI(a)); }
     }
     deposit_global(q0, q1, qw, Jx, Jy, Jz);
 }
@@ -172,7 +339,7 @@ static const unsigned long long RET_SALT = 0x14057B7EF767814FULL;
 // Only the faces of the compile-time mask PAIRED_FACES count: without a paired face the
 // compiler removes these paths (and, without a reflecting wall, the whole wall loop).
 // rb: inflow tables of this species, nrb rows of 6 per face (see sample_inflow).
-extern "C" __global__ void push_deposit(double* P, const int n, const long long cap, const gather_t* __restrict__ Ex,
+extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap, const gather_t* __restrict__ Ex,
                                         const gather_t* __restrict__ Ey, const gather_t* __restrict__ Ez,
                                         const gather_t* __restrict__ Bx, const gather_t* __restrict__ By,
                                         const gather_t* __restrict__ Bz, double* Jx, double* Jy, double* Jz,
@@ -187,11 +354,25 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
 #endif
     if (p < n) {
         const double w = PW(p);
-        double pos0[3] = {PX(p), PY(p), PZ(p)};
+#ifdef COMPACT_STORE
+        // the stored integers, and the working coordinate of the general path (exact)
+        int c0[3];
+        unsigned int q0[3];
+        GET_CELL(p, c0, q0);
+        const int g0[3] = {c0[0] + OXI, c0[1] + OYI, c0[2] + OZI};  // cell in the box
+        const double w0[3] = {(double)q0[0] * ITWO32, (double)q0[1] * ITWO32, (double)q0[2] * ITWO32};
+        double pos0[3] = {(double)g0[0] + w0[0], (double)g0[1] + w0[1], (double)g0[2] + w0[2]};
+#else
+        double pos0[3] = {QX(p), QY(p), QZ(p)};
+#endif
         double u[3] = {PUX(p), PUY(p), PUZ(p)};
 #ifdef MIXED_GATHER
         YeeWeightsF yw;
+#ifdef COMPACT_STORE
+        yee_weights_cell(c0, q0, yw);
+#else
         yee_weights_global(pos0, yw);
+#endif
         double ex = h * (double)interp_f(Ex, yw, 1, 0, 0);
         double ey = h * (double)interp_f(Ey, yw, 0, 1, 0);
         double ez = h * (double)interp_f(Ez, yw, 0, 0, 1);
@@ -199,7 +380,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         double by = h * (double)interp_f(By, yw, 1, 0, 1);
         double bz = h * (double)interp_f(Bz, yw, 1, 1, 0);
 #else
-        const double X = (pos0[0] - OX) * (1.0 / DX), Y = (pos0[1] - OY) * (1.0 / DY),
+        const double X = XIDX(pos0[0]), Y = (pos0[1] - OY) * (1.0 / DY),
                      Z = (pos0[2] - OZ) * (1.0 / DZ);
         YeeWeights yw;
         yee_weights(X, Y, Z, yw);
@@ -228,8 +409,25 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         u[1] = ury + ey;
         u[2] = urz + ez;  // second half electric kick
         double g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+#ifdef COMPACT_STORE
+        // The end point, put on the lattice once: s1 = its distance from the lower face of the cell of
+        // the start in units of 2^-32 cell. It depends on the stored fraction and on u only, not on
+        // the cell, so not on the rank layout. A step is shorter than a cell: fl = -1, 0 or 1.
+        const double rg = 1.0 / g1;
+        const double dtc[3] = {rg * (DT / DX), rg * (DT / DY), rg * (DT / DZ)};
+        long long s1[3];
+        int fl[3];
+        double pos1[3];
+#pragma unroll
+        for (int a = 0; a < 3; a++) {
+            s1[a] = __double2ll_rn((w0[a] + dtc[a] * u[a]) * TWO32);
+            fl[a] = (int)(s1[a] >> 32);
+            pos1[a] = (double)g0[a] + (double)s1[a] * ITWO32;
+        }
+#else
         const double dtg = DT / g1;
         double pos1[3] = {pos0[0] + dtg * u[0], pos0[1] + dtg * u[1], pos0[2] + dtg * u[2]};
+#endif
         if (do_diag) {
             const double g0 = sqrt(1.0 + PUX(p) * PUX(p) + PUY(p) * PUY(p) + PUZ(p) * PUZ(p));
             ke = w * m * (0.5 * (g0 + g1) - 1.0);
@@ -242,11 +440,63 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         //     returns its neutraliser the same way, with a velocity of the inflow distribution.
         //     Three hits are enough: a reflecting wall is hit once per axis and step, and a returned
         //     neutraliser meets no second paired face (they lie on one axis, injection.check_config) ---
-        const double Lg[3] = {LX, LY, LZ};
+        const double Lg[3] = WBOX;
         const int b0[3] = {BCX0, BCY0, BCZ0};
         const int b1[3] = {BCX1, BCY1, BCZ1};
         // deposit charge: q for plasma species, 0 for test species (they feel the fields only)
         const double qw = qdep * w;
+#ifdef COMPACT_STORE
+        // --- integer route (PIC-D19): a step that ends inside the faces of the box that are not
+        //     periodic, and outside the body, meets no wall, no cut and no removal. Its deposit, wrap
+        //     and store are done on the stored integers; they give what the general path below gives
+        //     for the same step (the shapes of the two ends are the same doubles). The choice depends
+        //     on the cell in the box only, not on the rank layout ---
+        const int gn[3] = {GNX, GNY, GNZ};
+        bool inner = true;
+#pragma unroll
+        for (int a = 0; a < 3; a++) {
+            if (b0[a] != BC_PERIODIC && (g0[a] + fl[a] < 0 || g0[a] + fl[a] >= gn[a])) inner = false;
+        }
+#ifdef BODY_SPHERE
+        {
+            const double rx = WPHYS(pos1[0], DX) - BODY_CX, ry = WPHYS(pos1[1], DY) - BODY_CY,
+                         rz = WPHYS(pos1[2], DZ) - BODY_CZ;
+            if (rx * rx + ry * ry + rz * rz < BODY_R2) inner = false;
+        }
+#endif
+        if (inner) {
+            const unsigned int q1[3] = {(unsigned int)s1[0], (unsigned int)s1[1], (unsigned int)s1[2]};
+            if (qw != 0.0) {
+                AxisShape x, y, z;
+                axis_shape_cells(c0[0], w0[0], c0[0] + fl[0], (double)q1[0] * ITWO32, x);
+                axis_shape_cells(c0[1], w0[1], c0[1] + fl[1], (double)q1[1] * ITWO32, y);
+                axis_shape_cells(c0[2], w0[2], c0[2] + fl[2], (double)q1[2] * ITWO32, z);
+                esirkepov_shapes(x, y, z, s1[0] != (long long)q0[0], s1[1] != (long long)q0[1],
+                                 s1[2] != (long long)q0[2], qw, Jx, Jy, Jz);
+            }
+            // periodic wrap on non-decomposed axes, change of rank on decomposed ones (as below)
+            const int dec[3] = {DECX, DECY, DECZ};
+            const int slo[3] = {SX0I, SY0I, SZ0I};
+            const int shi[3] = {SX1I, SY1I, SZ1I};
+            int c1[3];
+            bool migrate = false;
+#pragma unroll
+            for (int a = 0; a < 3; a++) {
+                const int g = g0[a] + fl[a];
+                c1[a] = c0[a] + fl[a];
+                if (!dec[a]) {
+                    if (b0[a] == BC_PERIODIC) {
+                        if (g < 0) c1[a] += gn[a];
+                        else if (g >= gn[a]) c1[a] -= gn[a];
+                    }
+                } else if (g < slo[a] || g >= shi[a]) {
+                    migrate = true;
+                }
+            }
+            if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+            SET_CELL(p, c1, q1);
+        } else {
+#endif
         double trem = 1.0;  // fraction of the step left after the wall hits so far
         const int fm = fmask & (PAIRED_FACES | (PAIRED_FACES << 8));
         for (int it = 0; it < 3; it++) {
@@ -254,14 +504,14 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             int amin = -1;
             for (int a = 0; a < 3; a++) {
                 double d = pos1[a] - pos0[a];
-                if ((b0[a] == BC_REFLECT || ((fm >> (2 * a)) & 1)) && pos1[a] < 0.0 && d < 0.0) {
-                    double tt = (0.0 - pos0[a]) / d;
-                    if (tt < tmin) { tmin = tt; amin = a; wall = 0.0; }
+                if ((b0[a] == BC_REFLECT || ((fm >> (2 * a)) & 1)) && pos1[a] < FLO(a) && d < 0.0) {
+                    double tt = (FLO(a) - pos0[a]) / d;
+                    if (tt < tmin) { tmin = tt; amin = a; wall = FLO(a); }
                 }
-                if (((b1[a] == BC_REFLECT && pos1[a] > Lg[a]) || (((fm >> (2 * a + 1)) & 1) && pos1[a] >= Lg[a])) &&
+                if (((b1[a] == BC_REFLECT && pos1[a] > FHI(a)) || (((fm >> (2 * a + 1)) & 1) && pos1[a] >= FHI(a))) &&
                     d > 0.0) {
-                    double tt = (Lg[a] - pos0[a]) / d;
-                    if (tt < tmin) { tmin = tt; amin = a; wall = Lg[a]; }
+                    double tt = (FHI(a) - pos0[a]) / d;
+                    if (tt < tmin) { tmin = tt; amin = a; wall = FHI(a); }
                 }
             }
             if (amin < 0) break;
@@ -279,8 +529,8 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
                 sample_inflow(rb + (long long)face * nrb * 6, nrb, amin, wall > 0.0 ? -1.0 : 1.0, sr, u);
                 g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
                 lke -= w * m * (g1 - 1.0);
-                for (int a = 0; a < 3; a++) pos1[a] = pw[a] + (trem * DT / g1) * u[a];
-                if (wall > 0.0 && pos1[amin] >= wall) pos1[amin] = nextafter(wall, 0.0);
+                for (int a = 0; a < 3; a++) pos1[a] = WSNAP(pw[a] + (trem * WDT(a) / g1) * u[a]);
+                if (wall > 0.0 && pos1[amin] >= wall) pos1[amin] = WBELOW(wall);
             } else {
                 pos1[amin] = 2.0 * wall - pos1[amin];
                 u[amin] = -u[amin];
@@ -292,12 +542,13 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
         // --- open boundaries: particle leaves and is removed ---
         bool dead = false;
         for (int a = 0; a < 3; a++) {
-            if ((b0[a] == BC_OPEN && pos1[a] < 0.0) || (b1[a] == BC_OPEN && pos1[a] >= Lg[a])) dead = true;
+            if ((b0[a] == BC_OPEN && pos1[a] < FLO(a)) || (b1[a] == BC_OPEN && pos1[a] >= FHI(a))) dead = true;
         }
 #ifdef BODY_SPHERE
         // --- absorbing body (PIC-D14): a particle that ends its step inside is removed; its whole
         //     path was deposited, so its charge stays at the nodes of the body ---
-        const double rbx = pos1[0] - BODY_CX, rby = pos1[1] - BODY_CY, rbz = pos1[2] - BODY_CZ;
+        const double rbx = WPHYS(pos1[0], DX) - BODY_CX, rby = WPHYS(pos1[1], DY) - BODY_CY,
+                     rbz = WPHYS(pos1[2], DZ) - BODY_CZ;
         if (!dead && rbx * rbx + rby * rby + rbz * rbz < BODY_R2) {
             if (do_diag) {
                 ke = 0.0; mx = my = mz = 0.0;
@@ -305,7 +556,7 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             ake = w * m * (g1 - 1.0);
             aq = qw;  // zero for test species
             an = 1.0;
-            PW(p) = 0.0;
+            SET_W(p, 0.0);
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
         } else
 #endif
@@ -315,10 +566,10 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             }
             lke += w * m * (g1 - 1.0);
             lq = qw;  // charge lost: zero for test species
-            PW(p) = 0.0;
+            SET_W(p, 0.0);
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
             if (fm & 0x3f00) {  // a carrier that leaves through a paired face: the column owes one
-                const double D[3] = {DX, DY, DZ};
+                const double D[3] = WCELL;
                 for (int a = 0; a < 3; a++) {
                     const int face = pos1[a] < 0.0 ? 2 * a : (pos1[a] >= Lg[a] ? 2 * a + 1 : -1);
                     if (face < 0 || !((fm >> (8 + face)) & 1)) continue;
@@ -336,8 +587,8 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             // periodic wrap on non-decomposed axes (a step moves a particle by less than a cell,
             // so by at most one period); decomposed axes are wrapped after migration
             const int dec[3] = {DECX, DECY, DECZ};
-            const double slo[3] = {SX0, SY0, SZ0};
-            const double shi[3] = {SX1, SY1, SZ1};
+            const double slo[3] = WLO;
+            const double shi[3] = WHI;
             bool migrate = false;
             for (int a = 0; a < 3; a++) {
                 if (!dec[a]) {
@@ -351,12 +602,11 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
             }
             if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
         }
-        PX(p) = pos1[0];
-        PY(p) = pos1[1];
-        PZ(p) = pos1[2];
-        PUX(p) = u[0];
-        PUY(p) = u[1];
-        PUZ(p) = u[2];
+        SET_POS(p, pos1[0], pos1[1], pos1[2]);
+#ifdef COMPACT_STORE
+        }  // general path
+#endif
+        SET_MOM(p, u[0], u[1], u[2]);
     }
     if (do_diag) {
         warp_atomic_add(&diag[0], ke);
@@ -375,28 +625,175 @@ extern "C" __global__ void push_deposit(double* P, const int n, const long long 
 
 // Set-up of a body (PIC-D14): the particles loaded inside it get weight zero. The beams of all
 // species share their positions, so what is left is as neutral as what was loaded.
-extern "C" __global__ void mark_body(double* P, const int n, const long long cap) {
+extern "C" __global__ void mark_body(PSTORE, const int n, const long long cap) {
 #ifdef BODY_SPHERE
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
     const double rx = PX(p) - BODY_CX, ry = PY(p) - BODY_CY, rz = PZ(p) - BODY_CZ;
-    if (rx * rx + ry * ry + rz * rz < BODY_R2) PW(p) = 0.0;
+    if (rx * rx + ry * ry + rz * rz < BODY_R2) SET_W(p, 0.0);
 #endif
 }
 
 // The particles of weight zero, into the list that migrate() takes out.
-extern "C" __global__ void flag_dead(const double* __restrict__ P, const int n, const long long cap, int* flag,
+extern "C" __global__ void flag_dead(PSTORE_RO, const int n, const long long cap, int* flag,
                                      int* list, const int listcap) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
     if (PW(p) == 0.0) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
 }
 
+#ifdef MOVING_WINDOW
+// ---- Moving window (PIC-D22). window_state: the shift in cells, the two faces of the window along
+//      x and the two bounds of this rank along x, in laboratory coordinates (the doubles that the
+//      migration gets).
+extern "C" __global__ void window_set(const double s, const double lo, const double hi, const double r0,
+                                      const double r1) {
+    if (blockIdx.x || threadIdx.x) return;
+    window_state[0] = s;
+    window_state[1] = lo;
+    window_state[2] = hi;
+    window_state[3] = r0;
+    window_state[4] = r1;
+}
+
+// After a shift: the list that migrate() takes out, from the particles alone (the lists of the
+// step are void, the bounds have moved). Dead slots; the particles below the new x- face, which
+// leave with their plane: kinetic energy, charge and number into wd[0..2], weight zero, nothing
+// deposited (their charge stays on the nodes that the Gauss check leaves out at an open face,
+// PIC-D15); the particles outside this rank. wd[3] counts the charged particles at x >= xnear,
+// within the reach of the x+ wall, where the rule for the field of the new wall cell does not hold.
+extern "C" __global__ void window_drop(PSTORE, const int n, const long long cap, const double m,
+                                       const double qdep, const double xnear, double* wd, int* flag, int* list,
+                                       const int listcap) {
+    int p = blockIdx.x * blockDim.x + threadIdx.x;
+    double ke = 0.0, q = 0.0, gone = 0.0, near = 0.0;
+    if (p < n) {
+        const double w = PW(p);
+        bool take = w == 0.0;
+        if (!take) {
+            const double pos[3] = {PX(p), PY(p), PZ(p)};
+            if (pos[0] < FLO(0)) {
+                const double ux = PUX(p), uy = PUY(p), uz = PUZ(p);
+                ke = w * m * (sqrt(1.0 + ux * ux + uy * uy + uz * uz) - 1.0);
+                q = qdep * w;
+                gone = 1.0;
+                SET_W(p, 0.0);
+                take = true;
+            } else {
+                if (qdep != 0.0 && pos[0] >= xnear) near = 1.0;
+                const int dec[3] = {DECX, DECY, DECZ};
+                const double slo[3] = WLO;
+                const double shi[3] = WHI;
+                for (int a = 0; a < 3; a++) {
+                    if (dec[a] && (pos[a] < slo[a] || pos[a] >= shi[a])) take = true;
+                }
+            }
+        }
+        if (take) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+    }
+    warp_atomic_add(&wd[0], ke);
+    warp_atomic_add(&wd[1], q);
+    warp_atomic_add(&wd[2], gone);
+    warp_atomic_add(&wd[3], near);
+}
+
+// A plane that enters the window is loaded as it was at the shift before. One round of its move
+// to the present: the particles [n0, n) go on for the time tau (less than a cell on every axis)
+// and are reflected at the upper face xw of the plane, as the plane ahead, which is loaded later
+// in the same state, holds them back. The current of the move is deposited like that of a step
+// (the caller sets E -= DT J after the last round); the walls and open faces across the window
+// act as in the push, with the lost energy and charge in diag[4..5]; a particle that crosses a
+// rank bound is listed for migrate(), which the caller runs after every round. first: the kinetic
+// energy of the plane into wd[4] (a particle lost in the same round is in both sums), and the
+// slots that a density profile left without weight are listed, so that migrate() drops them.
+// tau = 0: nothing moves (a cold plane is loaded where it stands).
+extern "C" __global__ void window_move(PSTORE, const int n0, const int n, const long long cap, const double tau,
+                                       const double xw, double* Jx, double* Jy, double* Jz, const double m,
+                                       const double qdep, const int first, double* wd, double* diag, int* flag,
+                                       int* list, const int listcap) {
+    int p = n0 + blockIdx.x * blockDim.x + threadIdx.x;
+    double kin = 0.0, lke = 0.0, lq = 0.0;
+    if (first && p < n && PW(p) == 0.0) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+    if (p < n && PW(p) != 0.0) {
+        const double w = PW(p), qw = qdep * w;
+        double u[3] = {PUX(p), PUY(p), PUZ(p)};
+        const double g = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+        if (first) kin = w * m * (g - 1.0);
+        if (tau != 0.0) {
+            const double tg = tau / g;
+            double pos0[3] = {PX(p), PY(p), PZ(p)};
+            double pos1[3] = {pos0[0] + tg * u[0], pos0[1] + tg * u[1], pos0[2] + tg * u[2]};
+            const double Lg[3] = WBOX;
+            const int b0[3] = {BCX0, BCY0, BCZ0};
+            const int b1[3] = {BCX1, BCY1, BCZ1};
+            // the path is split at a wall as in the push; each of the three walls is hit once at most
+            for (int it = 0; it < 3; it++) {
+                double tmin = 2.0, wall = 0.0;
+                int amin = -1;
+                for (int a = 0; a < 3; a++) {
+                    const double d = pos1[a] - pos0[a];
+                    const double hi = a == 0 ? xw : Lg[a];
+                    if (a > 0 && b0[a] == BC_REFLECT && pos1[a] < 0.0 && d < 0.0) {
+                        const double tt = -pos0[a] / d;
+                        if (tt < tmin) { tmin = tt; amin = a; wall = 0.0; }
+                    }
+                    if ((a == 0 || b1[a] == BC_REFLECT) && pos1[a] > hi && d > 0.0) {
+                        const double tt = (hi - pos0[a]) / d;
+                        if (tt < tmin) { tmin = tt; amin = a; wall = hi; }
+                    }
+                }
+                if (amin < 0) break;
+                tmin = fmin(fmax(tmin, 0.0), 1.0);
+                double pw[3];
+                for (int a = 0; a < 3; a++) pw[a] = pos0[a] + tmin * (pos1[a] - pos0[a]);
+                pw[amin] = wall;
+                if (qw != 0.0) deposit_cut(pos0, pw, qw, Jx, Jy, Jz);
+                pos1[amin] = 2.0 * wall - pos1[amin];
+                u[amin] = -u[amin];
+                for (int a = 0; a < 3; a++) pos0[a] = pw[a];
+            }
+            if (qw != 0.0) deposit_cut(pos0, pos1, qw, Jx, Jy, Jz);
+            bool dead = false;
+            for (int a = 1; a < 3; a++) {
+                if ((b0[a] == BC_OPEN && pos1[a] < 0.0) || (b1[a] == BC_OPEN && pos1[a] >= Lg[a])) dead = true;
+            }
+            if (dead) {
+                lke = w * m * (g - 1.0);
+                lq = qw;
+                SET_W(p, 0.0);
+                { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+            } else {
+                const int dec[3] = {DECX, DECY, DECZ};
+                const double slo[3] = WLO;
+                const double shi[3] = WHI;
+                bool migrate = false;
+                for (int a = 0; a < 3; a++) {
+                    if (!dec[a]) {
+                        if (b0[a] == BC_PERIODIC) {
+                            if (pos1[a] < 0.0) pos1[a] += Lg[a];
+                            else if (pos1[a] >= Lg[a]) pos1[a] -= Lg[a];
+                        }
+                    } else if (pos1[a] < slo[a] || pos1[a] >= shi[a]) {
+                        migrate = true;
+                    }
+                }
+                if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
+            }
+            SET_POS(p, pos1[0], pos1[1], pos1[2]);
+            SET_MOM(p, u[0], u[1], u[2]);
+        }
+    }
+    warp_atomic_add(&wd[4], kin);
+    warp_atomic_add(&diag[4], lke);
+    warp_atomic_add(&diag[5], lq);
+}
+#endif
+
 // ---- Initial perturbation (PIC-D9): virtual, charge-conserving displacement. The remaining
 //      displacement of each particle is stored in rows 8..10 (present only during set-up). One
 //      call moves every particle by at most h_a (< 1 cell) per axis and deposits the current of
 //      that move with Esirkepov; the caller sets E -= DT * J after all rounds, so div E = rho.
-extern "C" __global__ void displace_deposit(double* P, const int n, const long long cap, const double hx,
+extern "C" __global__ void displace_deposit(PSTORE PDISP_ARG, const int n, const long long cap, const double hx,
                                             const double hy, const double hz, double* Jx, double* Jy, double* Jz,
                                             const double qdep, int* flag, int* list, const int listcap) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
@@ -405,20 +802,20 @@ extern "C" __global__ void displace_deposit(double* P, const int n, const long l
     double rem[3], s[3];
     bool moved = false;
     for (int a = 0; a < 3; a++) {
-        rem[a] = P[(8 + a) * cap + p];
+        rem[a] = DISP(a, p);
         s[a] = fmax(-h[a], fmin(h[a], rem[a]));
         moved |= (s[a] != 0.0);
     }
     if (!moved) return;
-    double p0[3] = {PX(p), PY(p), PZ(p)};
-    double p1[3] = {p0[0] + s[0], p0[1] + s[1], p0[2] + s[2]};
+    double p0[3] = {QX(p), QY(p), QZ(p)};
+    double p1[3] = {WSNAP(p0[0] + WLEN(s[0], DX)), WSNAP(p0[1] + WLEN(s[1], DY)), WSNAP(p0[2] + WLEN(s[2], DZ))};
     if (qdep != 0.0) deposit_global(p0, p1, qdep * PW(p), Jx, Jy, Jz);
-    for (int a = 0; a < 3; a++) P[(8 + a) * cap + p] = rem[a] - s[a];
+    for (int a = 0; a < 3; a++) DISP(a, p) = rem[a] - s[a];
     // periodic wrap on non-decomposed axes; decomposed axes are wrapped after migration
-    const double Lg[3] = {LX, LY, LZ};
+    const double Lg[3] = WBOX;
     const int dec[3] = {DECX, DECY, DECZ};
-    const double slo[3] = {SX0, SY0, SZ0};
-    const double shi[3] = {SX1, SY1, SZ1};
+    const double slo[3] = WLO;
+    const double shi[3] = WHI;
     bool migrate = false;
     for (int a = 0; a < 3; a++) {
         if (!dec[a]) {
@@ -428,21 +825,19 @@ extern "C" __global__ void displace_deposit(double* P, const int n, const long l
         }
     }
     if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
-    PX(p) = p1[0];
-    PY(p) = p1[1];
-    PZ(p) = p1[2];
+    SET_POS(p, p1[0], p1[1], p1[2]);
 }
 
 // Boris velocity step of length tau without moving the particle: with tau = -DT/2 it turns
 // momenta given at t = 0 into the u^{-1/2} of the explicit leapfrog when E or B is non-zero.
-extern "C" __global__ void boris_kick(double* P, const int n, const long long cap, const double* __restrict__ Ex,
+extern "C" __global__ void boris_kick(PSTORE, const int n, const long long cap, const double* __restrict__ Ex,
                                       const double* __restrict__ Ey, const double* __restrict__ Ez,
                                       const double* __restrict__ Bx, const double* __restrict__ By,
                                       const double* __restrict__ Bz, const double q, const double m,
                                       const double tau) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
-    const double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    const double X = XI(p), Y = YI(p), Z = ZI(p);
     const double h = q * tau / (2.0 * m);
     double ex = h * interp(Ex, X, Y, Z, 0.5, 0.0, 0.0);
     double ey = h * interp(Ey, X, Y, Z, 0.0, 0.5, 0.0);
@@ -458,27 +853,33 @@ extern "C" __global__ void boris_kick(double* P, const int n, const long long ca
     double upx = umx + (umy * tz - umz * ty);
     double upy = umy + (umz * tx - umx * tz);
     double upz = umz + (umx * ty - umy * tx);
-    PUX(p) = umx + (upy * sz - upz * sy) + ex;
-    PUY(p) = umy + (upz * sx - upx * sz) + ey;
-    PUZ(p) = umz + (upx * sy - upy * sx) + ez;
+    SET_MOM(p, umx + (upy * sz - upz * sy) + ex, umy + (upz * sx - upx * sz) + ey,
+            umz + (upx * sy - upy * sx) + ez);
 }
 
 // CIC charge density at nodes (diagnostic / Gauss check). shell > 0: only the particles within `shell`
 // cells of an open face, which is all that the Marder zone needs (PIC-D16).
-extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n, const long long cap, const double q,
+extern "C" __global__ void deposit_rho(PSTORE_RO, const int n, const long long cap, const double q,
                                        const double shell, double* rho) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
     if (shell > 0.0) {
-        const double x[3] = {PX(p), PY(p), PZ(p)}, Lg[3] = {LX, LY, LZ}, d[3] = {DX, DY, DZ};
         const bool o0[3] = {BCX0 == BC_OPEN, BCY0 == BC_OPEN, BCZ0 == BC_OPEN};
         const bool o1[3] = {BCX1 == BC_OPEN, BCY1 == BC_OPEN, BCZ1 == BC_OPEN};
         bool in = false;
+#ifdef COMPACT_STORE
+        // a position is its cell plus a fraction below one: the cell decides (the shell in whole cells)
+        const int l = P_c[p], sh = (int)ceil(shell), gn[3] = {GNX, GNY, GNZ};
+        const int c[3] = {l / (NY * NZ) + OXI, l / NZ % NY + OYI, l % NZ + OZI};  // cell of the box
+        for (int a = 0; a < 3; a++) in = in || (o0[a] && c[a] < sh) || (o1[a] && c[a] >= gn[a] - sh);
+#else
+        const double x[3] = {PX(p), PY(p), PZ(p)}, Lg[3] = {LX, LY, LZ}, d[3] = {DX, DY, DZ};
         for (int a = 0; a < 3; a++)
-            in = in || (o0[a] && x[a] < shell * d[a]) || (o1[a] && x[a] >= Lg[a] - shell * d[a]);
+            in = in || (o0[a] && x[a] - FLO(a) < shell * d[a]) || (o1[a] && x[a] >= FHI(a) - shell * d[a]);
+#endif
         if (!in) return;
     }
-    double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    double X = XI(p), Y = YI(p), Z = ZI(p);
     int i = (int)floor(X), j = (int)floor(Y), k = (int)floor(Z);
     double wx = X - i, wy = Y - j, wz = Z - k;
     double c = q * PW(p) * (1.0 / (DX * DY * DZ));
@@ -492,11 +893,11 @@ extern "C" __global__ void deposit_rho(const double* __restrict__ P, const int n
 
 // CIC moment of a species at nodes (output diagnostics): sum of w * f(u) / cell volume with
 // kind 0: f = 1 (number density), 1..3: f = v_x, v_y, v_z (particle flux), 4: f = m (gamma - 1).
-extern "C" __global__ void deposit_moment(const double* __restrict__ P, const int n, const long long cap, const int kind,
+extern "C" __global__ void deposit_moment(PSTORE_RO, const int n, const long long cap, const int kind,
                                           const double m, double* out) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
-    double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    double X = XI(p), Y = YI(p), Z = ZI(p);
     int i = (int)floor(X), j = (int)floor(Y), k = (int)floor(Z);
     double wx = X - i, wy = Y - j, wz = Z - k;
     double f = 1.0;
@@ -527,7 +928,7 @@ extern "C" __global__ void ext_sum(const double* d, const double* ext, const int
 
 // Fields at the positions of selected particles (track output): out[c * m + t] for
 // c = Ex Ey Ez Bx By Bz, interpolated exactly as in the explicit push.
-extern "C" __global__ void gather_at_particles(const double* __restrict__ P, const long long cap,
+extern "C" __global__ void gather_at_particles(PSTORE_RO, const long long cap,
                                                const long long* __restrict__ sel, const int m,
                                                const double* __restrict__ Ex, const double* __restrict__ Ey,
                                                const double* __restrict__ Ez, const double* __restrict__ Bx,
@@ -536,7 +937,7 @@ extern "C" __global__ void gather_at_particles(const double* __restrict__ P, con
     int t = blockIdx.x * blockDim.x + threadIdx.x;
     if (t >= m) return;
     long long p = sel[t];
-    const double X = (PX(p) - OX) * (1.0 / DX), Y = (PY(p) - OY) * (1.0 / DY), Z = (PZ(p) - OZ) * (1.0 / DZ);
+    const double X = XI(p), Y = YI(p), Z = ZI(p);
     out[t] = interp(Ex, X, Y, Z, 0.5, 0.0, 0.0);
     out[m + t] = interp(Ey, X, Y, Z, 0.0, 0.5, 0.0);
     out[2 * m + t] = interp(Ez, X, Y, Z, 0.0, 0.0, 0.5);
@@ -547,7 +948,7 @@ extern "C" __global__ void gather_at_particles(const double* __restrict__ P, con
 
 // Kinetic energy and momentum of particles at the current time level (used by the implicit
 // scheme where u is stored at integer time levels).
-extern "C" __global__ void kinetic(const double* __restrict__ P, const int n, const long long cap, const double m,
+extern "C" __global__ void kinetic(PSTORE_RO, const int n, const long long cap, const double m,
                                    double* diag) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     double ke = 0, mx = 0, my = 0, mz = 0;
@@ -565,12 +966,11 @@ extern "C" __global__ void kinetic(const double* __restrict__ P, const int n, co
 }
 
 // Cell index (for sorting) of each particle.
-extern "C" __global__ void cell_index(const double* __restrict__ P, const int n, const long long cap,
+extern "C" __global__ void cell_index(PSTORE_RO, const int n, const long long cap,
                                       long long* key) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     if (p >= n) return;
-    int i = (int)floor((PX(p) - OX) * (1.0 / DX)), j = (int)floor((PY(p) - OY) * (1.0 / DY)),
-        k = (int)floor((PZ(p) - OZ) * (1.0 / DZ));
+    int i = (int)floor(XI(p)), j = (int)floor(YI(p)), k = (int)floor(ZI(p));
     key[p] = IDX(i, j, k);
 }
 
@@ -662,7 +1062,7 @@ __device__ __forceinline__ void boost_drift(double* u, const double udx, const d
     }
 }
 
-extern "C" __global__ void load_particles(double* P, const long long cap, const long long offset, const int ppc,
+extern "C" __global__ void load_particles(PSTORE, const long long cap, const long long offset, const int ppc,
                                           const int nlx, const int nly, const int nlz, const int gx0,
                                           const int gy0, const int gz0, const int gnx, const int gny,
                                           const int gnz, const unsigned long long seed,
@@ -680,17 +1080,24 @@ extern "C" __global__ void load_particles(double* P, const long long cap, const 
     int j = (int)(c % nly);
     int i = (int)(c / nly);
     long long gcell = ((long long)(gx0 + i) * gny + (gy0 + j)) * (long long)((long long)1 << 30) + (gz0 + k);
+#ifdef LATTICE_X
+    // PIC-D23: the slots of a cell sit on LATTICE_X x LATTICE_Y x LATTICE_Z places (their product is ppc)
+    double x = WPOINT(gx0 + i, (slot % LATTICE_X + 0.5) / LATTICE_X, DX);
+    double y = WPOINT(gy0 + j, (slot / LATTICE_X % LATTICE_Y + 0.5) / LATTICE_Y, DY);
+    double z = WPOINT(gz0 + k, (slot / (LATTICE_X * LATTICE_Y) + 0.5) / LATTICE_Z, DZ);
+#else
     unsigned long long sp = hash_key(seed, (unsigned long long)gcell, (unsigned long long)slot);
-    double x = (gx0 + i + urand(sp)) * DX;
-    double y = (gy0 + j + urand(sp)) * DY;
-    double z = (gz0 + k + urand(sp)) * DZ;
+    double x = WRAND(gx0 + i, sp, DX);
+    double y = WRAND(gy0 + j, sp, DY);
+    double z = WRAND(gz0 + k, sp, DZ);
+#endif
     unsigned long long sm = hash_key(seed ^ (stream * 0x2545F4914F6CDD1DULL + 77ULL), (unsigned long long)gcell,
                                      (unsigned long long)slot);
     double u[3];
     sample_mj(theta, sm, u);
     double vx = udx, vy = udy, vz = udz;
     if (ur != 0.0) {  // radial beam (PIC-D17): the drift ur along the unit vector from the origin
-        const double rx = x - ox, ry = y - oy, rz = z - oz;
+        const double rx = WPHYS(x, DX) - ox, ry = WPHYS(y, DY) - oy, rz = WPHYS(z, DZ) - oz;
         const double r = sqrt(rx * rx + ry * ry + rz * rz);
         const double f = r > 0.0 ? ur / r : 0.0;
         vx = f * rx;
@@ -699,16 +1106,12 @@ extern "C" __global__ void load_particles(double* P, const long long cap, const 
     }
     boost_drift(u, vx, vy, vz, sm);
     long long p = offset + t;
-    PX(p) = x;
-    PY(p) = y;
-    PZ(p) = z;
-    PUX(p) = u[0];
-    PUY(p) = u[1];
-    PUZ(p) = u[2];
-    PW(p) = w;
+    SET_POS(p, x, y, z);
+    SET_MOM(p, u[0], u[1], u[2]);
+    SET_W(p, w);
     // persistent id (PIC-D8): id_base + linear global cell * ppc + slot (exact below 2^53)
     const long long lin = ((long long)(gx0 + i) * gny + (gy0 + j)) * (long long)gnz + (gz0 + k);
-    PID(p) = id_base + (double)(lin * ppc + slot);
+    SET_ID(p, id_base + (double)(lin * ppc + slot));
 }
 
 // ---- Injection at open faces (PIC-D13) ----
@@ -754,18 +1157,18 @@ static const unsigned long long INJ_SALT = 0x5851F42D4C957F2DULL;
 __device__ bool layer_sample(const unsigned long long ks, const unsigned long long gcell, const int* gc, const int slot,
                              const double* tb, double* r0, double* u, double* r1, double& g, unsigned long long& sm) {
     unsigned long long sp = hash_key(ks, gcell, (unsigned long long)slot);
-    r0[0] = (gc[0] + urand(sp)) * DX;
-    r0[1] = (gc[1] + urand(sp)) * DY;
-    r0[2] = (gc[2] + urand(sp)) * DZ;
+    r0[0] = WRAND(gc[0], sp, DX);
+    r0[1] = WRAND(gc[1], sp, DY);
+    r0[2] = WRAND(gc[2], sp, DZ);
     sm = hash_key(ks ^ ((unsigned long long)tb[5] * 0x2545F4914F6CDD1DULL + 77ULL), gcell, (unsigned long long)slot);
     sample_mj(tb[1], sm, u);
     boost_drift(u, tb[2], tb[3], tb[4], sm);
     g = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
-    const double Lg[3] = {LX, LY, LZ};
+    const double Lg[3] = WBOX;
     const int b0[3] = {BCX0, BCY0, BCZ0};
     bool inside = true;
     for (int a = 0; a < 3; a++) {
-        r1[a] = r0[a] + (DT / g) * u[a];
+        r1[a] = WSNAP(r0[a] + (WDT(a) / g) * u[a]);
         if (b0[a] != BC_PERIODIC && (r1[a] < 0.0 || r1[a] >= Lg[a])) inside = false;
     }
     return inside;
@@ -791,13 +1194,13 @@ __device__ bool layer_sample(const unsigned long long ks, const unsigned long lo
 // diag (per species): [6] kinetic energy, [7] charge, [8] number of the injected particles; with
 // do_diag their kinetic energy and momentum are added to [0..3], as they are part of the plasma
 // from this step on.
-extern "C" __global__ void inject_face(double* P, const long long cap, const int n0, int* ninj, double* diag, int* flag,
+extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0, int* ninj, double* diag, int* flag,
                                        int* list, const int listcap, double* Jx, double* Jy, double* Jz,
                                        const double q, const double m, const int gx0, const int gy0, const int gz0,
                                        const int nlx, const int nly, const int nlz, const int gnx, const int gny,
                                        const int gnz, const int ppc, const unsigned long long seed,
                                        const long long step, const double id_step, const double* bt,
-                                       const int nbeam, const int face, const int paired, double* Pe,
+                                       const int nbeam, const int face, const int paired, PSTORE_AS(Pe),
                                        const long long cape, const int ne0, int* ninje, double* diage, int* flage,
                                        int* liste, const int listcape, const double qe,
                                        unsigned long long* pstate, int* pface, double* bank,
@@ -836,11 +1239,11 @@ extern "C" __global__ void inject_face(double* P, const long long cap, const int
         }
     }
     if (!pair) deposit_cut(r0, r1, qw, Jx, Jy, Jz);
-    const double Lg[3] = {LX, LY, LZ};
+    const double Lg[3] = WBOX;
     const int b0[3] = {BCX0, BCY0, BCZ0};
     const int dec[3] = {DECX, DECY, DECZ};
-    const double slo[3] = {SX0, SY0, SZ0};
-    const double shi[3] = {SX1, SY1, SZ1};
+    const double slo[3] = WLO;
+    const double shi[3] = WHI;
     bool migrate = false;
     for (int a = 0; a < 3; a++) {
         if (!dec[a]) {
@@ -855,14 +1258,10 @@ extern "C" __global__ void inject_face(double* P, const long long cap, const int
     const double cellslot = (double)(lin * ppc + slot);
     {
         const long long p = n0 + atomicAdd(ninj, 1);
-        PX(p) = r1[0];
-        PY(p) = r1[1];
-        PZ(p) = r1[2];
-        PUX(p) = u[0];
-        PUY(p) = u[1];
-        PUZ(p) = u[2];
-        PW(p) = w;
-        PID(p) = id_step + tb[6] + cellslot;
+        SET_POS(p, r1[0], r1[1], r1[2]);
+        SET_MOM(p, u[0], u[1], u[2]);
+        SET_W(p, w);
+        SET_ID(p, id_step + tb[6] + cellslot);
         if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = (int)p; }
     }
     const double ke = w * m * (g - 1.0);
@@ -876,12 +1275,10 @@ extern "C" __global__ void inject_face(double* P, const long long cap, const int
     if (pair) {
         const int ie = atomicAdd(ninje, 1);
         const long long p = ne0 + ie;
-        Pe[p] = r1[0];
-        Pe[cape + p] = r1[1];
-        Pe[2 * cape + p] = r1[2];
-        Pe[3 * cape + p] = Pe[4 * cape + p] = Pe[5 * cape + p] = 0.0;
-        Pe[6 * cape + p] = -qw / qe;
-        Pe[7 * cape + p] = id_step + tb[7] + cellslot;
+        S_SET_POS(Pe, cape, p, r1[0], r1[1], r1[2]);
+        S_SET_MOM(Pe, cape, p, 0.0, 0.0, 0.0);
+        S_SET_W(Pe, cape, p, -qw / qe);
+        S_SET_ID(Pe, cape, p, id_step + tb[7] + cellslot);
         if (migrate) { int sl = atomicAdd(flage, 1); if (sl < listcape) liste[sl] = (int)p; }
         pstate[ie] = sm;
         pface[ie] = face + 1;
@@ -893,7 +1290,7 @@ extern "C" __global__ void inject_face(double* P, const long long cap, const int
 // neutraliser's inflow distribution at the face (rb, see sample_inflow) with the stream the
 // carrier left. A kernel of its own because the sampler is a rejection loop: here every thread of
 // a warp runs it. diage: as diag of inject_face.
-extern "C" __global__ void inject_partners(double* Pe, const long long cape, const int ne0, const int* ninje,
+extern "C" __global__ void inject_partners(PSTORE_AS(Pe), const long long cape, const int ne0, const int* ninje,
                                            double* diage, const double qe, const double me, const double* rb,
                                            const int nrb, const unsigned long long* pstate, int* pface,
                                            const int do_diag) {
@@ -905,10 +1302,8 @@ extern "C" __global__ void inject_partners(double* Pe, const long long cape, con
     double ue[3];
     sample_inflow(rb + (long long)face * nrb * 6, nrb, face >> 1, (face & 1) ? -1.0 : 1.0, sm, ue);
     const long long p = ne0 + ie;
-    Pe[3 * cape + p] = ue[0];
-    Pe[4 * cape + p] = ue[1];
-    Pe[5 * cape + p] = ue[2];
-    const double we = Pe[6 * cape + p];
+    S_SET_MOM(Pe, cape, p, ue[0], ue[1], ue[2]);
+    const double we = S_W(Pe, cape, p);
     const double eke = we * me * (sqrt(1.0 + ue[0] * ue[0] + ue[1] * ue[1] + ue[2] * ue[2]) - 1.0);
     atomicAdd(&diage[6], eke);
     atomicAdd(&diage[7], qe * we);

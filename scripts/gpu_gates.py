@@ -35,14 +35,15 @@ from pypic.provenance import code_state
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "examples" / "two_stream"))
 
-CONFIGS = ["ei", "ep", "eip", "ei_implicit", "buneman"]
-# precision: mixed (PIC-D11) applies to the explicit solver only; its record is the explicit gates
-MIXED_CONFIGS = [c for c in CONFIGS if "implicit" not in c]
+CONFIGS = ["ei", "ep", "eip", "ei_implicit", "buneman", "ei_b0"]
+# precision: mixed (PIC-D11) and compact (PIC-D19) apply to the explicit solver only; their records are
+# the explicit gates
+EXPLICIT_CONFIGS = [c for c in CONFIGS if "implicit" not in c]
 PRECISION = "fp64"
 
 
 def precision_args() -> list:
-    return ["--set", "overrides.precision=mixed"] if PRECISION == "mixed" else []
+    return [] if PRECISION == "fp64" else ["--set", f"overrides.precision={PRECISION}"]
 # analytic-solution examples: (example directory, config). Each examples/<name>/analyze.py returns a
 # verdict ("passed") against its theory with the criteria documented in its README and in
 # docs/design/output-analysis.md; Gauss's law is checked here for every one of them.
@@ -50,13 +51,18 @@ EXAMPLES = [
     ("plasma_waves", "unmagnetized"), ("plasma_waves", "perpendicular"),
     ("landau_damping", "landau"), ("landau_damping", "dawson"), ("landau_damping", "wavebreaking"),
     ("landau_damping", "relativistic"),
-    ("filamentation", "pair"),
+    ("filamentation", "pair"), ("filamentation", "pair_b0"), ("filamentation", "pair_b0_stable"),
     ("particle_orbits", "gyration"), ("particle_orbits", "exb"), ("particle_orbits", "hyperbolic"),
     ("particle_orbits", "e_gt_b"), ("particle_orbits", "plane_wave"),
-    ("plasma_expansion", "isothermal_hydrogen"), ("relativistic_shock", "pair_2d"), ("reconnection", "pair_sigma10"),
-    ("bow_shock", "gate"), ("blast_wave", "gate"),
+    ("plasma_expansion", "isothermal_hydrogen"), ("relativistic_shock", "pair_2d"),
+    ("relativistic_shock", "pair_2d_sigma"), ("reconnection", "pair_sigma10"),
+    ("bow_shock", "gate"), ("bow_shock", "south"), ("bow_shock", "oblique"), ("blast_wave", "gate"),
+    ("wakefield", "laser_linear"), ("wakefield", "beam_linear"),
 ]
 EXAMPLE_NAMES = [f"{e}:{c}" for e, c in EXAMPLES]
+# gates whose configuration has a moving window: not part of the `compact` gates (the compact storage has no
+# moving window, PIC-D19)
+WINDOW_EXAMPLES = {"wakefield:laser_linear", "wakefield:beam_linear"}
 # examples verified by a convergence check: run again with dt_scale=0.5, on one GPU (few particles)
 REFINED = {"particle_orbits"}
 CRITERIA = {
@@ -171,17 +177,23 @@ def main() -> int:
     ap.add_argument("--skip-tests", action="store_true", help="only run the two-stream gates")
     ap.add_argument("--configs", nargs="*", default=CONFIGS)
     ap.add_argument("--examples", nargs="*", default=EXAMPLE_NAMES, help="example:config gates to run")
-    ap.add_argument("--precision", choices=["fp64", "mixed"], default="fp64",
-                    help="mixed: the explicit gates with precision: mixed (PIC-D11), without the GPU tests "
-                         "(precision-independent, part of the fp64 record); recorded as *-gpu-gates-mixed.json")
+    ap.add_argument("--precision", choices=["fp64", "mixed", "compact"], default="fp64",
+                    help="mixed, compact: the explicit gates with that precision (PIC-D11, PIC-D19), without "
+                         "the GPU tests (they choose their own precision and are part of the fp64 record); "
+                         "compact: also without the gates in a moving window; "
+                         "recorded as *-gpu-gates-<precision>.json")
     a = ap.parse_args()
     global PRECISION
     PRECISION = a.precision
-    full_configs = MIXED_CONFIGS if a.precision == "mixed" else CONFIGS
-    if a.precision == "mixed":
+    reduced = a.precision != "fp64"
+    full_configs = EXPLICIT_CONFIGS if reduced else CONFIGS
+    full_examples = [e for e in EXAMPLE_NAMES if a.precision != "compact" or e not in WINDOW_EXAMPLES]
+    if a.examples == EXAMPLE_NAMES:
+        a.examples = full_examples
+    if reduced:
         a.skip_tests = True
         if a.configs == CONFIGS:
-            a.configs = MIXED_CONFIGS
+            a.configs = EXPLICIT_CONFIGS
 
     import cupy as cp
 
@@ -211,20 +223,20 @@ def main() -> int:
             gates.append(g)
             print(f"  -> {'PASS' if g['passed'] else 'FAIL'} {g.get('failed_checks') or ''}", flush=True)
     all_passed = all(g["passed"] for g in gates)
-    mixed = a.precision == "mixed"
     record = {"date": dt.date.today().isoformat(), "commit": commit, "dirty": dirty, "gpus": a.gpus,
               "gpu_name": gpu_name, "quick": a.quick, "all_passed": all_passed, "gates": gates}
-    if mixed:
-        record["precision"] = "mixed"
+    if reduced:
+        record["precision"] = a.precision
     print(f"ALL {'PASSED' if all_passed else 'FAILED'}")
-    if a.quick or (a.skip_tests and not mixed) or a.configs != full_configs or a.examples != EXAMPLE_NAMES:
+    if a.quick or (a.skip_tests and not reduced) or a.configs != full_configs or a.examples != full_examples:
         print("(partial/quick run: not recorded in bench/results)")
         return 0 if all_passed else 1
-    fname = f"{record['date']}-{commit[:9]}{'-dirty' if dirty else ''}-gpu-gates{'-mixed' if mixed else ''}.json"
+    suffix = f"-{a.precision}" if reduced else ""
+    fname = f"{record['date']}-{commit[:9]}{'-dirty' if dirty else ''}-gpu-gates{suffix}.json"
     entry = {"date": record["date"], "commit": commit, "dirty": dirty, "gpus": a.gpus, "gpu_name": gpu_name,
              "all_passed": all_passed}
-    if mixed:
-        entry["precision"] = "mixed"
+    if reduced:
+        entry["precision"] = a.precision
     # strict JSON: a metric that could not be measured is null (bench_records)
     bench_records.write(ROOT / "bench" / "results", fname, record, entry)
     print(f"recorded bench/results/{fname}")

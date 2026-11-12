@@ -63,12 +63,12 @@ def test_files_hold_the_state(tmp_path):
     assert np.allclose(run.series("lo")["Ex"][-1], Ex.mean(axis=(0, 2)), rtol=1e-6, atol=1e-8)
     h = run.series("h")
     for sp in sim.species:
-        assert abs(h.read(sp.name, -1).sum() - float(cp.sum(sp.P[6, : sp.n]))) < 1e-6 * float(cp.sum(sp.P[6, : sp.n]))
+        assert abs(h.read(sp.name, -1).sum() - float(cp.sum(sp.weight()))) < 1e-6 * float(cp.sum(sp.weight()))
         p = run.particles("p").get(n, sp.name)
-        ids = cp.asnumpy(sp.P[7, : sp.n])
+        ids = cp.asnumpy(sp.ids())
         assert len(np.unique(p["id"])) == sp.n and np.array_equal(np.sort(ids).astype(np.uint64), p["id"])
         order = np.argsort(ids)
-        assert np.array_equal(p["x"], cp.asnumpy(sp.P[0, : sp.n])[order].astype(np.float32))
+        assert np.array_equal(p["x"], cp.asnumpy(sp.pos(0))[order].astype(np.float32))
     assert len(run.scalars.t) == len(sim.history["t"])
     assert run.info["time_centering"]["momentum"] == -0.5  # explicit leapfrog: u at t - dt/2
 
@@ -115,6 +115,33 @@ def test_field_outputs_hold_the_total_field_with_external_fields(tmp_path):
         assert np.allclose(tr["E" + name][-1], E[k], rtol=1e-14, atol=0)
         assert np.all(np.abs(tr["B" + name][-1] - ref[k]) < 0.01 * dipole)
     assert max(sim.history["magnetic"]) == 0.0 and max(sim.history["electric"]) == 0.0
+
+
+def test_a_compact_run_writes_fp64_physical_values(tmp_path):
+    """With the compact storage (PIC-D19) a listed particle starts on the lattice point nearest to
+    where it was put (at most 2^-33 of a cell away) with its momentum, and a track
+    holds the FP64 physical values of the accessors."""
+    n, dx = 4, 0.5
+    pts = np.array([[1.0, 2.0, 3.0, 0.3, 0.0, 0.0], [14.2, 8.0, 3.3, 0.0, -0.2, 0.1],
+                    [0.1 / 3, 15.99, 7.7, 0.1, 0.1, 0.1]])
+    diags = [dict(name="tr", kind="tracks", species=["t"], stride=1, every=n, dtype="float64")]
+    cfg = SimConfig(n_cells=(32, 32, 32), dx=(dx,) * 3, dt=0.05, n_steps=n, diag_interval=1, gauss_interval=0,
+                    precision="compact", species=[SpeciesConfig("t", -1, 1, [], test=True, particles=pts.tolist())],
+                    output=OutputConfig(dir=str(tmp_path), diagnostics=diags))
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sp = sim.species[0]
+    start = cp.asnumpy(sp.rows())
+    start = start[:, np.argsort(start[7])]
+    assert np.max(np.abs(start[:3] - pts.T[:3])) <= dx * 2.0**-33 + 1e-14
+    assert np.array_equal(start[3:6], pts.T[3:6])
+    sim.run()
+    sim.close()
+    end = cp.asnumpy(sp.rows())
+    end = end[:, np.argsort(end[7])]
+    tr = open_run(str(tmp_path)).tracks("tr", "t")
+    for i, k in enumerate(("x", "y", "z", "ux", "uy", "uz")):
+        assert np.array_equal(tr[k][-1], end[i]), k
+    assert np.max(np.abs(end[0] - start[0] - n * 0.05 * start[3] / np.sqrt(1 + np.sum(start[3:6] ** 2, axis=0)))) < 1e-9
 
 
 def _datasets(path):

@@ -1,0 +1,11 @@
+# The gate configuration with a southward IMF: antiparallel to the dipole field on the day side.
+# 240 x 320 x 320 cells, 3.9e8 particles, 5760 steps; a few minutes on 8 GPUs.
+mass_ratio: 16
+mach_alfven: 4
+wpe_wce: 4
+vte: 0.1
+dp: 5
+box: [6, 8, 8]
+ppc: 8
+crossings: 3
+imf: [0, 0, -1]

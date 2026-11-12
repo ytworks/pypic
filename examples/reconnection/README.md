@@ -13,6 +13,7 @@ A periodic double Harris sheet in a pair plasma with magnetisation σ = B₀²/(
 |---|---|---|
 | `pair_sigma10.yaml` (gate) | 100 × 100 c/ω_pe, quasi-2-D | equilibrium, conservation |
 | `pair_sigma10_large.yaml` | 400 × 200, t = 2000 | power law, rate |
+| `pair_sigma10_xl.yaml` | 800 × 400, t = 4000 | cut-off of the power law against the box size |
 
 ```bash
 python -m pypic.launch -n 8 examples/reconnection/run.py --config examples/reconnection/configs/pair_sigma10.yaml
@@ -42,3 +43,21 @@ It has two recorded runs, each a record of its own in `bench/results/`: one at 2
 - An earlier run (p = 2.15, rate 0.080) was quoted here before but never recorded, so it is no longer quoted.
 
 The small gate box (100 × 100, t = 400) gives p = 2.4: the power law needs the larger system and the longer time.
+
+### Twice the box and twice the time (`pair_sigma10_xl.yaml`)
+
+800 × 400 c/ω_pe (3200 × 1600 × 4 cells) to t = 4000 with 3.7 × 10⁸ particles: 32,000 steps in 22 min on 8 GPUs, FP64. One run, 0e8c5abd at 2945145, recorded in `bench/results/`. The gate criteria hold (the sheet profile before the onset, Gauss's law 2.8e-12); the total energy changes by −0.34 %.
+
+| | `large`, t = 2000 (two runs) | `xl`, t = 2000 | `xl`, t = 4000 |
+|---|---|---|---|
+| index p over σ/2 ≤ γ−1 ≤ 5σ | 2.10 ± 0.03, 2.10 ± 0.03 | 2.05 ± 0.02 | 2.04 ± 0.02 |
+| γ−1 above which 10⁻³ of the particles lie | 90, 87 | 90 | 98 |
+| the same for 10⁻⁴ | 140, 158 | 158 | 185 |
+| the same for 10⁻⁵ | 225, 286 | 264 | 286 |
+
+- **Index**: p = 2.04 ± 0.02 at t = 4000, against 2.12 (Werner et al. 2016), −3.7 %. It has not changed since t = 1000 (2.05, 2.05, 2.04, 2.04 at t = 1000, 2000, 3000, 4000), so it is converged in time in this box. It is 0.06 flatter than in the half-size box, which is 1.8 times the combined fit error of one run of each.
+- **Cut-off against the box size**: with twice the box and twice the time the energy that 10⁻⁴ of the particles exceed is 185 against 140 and 158, that is 17–32 % higher, and not twice as high. At equal time (t = 2000) the two boxes agree within the spread of the two `large` runs. Between t = 3000 and t = 4000 the 10⁻³ and 10⁻⁴ values do not change. The spectrum is stored on 160 logarithmic bins, so these energies come in steps of 4 %; no cut-off form was fitted. The values are `pypic.analysis.particles.energy_cutoff` on the `spectrum` output and are not part of the record.
+- **Rate**: 0.066 v_A on average over the active phase, peak 0.17 — as in the half-size box (0.064 and 0.074, peak 0.19).
+- **Energy**: 78 % of the magnetic energy is converted (77 % and 76 % in the half-size box).
+- **Acceleration channel**: E∥ share of the 1 % most energetic tracked electrons −0.004, as before.
+- **Not shown**: a second realization of this box; a box of a third size, which a scaling of the cut-off with the box would need.
