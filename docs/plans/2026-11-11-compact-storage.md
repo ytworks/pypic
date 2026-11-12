@@ -284,3 +284,21 @@ gates. The float32 momentum of (c) stays under the two conditions of owner decis
 explicit gates in the mode; gyration drift of |u| ≤ 6e-8·√N without a secular trend), which A2
 tests; if one fails the mode keeps float64 momenta — layout (a), 56 B — and (b) is not used.
 The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the method section).
+
+## A1 — the accessor layer as written
+
+- Kernels (`pypic/kernels/particles.cu`): a kernel takes the storage as `PSTORE` / `PSTORE_RO`
+  (`PSTORE_AS(Pe)` for the partner species of the injection), reads a particle with
+  `PX..PID`, writes it with `SET_POS`, `SET_MOM`, `SET_W`, `SET_ID`, and takes the index
+  coordinate from `XI`, `YI`, `ZI`. No kernel of the file indexes the array itself, with one
+  exception: the remaining displacement of `displace_deposit` (three more rows during the set-up).
+- Python (`pypic/particles.py`): `Species.store` (the arguments of `PSTORE`), the readers `pos`,
+  `mom`, `weight`, `ids`, `rows` (FP64 physical values), the writers `scale_weight`, `add_mom`,
+  `append`, and the set-up displacement (`set_displacement`, `displacing`, `displacement_max`,
+  `end_displacement`). `simulation.py`, `output/diagnostics.py` and the GPU tests use only these.
+- Left on the array, on purpose: `implicit.cu` and its two launches (`compact` refuses the
+  implicit scheme, like `mixed`), and `migrate.cu` with `particles.migrate`, which copy whole
+  rows and get their own record in A2.
+- Null test of the refactor: the FP64 and mixed gates on the A1 commit against the records of
+  17f1b5f, bit for bit where the record of a gate is deterministic (the deposit order is not,
+  ANA-D3: those gates are compared within their recorded run-to-run range). Result: pending.
