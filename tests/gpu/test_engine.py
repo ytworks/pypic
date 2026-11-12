@@ -535,6 +535,32 @@ def test_sort_orders_by_cell_and_keeps_every_particle():
         assert bool((key[1:] >= key[:-1]).all())
 
 
+def test_compact_rows_of_a_selection_build_only_the_selected_particles():
+    """rows(sel) of the compact storage (PIC-D19) gives the columns of rows() for an index array and
+    for a mask, and with an index array it asks for no memory that grows with the particle count
+    (the sparse particle and track outputs)."""
+    from cupy.cuda import memory_hook
+
+    class Asked(memory_hook.MemoryHook):
+        name = "asked"
+
+        def __init__(self):
+            self.sizes = []
+
+        def malloc_preprocess(self, **kw):
+            self.sizes.append(kw["size"])
+
+    sp = plasma(n=(32, 16, 16), precision="compact").species[0]
+    full = sp.rows()
+    idx = cp.asarray([0, sp.n // 2, sp.n - 1])
+    mask = cp.zeros(sp.n, dtype=cp.bool_)
+    mask[idx] = True
+    with Asked() as hook:
+        got = sp.rows(idx)
+    assert hook.sizes and max(hook.sizes) < sp.n  # bytes: not even one per particle
+    assert bool(cp.all(got == full[:, idx])) and bool(cp.all(sp.rows(mask) == full[:, idx]))
+
+
 def test_compact_sort_orders_by_the_stored_cell_and_keeps_every_particle():
     """The sort of the compact storage (PIC-D19) moves whole particles: every value follows the same
     order, and the stored cells come out ascending."""

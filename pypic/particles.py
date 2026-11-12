@@ -346,12 +346,16 @@ class CompactSpecies(Species):
     def store(self):
         return self.W, self.C, self.F, self.U
 
+    def _index_pos_of(self, a, c, f):
+        """Global index coordinate along axis a of the stored cells c and fractions f."""
+        _, ny, nz = self.shape
+        cell = c // (ny * nz) if a == 0 else (c // nz) % ny if a == 1 else c % nz
+        return (cell + self.origin[a]) + f * (1.0 / TWO32)
+
     def index_pos(self, a, lo=0, hi=None):
         """Position along axis a as the global index coordinate x / dx (exact)."""
         r = self._range(lo, hi)
-        c, (_, ny, nz) = self.C[r], self.shape
-        cell = c // (ny * nz) if a == 0 else (c // nz) % ny if a == 1 else c % nz
-        return (cell + self.origin[a]) + self.F[a, r] * (1.0 / TWO32)
+        return self._index_pos_of(a, self.C[r], self.F[a, r])
 
     def pos(self, a, lo=0, hi=None):
         return self.index_pos(a, lo, hi) * self.h[a]
@@ -366,8 +370,16 @@ class CompactSpecies(Species):
         return self.W[1, self._range(lo, hi)]
 
     def rows(self, sel=None):
-        R = [self.pos(a) for a in range(3)] + [self.mom(a) for a in range(3)] + [self.weight(), self.ids()]
-        return cp.stack(R if sel is None else [r[sel] for r in R])
+        if sel is None:
+            R = [self.pos(a) for a in range(3)] + [self.mom(a) for a in range(3)] + [self.weight(), self.ids()]
+            return cp.stack(R)
+        # select first: the positions are built for the selected particles only, so a sparse output
+        # needs no array of all particles
+        r = cp.asarray(sel)
+        r = cp.nonzero(r)[0] if r.dtype == cp.bool_ else r
+        c = self.C[: self.n][r]
+        return cp.stack([self._index_pos_of(a, c, self.F[a, : self.n][r]) * self.h[a] for a in range(3)]
+                        + [self.mom(a)[r] for a in range(3)] + [self.weight()[r], self.ids()[r]])
 
     def scale_weight(self, f, lo=0, hi=None):
         self.W[0, self._range(lo, hi)] *= f
