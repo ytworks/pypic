@@ -18,7 +18,7 @@ tests); everything that executes kernels runs here. Criteria: `.claude/rules/num
 1. Commit the change (the gates record the commit). The record is flagged dirty when the code differs from the commit, including untracked files under `pypic/`, `examples/`, `scripts/` or `tests/` (`pypic.provenance`).
 2. `python scripts/gpu_gates.py --gpus 8` (about 30-40 minutes):
    - `gpu-tests`: `pytest tests/gpu`, including the 1-vs-2-GPU equivalence tests;
-   - `two-stream:{ei,ep,eip,ei_implicit,buneman}` on 8 GPUs: growth rate vs theory, Gauss law,
+   - `two-stream:{ei,ep,eip,ei_implicit,buneman,ei_b0}` on 8 GPUs: growth rate vs theory, Gauss law,
      div B, implicit energy;
    - the analytic-solution examples (`<example>:<config>`, criteria in `docs/design/output-analysis.md`
      ANA-D2); `particle_orbits` runs on one GPU at Δt and Δt/2 (convergence).

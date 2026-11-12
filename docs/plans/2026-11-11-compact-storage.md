@@ -1,7 +1,7 @@
 # Compact particle storage: closing R3 and R5
 
-Status: In progress — R3 and R5 are closed by the owner's decisions (2026-11-12, last section);
-open: the gate records of the head after the merge of PR #41
+Status: Done (PR #43) — R3 and R5 are closed by the owner's decisions (2026-11-12); the head with
+PR #41 merged into it is gated in the three precisions, ALL PASSED (a213c5d, last section)
 Refs: roadmap R3, R5 (R10 stays open); PIC-D19 (new); PIC-D11 (default `fp64`, owner decision 2026-11-12)
 
 ## Context
@@ -1362,3 +1362,52 @@ are). The base of each pull request stays `main`.
   PR #41, which no `compact` record holds yet; a partial run, not recorded): `ei_b0` (growth
   error +2.2 %, Gauss 1.6e-14), `relativistic_shock:pair_2d_sigma`, `filamentation:pair_b0` and
   `pair_b0_stable`, `bow_shock:south` and `oblique` all pass.
+
+## A3 — gates on the head after the merge of PR #41 (2026-11-12, a213c5d, 8 GPUs): ALL PASSED
+
+The one gate run of the stacked head: `scripts/gpu_gates.py --gpus 8` in `fp64` (with
+`pytest tests/gpu`), then `--precision mixed`, then `--precision compact`, on the clean commit
+a213c5d (the merge 031851c and the commits of the owner's decisions), no other job on the GPUs.
+The commits after it change no file under `pypic/`, `scripts/`, `tests/` or `examples/`.
+
+| record (`bench/results/2026-11-12-a213c5d18-…`) | precision | gates | result |
+|---|---|---|---|
+| `gpu-gates.json` | fp64 | 104 GPU tests; six two-stream gates (with `ei_implicit`); 22 example gates | ALL PASSED |
+| `gpu-gates-mixed.json` | mixed | five two-stream gates; 22 example gates | ALL PASSED |
+| `gpu-gates-compact.json` | compact | five two-stream gates; 22 example gates | ALL PASSED |
+
+New against the records of 2c8aa5f: `two-stream:ei_b0` and the five example gates of PR #41
+(`relativistic_shock:pair_2d_sigma`, `filamentation:pair_b0` and `pair_b0_stable`,
+`bow_shock:south` and `oblique`), which had no `compact` record, and two more GPU tests.
+
+| value | fp64 | mixed | compact | limit |
+|---|---|---|---|---|
+| growth error of `ei` / `ep` / `eip` | +2.95 / −1.68 / −2.26 % | +2.95 / −1.68 / −2.26 % | +2.95 / −1.68 / −2.26 % | 10 % |
+| growth error of `buneman` / `ei_b0` | −4.66 / +2.23 % | −4.66 / +2.23 % | −5.14 / +2.23 % | 10 % |
+| growth error and energy error of `ei_implicit` | +3.52 %, 1.9e-10 | not run | not run | 10 %, 1e-8 |
+| largest Gauss residual of all gates | 7.6e-12 (`two-stream:buneman`) | 7.7e-12 (`two-stream:buneman`) | 2.0e-13 (`filamentation:pair`) | 1e-10 |
+| Gauss residual of the five explicit two-stream gates | 8.4e-13 to 7.6e-12 | 8.4e-13 to 7.7e-12 | 1.2e-14 to 4.8e-14 | 1e-10 |
+| largest div B of the two-stream gates | 5.0e-13 (`ei_b0`) | 4.8e-13 (`ei_b0`) | 6.2e-13 (`ei_b0`) | 1e-12 |
+| div B of `plasma_waves:perpendicular` | 1.05e-12 | 1.01e-12 | 1.06e-12 | reported (no criterion in this gate) |
+| `bow_shock:gate`: magnetopause / shock, in R_mp | 0.919 / 1.377 | 0.915 / 1.378 | 0.916 / 1.380 | analysis of the example |
+| `bow_shock:south`: magnetopause / shock, in R_mp | 0.881 / 1.141 | 0.875 / 1.132 | 0.876 / 1.170 | analysis of the example |
+| `bow_shock:oblique`: magnetopause / shock, in R_mp | 0.953 / 1.229 | 0.945 / 1.234 | 0.964 / 1.243 | analysis of the example |
+| largest Gauss residual of the three `bow_shock` gates | 6.9e-14 | 6.6e-14 | 6.9e-14 | 1e-10 |
+| `relativistic_shock:pair_2d_sigma`: error of β_sh / n2/n1 / B2/B1 | −7.2 / +4.7 / +4.1 % | −7.2 / +4.5 / +4.1 % | −7.2 / +4.3 / +4.1 % | 10 % |
+| `filamentation:pair_b0`: median growth error, m = 4…10 | +5.7 % | +5.7 % | +5.7 % | 10 % |
+| `filamentation:pair_b0_stable`: mode-energy ratio | 6.02 | 6.02 | 6.02 | e² = 7.39 |
+| `blast_wave:gate`: front speed in fast speeds | 2.102916 | 2.102916 | 2.102916 | analysis of the example |
+| `blast_wave:gate`: `energy_budget_change` | 0.109002 | 0.108977 | 0.108972 | reported |
+| `blast_wave:gate`: Gauss residual | 6.4e-15 | 6.4e-15 | 7.2e-15 | 1e-10 |
+
+- The limit of div B is a criterion of the two-stream gates; the largest value there is that of
+  `ei_b0`, the gate with B0. `plasma_waves:perpendicular` reports a div B of 1.05e-12 / 1.01e-12 /
+  1.06e-12 (`fp64` / `mixed` / `compact`); the gate has no criterion on it. It is above 1e-12 in
+  the three records here, and above 1e-12 in 19 of the 48 earlier full gate records
+  that hold the gate (8.52e-13 to 1.17e-12; 2c8aa5f: 9.2e-13, 8.6e-13, 8.7e-13). Not examined.
+- `buneman` fits 0.051226 in `fp64`, 0.051226 in `mixed` and 0.050969 in `compact` here; on 2c8aa5f
+  `mixed` and `compact` had 0.050969 and `fp64` 0.051226. These are the two values that the `mixed`
+  records hold; which of them a run gives was not examined.
+
+What the records do not cover: `compact` with the implicit solver (refused); the 104 GPU tests
+run once, with the `fp64` gates.
