@@ -35,7 +35,7 @@
  },
  "output": {
   "path": "output/research/spherical-shock-injection/L",
-  "bytes": 61808942991,
+  "bytes": 61823501455,
   "in git": false
  },
  "checks": {
@@ -57,11 +57,15 @@
   "energy budget, relative change (monitored)": 0.10435808630934379
  },
  "analysis": {
-  "commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0",
+  "commit": "aac5d4a9e9fe638e479feed14ef98bf84bb3ad3d",
   "files": {
    "baseline.json": {
     "sha256": "20449a10e608e743e2cafd575dfc5a9cc55b425c9a87196ac0dc4b2f6fd80aba",
     "written": "2026-11-13T03:43:23"
+   },
+   "census-tau.json": {
+    "sha256": "efb5418b501ae3c9b8d8b6acb28c37602b5283dd13a689354ca1bd5444f04c82",
+    "written": "2026-11-13T05:15:20"
    },
    "census.json": {
     "sha256": "a4301adbd89be4b0989af921d738cd887c86f9d96e3f21c05d9a1a6cc9c9a628",
@@ -78,6 +82,10 @@
    "phi.json": {
     "sha256": "bb8bb0b5d6450407e485ad4fbdfaac0dec777956ba36aa025dcef5ce602a8345",
     "written": "2026-11-13T03:40:05"
+   },
+   "r2.json": {
+    "sha256": "635b92a6eb7a426851ac34b45b9a1a60c16c854eb809d3788127dbc86741d941",
+    "written": "2026-11-13T05:15:38"
    },
    "tracks.json": {
     "sha256": "41c95dad4ec7c714e118f6ac144a889e7e25131e630784f6ce80afd3adafd3d0",
@@ -473,6 +481,57 @@
      }
     }
    },
+   "census-tau": {
+    "n_dumps": 41,
+    "b_max": 3.3048831419078537,
+    "b_cell_max": 3.678111765579603,
+    "tau_dwell": 198.2,
+    "tau_dwell_protocol": 65.97344572538566,
+    "upstream, largest dump, detected front": {
+     "t": 259.0,
+     "n": 3,
+     "results": {
+      "S0 at exit": 0,
+      "S0 in range": 2,
+      "S1 leak": 0,
+      "S2 trapped": 0,
+      "undetermined": 1,
+      "residual": 0,
+      "residual, no encounter": 0
+     }
+    },
+    "upstream, largest dump, no front": {
+     "t": 166.5,
+     "n": 1,
+     "results": {
+      "S0 at exit": 0,
+      "S0 in range": 0,
+      "S1 leak": 0,
+      "S2 trapped": 0,
+      "undetermined": 1,
+      "residual": 0,
+      "residual, no encounter": 0
+     }
+    },
+    "upstream, largest dump, valid domain": {
+     "t": 277.5,
+     "n": 1,
+     "results": {
+      "S0 at exit": 0,
+      "S0 in range": 1,
+      "S1 leak": 0,
+      "S2 trapped": 0,
+      "undetermined": 0,
+      "residual": 0,
+      "residual, no encounter": 0
+     }
+    },
+    "K1, largest dump, whole front": {
+     "t": 277.5,
+     "k1": 1,
+     "expected": 0.003
+    }
+   },
    "census": {
     "n_dumps": 41,
     "b_max": 3.3048831419078537,
@@ -756,6 +815,1803 @@
       "measured": false
      }
     ]
+   },
+   "r2": {
+    "null": "output/research/spherical-shock-injection/L-null",
+    "dwell": {
+     "protocol (3 gyro-periods)": 65.97344572538566,
+     "tracked returns, median": 250.25,
+     "tracked returns, 90 %": 417.5,
+     "tracked reflections with gamma_out >= 1.25, 90 %": 198.20000000000002
+    },
+    "pre-valid bins": {
+     "bins": 74,
+     "fail b": 74,
+     "fail c": 24,
+     "fail e": 28,
+     "fail b alone": 46,
+     "fail b and c": 24,
+     "fail b and e": 28,
+     "fail none of b, c, e (too short a row)": 0,
+     "pass c": 50,
+     "fast Mach of those that pass c": {
+      "n": 50,
+      "p0": 1.9219141401230604,
+      "p50": 2.495277786754338,
+      "p100": 2.7796817133761964
+     },
+     "lead required by b [d_i]": {
+      "n": 50,
+      "p0": 1.4600461757384826,
+      "p50": 2.001413115184327,
+      "p100": 2.288087740453421
+     },
+     "lead measured [d_i]": {
+      "n": 74,
+      "p10": -0.7864942940024147,
+      "p50": 0.9189121536965921,
+      "p90": 1.7224131550993493
+     },
+     "bins at polar angles that never reach the valid domain": 34
+    },
+    "protocol Sect. 4": {
+     "valid bins": 241,
+     "usable bins": 166,
+     "density front minus mid-ramp surface, valid bins [d_e]": {
+      "n": 241,
+      "p10": -0.8261330160757439,
+      "p50": 0.11337525137682292,
+      "p90": 0.9763366105492111
+     },
+     "debris edge, 0.3 n0 minus 0.03 n0, valid bins [d_e]": {
+      "n": 241,
+      "p10": -5.77969138178662,
+      "p50": -3.654886438731012,
+      "p90": -1.864105110146923
+     },
+     "debris edge, 0.1 n0 minus 0.03 n0, valid bins [d_e]": {
+      "n": 241,
+      "p10": -2.1391500105327026,
+      "p50": -1.5474813899539157,
+      "p90": -0.6229063324699098
+     },
+     "valid bins without a debris edge at 0.03, 0.1, 0.3 n0": [
+      0,
+      0,
+      0
+     ],
+     "front minus debris edge (0.1 n0), valid bins [d_i]": {
+      "n": 241,
+      "p10": 2.6823769918983658,
+      "p50": 6.288604847179052,
+      "p90": 12.840637468289625
+     },
+     "equatorial plane, density front minus B_z >= 1.25 B0 [d_e]": {
+      "outputs": 37,
+      "median": -1.5722784300960342,
+      "min": -3.202852394043372,
+      "max": -1.2954605627686675
+     },
+     "fit rms, density front and mid-ramp surface [d_e]": [
+      0.6296291705021942,
+      0.5101673013327878
+     ],
+     "bin next to the equator": [
+      {
+       "t": 74.0,
+       "R": 48.81299943246019,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        53.610769003838506,
+        51.905188435580655,
+        50.148001374550724
+       ],
+       "lead required": null,
+       "b": false,
+       "c": false,
+       "e": false,
+       "valid": false
+      },
+      {
+       "t": 92.5,
+       "R": 53.39249514774869,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        55.97949026020526,
+        54.97351005572633,
+        52.597303650585935
+       ],
+       "lead required": null,
+       "b": false,
+       "c": false,
+       "e": false,
+       "valid": false
+      },
+      {
+       "t": 111.0,
+       "R": 57.645077286436546,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        57.76759046008239,
+        56.117699246705314,
+        53.78104361607391
+       ],
+       "lead required": 8.942697284737505,
+       "b": false,
+       "c": true,
+       "e": false,
+       "valid": false
+      },
+      {
+       "t": 129.5,
+       "R": 61.723959026183195,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        57.9087651452612,
+        57.295345699529605,
+        55.94787771087096
+       ],
+       "lead required": 8.627865189150004,
+       "b": false,
+       "c": true,
+       "e": true,
+       "valid": false
+      },
+      {
+       "t": 148.0,
+       "R": 65.75231222516445,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        59.856474049461646,
+        59.50999449899464,
+        58.520052926231756
+       ],
+       "lead required": 8.42392843422307,
+       "b": false,
+       "c": true,
+       "e": true,
+       "valid": false
+      },
+      {
+       "t": 166.5,
+       "R": 69.70238515196597,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        61.99380882721266,
+        61.76043651612728,
+        61.09365848445475
+       ],
+       "lead required": 8.171176330425155,
+       "b": false,
+       "c": true,
+       "e": true,
+       "valid": false
+      },
+      {
+       "t": 185.0,
+       "R": 73.53523379096828,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        64.0940345955268,
+        63.80686928434345,
+        63.24314768184599
+       ],
+       "lead required": 7.925517269653626,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 203.5,
+       "R": 77.11738155053891,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        65.96241204564727,
+        65.68847657609946,
+        64.90580380596288
+       ],
+       "lead required": 7.582718755697704,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 222.0,
+       "R": 80.74787928201368,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        67.85940553931869,
+        67.46331361699164,
+        66.3374430555466
+       ],
+       "lead required": 7.360019111380138,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 240.5,
+       "R": 83.9904595287276,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        69.8915177261668,
+        69.49072579887068,
+        68.34560600659609
+       ],
+       "lead required": 7.298181069011593,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 259.0,
+       "R": 87.47058916166193,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        71.89429768972559,
+        71.44520147045084,
+        70.16206941538016
+       ],
+       "lead required": 7.084832992045327,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 277.5,
+       "R": 90.98011682344764,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        73.83205192990815,
+        73.14117688590758,
+        71.74795563692739
+       ],
+       "lead required": 7.016909394405036,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 296.0,
+       "R": 93.97233029950148,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        75.52027319050015,
+        74.1875111696652,
+        73.19212113613335
+       ],
+       "lead required": 6.85412007066075,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 314.5,
+       "R": 97.30119509213324,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        77.34817921321655,
+        75.83285017019139,
+        74.60142711572178
+       ],
+       "lead required": 6.647568589683813,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 333.0,
+       "R": 100.48425529193483,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        79.04351246219174,
+        77.16196880629448,
+        75.27433610625691
+       ],
+       "lead required": 6.651249043364487,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 351.5,
+       "R": 103.4112361737636,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        79.86666382371548,
+        78.00028475513825,
+        76.48776251116027
+       ],
+       "lead required": 6.424309702818256,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 370.0,
+       "R": 106.61369284741735,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        80.76101520510186,
+        79.21353381514794,
+        77.11221117829136
+       ],
+       "lead required": 6.304997773095864,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 388.5,
+       "R": 109.39619749728266,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        81.29148122408877,
+        79.72935198329607,
+        77.68857018797115
+       ],
+       "lead required": 6.230124174400069,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 407.0,
+       "R": 112.3726229379607,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        81.70061122865523,
+        80.62350345742254,
+        78.5008310588177
+       ],
+       "lead required": 6.056153948232757,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 425.5,
+       "R": 115.23356618392538,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        82.40842521356738,
+        81.17777531833816,
+        78.95593442471636
+       ],
+       "lead required": 6.002061053999585,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 444.0,
+       "R": 117.9864645120785,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        83.34003673188921,
+        81.84164025676726,
+        80.00670204146408
+       ],
+       "lead required": 5.84688538807958,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 462.5,
+       "R": 120.75351776721874,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        83.71305679901593,
+        82.32045304078628,
+        79.70385315046423
+       ],
+       "lead required": 5.82879309353383,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 481.0,
+       "R": 123.41185233580825,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        83.85123780968715,
+        82.61386314499335,
+        80.00226128550678
+       ],
+       "lead required": 5.742534010320861,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 499.5,
+       "R": 126.2758701245572,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        84.53492981329022,
+        83.06204404458833,
+        78.20719279271074
+       ],
+       "lead required": 5.639735195201912,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 518.0,
+       "R": 128.7770390606325,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        84.05257540969973,
+        82.8891479611151,
+        79.01357017913622
+       ],
+       "lead required": 5.580339598275376,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 536.5,
+       "R": 131.38052749615125,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        84.38882857376423,
+        82.98809252915606,
+        79.55903882567556
+       ],
+       "lead required": 5.467889548237667,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 555.0,
+       "R": 134.02784354226998,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        84.90930986904014,
+        83.1095032408341,
+        78.00311754573059
+       ],
+       "lead required": 5.425682534911369,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 573.5,
+       "R": 136.55427143115156,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        84.56908579655332,
+        83.03708747995512,
+        78.55328743488052
+       ],
+       "lead required": 5.2811329427799,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 592.0,
+       "R": 138.9945999915367,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        84.81516018402269,
+        83.19320175277431,
+        78.02568137121754
+       ],
+       "lead required": 5.240336098604034,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 610.5,
+       "R": 141.36017545870942,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        85.0873821668646,
+        83.00793921671357,
+        78.50705076525372
+       ],
+       "lead required": 5.241089413932028,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 629.0,
+       "R": 143.99145990932448,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        84.66254972283942,
+        82.85195470281484,
+        78.18702475819494
+       ],
+       "lead required": 5.159463127347363,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 647.5,
+       "R": 146.42411008680165,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        84.88557692790876,
+        82.52426833176399,
+        78.19668091173195
+       ],
+       "lead required": 5.079688028844858,
+       "b": true,
+       "c": true,
+       "e": true,
+       "valid": true
+      },
+      {
+       "t": 666.0,
+       "R": 148.63948135023298,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        85.19225579052248,
+        82.57264039785262,
+        74.5948815804026
+       ],
+       "lead required": 4.8934226988443275,
+       "b": true,
+       "c": false,
+       "e": true,
+       "valid": false
+      },
+      {
+       "t": 684.5,
+       "R": 151.02439456862328,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        85.65633300338548,
+        82.61951382669204,
+        72.62565165842142
+       ],
+       "lead required": 4.830280438083527,
+       "b": true,
+       "c": false,
+       "e": true,
+       "valid": false
+      },
+      {
+       "t": 703.0,
+       "R": 153.23885164146242,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        85.38511651641642,
+        82.20741296632546,
+        72.08523267960831
+       ],
+       "lead required": 4.935645456244616,
+       "b": true,
+       "c": false,
+       "e": true,
+       "valid": false
+      },
+      {
+       "t": 721.5,
+       "R": 155.52368266355876,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        85.50548072696729,
+        82.14415557512831,
+        71.35787705078008
+       ],
+       "lead required": null,
+       "b": false,
+       "c": false,
+       "e": false,
+       "valid": false
+      },
+      {
+       "t": 740.0,
+       "R": 158.0370437117369,
+       "debris edge at 0.03, 0.1, 0.3 n0": [
+        85.02588390927865,
+        81.76097383053207,
+        71.51576261189545
+       ],
+       "lead required": null,
+       "b": false,
+       "c": false,
+       "e": false,
+       "valid": false
+      }
+     ]
+    },
+    "regime": {
+     "m_i": 16.0,
+     "omega_ci_inv": 56.0,
+     "R_m": 64.0,
+     "rho_d": 14.0,
+     "R_m / rho_d": 4.571428571428571,
+     "R_B": 147.5339613458703,
+     "V_n": {
+      "n": 241,
+      "p10": 0.12743139379403423,
+      "p50": 0.14953092188289507,
+      "p90": 0.1846526225210698
+     },
+     "M_A": {
+      "n": 241,
+      "p10": 1.7840395131164792,
+      "p50": 2.093432906360531,
+      "p90": 2.5851367152949773
+     },
+     "fast Mach": {
+      "n": 241,
+      "p10": 1.5527940204953856,
+      "p50": 1.8156894574980953,
+      "p90": 2.241057273963099
+     },
+     "theta_Bn [deg]": {
+      "n": 241,
+      "p0": 20.904469525598223,
+      "p50": 63.570785330598646,
+      "p100": 87.12952362562189
+     },
+     "T_e upstream, median": 0.010450743579365462,
+     "T_i upstream, median": 0.00985559813847058,
+     "beta_e": 0.2560432176944538,
+     "beta": 0.4975053720869831,
+     "V_n / v_te": {
+      "n": 241,
+      "p10": 1.234733030183317,
+      "p50": 1.4584180718804318,
+      "p90": 1.8315719589414656
+     },
+     "(m_i / m_e) / M_A at the median V_n": 7.642948551819735,
+     "gamma - 1 = 0.5 over m_e V_n^2 / 2": 44.723726026912594,
+     "gamma - 1 = 0.5 over m_i V_n^2 / 2": 2.795232876682037,
+     "gamma - 1 = 0.5 over T_e": 47.84348560491219,
+     "share of a Maxwellian faster than V_n along the normal": 0.07177375036630944,
+     "compression b, valid bins": {
+      "n": 241,
+      "p10": 1.7120886842333682,
+      "p50": 1.9963530740164794,
+      "p90": 2.5766239237856716
+     },
+     "theta_Bn >= 80 deg": {
+      "bins": 52,
+      "M_A": 2.148694381927283,
+      "b measured": {
+       "n": 52,
+       "p10": 1.833785085025004,
+       "p50": 2.1293108115538972,
+       "p90": 2.702560652826463
+      },
+      "b of a perpendicular MHD shock, gamma 5/3 and 2": [
+       1.975479108000465,
+       1.8196068984490252
+      ]
+     },
+     "first valid front": {
+      "polar angle of the bin closest to the equator [deg]": 87.5,
+      "t": 185.0,
+      "t Omega_ci": 3.3035714285714284,
+      "R [d_e]": 73.53523379096828,
+      "R / d_i": 18.38380844774207,
+      "R / R_B": 0.4984291963704304,
+      "R / rho_d": 5.252516699354877,
+      "R / R_m": 1.1489880279838793,
+      "all polar angles: t": [
+       185.0,
+       277.5
+      ],
+      "all polar angles: R [d_e]": [
+       72.87612033704377,
+       85.60516134394724
+      ],
+      "exponent m of R ~ t^m next to the equator": 0.5543008039412904,
+      "V_n next to the equator, first and last valid output": [
+       0.20218156300136803,
+       0.12958387828685863
+      ]
+     }
+    },
+    "epsilon": {
+     "taus": {
+      "protocol (3 gyro-periods)": 65.97344572538566,
+      "tracked returns, median": 250.25,
+      "tracked returns, 90 %": 417.5,
+      "tracked reflections with gamma_out >= 1.25, 90 %": 198.20000000000002
+     },
+     "bands": [
+      {
+       "band": "20-30",
+       "bins": 12,
+       "V_HT": {
+        "n": 12,
+        "p50": 0.1724634187131095,
+        "p100": 0.1966948699820492
+       },
+       "epsilon, protocol (3 gyro-periods)": 0.024784780244918227,
+       "epsilon, tracked returns, median": 0.09401345023129803,
+       "epsilon, tracked returns, 90 %": 0.1568456162699977,
+       "epsilon, tracked reflections with gamma_out >= 1.25, 90 %": 0.07445940393943365
+      },
+      {
+       "band": "30-40",
+       "bins": 28,
+       "V_HT": {
+        "n": 28,
+        "p50": 0.16671727138743608,
+        "p100": 0.24878798435598112
+       },
+       "epsilon, protocol (3 gyro-periods)": 0.0463315282267446,
+       "epsilon, tracked returns, median": 0.17574441976253255,
+       "epsilon, tracked returns, 90 %": 0.2931999810224069,
+       "epsilon, tracked reflections with gamma_out >= 1.25, 90 %": 0.13919098500273308
+      },
+      {
+       "band": "40-50",
+       "bins": 28,
+       "V_HT": {
+        "n": 28,
+        "p50": 0.20324633346055426,
+        "p100": 0.28345362159735094
+       },
+       "epsilon, protocol (3 gyro-periods)": 0.09453589838313135,
+       "epsilon, tracked returns, median": 0.35859289006751854,
+       "epsilon, tracked returns, 90 %": 0.5982518745382178,
+       "epsilon, tracked reflections with gamma_out >= 1.25, 90 %": 0.284008434810718
+      },
+      {
+       "band": "50-60",
+       "bins": 42,
+       "V_HT": {
+        "n": 42,
+        "p50": 0.26216465818130574,
+        "p100": 0.3502370562204077
+       },
+       "epsilon, protocol (3 gyro-periods)": 0.19436864620151356,
+       "epsilon, tracked returns, median": 0.7372777513303733,
+       "epsilon, tracked returns, 90 %": 1.2300238209008227,
+       "epsilon, tracked reflections with gamma_out >= 1.25, 90 %": 0.5839298713833367
+      },
+      {
+       "band": "60-70",
+       "bins": 40,
+       "V_HT": {
+        "n": 40,
+        "p50": 0.3706008082364184,
+        "p100": 0.4894065851093085
+       },
+       "epsilon, protocol (3 gyro-periods)": 0.45303908151964684,
+       "epsilon, tracked returns, median": 1.71846458683099,
+       "epsilon, tracked returns, 90 %": 2.866968891116637,
+       "epsilon, tracked reflections with gamma_out >= 1.25, 90 %": 1.3610376867528562
+      },
+      {
+       "band": "70-80",
+       "bins": 39,
+       "V_HT": {
+        "n": 39,
+        "p50": 0.5650898350787725,
+        "p100": 0.8468159776651792
+       },
+       "epsilon, protocol (3 gyro-periods)": 1.1382826808352768,
+       "epsilon, tracked returns, median": 4.31772568109808,
+       "epsilon, tracked returns, 90 %": 7.20339848894485,
+       "epsilon, tracked reflections with gamma_out >= 1.25, 90 %": 3.4196732467278306
+      },
+      {
+       "band": "80-90",
+       "bins": 52,
+       "V_HT": {
+        "n": 52,
+        "p50": 1.711875623522149,
+        "p100": 3.6586098671531757
+       },
+       "epsilon, protocol (3 gyro-periods)": 11.510431845285268,
+       "epsilon, tracked returns, median": 43.66128731963848,
+       "epsilon, tracked returns, 90 %": 72.84150831548078,
+       "epsilon, tracked reflections with gamma_out >= 1.25, 90 %": 34.58008849851088
+      }
+     ],
+     "V_HT for gamma = 1.5 after one reflection of a cold electron": 0.4472135954999579,
+     "valid bins that reach it": 96,
+     "their theta_Bn [deg]": {
+      "n": 96,
+      "p0": 64.70614582079043,
+      "p50": 80.43784621858003,
+      "p100": 87.12952362562189
+     },
+     "valid bins with epsilon <= 0.3, protocol (3 gyro-periods)": 111,
+     "epsilon in the bins that reach it, protocol (3 gyro-periods)": {
+      "n": 96,
+      "p0": 0.6913815483843273,
+      "p50": 2.560843500793978,
+      "p100": 59.215586309712975
+     },
+     "valid bins with epsilon <= 0.3, tracked returns, median": 46,
+     "epsilon in the bins that reach it, tracked returns, median": {
+      "n": 96,
+      "p0": 2.622543518544809,
+      "p50": 9.713773155660755,
+      "p100": 224.6161362510681
+     },
+     "valid bins with epsilon <= 0.3, tracked returns, 90 %": 26,
+     "epsilon in the bins that reach it, tracked returns, 90 %": {
+      "n": 96,
+      "p0": 4.375272403566266,
+      "p50": 16.20579537457888,
+      "p100": 374.7342133259578
+     },
+     "valid bins with epsilon <= 0.3, tracked reflections with gamma_out >= 1.25, 90 %": 56,
+     "epsilon in the bins that reach it, tracked reflections with gamma_out >= 1.25, 90 %": {
+      "n": 96,
+      "p0": 2.0770754260762487,
+      "p50": 7.693385971836011,
+      "p100": 177.89777504480202
+     }
+    },
+    "ramp": {
+     "bands": [
+      {
+       "band": "20-30",
+       "bins": 12,
+       "bins with a ramp found": 12,
+       "width 10-90 % [d_e]": {
+        "n": 12,
+        "p10": 2.8233129024246497,
+        "p50": 4.922130542589562,
+        "p90": 6.877650217956926
+       },
+       "width 20-80 % [d_e]": {
+        "n": 12,
+        "p10": 1.8647295601938936,
+        "p50": 3.04167384371232,
+        "p90": 5.354923483842567
+       },
+       "V_n": 0.15688570572663718,
+       "crossing time, ramp 10-90 %": {
+        "n": 12,
+        "p10": 20.128172859399708,
+        "p50": 31.870155659928173,
+        "p90": 41.26413163412882
+       },
+       "crossing time, layer of the census": {
+        "n": 12,
+        "p10": 46.30124453125694,
+        "p50": 50.99921495051236,
+        "p90": 59.96595248621285
+       },
+       "width 10-90 % of the mean profile [d_e]": 5.344696017957551
+      },
+      {
+       "band": "30-40",
+       "bins": 28,
+       "bins with a ramp found": 28,
+       "width 10-90 % [d_e]": {
+        "n": 28,
+        "p10": 2.3412100917819316,
+        "p50": 2.6988773162061546,
+        "p90": 5.952098022020238
+       },
+       "width 20-80 % [d_e]": {
+        "n": 28,
+        "p10": 1.6006943715527475,
+        "p50": 1.749461173905957,
+        "p90": 3.863996894862591
+       },
+       "V_n": 0.13315622517017492,
+       "crossing time, ramp 10-90 %": {
+        "n": 28,
+        "p10": 16.852419553100688,
+        "p50": 20.737530022219396,
+        "p90": 33.79135635928263
+       },
+       "crossing time, layer of the census": {
+        "n": 28,
+        "p10": 44.21498548957556,
+        "p50": 60.09014058514816,
+        "p90": 67.44076178308796
+       },
+       "width 10-90 % of the mean profile [d_e]": 3.671007895646573
+      },
+      {
+       "band": "40-50",
+       "bins": 28,
+       "bins with a ramp found": 28,
+       "width 10-90 % [d_e]": {
+        "n": 28,
+        "p10": 2.418955344756327,
+        "p50": 2.715192339693675,
+        "p90": 5.979023891472637
+       },
+       "width 20-80 % [d_e]": {
+        "n": 28,
+        "p10": 1.639384309829017,
+        "p50": 1.8008940832954994,
+        "p90": 3.8515366897946928
+       },
+       "V_n": 0.14168342639010856,
+       "crossing time, ramp 10-90 %": {
+        "n": 28,
+        "p10": 17.054917129699923,
+        "p50": 19.690832174811938,
+        "p90": 32.00475427180106
+       },
+       "crossing time, layer of the census": {
+        "n": 28,
+        "p10": 44.598645915374156,
+        "p50": 56.47215883297882,
+        "p90": 61.717932663937844
+       },
+       "width 10-90 % of the mean profile [d_e]": 3.4411572490285276
+      },
+      {
+       "band": "50-60",
+       "bins": 42,
+       "bins with a ramp found": 42,
+       "width 10-90 % [d_e]": {
+        "n": 42,
+        "p10": 2.735995705498643,
+        "p50": 3.1021851650403116,
+        "p90": 4.176709755306033
+       },
+       "width 20-80 % [d_e]": {
+        "n": 42,
+        "p10": 1.7948150657059545,
+        "p50": 2.0242318645686987,
+        "p90": 2.5591789394251783
+       },
+       "V_n": 0.14911154945669378,
+       "crossing time, ramp 10-90 %": {
+        "n": 42,
+        "p10": 19.041787093071168,
+        "p50": 22.06623844628794,
+        "p90": 25.690310848597132
+       },
+       "crossing time, layer of the census": {
+        "n": 42,
+        "p10": 47.78121120298258,
+        "p50": 53.66223024194238,
+        "p90": 62.793934488405654
+       },
+       "width 10-90 % of the mean profile [d_e]": 3.3586953563536333
+      },
+      {
+       "band": "60-70",
+       "bins": 40,
+       "bins with a ramp found": 40,
+       "width 10-90 % [d_e]": {
+        "n": 40,
+        "p10": 3.2028484197454445,
+        "p50": 3.5327241813551282,
+        "p90": 4.426370463162126
+       },
+       "width 20-80 % [d_e]": {
+        "n": 40,
+        "p10": 2.0776908492980586,
+        "p50": 2.257846070144881,
+        "p90": 2.8164282881317133
+       },
+       "V_n": 0.14945835984282535,
+       "crossing time, ramp 10-90 %": {
+        "n": 40,
+        "p10": 22.03164092728725,
+        "p50": 24.218806088449732,
+        "p90": 26.514202320936057
+       },
+       "crossing time, layer of the census": {
+        "n": 40,
+        "p10": 43.123138357921874,
+        "p50": 53.526627042447174,
+        "p90": 61.11036628107858
+       },
+       "width 10-90 % of the mean profile [d_e]": 3.768664201653666
+      },
+      {
+       "band": "70-80",
+       "bins": 39,
+       "bins with a ramp found": 39,
+       "width 10-90 % [d_e]": {
+        "n": 39,
+        "p10": 3.5369438612693207,
+        "p50": 3.755843571041598,
+        "p90": 4.4289230450512616
+       },
+       "width 20-80 % [d_e]": {
+        "n": 39,
+        "p10": 2.2623519826729863,
+        "p50": 2.3972365136649834,
+        "p90": 2.8965793439914678
+       },
+       "V_n": 0.15843950877489965,
+       "crossing time, ramp 10-90 %": {
+        "n": 39,
+        "p10": 21.180740954946256,
+        "p50": 24.450625287462678,
+        "p90": 27.681943142339676
+       },
+       "crossing time, layer of the census": {
+        "n": 39,
+        "p10": 42.62911745440616,
+        "p50": 50.49245647034837,
+        "p90": 60.81306681073357
+       },
+       "width 10-90 % of the mean profile [d_e]": 3.9559577136371216
+      },
+      {
+       "band": "80-90",
+       "bins": 52,
+       "bins with a ramp found": 52,
+       "width 10-90 % [d_e]": {
+        "n": 52,
+        "p10": 3.7026411166978708,
+        "p50": 3.887330114495606,
+        "p90": 4.3061931418850445
+       },
+       "width 20-80 % [d_e]": {
+        "n": 52,
+        "p10": 2.3499011053070364,
+        "p50": 2.5025010317389,
+        "p90": 2.891498740951826
+       },
+       "V_n": 0.15347817013766307,
+       "crossing time, ramp 10-90 %": {
+        "n": 52,
+        "p10": 22.485610679947364,
+        "p50": 25.312289628764976,
+        "p90": 28.807308661327706
+       },
+       "crossing time, layer of the census": {
+        "n": 52,
+        "p10": 42.8298018043626,
+        "p50": 52.12497049385529,
+        "p90": 60.288327864947526
+       },
+       "width 10-90 % of the mean profile [d_e]": 4.016591126601416
+      }
+     ],
+     "all valid bins": {
+      "bins": 241,
+      "bins with a ramp found": 241,
+      "width 10-90 % [d_e]": {
+       "n": 241,
+       "p10": 2.6104028727834336,
+       "p50": 3.6128035885821626,
+       "p90": 4.821263680934726
+      },
+      "width 20-80 % [d_e]": {
+       "n": 241,
+       "p10": 1.7312237545697307,
+       "p50": 2.2973413012920423,
+       "p90": 3.234448160043735
+      },
+      "crossing time, ramp 10-90 %": {
+       "n": 241,
+       "p10": 18.93833272014562,
+       "p50": 23.872723994887025,
+       "p90": 29.127399519844985
+      },
+      "crossing time, layer of the census": {
+       "n": 241,
+       "p10": 43.32459453202274,
+       "p50": 53.50063986273815,
+       "p90": 62.7788785935301
+      }
+     },
+     "layer of the census [d_e]": 8.0,
+     "note": "xi is measured from the fitted mid-ramp surface, so the fit error inside a bin and the output average over eight half-planes widen the ramp: the widths are upper bounds"
+    },
+    "N3 for thermal electrons": {
+     "nu thermal (v 0.1-0.2) at lags 4, 16, 64": [
+      0.011562760212655891,
+      0.007757630583260763,
+      0.004977225829596774
+     ],
+     "bands": [
+      {
+       "band": "20-30",
+       "bins": 12,
+       "crossing time, ramp 10-90 %": 31.870155659928173,
+       "nu tau, ramp 10-90 %": [
+        0.15862496194386433,
+        0.3685069678357674
+       ],
+       "crossing time, layer of the census": 50.99921495051236,
+       "nu tau, layer of the census": [
+        0.2538346099408481,
+        0.5896916935064698
+       ]
+      },
+      {
+       "band": "30-40",
+       "bins": 28,
+       "crossing time, ramp 10-90 %": 20.737530022219396,
+       "nu tau, ramp 10-90 %": [
+        0.10321537006862894,
+        0.23978308704967546
+       ],
+       "crossing time, layer of the census": 60.09014058514816,
+       "nu tau, layer of the census": [
+        0.29908219982450085,
+        0.6948078867308501
+       ]
+      },
+      {
+       "band": "40-50",
+       "bins": 28,
+       "crossing time, ramp 10-90 %": 19.690832174811938,
+       "nu tau, ramp 10-90 %": [
+        0.0980057185067292,
+        0.22768037082499995
+       ],
+       "crossing time, layer of the census": 56.47215883297882,
+       "nu tau, layer of the census": [
+        0.2810746875965938,
+        0.6529740312767515
+       ]
+      },
+      {
+       "band": "50-60",
+       "bins": 42,
+       "crossing time, ramp 10-90 %": 22.06623844628794,
+       "nu tau, ramp 10-90 %": [
+        0.10982865195690572,
+        0.25514662394971593
+       ],
+       "crossing time, layer of the census": 53.66223024194238,
+       "nu tau, layer of the census": [
+        0.26708903843396475,
+        0.6204835007639111
+       ]
+      },
+      {
+       "band": "60-70",
+       "bins": 40,
+       "crossing time, ramp 10-90 %": 24.218806088449732,
+       "nu tau, ramp 10-90 %": [
+        0.12054246722542762,
+        0.28003624743755484
+       ],
+       "crossing time, layer of the census": 53.526627042447174,
+       "nu tau, layer of the census": [
+        0.26641411068686127,
+        0.6189155534840791
+       ]
+      },
+      {
+       "band": "70-80",
+       "bins": 39,
+       "crossing time, ramp 10-90 %": 24.450625287462678,
+       "nu tau, ramp 10-90 %": [
+        0.12169628373055129,
+        0.28271671724843145
+       ],
+       "crossing time, layer of the census": 50.49245647034837,
+       "nu tau, layer of the census": [
+        0.2513123585440087,
+        0.5838321667146037
+       ]
+      },
+      {
+       "band": "80-90",
+       "bins": 52,
+       "crossing time, ramp 10-90 %": 25.312289628764976,
+       "nu tau, ramp 10-90 %": [
+        0.1259849817465236,
+        0.292679935410706
+       ],
+       "crossing time, layer of the census": 52.12497049385529,
+       "nu tau, layer of the census": [
+        0.25943774950898624,
+        0.6027085349122122
+       ]
+      }
+     ],
+     "all valid bins, nu tau, ramp 10-90 %": [
+      0.11881993849018639,
+      0.27603458317579527
+     ],
+     "all valid bins, nu tau, layer of the census": [
+      0.2662847666247751,
+      0.6186150699565004
+     ],
+     "nu tau at the dwell times": {
+      "protocol (3 gyro-periods)": [
+       0.3283647381318904,
+       0.7628351333253022
+      ],
+      "tracked returns, median": [
+       1.2455507638565928,
+       2.8935807432171368
+      ],
+      "tracked returns, 90 %": [
+       2.0779917838566533,
+       4.8274523887838345
+      ],
+      "tracked reflections with gamma_out >= 1.25, 90 %": [
+       0.9864861594260808,
+       2.291739074148398
+      ]
+     }
+    },
+    "id history": {
+     "per dump": [
+      {
+       "t": 37.0,
+       "n": 30,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 0,
+       "no front": 30
+      },
+      {
+       "t": 55.5,
+       "n": 178,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 0,
+       "no front": 178
+      },
+      {
+       "t": 74.0,
+       "n": 486,
+       "upstream": 0,
+       "layer": 485,
+       "downstream": 1,
+       "no front": 0
+      },
+      {
+       "t": 92.5,
+       "n": 807,
+       "upstream": 0,
+       "layer": 805,
+       "downstream": 2,
+       "no front": 0
+      },
+      {
+       "t": 111.0,
+       "n": 753,
+       "upstream": 0,
+       "layer": 745,
+       "downstream": 8,
+       "no front": 0
+      },
+      {
+       "t": 129.5,
+       "n": 533,
+       "upstream": 0,
+       "layer": 503,
+       "downstream": 30,
+       "no front": 0
+      },
+      {
+       "t": 148.0,
+       "n": 330,
+       "upstream": 0,
+       "layer": 272,
+       "downstream": 58,
+       "no front": 0
+      },
+      {
+       "t": 166.5,
+       "n": 207,
+       "upstream": 3,
+       "layer": 141,
+       "downstream": 63,
+       "no front": 0
+      },
+      {
+       "t": 185.0,
+       "n": 110,
+       "upstream": 3,
+       "layer": 33,
+       "downstream": 74,
+       "no front": 0
+      },
+      {
+       "t": 203.5,
+       "n": 59,
+       "upstream": 2,
+       "layer": 16,
+       "downstream": 41,
+       "no front": 0
+      },
+      {
+       "t": 222.0,
+       "n": 40,
+       "upstream": 3,
+       "layer": 11,
+       "downstream": 26,
+       "no front": 0
+      },
+      {
+       "t": 240.5,
+       "n": 21,
+       "upstream": 1,
+       "layer": 8,
+       "downstream": 12,
+       "no front": 0
+      },
+      {
+       "t": 259.0,
+       "n": 13,
+       "upstream": 3,
+       "layer": 4,
+       "downstream": 6,
+       "no front": 0
+      },
+      {
+       "t": 277.5,
+       "n": 10,
+       "upstream": 3,
+       "layer": 3,
+       "downstream": 4,
+       "no front": 0
+      },
+      {
+       "t": 296.0,
+       "n": 4,
+       "upstream": 0,
+       "layer": 3,
+       "downstream": 1,
+       "no front": 0
+      },
+      {
+       "t": 314.5,
+       "n": 6,
+       "upstream": 1,
+       "layer": 2,
+       "downstream": 3,
+       "no front": 0
+      },
+      {
+       "t": 333.0,
+       "n": 2,
+       "upstream": 1,
+       "layer": 0,
+       "downstream": 1,
+       "no front": 0
+      },
+      {
+       "t": 351.5,
+       "n": 5,
+       "upstream": 0,
+       "layer": 2,
+       "downstream": 3,
+       "no front": 0
+      },
+      {
+       "t": 370.0,
+       "n": 3,
+       "upstream": 0,
+       "layer": 1,
+       "downstream": 2,
+       "no front": 0
+      },
+      {
+       "t": 388.5,
+       "n": 1,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 1,
+       "no front": 0
+      },
+      {
+       "t": 425.5,
+       "n": 1,
+       "upstream": 0,
+       "layer": 1,
+       "downstream": 0,
+       "no front": 0
+      },
+      {
+       "t": 481.0,
+       "n": 1,
+       "upstream": 1,
+       "layer": 0,
+       "downstream": 0,
+       "no front": 0
+      },
+      {
+       "t": 592.0,
+       "n": 1,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 1,
+       "no front": 0
+      },
+      {
+       "t": 610.5,
+       "n": 1,
+       "upstream": 1,
+       "layer": 0,
+       "downstream": 0,
+       "no front": 0
+      },
+      {
+       "t": 666.0,
+       "n": 1,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 1,
+       "no front": 0
+      }
+     ],
+     "largest dump": {
+      "t": 92.5,
+      "n": 807,
+      "upstream": 0,
+      "layer": 805,
+      "downstream": 2,
+      "no front": 0
+     },
+     "the electrons of the largest dump later": [
+      {
+       "t": 92.5,
+       "gamma >= 1.5": 807,
+       "gamma >= 1.25": 807,
+       "median gamma of those above 1.25": 1.554479956626892,
+       "median distance to the front [d_e]": -5.99530553817749,
+       "upstream": 0,
+       "layer": 805,
+       "downstream": 2,
+       "no front": 0
+      },
+      {
+       "t": 111.0,
+       "gamma >= 1.5": 220,
+       "gamma >= 1.25": 684,
+       "median gamma of those above 1.25": 1.4266812801361084,
+       "median distance to the front [d_e]": -7.778959274291992,
+       "upstream": 0,
+       "layer": 666,
+       "downstream": 18,
+       "no front": 0
+      },
+      {
+       "t": 129.5,
+       "gamma >= 1.5": 165,
+       "gamma >= 1.25": 668,
+       "median gamma of those above 1.25": 1.4087413549423218,
+       "median distance to the front [d_e]": -8.82583999633789,
+       "upstream": 0,
+       "layer": 621,
+       "downstream": 47,
+       "no front": 0
+      },
+      {
+       "t": 148.0,
+       "gamma >= 1.5": 104,
+       "gamma >= 1.25": 578,
+       "median gamma of those above 1.25": 1.3761649131774902,
+       "median distance to the front [d_e]": -10.359434127807617,
+       "upstream": 0,
+       "layer": 468,
+       "downstream": 110,
+       "no front": 0
+      },
+      {
+       "t": 166.5,
+       "gamma >= 1.5": 70,
+       "gamma >= 1.25": 486,
+       "median gamma of those above 1.25": 1.3531180620193481,
+       "median distance to the front [d_e]": -11.87074089050293,
+       "upstream": 1,
+       "layer": 260,
+       "downstream": 225,
+       "no front": 0
+      },
+      {
+       "t": 185.0,
+       "gamma >= 1.5": 44,
+       "gamma >= 1.25": 379,
+       "median gamma of those above 1.25": 1.3424822092056274,
+       "median distance to the front [d_e]": -13.25588321685791,
+       "upstream": 2,
+       "layer": 100,
+       "downstream": 277,
+       "no front": 0
+      },
+      {
+       "t": 203.5,
+       "gamma >= 1.5": 14,
+       "gamma >= 1.25": 294,
+       "median gamma of those above 1.25": 1.3183033466339111,
+       "median distance to the front [d_e]": -15.000688552856445,
+       "upstream": 3,
+       "layer": 37,
+       "downstream": 254,
+       "no front": 0
+      },
+      {
+       "t": 222.0,
+       "gamma >= 1.5": 8,
+       "gamma >= 1.25": 222,
+       "median gamma of those above 1.25": 1.3150696754455566,
+       "median distance to the front [d_e]": -17.2485408782959,
+       "upstream": 4,
+       "layer": 15,
+       "downstream": 203,
+       "no front": 0
+      },
+      {
+       "t": 240.5,
+       "gamma >= 1.5": 3,
+       "gamma >= 1.25": 132,
+       "median gamma of those above 1.25": 1.3124313354492188,
+       "median distance to the front [d_e]": -19.08493423461914,
+       "upstream": 4,
+       "layer": 11,
+       "downstream": 117,
+       "no front": 0
+      },
+      {
+       "t": 259.0,
+       "gamma >= 1.5": 4,
+       "gamma >= 1.25": 101,
+       "median gamma of those above 1.25": 1.3048073053359985,
+       "median distance to the front [d_e]": -21.0805721282959,
+       "upstream": 4,
+       "layer": 8,
+       "downstream": 89,
+       "no front": 0
+      },
+      {
+       "t": 277.5,
+       "gamma >= 1.5": 1,
+       "gamma >= 1.25": 65,
+       "median gamma of those above 1.25": 1.30020272731781,
+       "median distance to the front [d_e]": -24.129745483398438,
+       "upstream": 5,
+       "layer": 4,
+       "downstream": 56,
+       "no front": 0
+      },
+      {
+       "t": 296.0,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 44,
+       "median gamma of those above 1.25": 1.3062193393707275,
+       "median distance to the front [d_e]": -26.896087646484375,
+       "upstream": 4,
+       "layer": 2,
+       "downstream": 38,
+       "no front": 0
+      },
+      {
+       "t": 314.5,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 26,
+       "median gamma of those above 1.25": 1.3004287481307983,
+       "median distance to the front [d_e]": -31.21963119506836,
+       "upstream": 2,
+       "layer": 1,
+       "downstream": 23,
+       "no front": 0
+      },
+      {
+       "t": 333.0,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 26,
+       "median gamma of those above 1.25": 1.2896267175674438,
+       "median distance to the front [d_e]": -30.990123748779297,
+       "upstream": 2,
+       "layer": 1,
+       "downstream": 23,
+       "no front": 0
+      },
+      {
+       "t": 351.5,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 12,
+       "median gamma of those above 1.25": 1.2685050964355469,
+       "median distance to the front [d_e]": -34.02173614501953,
+       "upstream": 1,
+       "layer": 1,
+       "downstream": 10,
+       "no front": 0
+      },
+      {
+       "t": 370.0,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 7,
+       "median gamma of those above 1.25": 1.2702440023422241,
+       "median distance to the front [d_e]": -36.077049255371094,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 7,
+       "no front": 0
+      },
+      {
+       "t": 388.5,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 5,
+       "median gamma of those above 1.25": 1.2781389951705933,
+       "median distance to the front [d_e]": -40.21549987792969,
+       "upstream": 0,
+       "layer": 1,
+       "downstream": 4,
+       "no front": 0
+      },
+      {
+       "t": 407.0,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 3,
+       "median gamma of those above 1.25": 1.307830572128296,
+       "median distance to the front [d_e]": -49.753761291503906,
+       "upstream": 0,
+       "layer": 1,
+       "downstream": 2,
+       "no front": 0
+      },
+      {
+       "t": 425.5,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 3,
+       "median gamma of those above 1.25": 1.2729262113571167,
+       "median distance to the front [d_e]": -47.4390983581543,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 3,
+       "no front": 0
+      },
+      {
+       "t": 444.0,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 1,
+       "median gamma of those above 1.25": 1.275328278541565,
+       "median distance to the front [d_e]": -46.246646881103516,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 1,
+       "no front": 0
+      },
+      {
+       "t": 462.5,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 2,
+       "median gamma of those above 1.25": 1.264516830444336,
+       "median distance to the front [d_e]": -36.17746353149414,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 2,
+       "no front": 0
+      },
+      {
+       "t": 481.0,
+       "gamma >= 1.5": 0,
+       "gamma >= 1.25": 0,
+       "median gamma of those above 1.25": null,
+       "median distance to the front [d_e]": null,
+       "upstream": 0,
+       "layer": 0,
+       "downstream": 0,
+       "no front": 0
+      }
+     ],
+     "first valid time": 185.0,
+     "from the first valid time on": {
+      "electron-dumps with gamma >= 1.5": 279,
+      "different electrons": 199,
+      "of these, already above 1.5 before": 107,
+      "of these, already above 1.25 before": 163,
+      "upstream electron-dumps": 19,
+      "different upstream electrons": 10,
+      "upstream, already above 1.25 before": 5
+     },
+     "upstream electron-dumps with gamma >= 1.5": {
+      "all": 22,
+      "in the valid domain": 3,
+      "in the valid domain, with a reflection-point band": 3,
+      "by result": {
+       "S0 in range": 5,
+       "undetermined": 17
+      }
+     },
+     "K1": {
+      "electron-dumps": 7,
+      "electrons": [
+       {
+        "id": 391104754,
+        "t": [
+         166.5,
+         185.0,
+         203.5,
+         222.0,
+         240.5,
+         259.0,
+         277.5
+        ],
+        "gamma": [
+         1.839509129524231,
+         1.7358880043029785,
+         1.7143523693084717,
+         1.7148065567016602,
+         1.6320217847824097,
+         1.5458377599716187,
+         1.5018508434295654
+        ],
+        "in the valid domain": 0,
+        "beyond the debris": 0
+       }
+      ]
+     }
+    },
+    "downstream branch of C1": {
+     "behind the front": {
+      "outputs": 16,
+      "measured, sum over the outputs": 0.0625,
+      "three times the tail at 1.1 T, sum over the outputs": 6.243445729723543,
+      "largest output": {
+       "t": 222.0,
+       "measured": 0.0625,
+       "three times the tail at 1.1 T": 0.0003428056606516254,
+       "cells": 3492
+      },
+      "outputs with measured >= 100": 0
+     },
+     "behind the front, outside the debris": {
+      "outputs": 15,
+      "measured, sum over the outputs": 0.0,
+      "three times the tail at 1.1 T, sum over the outputs": 0.010037578022004558,
+      "largest output": {
+       "t": 222.0,
+       "measured": 0.0,
+       "three times the tail at 1.1 T": 1.1772016216327912e-06,
+       "cells": 8
+      },
+      "outputs with measured >= 100": 0
+     },
+     "e_cut": 0.5623413251903491,
+     "note": "weights of macro-electrons in the slab |y| < 8 d_e; all polar angles, not only the valid ones"
+    },
+    "tau_dwell rule": {
+     "applied": true,
+     "census": {
+      "tau_dwell": 65.97344572538566,
+      "upstream electron-dumps, gamma >= 1.25": {
+       "n": 35756,
+       "S0 at exit": 18666,
+       "S0 in range": 799,
+       "S1 leak": 27,
+       "undetermined": 13820,
+       "residual": 2103,
+       "residual, no encounter": 341
+      },
+      "upstream electron-dumps, gamma >= 1.5": {
+       "n": 22,
+       "S0 in range": 5,
+       "undetermined": 17
+      },
+      "upstream, valid domain, gamma >= 1.25": {
+       "n": 10155,
+       "S0 at exit": 8072,
+       "S0 in range": 338,
+       "undetermined": 933,
+       "residual": 702,
+       "residual, no encounter": 110
+      }
+     },
+     "census-tau": {
+      "tau_dwell": 198.2,
+      "upstream electron-dumps, gamma >= 1.25": {
+       "n": 35756,
+       "S0 at exit": 18666,
+       "S0 in range": 2251,
+       "S1 leak": 24,
+       "undetermined": 13728,
+       "residual": 746,
+       "residual, no encounter": 341
+      },
+      "upstream electron-dumps, gamma >= 1.5": {
+       "n": 22,
+       "S0 in range": 8,
+       "undetermined": 14
+      },
+      "upstream, valid domain, gamma >= 1.25": {
+       "n": 10155,
+       "S0 at exit": 8072,
+       "S0 in range": 909,
+       "undetermined": 914,
+       "residual": 150,
+       "residual, no encounter": 110
+      }
+     }
+    }
    },
    "tracks": {
     "n_tracked": 956674,

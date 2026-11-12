@@ -29,9 +29,9 @@
    "commit": "0114ef9eadf3e5c44abfbe0f6cfeeef1956f9e97",
    "config": "research/topics/spherical-shock-injection/configs/explore-L-null.yaml",
    "wall_time_s": 778.2347603479866,
-   "output_bytes": 15475584649,
+   "output_bytes": 15475590605,
    "checks_ok": true,
-   "analysis_commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0"
+   "analysis_commit": "aac5d4a9e9fe638e479feed14ef98bf84bb3ad3d"
   },
   {
    "file": "2026-11-13-91f79ff1d-L.json",
@@ -40,9 +40,9 @@
    "commit": "91f79ff1dc636e0512669d269c13df19b8476f3e",
    "config": "research/topics/spherical-shock-injection/configs/explore-L.yaml",
    "wall_time_s": 1297.762448093854,
-   "output_bytes": 61808942991,
+   "output_bytes": 61823501455,
    "checks_ok": true,
-   "analysis_commit": "049a4310d64edd7ef4706c0fc9ca2d7fa088d2a0"
+   "analysis_commit": "aac5d4a9e9fe638e479feed14ef98bf84bb3ad3d"
   },
   {
    "file": "2026-11-13-ac33a41eb-M.json",
@@ -51,9 +51,9 @@
    "commit": "ac33a41ebdc2ebb0246d624262e3933f0f56f9cf",
    "config": "research/topics/spherical-shock-injection/configs/explore-M.yaml",
    "wall_time_s": 1320.647223294014,
-   "output_bytes": 60164704602,
+   "output_bytes": 60167496721,
    "checks_ok": true,
-   "analysis_commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48"
+   "analysis_commit": "aac5d4a9e9fe638e479feed14ef98bf84bb3ad3d"
   },
   {
    "file": "2026-11-13-3f5c43715-M-null.json",
@@ -62,9 +62,9 @@
    "commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48",
    "config": "research/topics/spherical-shock-injection/configs/explore-M-null.yaml",
    "wall_time_s": 782.7369680369738,
-   "output_bytes": 15767084271,
+   "output_bytes": 15767090223,
    "checks_ok": true,
-   "analysis_commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48"
+   "analysis_commit": "aac5d4a9e9fe638e479feed14ef98bf84bb3ad3d"
   },
   {
    "file": "2026-11-13-3f5c43715-H.json",
