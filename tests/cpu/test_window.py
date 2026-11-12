@@ -50,6 +50,7 @@ def test_window_from_dict_and_margin_in_cells():
     ({"body": Body(center=(2.0, 0.8, 0.8), radius=0.3)}, "body"),
     ({"external_fields": {"B": (0.0, 0.0, 0.1)}}, "external_fields"),
     ({"B0": (0.0, 0.0, 0.1)}, "B0"),
+    ({"precision": "compact"}, "compact storage"),
     ({"initial_fields": [{"kind": "plane_wave", "axis": "y", "mode": 1, "polarization": "z", "amplitude": 0.1}]},
      "initial_fields"),
     ({"species": [SpeciesConfig("e", -1.0, 1.0, [Beam(1.0, perturbation=[{"axis": "y", "mode": 1,

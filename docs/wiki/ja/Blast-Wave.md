@@ -127,6 +127,18 @@ B₀ に垂直な面の B_z と 8 本の線上の波面、B₀ を含む面の�
   （e n₀ d_e³ 単位）を持ちます。デブリのない静止プラズマの試験では、電荷が一定値に落ち着くことを確認できません
   でした。球の電位は報告のみで、ゲートの基準ではありません。
 - **粒子数**: 粒子配列は、最も埋まったランクで容量の {{ r.gate.fill_max | .0% }} まで埋まります。
+- **より大きい R_m / d_i**（`rm12`、記録つきの run）: R_m = {{ c.rm12.params.rm }} d_i（上の run は
+  {{ c.gate.params.rm }} d_i）、粒子数は {{ c.rm12.particles | , }} 個です。デブリのイオンは磁場を横切る方向に
+  {{ r.rm12.debris_extent | .1f }} d_e まで届きます。Le et al. (2021) のスケーリングの
+  {{ r.rm12.debris_extent_ratio | .2f }} 倍です（上の run は {{ r.gate.debris_extent_ratio | .2f }} 倍）。
+  波面は速い磁気音波の速度の {{ r.rm12.front_mach_fast | .2f }} 倍で進み、B_z の円周平均の最大値は
+  {{ r.rm12.compression | .2f }} B₀ です。この run はゲートの基準を満たします。
+
+  <details><summary>`rm12` の波面、デブリ、空洞</summary>
+
+  ![rm12](images/blast_wave/rm12-blast_wave.png)
+
+  </details>
 - **run ごとの差**: この run と、同じシードの以前の FP64 の run 3 回で、波面の速度、円周平均、対称性は
   全桁で、Δ98 は 12 桁で一致しました。ほかの値の差は、値の 4e-5 以下でした。`precision: mixed` の run も
   同じ基準を満たしました。その記録は、リポジトリのゲート記録にあります。

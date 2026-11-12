@@ -96,10 +96,11 @@ Werner et al.（2016）のフィット（破線）、Sironi & Spitkovsky（2014�
 固定した直線が膨らんだ磁力線も横切るため、余分に磁束がつなぎ変わらなくても Ψ_y₁ は増えます。**右**: 最終スペクトルと
 σ/2 ≤ γ − 1 ≤ 5σ でのべき乗則フィット。
 
-<details><summary>2 つ目の実現とゲート用 run</summary>
+<details><summary>2 つ目の実現、ゲート用 run、2 倍の計算領域の run</summary>
 
 ![大きな run、2 つ目の実現](images/reconnection/pair_sigma10_large_run2-reconnection.png)
 ![ゲート用 run](images/reconnection/pair_sigma10-reconnection.png)
+![xl run](images/reconnection/pair_sigma10_xl-reconnection.png)
 
 </details>
 
@@ -108,12 +109,21 @@ Werner et al.（2016）のフィット（破線）、Sironi & Spitkovsky（2014�
 | `pair_sigma10`（ゲート） | 100 × 100 | {{ r.pair_sigma10.power_law_index | .2f }} ± {{ r.pair_sigma10.power_law_err | .2f }} | {{ r.pair_sigma10.werner2016_index | .2f }} | {{ r.pair_sigma10.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10.equilibrium_max_dev_over_B0 | .4f }} |
 | `pair_sigma10_large` | 400 × 200 | {{ r.pair_sigma10_large.power_law_index | .2f }} ± {{ r.pair_sigma10_large.power_law_err | .2f }} | {{ r.pair_sigma10_large.werner2016_index | .2f }} | {{ r.pair_sigma10_large.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10_large.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10_large.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10_large.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10_large.equilibrium_max_dev_over_B0 | .4f }} |
 | `pair_sigma10_large_run2` | 400 × 200 | {{ r.pair_sigma10_large_run2.power_law_index | .2f }} ± {{ r.pair_sigma10_large_run2.power_law_err | .2f }} | {{ r.pair_sigma10_large_run2.werner2016_index | .2f }} | {{ r.pair_sigma10_large_run2.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10_large_run2.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10_large_run2.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10_large_run2.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10_large_run2.equilibrium_max_dev_over_B0 | .4f }} |
+| `pair_sigma10_xl` | 800 × 400 | {{ r.pair_sigma10_xl.power_law_index | .2f }} ± {{ r.pair_sigma10_xl.power_law_err | .2f }} | {{ r.pair_sigma10_xl.werner2016_index | .2f }} | {{ r.pair_sigma10_xl.reconnection_rate_peak | .3f }} | {{ r.pair_sigma10_xl.reconnection_rate_mean_active | .3f }} | {{ r.pair_sigma10_xl.magnetic_energy_converted | .0% }} | {{ r.pair_sigma10_xl.E_parallel_share_top1pct | +.3f }} | {{ r.pair_sigma10_xl.equilibrium_max_dev_over_B0 | .4f }} |
 
 - **ゲート**（`pair_sigma10`）: テアリングが始まる前（t ≤ 10）、B_x(y) の分布は解析的な平衡から B₀ の 5 % 以内に
   保たれ、ガウスの法則が成り立ちます（{{ r.pair_sigma10.gauss_max | .1e }}）。それ以外はすべて報告のみです。
 - **率**: 最大値は初期のテアリングによるものです。活動期の平均は、ゲート用領域では発表値の 0.1 v_A に近く、
   大きな領域では低くなります。大きな領域の率には、初期のピークの後にいくつかのバーストが見えます（上の中央の
   パネル）。example の README は、これをプラズモイドの合体によるものとしています。
+- **2 倍の計算領域と 2 倍の時間**（`pair_sigma10_xl`、800 × 400 c/ω_pe、t = 4000 ω_pe⁻¹ まで、粒子数
+  {{ c.pair_sigma10_xl.particles | , }}）: 指数は
+  {{ r.pair_sigma10_xl.power_law_index | .2f }} ± {{ r.pair_sigma10_xl.power_law_err | .2f }} です。半分の
+  領域では {{ r.pair_sigma10_large.power_law_index | .2f }} と
+  {{ r.pair_sigma10_large_run2.power_law_index | .2f }}、Werner et al.（2016）では
+  {{ r.pair_sigma10_xl.werner2016_index | .2f }} です。指数は 0.06 以内で領域の大きさによりません。
+  スペクトルの高エネルギー側のカットオフは、半分の領域より 17–32 % 高いだけで 2 倍にはならず、同じ時刻で
+  比べると等しくなります。表は example の README にあります。
 - **加速の経路**: 追跡した電子のうち最もエネルギーの高い 1 % は、B に平行な電場成分（E∥）からはほとんど
   エネルギーを得ていません（E∥ の寄与 ≈ 0）。エネルギーは E⊥、つまり外向きの流れとプラズモイドの運動による
   電場から来ています。追跡データは 2.5 ω_pe⁻¹ ごとの記録なので、この内訳は目安です。

@@ -1,6 +1,6 @@
 """Helper for the lattice test (PIC-D23): run with ``python -m pypic.launch -n N``.
 
-    mgpu_lattice.py <dims>    dims like 2,2,1
+    mgpu_lattice.py <dims> [precision]    dims like 2,2,1; precision: fp64 (default) or compact
 
 A warm electron-ion plasma in a periodic box of 16 x 8 x 8 cells of three different sizes, loaded
 on a 2 x 4 x 2 lattice. Prints the number of electron coordinates that differ from the place that
@@ -20,11 +20,12 @@ from pypic.simulation import Simulation
 dims = tuple(int(v) for v in sys.argv[1].split(","))
 n_cells, dx, lattice, ppc = (16, 8, 8), (0.5, 0.25, 0.4), (2, 4, 2), 16
 cfg = SimConfig(n_cells=n_cells, dx=dx, dt=0.1, n_steps=1, dims=dims, ppc=ppc, lattice=lattice,
+                precision=sys.argv[2] if len(sys.argv) > 2 else "fp64",
                 species=[SpeciesConfig("e", -1, 1, [Beam(1.0, theta=1e-3)]),
                          SpeciesConfig("i", 1, 1836, [Beam(1.0, theta=1e-6)])])
 sim = Simulation(cfg, verbose=False)
 e = sim.species[0]
-P = e.P[:, : e.n]
+P = e.rows()
 ids = P[7].astype(cp.int64)  # the first stream: linear global cell * ppc + slot
 slot, lin = ids % ppc, ids // ppc
 cell = (lin // (n_cells[1] * n_cells[2]), lin // n_cells[2] % n_cells[1], lin % n_cells[2])
@@ -32,7 +33,7 @@ sub = (slot % lattice[0], slot // lattice[0] % lattice[1], slot // (lattice[0] *
 wrong = sum(int(cp.count_nonzero(P[a] != (cell[a] + (sub[a] + 0.5) / lattice[a]) * dx[a])) for a in range(3))
 g = sim.grid
 rho = cp.zeros(g.shape)
-launch(sim.k_rho, e.n, (e.P, np.int32(e.n), np.int64(e.cap), np.float64(e.q), np.float64(0.0), rho))
+launch(sim.k_rho, e.n, (*e.store, np.int32(e.n), np.int64(e.cap), np.float64(e.q), np.float64(0.0), rho))
 g.reduce_ghosts((rho,))
 dev = float(cp.max(cp.abs(rho[g.gauss_slice(sim.gauss_retreat)] + 1.0)))
 s = sim.comm.allreduce(cp.asarray([float(wrong), float(e.n)]))

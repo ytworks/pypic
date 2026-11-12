@@ -40,6 +40,45 @@ def test_streaming_limits():
     assert abs(S.filamentation_cold(1e4, u) - (u / g) / math.sqrt(g)) < 1e-6
 
 
+def _fluid_growth(k, beams, B0):
+    """Largest growth rate of the linearised cold relativistic fluids + Maxwell equations for
+    exp(i k y) (drifts and B0 along x). beams: (q, m, n0, u0). Unknowns: (dn, du) per beam, E, B."""
+    nb = len(beams)
+    M = np.zeros((4 * nb + 6,) * 2, dtype=complex)
+    e, b, ik = 4 * nb, 4 * nb + 3, 1j * k
+    for j, (q, m, n0, u0) in enumerate(beams):
+        g = math.sqrt(1 + u0 * u0)
+        v0, o, qm = u0 / g, 4 * j, q / m
+        M[o, o + 2] = -n0 * ik / g  # continuity, v_y = u_y / gamma
+        for c in range(3):
+            M[o + 1 + c, e + c] = qm
+        M[o + 2, b + 2], M[o + 3, b + 1] = -qm * v0, qm * v0  # v0 x dB
+        M[o + 2, o + 3], M[o + 3, o + 2] = qm * B0 / g, -qm * B0 / g  # dv x B0
+        M[e, o], M[e, o + 1] = -q * v0, -q * n0 / g ** 3  # -J_x: convected charge, longitudinal mass
+        M[e + 1, o + 2] = M[e + 2, o + 3] = -q * n0 / g
+    M[e, b + 2], M[e + 2, b] = ik, -ik  # curl B
+    M[b, e + 2], M[b + 2, e] = -ik, ik  # -curl E
+    return float(np.linalg.eigvals(M).real.max())
+
+
+def test_filamentation_in_a_flow_aligned_field_follows_the_linearised_fluid_equations():
+    u = 0.5
+    g = math.sqrt(1 + u * u)
+    pair = [(q, 1.0, 0.5, s * u) for q in (-1.0, 1.0) for s in (1.0, -1.0)]
+    ei = [(-1.0, 1.0, 0.5, u), (-1.0, 1.0, 0.5, -u), (1.0, 100.0, 1.0, 0.0)]
+    for beams in (pair, ei):
+        comps = [(n * q * q / m, u0) for q, m, n, u0 in beams]
+        w_crit = math.sqrt(sum(wp2 * (u / g) ** 2 / g for wp2, u0 in comps if u0))
+        for f in (0.0, 0.5, 0.9, 1.5):
+            for k in (0.5, 1.0, 4.0):
+                got = float(S.filamentation_growth(k, comps, f * w_crit))
+                # B0 from the gyrofrequency of the drifting beams, omega_c = |q| B0 / (gamma m)
+                assert abs(got - _fluid_growth(k, beams, f * w_crit * g)) < 1e-7, (f, k)
+        ks = np.linspace(0.1, 50.0, 200)
+        assert np.all(S.filamentation_growth(ks, comps, w_crit) == 0.0)  # stable at every k from the critical field
+        assert np.all(S.filamentation_growth(ks[-20:], comps, 0.99 * w_crit) > 0.0)
+
+
 def _example_theory(name):
     import importlib.util
     import os
@@ -59,6 +98,20 @@ def test_shock_jump_conditions():
     # Synge gas: ultra-relativistic limits n2/n1 -> 4 (3-D, Gamma 4/3) and 3 (2-D, Gamma 3/2)
     assert abs(T.jump_conditions(1e4, 3)["compression"] - 4.0) < 2e-3
     assert abs(T.jump_conditions(1e4, 2)["compression"] - 3.0) < 2e-3
+
+
+def test_magnetised_shock_jump_has_the_unmagnetised_and_the_kennel_coroniti_limits():
+    """sigma = 0 gives the jump of the unmagnetised flow; for gamma0 -> infinity the shock speed in
+    the downstream frame is u2 / sqrt(1 + u2^2) with u2 of Kennel & Coroniti (1984) (3-D gas; the
+    difference falls as 1 / gamma0^2: 4e-7 at gamma0 = 1e3 for sigma = 0.3)."""
+    T = _example_theory("relativistic_shock")
+    for dims in (2, 3):
+        a, b = T.jump_conditions(15.0, dims), T.jump_conditions_magnetised(15.0, 0.0, dims)
+        assert abs(a["beta_sh"] - b["beta_sh"]) < 1e-12 and abs(a["theta2"] - b["theta2"]) < 1e-10
+    for sigma in (0.01, 0.3, 3.0, 30.0):
+        u2 = ((8 * sigma ** 2 + 10 * sigma + 1 + math.sqrt(64 * sigma ** 2 * (sigma + 1) ** 2
+                                                           + 20 * sigma * (sigma + 1) + 1)) / (16 * (sigma + 1)))
+        assert abs(T.jump_conditions_magnetised(1e3, sigma, 3)["beta_sh"] / math.sqrt(u2 / (1 + u2)) - 1) < 2e-6
 
 
 def test_mora_relations():
@@ -89,6 +142,23 @@ def test_bow_shock_scales():
     assert abs(mhd.fast_mach(ma1, beta) - 1.0) < 1e-14 and abs(mhd.compression(ma1, beta) - 1.0) < 1e-12
     assert mhd.compression(0.5 * ma1, beta) == 1.0
     assert abs(mhd.compression(1e4, beta) - 4.0) < 1e-6
+    # oblique fast shock: the same test of the energy flux, with the tangential flow and the Poynting
+    # flux B_z (v_x B_z - v_z B_x); (1.5, 0.1) along the field is a switch-on shock
+    for ma, beta in ((1.5, 0.1), (2.0, 0.05), (4.0, 0.64), (20.0, 3.0)):
+        for cos2 in (1e-6, 0.25, 0.5, 0.9, 1.0):
+            d = T.oblique_downstream(ma, beta, cos2)
+            x, bz1 = d["compression"], math.sqrt(1.0 - cos2)
+            up = (0.5 * ma ** 2 + g / (g - 1) * 0.5 * beta) * ma + bz1 * ma * bz1
+            down = ((0.5 * x * (d["v_x"] ** 2 + d["v_z"] ** 2) + g / (g - 1) * d["p"]) * d["v_x"]
+                    + d["B_z"] * (d["v_x"] * d["B_z"] - d["v_z"] * d["B_x"]))
+            assert x > 1.0 and d["p"] > 0.0 and abs(down / up - 1.0) < 1e-9, (ma, beta, cos2)
+        # the limits: the perpendicular shock, and along the field the gas-dynamic shock of the sonic Mach number
+        assert T.oblique_compression(ma, beta, 0.0) == mhd.compression(ma, beta)
+        assert abs(T.oblique_compression(ma, beta, 1e-9) / mhd.compression(ma, beta) - 1.0) < 1e-6
+    ms2 = 16.0 / (0.5 * g * 0.64)
+    assert abs(T.oblique_compression(4.0, 0.64, 1.0) - (g + 1) * ms2 / ((g - 1) * ms2 + 2.0)) < 1e-12
+    assert T.oblique_compression(1.5, 0.1, 1.0) == 2.25 and T.oblique_downstream(1.5, 0.1, 1.0)["B_z"] > 0.0
+    assert T.oblique_compression(0.5 * ma1, beta, 0.5) == 1.0  # slower than the fast speed: no shock
     # magnetopause: the doubled dipole field of the planner's moment balances the ram pressure at R_mp
     r, v, mi = 20.0, 0.25, 16.0
     m = T.dipole_moment(r, v, mi)

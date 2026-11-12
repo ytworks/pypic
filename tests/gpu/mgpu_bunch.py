@@ -35,11 +35,11 @@ sim = Simulation(cfg, verbose=False)
 loaded = float(sim.species[0].n)
 sim.run()
 b = sim.species[0]
-ids = b.P[7, : b.n]
+ids = b.ids()
 # sums that are exact in float64 in any order (the order of the particles is not fixed): the ids
 # and the squares of their two low 16-bit halves
 low, high = (((ids.astype(cp.int64) >> s) & 0xFFFF).astype(cp.float64) for s in (0, 16))
-far = float(cp.count_nonzero(b.P[0, : b.n] >= 16.0))
+far = float(cp.count_nonzero(b.pos(0) >= 16.0))
 s = sim.comm.allreduce(cp.stack([ids.sum(), (low * low).sum(), (high * high).sum(), cp.asarray(float(ids.size)),
                                  cp.asarray(far), cp.asarray(loaded)]))
 if sim.rank == 0:

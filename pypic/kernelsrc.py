@@ -62,8 +62,8 @@ def grid_defines(decomp: Decomposition, dx, dt: float, ghost: int, use_pml: bool
     return D
 
 
-def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0, body=None,
-                     window: int = 0, x_low: int = 0, lattice=None) -> dict:
+def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0, body=None, window: int = 0,
+                     x_low: int = 0, lattice=None, compact: bool = False) -> dict:
     """Particle kernels share the grid constants (no CPML terms) plus the path-segment bound.
     ``mixed`` (PIC-D11): the explicit push gathers E and B from float32 copies; OXI.. are the
     global cell indices of local index 0, so the gather weights come from global coordinates and
@@ -76,7 +76,10 @@ def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0
     window): the cells that the arrays of the first rank hold below the box along x, the same
     number on every rank; with OXI it gives the kernels an index coordinate along x that depends on
     the rank only by a whole number of cells (XIDX in ``common.cuh``). ``lattice``
-    (PIC-D23): the places per axis of the particles of a cell, or None for random places."""
+    (PIC-D23): the places per axis of the particles of a cell, or None for random places. ``compact``
+    (PIC-D19): the particles are stored as cell, position within the cell and float64 momenta; the
+    gather is the one of ``mixed``, GNX.. are the global cells per axis and S?0I / S?1I the physical
+    range of the rank in global cells."""
     D = dict(grid_defs)
     D.pop("USE_PML", None)
     D["MAXSEG"] = 3 * (D["GH"] + 2) + 4
@@ -91,8 +94,20 @@ def particle_defines(grid_defs: dict, mixed: bool = False, paired_faces: int = 0
     if lattice is not None:
         for c, v in zip("XYZ", lattice):
             D[f"LATTICE_{c}"] = int(v)
-    if mixed:
+    if mixed or compact:
         D["MIXED_GATHER"] = 1
         for c in "XYZ":
             D[f"O{c}I"] = int(round(D[f"O{c}"] / D[f"D{c}"]))
+    if compact:
+        D["COMPACT_STORE"] = 1
+        if D["NX"] * D["NY"] * D["NZ"] >= 2 ** 31:
+            raise ValueError("precision='compact': the cells of one rank (with ghosts) must be fewer than 2**31, "
+                             "the range of the stored cell; use more ranks")
+        for c in "XYZ":
+            D[f"GN{c}"] = int(round(D[f"L{c}"] / D[f"D{c}"]))
+            if D[f"GN{c}"] + 2 * D["GH"] > 2 ** 20:
+                raise ValueError(f"precision='compact': more than 2**20 cells along {c.lower()} (with ghosts); the "
+                                 "index coordinate would not be exact in 2**-32 of a cell")
+            D[f"S{c}0I"] = int(round(D[f"S{c}0"] / D[f"D{c}"]))
+            D[f"S{c}1I"] = int(round(D[f"S{c}1"] / D[f"D{c}"]))
     return D

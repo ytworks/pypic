@@ -296,8 +296,9 @@ These are the 3-D two-stream examples run on 8 GPUs with each configuration's de
   | Step time | 22.0 ms | 11.5 ms | 6.0 ms | 3.4 ms |
   | Speed-up | 1.0× | 1.9× | 3.6× | 6.4× |
 
-  A single GPU runs at 0.44 ns per particle per step (0.36 with `precision: mixed`). Measured
-  with `scripts/bench_step.py` (no output, history every 10 steps).
+  A single GPU runs at 0.44 ns per particle per step (0.36 with `precision: mixed`, 0.30 with
+  `precision: compact`). Measured with `scripts/bench_step.py` (no output, history every 10
+  steps).
 - **Implicit cost**: a step costs about 22× an explicit one on one GPU (5–6 Picard iterations × about 15 CG iterations). In exchange it allows Δx ≫ λ_De and cΔt/Δx ≥ 1.
 
 ## Layout
@@ -332,4 +333,4 @@ bench/results/           recorded GPU gate evidence (index.json)
 - **Implicit open boundaries**: the matched conductive layer accounts for dissipated energy exactly, but absorbs less well than CPML.
 - **`mode: buneman`**: carries a net current, so the k=0 mode oscillates at ω_pe.
 - **Particle ids**: every particle carries an id (8th storage row, +14 % particle memory).
-- **Precision**: double precision only for now. Planned next: a float32 mode, shared-memory current deposition, and overlapping communication with computation.
+- **Precision** (`precision:` in the configuration; explicit solver): `fp64`, the default, is double precision throughout. `mixed` gathers the fields at the particles from float32 copies (PIC-D11). `compact` does the same and stores a position as a cell and a 32-bit fraction of the cell, 56 bytes per particle slot in place of 64 (PIC-D19); momenta, weights, the Boris push, the current deposit and the field solver stay in double precision in every mode. Float32 momenta were measured and not adopted: the mean of \|u\| of gyrating particles drifts. The implicit solver takes `fp64` only.

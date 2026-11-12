@@ -122,6 +122,12 @@ EXAMPLES: dict[str, dict] = {
                                           "pair_2d_long-run-40c0ca85.json"),
             "pair_3d": recorded("output/relativistic_shock/pair_3d",
                                 "bench/results/2026-11-09-3bec889ef-example-relativistic_shock-pair_3d.json"),
+            "pair_2d_t4000": recorded("output/relativistic_shock/pair_2d_t4000",
+                                      "bench/results/2026-11-11-29451458d-example-relativistic_shock-"
+                                      "pair_2d_t4000-run-014c11db.json"),
+            "pair_2d_tail": recorded("output/relativistic_shock/pair_2d_tail",
+                                     "bench/results/2026-11-11-29451458d-example-relativistic_shock-"
+                                     "pair_2d_tail-run-b012ba98.json"),
         },
         "movies": ["pair_2d"],
         "summary": {"kind": "results", "file": "jump_conditions.png"},
@@ -137,6 +143,9 @@ EXAMPLES: dict[str, dict] = {
             "pair_sigma10_large_run2": recorded("output/reconnection/pair_sigma10_large_run2",
                                                 "bench/results/2026-11-10-d9637cd9f-example-reconnection-"
                                                 "pair_sigma10_large-run-e879cfd6.json"),
+            "pair_sigma10_xl": recorded("output/reconnection/pair_sigma10_xl",
+                                        "bench/results/2026-11-11-29451458d-example-reconnection-"
+                                        "pair_sigma10_xl-run-0e8c5abd.json"),
         },
         "movies": ["pair_sigma10_large_run2"],
         "gif": {"dpi": 52},
@@ -146,14 +155,22 @@ EXAMPLES: dict[str, dict] = {
     "bow_shock": {
         "page": "Bow-Shock",
         "title": {"en": "Bow shock of a magnetised planet", "ja": "磁化惑星のバウショック"},
-        "cases": {"gate": fresh("gate", gpus=8)},
+        "cases": {
+            "gate": fresh("gate", gpus=8),
+            "dp10": recorded("output/bow_shock/dp10",
+                             "bench/results/2026-11-11-4d55109b5-example-bow_shock-dp10-run-4b073ac2.json"),
+        },
         "movies": ["gate"],
         "summary": {"kind": "results", "file": "standoff.png"},
     },
     "blast_wave": {
         "page": "Blast-Wave",
         "title": {"en": "Blast wave around a magnetised body", "ja": "磁化天体のまわりの爆風"},
-        "cases": {"gate": fresh("gate", gpus=8)},
+        "cases": {
+            "gate": fresh("gate", gpus=8),
+            "rm12": recorded("output/blast_wave/rm12",
+                             "bench/results/2026-11-11-c58f533c5-example-blast_wave-rm12-run-031fb299.json"),
+        },
         "movies": ["gate"],
     },
     "wakefield": {

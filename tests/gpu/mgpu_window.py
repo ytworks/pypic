@@ -124,7 +124,7 @@ cfg = SimConfig(n_cells=n, dx=(dx,) * 3, dt=0.045, n_steps=889, dims=dims, npml=
 sim = Simulation(cfg, verbose=False)
 sim.run()
 e = sim.species[0]
-P = e.P[:, : e.n]
+P = e.rows()
 out = {"shift": sim.window_shift, "n": sim.total_particles(), "front": window.front_cell(cfg)}
 if case == "thermal":
     cell = cp.floor(P[0] / dx).astype(cp.int64) - sim.window_shift

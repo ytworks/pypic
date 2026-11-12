@@ -11,13 +11,13 @@ import numpy as np
 
 from . import antenna, body, injection, window
 from .backend import compile_module, launch
-from .config import FACES, ID_LIMIT, SimConfig
+from .config import FACES, ID_LIMIT, SLOT_BYTES, SimConfig
 from .external import check_config, dipoles_B
 from .grid import FIELD_NAMES, YeeGrid
 from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
-from .particles import MIGRATE_KERNELS, Species, migrate
+from .particles import MIGRATE_KERNELS, CompactSpecies, Species, migrate
 from .profiles import CUT, evaluate, invert_cos_density, support, support_interval
 
 NDIAG = 12  # entries of the diagnostics buffer of a species (Simulation.sdiag)
@@ -74,16 +74,17 @@ class Simulation:
         self.window = window.check_config(cfg, self.gauss_retreat, reach)
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
-        if cfg.precision not in ("fp64", "mixed"):
-            raise ValueError("precision must be 'fp64' or 'mixed'")
-        self.mixed = cfg.precision == "mixed"
+        if cfg.precision not in SLOT_BYTES:
+            raise ValueError("precision must be 'fp64', 'mixed' or 'compact'")
+        self.compact = cfg.precision == "compact"  # the storage of the particles (PIC-D19)
+        self.mixed = cfg.precision != "fp64"  # the push gathers from float32 copies of the fields (PIC-D11)
         if self.mixed and cfg.solver == "implicit":
-            raise ValueError("precision='mixed' is for the explicit solver only (PIC-D11)")
+            raise ValueError(f"precision='{cfg.precision}' is for the explicit solver only (PIC-D11, PIC-D19)")
         self.injection = injection.check_config(cfg)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
             self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body,
             window=next(_WINDOW_MODULES) if self.window else 0, x_low=self.decomp.x_low(ghost),
-            lattice=cfg.lattice))
+            lattice=cfg.lattice, compact=self.compact))
         self.k_push = self.pmod.get_function("push_deposit")
         self.k_rho = self.pmod.get_function("deposit_rho")
         self.k_kin = self.pmod.get_function("kinetic")
@@ -144,7 +145,7 @@ class Simulation:
             for i, sp in enumerate(self.species):
                 if not shaped[i]:
                     lst = sp.flag_list()
-                    launch(self.k_flag_dead, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), self.flag[i:i + 1],
+                    launch(self.k_flag_dead, sp.n, (*sp.store, np.int32(sp.n), np.int64(sp.cap), self.flag[i:i + 1],
                                                     lst, np.int32(lst.size)))
             self._migrate()
         # nodes at which Gauss's law is checked: all but those that hold the charge of the body
@@ -280,7 +281,10 @@ class Simulation:
                 else:
                     cells += max(mine, -(-whole // self.comm.size))
             cap = int(cfg.capacity_factor * cells * cfg.ppc) + 4096 + len(sc.particles)
-            sp = Species(sc.name, sc.charge, sc.mass, cap)
+            if self.compact:
+                sp = CompactSpecies(sc.name, sc.charge, sc.mass, cap, self.grid)
+            else:
+                sp = Species(sc.name, sc.charge, sc.mass, cap)
             sp.test = bool(sc.test)
             sp.qdep = 0.0 if sp.test else sp.q
             for bi, b in enumerate(sc.beams):
@@ -294,7 +298,7 @@ class Simulation:
                 self._load_list(sp, sc.particles, list_id)
             list_id += len(sc.particles)
             if self.body:  # no particle starts inside the body: weight zero, removed after the set-up
-                launch(self.k_mark_body, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap)))
+                launch(self.k_mark_body, sp.n, (*sp.store, np.int32(sp.n), np.int64(sp.cap)))
             self.species.append(sp)
             # [0] kinetic energy, [1..3] momentum (per diagnostic step); cumulative: [4] kinetic energy and
             # [5] charge lost at open faces, [6] kinetic energy, [7] charge and [8] number injected,
@@ -313,7 +317,7 @@ class Simulation:
             net = None
             for si, bi in beams:
                 lo, hi = self._beam_ranges[(si, bi)]
-                w = self.species[si].P[6, lo:hi]
+                w = self.species[si].weight(lo, hi)
                 net = self.species[si].q * w if net is None else net + self.species[si].q * w
                 if hi > lo:
                     loc[2 * g + 1] = max(loc[2 * g + 1], float(cp.max(w)))
@@ -338,38 +342,38 @@ class Simulation:
         for p in b.profile if isinstance(b.profile, list) else [b.profile] if b.profile else []:
             axis = p.get("axis", "x")
             if axis == "r":
-                x = cp.sqrt(sum((sp.P[a, lo:sp.n] - o) ** 2 for a, o in enumerate(b.origin)))
+                x = cp.sqrt(sum((sp.pos(a, lo) - o) ** 2 for a, o in enumerate(b.origin)))
             else:
-                x = sp.P["xyz".index(axis), lo:sp.n]
+                x = sp.pos("xyz".index(axis), lo)
             f = evaluate(p, x, xp=cp)
             bad = bad | cp.any(f < 0)
             # negligible tails (sech^2, gauss) are cut: those particles get weight 0 and are
             # removed; a fixed threshold keeps this decomposition independent and, for equal
             # profiles, neutral. In a product each shape is cut by itself
-            sp.P[6, lo:sp.n] *= cp.where(f < CUT, 0.0, f)
+            sp.scale_weight(cp.where(f < CUT, 0.0, f), lo)
         return bad
 
     def _load_list(self, sp, particles, id0: float):
-        """Test particles given one by one: each rank keeps those inside its physical sub-domain."""
+        """Test particles given one by one: each rank keeps those inside its physical sub-domain,
+        decided from the position as the storage holds it."""
         arr = np.asarray(particles, dtype=float)
         L = self.grid.L
         if np.any(arr[:, :3] < 0) or np.any(arr[:, :3] >= np.asarray(L)):
             raise ValueError(f"species {sp.name}: test particles must lie inside [0, L)")
         mine = np.ones(len(arr), dtype=bool)
-        for a, ax in enumerate(self.decomp.axes):
-            lo, hi = ax.phys_lo * self.grid.dx[a], (ax.phys_lo + ax.n_phys) * self.grid.dx[a]
-            mine &= (arr[:, a] >= lo) & (arr[:, a] < hi)
+        for a in range(3):
+            lo, hi, _ = sp.frame(self.grid, a)
+            x = sp.snap(arr[:, a], a)
+            mine &= (x >= lo) & (x < hi)
         idx = np.nonzero(mine)[0]
         m = len(idx)
         if not m:
             return
-        sp.ensure_capacity(sp.n + m)
         blk = np.zeros((8, m))
         blk[:6] = arr[idx, :6].T
         blk[6] = arr[idx, 6] if arr.shape[1] == 7 else 1.0
         blk[7] = id0 + idx
-        sp.P[:, sp.n: sp.n + m] = cp.asarray(blk)
-        sp.n += m
+        sp.append(blk)
 
     def _init_injection(self):
         """Injection at open faces (PIC-D13): what this rank launches every step.
@@ -451,12 +455,12 @@ class Simulation:
             if pair:
                 cp.copyto(self.bank0, self.bank)
             launch(self.k_inject, math.prod(nl) * cfg.ppc * len(self.inj_bt[si]), (
-                sp.P, np.int64(sp.cap), np.int32(sp.n), self.flag[S + si:S + si + 1], self.sdiag[si],
+                *sp.store, np.int64(sp.cap), np.int32(sp.n), self.flag[S + si:S + si + 1], self.sdiag[si],
                 self.flag[si:si + 1], lst, np.int32(lst.size), g.Jx, g.Jy, g.Jz,
                 np.float64(sp.q), np.float64(sp.m), *(np.int32(v) for v in g0), *(np.int32(v) for v in nl),
                 *(np.int32(v) for v in cfg.n_cells), np.int32(cfg.ppc), np.uint64(cfg.seed),
                 np.int64(self.step_count), np.float64(id_step), self.inj_bt[si], np.int32(len(self.inj_bt[si])),
-                np.int32(face), np.int32(pair), pt.P, np.int64(pt.cap), np.int32(pt.n),
+                np.int32(face), np.int32(pair), *pt.store, np.int64(pt.cap), np.int32(pt.n),
                 self.flag[S + pi:S + pi + 1], self.sdiag[pi], self.flag[pi:pi + 1], lstp, np.int32(lstp.size),
                 np.float64(pt.q), self.inj_pstate, self.inj_pface, self.bank, self.bank0, self.binfo,
                 np.int32(do_diag)))
@@ -464,7 +468,7 @@ class Simulation:
         if ne is not None:
             pt = self.species[ne]
             launch(self.k_partners, self.inj_room[ne], (
-                pt.P, np.int64(pt.cap), np.int32(pt.n), self.flag[S + ne:S + ne + 1], self.sdiag[ne],
+                *pt.store, np.int64(pt.cap), np.int32(pt.n), self.flag[S + ne:S + ne + 1], self.sdiag[ne],
                 np.float64(pt.q), np.float64(pt.m), self.inj_rb, np.int32(self.inj_nrb), self.inj_pstate,
                 self.inj_pface, np.int32(do_diag)))
 
@@ -520,15 +524,19 @@ class Simulation:
         return fields
 
     def _set_initial_fields(self) -> bool:
-        """Uniform E0 and the initial_fields list (PIC-D9). Returns True if any field was set."""
+        """Uniform E0 and the initial_fields list (PIC-D9). Returns True if any field was set.
+        E0 may be tangential to reflecting faces (PIC-D18, explicit solver): the wall condition
+        applied below zeroes it on the wall, which is a conductor at rest in a plasma that
+        carries E = -v x B."""
         cfg, g = self.cfg, self.grid
         E0 = tuple(float(e) for e in cfg.E0)
         for c, e in enumerate(E0):
             if e != 0.0:
                 for a in range(3):
-                    if a != c and cfg.boundaries[a][0] != "periodic":
-                        raise ValueError(f"E0 component {'xyz'[c]} is tangential to the conducting faces of "
-                                         f"axis {'xyz'[a]}")
+                    kinds = set(cfg.boundaries[a]) - {"periodic"}
+                    if a != c and kinds and (kinds != {"reflecting"} or cfg.solver != "explicit"):
+                        raise ValueError(f"E0 component {'xyz'[c]} is tangential to the faces of axis {'xyz'[a]}: "
+                                         "allowed at reflecting faces with the explicit solver only (PIC-D18)")
                 getattr(g, "E" + "xyz"[c])[...] += e
         from .initial_fields import apply_initial_fields
 
@@ -564,10 +572,10 @@ class Simulation:
                         raise ValueError("perturbations need a periodic axis")
                     k = 2.0 * math.pi * int(pt.get("mode", 1)) / g.L[a]
                     ph = float(pt.get("phase", 0.0))
-                    x0 = sp.P[a, lo:hi].copy()
+                    x0 = sp.pos(a, lo, hi).copy()
                     if "velocity" in pt:
                         c = "xyz".index(pt.get("velocity_component", pt.get("axis", "x")))
-                        sp.P[3 + c, lo:hi] += float(pt["velocity"]) * cp.sin(k * x0 + ph)
+                        sp.add_mom(c, float(pt["velocity"]) * cp.sin(k * x0 + ph), lo, hi)
                     if "displacement" in pt or "density" in pt:
                         if disp is None:
                             disp = cp.zeros((3, sp.cap))
@@ -578,7 +586,7 @@ class Simulation:
                             residual = max(residual, res / g.L[a])
                             disp[a, lo:hi] += x - x0
             if disp is not None:
-                sp.P = cp.concatenate([sp.P, disp], axis=0)  # rows 8..10: remaining displacement
+                sp.set_displacement(disp)
                 moving = True
         if not any(b.perturbation and any(("density" in p or "displacement" in p) for p in b.perturbation)
                    for sc in cfg.species for b in sc.beams):
@@ -591,16 +599,16 @@ class Simulation:
         h = [0.9 * d for d in g.dx]
         local = 0.0
         for sp in self.species:
-            if sp.P.shape[0] > 8 and sp.n:
-                local = max(local, max(float(cp.max(cp.abs(sp.P[8 + a, : sp.n]))) / h[a] for a in range(3)))
+            if sp.displacing and sp.n:
+                local = max(local, max(sp.displacement_max(a) / h[a] for a in range(3)))
         rounds = int(math.ceil(self.comm.allreduce_scalar(local, "max")))
         g.zero_J()
         for _ in range(rounds):
             self.flag.fill(0)
             for i, sp in enumerate(self.species):
-                if sp.P.shape[0] > 8:
+                if sp.displacing:
                     lst = sp.flag_list()
-                    launch(self.k_displace, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(h[0]),
+                    launch(self.k_displace, sp.n, (*sp.disp_store, np.int32(sp.n), np.int64(sp.cap), np.float64(h[0]),
                                                    np.float64(h[1]), np.float64(h[2]), g.Jx, g.Jy, g.Jz,
                                                    np.float64(sp.qdep), self.flag[i:i + 1], lst, np.int32(lst.size)))
             self._migrate()
@@ -615,8 +623,7 @@ class Simulation:
         g.fill_ghosts((g.Ex, g.Ey, g.Ez))
         g.zero_J()
         for sp in self.species:
-            if sp.P.shape[0] > 8:
-                sp.P = cp.ascontiguousarray(sp.P[:8])
+            sp.end_displacement()
         return moving or rounds > 0
 
     def _initial_half_kick(self):
@@ -624,7 +631,7 @@ class Simulation:
         back to t = -dt/2 by a Boris step of -dt/2 (positions unchanged)."""
         fields = [self.total_field(n) for n in FIELD_NAMES]
         for sp in self.species:
-            launch(self.k_kick, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), *fields,
+            launch(self.k_kick, sp.n, (*sp.store, np.int32(sp.n), np.int64(sp.cap), *fields,
                                        np.float64(sp.q), np.float64(sp.m), np.float64(-0.5 * self.cfg.dt)))
 
     def total_particles(self) -> int:
@@ -650,7 +657,7 @@ class Simulation:
         for i, (sp, d) in enumerate(zip(self.species, self.sdiag)):
             lst = sp.flag_list()
             launch(self.k_push, sp.n, (
-                sp.P, np.int32(sp.n), np.int64(sp.cap), *fields,
+                *sp.store, np.int32(sp.n), np.int64(sp.cap), *fields,
                 g.Jx, g.Jy, g.Jz, np.float64(sp.q * self.cfg.dt / (2.0 * sp.m)), np.float64(sp.m),
                 np.float64(sp.qdep), d, self.flag[i:i + 1],
                 lst, np.int32(lst.size), np.int32(do_diag), seed, step, np.int32(self.inj_fmask[i]),
@@ -781,8 +788,9 @@ class Simulation:
         self.flag.fill(0)
         for i, sp in enumerate(self.species):
             lst = sp.flag_list()
-            launch(self.k_wdrop, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.m), np.float64(sp.qdep),
-                                        np.float64(xnear), self._wd[i], self.flag[i:i + 1], lst, np.int32(lst.size)))
+            launch(self.k_wdrop, sp.n, (*sp.store, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.m),
+                                        np.float64(sp.qdep), np.float64(xnear), self._wd[i], self.flag[i:i + 1], lst,
+                                        np.int32(lst.size)))
         self._migrate()
         n0 = [sp.n for sp in self.species]
         hot = self._window_load(s)
@@ -808,7 +816,7 @@ class Simulation:
                         sp.ensure_capacity(8 * k)  # that was there before is taken out with them
                     lst = sp.flag_list()
                     launch(self.k_wmove, k, (
-                        sp.P, np.int32(n0[i]), np.int32(sp.n), np.int64(sp.cap),
+                        *sp.store, np.int32(n0[i]), np.int32(sp.n), np.int64(sp.cap),
                         np.float64(T / rounds if hot[i] else 0.0), np.float64(xw), *Jm,
                         np.float64(sp.m), np.float64(sp.qdep), np.int32(r == 0), self._wd[i], self.sdiag[i],
                         self.flag[i:i + 1], lst, np.int32(lst.size)))
@@ -867,7 +875,7 @@ class Simulation:
             net = None
             for si, a0, a1 in beams:
                 if a1 > a0:
-                    w = self.species[si].P[6, a0:a1]
+                    w = self.species[si].weight(a0, a1)
                     net = self.species[si].q * w if net is None else net + self.species[si].q * w
                     loc[2 * gi + 1] = cp.maximum(loc[2 * gi + 1], cp.max(w))
             if net is not None:
@@ -1111,7 +1119,7 @@ class Simulation:
         the diagnostics buffer of each species."""
         for sp, d in zip(self.species, self.sdiag):
             d[:4] = 0
-            launch(self.k_kin, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.m), d))
+            launch(self.k_kin, sp.n, (*sp.store, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.m), d))
 
     def _charge_density(self, zone: bool = False):
         """Charge density at the nodes that div E equals: deposited with the shape of the current
@@ -1122,7 +1130,7 @@ class Simulation:
         shell = np.float64(2 * self.zone_depth if zone else 0.0)  # zone nodes + reach of the filter + a cell
         for sp in self.species:
             if not sp.test:
-                launch(self.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q), shell, rho))
+                launch(self.k_rho, sp.n, (*sp.store, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q), shell, rho))
         g.reduce_ghosts((rho,))
         if self.n_filter:  # div E equals the identically filtered charge density
             g.filter((rho,), ((0, 0, 0),), self.n_filter, self.cfg.current_filter.compensate)

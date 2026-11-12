@@ -42,14 +42,14 @@ class FieldSource:
             arr = cp.zeros(g.shape)
             for sp in sim.species:
                 if not getattr(sp, "test", False):
-                    launch(sim.k_rho, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q),
+                    launch(sim.k_rho, sp.n, (*sp.store, np.int32(sp.n), np.int64(sp.cap), np.float64(sp.q),
                                              np.float64(0.0), arr))
             g.reduce_ghosts((arr,))
         else:
             base, name = comp.split(":", 1)
             sp = sim.species_by_name(name)
             arr = cp.zeros(g.shape)
-            launch(sim.k_moment, sp.n, (sp.P, np.int32(sp.n), np.int64(sp.cap), np.int32(MOMENT_KIND[base]),
+            launch(sim.k_moment, sp.n, (*sp.store, np.int32(sp.n), np.int64(sp.cap), np.int32(MOMENT_KIND[base]),
                                         np.float64(sp.m), arr))
             g.reduce_ghosts((arr,))
         self.cache[comp] = arr
@@ -471,14 +471,14 @@ class HistogramDiag(Diag):
         self.region = None if d.region is None else d.region
 
     def _quantity(self, sp, q):
-        P = sp.P[:, : sp.n]
         if q in ("x", "y", "z"):
+            x = sp.pos("xyz".index(q))
             if q == "x" and self.sim.window_shift:  # the bins are those of the window
-                return P[0] - self.window_x()
-            return P["xyz".index(q)]
+                return x - self.window_x()
+            return x
         if q in ("ux", "uy", "uz"):
-            return P[3 + "xyz".index(q[1])]
-        u2 = P[3] ** 2 + P[4] ** 2 + P[5] ** 2
+            return sp.mom("xyz".index(q[1]))
+        u2 = sp.mom(0) ** 2 + sp.mom(1) ** 2 + sp.mom(2) ** 2
         if q == "u":
             return cp.sqrt(u2)
         g = cp.sqrt(1.0 + u2)
@@ -489,11 +489,11 @@ class HistogramDiag(Diag):
         out = {}
         for sp in self.species_list():
             if sp.n:
-                w = sp.P[6, : sp.n].copy()
+                w = sp.weight().copy()
                 if self.region is not None:
                     for a, r in enumerate(self.region):
                         if r is not None:
-                            x, x0 = sp.P[a, : sp.n], 0.0 if a else self.window_x()
+                            x, x0 = sp.pos(a), 0.0 if a else self.window_x()
                             w *= (x >= r[0] + x0) & (x < r[1] + x0)
                 idx = cp.zeros(sp.n, dtype=cp.int64)
                 for q, (lo, hi, nb, lg) in zip(self.d.quantities, self.spec):
@@ -523,21 +523,21 @@ class HistogramDiag(Diag):
 
 
 def _select(sp, stride, select=None, region=None, window_x=0.0):
-    P = sp.P[:, : sp.n]
-    mask = cp.fmod(P[7], float(stride)) == 0 if stride > 1 else cp.ones(sp.n, dtype=cp.bool_)
+    mask = cp.fmod(sp.ids(), float(stride)) == 0 if stride > 1 else cp.ones(sp.n, dtype=cp.bool_)
     if select:
+        gamma = cp.sqrt(1.0 + sp.mom(0) ** 2 + sp.mom(1) ** 2 + sp.mom(2) ** 2)
         for k, v in select.items():
             if k == "gamma_min":
-                mask &= cp.sqrt(1.0 + P[3] ** 2 + P[4] ** 2 + P[5] ** 2) >= float(v)
+                mask &= gamma >= float(v)
             elif k == "ekin_min":
-                mask &= sp.m * (cp.sqrt(1.0 + P[3] ** 2 + P[4] ** 2 + P[5] ** 2) - 1.0) >= float(v)
+                mask &= sp.m * (gamma - 1.0) >= float(v)
             else:
                 raise ValueError(f"unknown particle selection {k!r} (gamma_min, ekin_min)")
     if region is not None:
         for a, r in enumerate(region):
             if r is not None:
                 x0 = 0.0 if a else window_x
-                mask &= (P[a] >= r[0] + x0) & (P[a] < r[1] + x0)
+                mask &= (sp.pos(a) >= r[0] + x0) & (sp.pos(a) < r[1] + x0)
     return mask
 
 
@@ -547,8 +547,8 @@ class ParticlesDiag(Diag):
         out = {}
         for sp in self.species_list():
             mask = _select(sp, self.d.stride, self.d.select, self.d.region, self.window_x())
-            Q = sp.P[:, : sp.n][:, mask] if sp.n else cp.zeros((sp.P.shape[0], 0))
-            Q = gather_columns(sim.comm, cp.ascontiguousarray(Q[:8]))
+            Q = sp.rows(mask) if sp.n else cp.zeros((8, 0))
+            Q = gather_columns(sim.comm, cp.ascontiguousarray(Q))
             if not self.root:
                 continue
             order = cp.argsort(Q[7])
@@ -579,11 +579,12 @@ class TracksDiag(Diag):
             m = int(sel.size)
             Q = cp.empty((nq + 1, m))
             if m:
-                Q[:6] = sp.P[:6][:, sel]
-                Q[nq] = sp.P[7][sel]
+                R = sp.rows(sel)
+                Q[:6] = R[:6]
+                Q[nq] = R[7]
                 if self.d.with_fields:
                     f = cp.empty((6, m))
-                    launch(sim.k_gather, m, (sp.P, np.int64(sp.cap), sel.astype(cp.int64), np.int32(m),
+                    launch(sim.k_gather, m, (*sp.store, np.int64(sp.cap), sel.astype(cp.int64), np.int32(m),
                                              *(src.get(c) for c in self.FIELDQ), f))
                     Q[6:12] = f
             Q = gather_columns(sim.comm, Q)

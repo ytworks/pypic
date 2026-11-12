@@ -212,7 +212,8 @@ class Window:
 class ExternalFields:
     """Static fields the particles feel in addition to the Yee fields (PIC-D12): a uniform E, a
     uniform B and dipoles. The Yee fields are then the difference to them, so an external field
-    may be normal or tangential to any face, unlike B0 / E0. Explicit solver only."""
+    may be normal or tangential to any face and no wall shorts it (E0 at a reflecting face: PIC-D18).
+    Explicit solver only."""
 
     E: tuple = (0.0, 0.0, 0.0)
     B: tuple = (0.0, 0.0, 0.0)
@@ -264,6 +265,14 @@ ID_LIMIT = 2 ** 53  # particle ids (PIC-D8): float64 represents every integer be
 # Particle slots of one species on one GPU: the kernels index particles with int (thread index, n);
 # row offsets row * cap are 64-bit.
 MAX_CAPACITY = 2 ** 31 - 1
+# Device bytes by precision, for the memory estimates of the planners. SLOT_BYTES: one particle slot
+# (fp64, mixed: 8 rows of float64; compact, PIC-D19: weight and id in float64, the cell in int32,
+# three uint32 and three float64). SORT_BYTES: the temporaries of the sort per particle of the
+# species being sorted: 40 was measured at the bow-shock gate; one sort of 3.4e7 and of 1.7e7
+# particles on one GPU holds 40.2 (fp64, mixed) and 24.2 (compact: the key is the stored int32 cell,
+# and the buffer of one row fits a block the argsort has freed).
+SLOT_BYTES = {"fp64": 64, "mixed": 64, "compact": 56}
+SORT_BYTES = {"fp64": 40, "mixed": 40, "compact": 24}
 
 
 @dataclass
@@ -447,7 +456,7 @@ class SimConfig:
     lattice: tuple | None = None
     dims: tuple | None = None  # rank grid (px,py,pz); None = automatic
     B0: tuple = (0.0, 0.0, 0.0)  # uniform external/initial magnetic field
-    E0: tuple = (0.0, 0.0, 0.0)  # uniform initial electric field (no conducting face tangential to it)
+    E0: tuple = (0.0, 0.0, 0.0)  # uniform initial electric field; tangential to reflecting faces only (PIC-D18)
     # initial fields added to B0 / E0 (PIC-D9), each divergence-free by construction:
     #  {"kind": "plane_wave", "axis": "x", "mode": 1, "polarization": "y", "amplitude": a, "phase": 0,
     #   "direction": 1}   exact discrete eigenmode of the solver (Yee or Crank-Nicolson)
@@ -460,8 +469,11 @@ class SimConfig:
     diag_interval: int = 10  # energy / momentum history (and the scalars output) every N steps
     gauss_interval: int = 100  # 0 disables the Gauss/divB check
     sort_interval: int = 50
-    # "fp64" | "mixed": mixed gathers E and B for the explicit push from float32 copies (PIC-D11,
-    # Proposed); positions, momenta, the pusher and the current deposit stay FP64
+    # "fp64" | "mixed" | "compact". mixed gathers E and B for the explicit push from float32 copies
+    # (PIC-D11, Proposed); positions, momenta, the pusher and the current deposit stay FP64.
+    # compact (PIC-D19, Proposed; explicit solver) also stores a particle in 56 bytes in place of
+    # 64: cell and position within the cell in 2^-32 of a cell; momenta, pusher and current deposit
+    # stay FP64
     precision: str = "fp64"
     implicit: ImplicitConfig = field(default_factory=ImplicitConfig)
     current_filter: CurrentFilter = field(default_factory=CurrentFilter)

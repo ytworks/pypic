@@ -95,6 +95,7 @@ def check_config(cfg, retreat: int = 0, reach: int = 0) -> bool:
     refused = {"injection": cfg.injection.active, "a body": cfg.body is not None,
                "external_fields": cfg.external_fields.active, "B0 / E0": any(cfg.B0) or any(cfg.E0),
                "initial_fields": bool(cfg.initial_fields),
+               "the compact storage (precision: compact, PIC-D19)": cfg.precision == "compact",
                "a perturbation of a beam": any(b.perturbation for sp in cfg.species for b in sp.beams)}
     for name, on in refused.items():
         if on:

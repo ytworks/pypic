@@ -1758,8 +1758,8 @@
     "electron_ion-filamentation.png": 139639,
     "pair.gif": 6965521
    },
-   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
-   "generated": "2026-11-10"
+   "analysis_commit": "a3b3c722e028cb6fb4a9b583dc5cbbc135c5703b",
+   "generated": "2026-11-12"
   },
   "particle_orbits": {
    "page": "Particle-Orbits",
@@ -3697,6 +3697,376 @@
       "world_size": 8,
       "run_dir": "output/relativistic_shock/pair_3d"
      }
+    },
+    "pair_2d_t4000": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-11-29451458d-example-relativistic_shock-pair_2d_t4000-run-014c11db.json",
+     "results": {
+      "dims_eff": 2,
+      "beta_sh": 0.45982495016944364,
+      "beta_sh_theory": 0.49715693370682207,
+      "beta_sh_rel_error": -0.07509094413916681,
+      "compression": 3.1609864234924316,
+      "compression_theory": 3.006962460928112,
+      "compression_rel_error": 0.051222442769298715,
+      "compression_gamma_3_2": 3.1333333333333333,
+      "density_ahead_of_shock": 1.0133967399597168,
+      "beta_sh_gamma_3_2": 0.46770717334674267,
+      "t_measured": 2912.09617801425,
+      "theta_downstream_fit": 3.58923419461261,
+      "theta2_theory": 7.440763653560054,
+      "nonthermal_fraction": 0.16323598689951807,
+      "tail_index_p": 4.036860650738116,
+      "tail_index_err": 0.04481445335713288,
+      "tail_range": [
+       32.256539866670046,
+       126.10436319570861
+      ],
+      "tail_index_window_p": 3.9969324336100867,
+      "tail_index_window_err": 0.060689810682289735,
+      "tail_window": [
+       39.993269432266516,
+       120.6689781166881
+      ],
+      "tail_index_literature_2d": 2.4,
+      "t_spectrum": 3918.878198861375,
+      "gamma_max_t": [
+       null,
+       54.15224661312787,
+       50.95057056128253,
+       61.171810321362976,
+       65.01577748397533,
+       69.10129518219576,
+       69.10129518219576,
+       78.05865104811826,
+       82.96376812427572,
+       93.71806720228327,
+       93.71806720228327,
+       99.6072042243286,
+       99.6072042243286,
+       112.51893290748087,
+       112.51893290748087,
+       119.58949500130024,
+       119.58949500130024,
+       127.10436319570861,
+       127.10436319570861,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       143.58045109324433,
+       152.60288375129429,
+       152.60288375129429,
+       152.60288375129429,
+       152.60288375129429,
+       152.60288375129429,
+       152.60288375129429,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157
+      ],
+      "gamma_max_growth_exponent": 0.20795761884274852,
+      "gamma_max_growth_literature": 0.5,
+      "eps_B_end": 0.004025754096468882,
+      "passed": true,
+      "gauss_max": 4.8172381543281316e-15
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       16256,
+       160,
+       4
+      ],
+      "L": [
+       6295.921727594777,
+       61.96773353931867,
+       1.5491933384829668
+      ],
+      "dx": [
+       0.3872983346207417,
+       0.3872983346207417,
+       0.3872983346207417
+      ],
+      "dt": 0.19364916731037085,
+      "n_steps": 20656,
+      "t_end": 4000.01719996302,
+      "ppc": 8,
+      "particles": 166461440,
+      "species": [
+       "electron (q=-1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001",
+       "positron (q=+1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 4,
+      "gpus": 8,
+      "wall_time_s": 627.924707804108,
+      "params": {
+       "gamma0": 15,
+       "t_end": 4000,
+       "cells_per_skin": 10,
+       "Ly_skin": 16,
+       "nz": 4,
+       "ppc": 8,
+       "filter_passes": 4
+      },
+      "planner": {
+       "gamma0": 15,
+       "u0": 14.966629547095765,
+       "skin": 3.872983346207417,
+       "dims_eff": 2,
+       "jump": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_2d": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_3d": {
+        "theta2": 4.967648661773964,
+        "beta_sh": 0.33191498768257566,
+        "compression": 4.0061170485435635,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 3
+       },
+       "jump_gamma_3_2": {
+        "beta_sh": 0.46770717334674267,
+        "compression": 3.1333333333333333,
+        "theta2": 7.0
+       },
+       "t_valid": 4205.251691288406,
+       "Lx": 6295.921727594777,
+       "sigma": 0.0,
+       "B1": 0.0,
+       "field_component": "z"
+      }
+     },
+     "provenance": {
+      "git_commit": "29451458dca01da0e82a1bece0984efcf7ee4d11",
+      "run_id": "014c11db",
+      "created": "2026-11-11T22:48:35+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/relativistic_shock/pair_2d_t4000"
+     }
+    },
+    "pair_2d_tail": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-11-29451458d-example-relativistic_shock-pair_2d_tail-run-b012ba98.json",
+     "results": {
+      "dims_eff": 2,
+      "beta_sh": 0.4625852044508655,
+      "beta_sh_theory": 0.49715693370682207,
+      "beta_sh_rel_error": -0.06953886572231505,
+      "compression": 3.1143264770507812,
+      "compression_theory": 3.006962460928112,
+      "compression_rel_error": 0.03570514015979138,
+      "compression_gamma_3_2": 3.1333333333333333,
+      "density_ahead_of_shock": 1.0112789869308472,
+      "beta_sh_gamma_3_2": 0.46770717334674267,
+      "t_measured": 5838.328745242737,
+      "theta_downstream_fit": 3.525214975131305,
+      "theta2_theory": 7.440763653560054,
+      "nonthermal_fraction": 0.1828056069367907,
+      "tail_index_p": null,
+      "tail_index_err": null,
+      "tail_range": [
+       null,
+       null
+      ],
+      "tail_index_window_p": 3.8579240453680406,
+      "tail_index_window_err": 0.10379180484885951,
+      "tail_window": [
+       42.506401111965275,
+       136.31086986587317
+      ],
+      "tail_index_literature_2d": 2.4,
+      "t_spectrum": 7837.756397723322,
+      "gamma_max_t": [
+       null,
+       47.93818914044657,
+       65.01577748397533,
+       73.4435421776485,
+       88.17711719275879,
+       93.71806720228327,
+       105.86640793575165,
+       112.51893290748087,
+       127.10436319570861,
+       135.09145718201208,
+       143.58045109324433,
+       143.58045109324433,
+       152.60288375129429,
+       152.60288375129429,
+       152.60288375129429,
+       152.60288375129429,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       162.19227584183812,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157,
+       172.38425445241157,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       183.2166854363131,
+       194.72981409410454,
+       194.72981409410454,
+       194.72981409410454
+      ],
+      "gamma_max_growth_exponent": 0.09650067026288466,
+      "gamma_max_growth_literature": 0.5,
+      "eps_B_end": 0.0021164341693293482,
+      "passed": true,
+      "gauss_max": 8.91454404326926e-15
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       32512,
+       160,
+       4
+      ],
+      "L": [
+       12591.843455189553,
+       61.96773353931867,
+       1.5491933384829668
+      ],
+      "dx": [
+       0.3872983346207417,
+       0.3872983346207417,
+       0.3872983346207417
+      ],
+      "dt": 0.19364916731037085,
+      "n_steps": 41312,
+      "t_end": 8000.03439992604,
+      "ppc": 8,
+      "particles": 332922880,
+      "species": [
+       "electron (q=-1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001",
+       "positron (q=+1, m=1): n=1, u=(-14.97, 0, 0), θ=0.0001"
+      ],
+      "boundaries": [
+       "x: reflecting",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [],
+      "filter_passes": 4,
+      "gpus": 8,
+      "wall_time_s": 2465.725874295924,
+      "params": {
+       "gamma0": 15,
+       "t_end": 8000,
+       "cells_per_skin": 10,
+       "Ly_skin": 16,
+       "nz": 4,
+       "ppc": 8,
+       "filter_passes": 4
+      },
+      "planner": {
+       "gamma0": 15,
+       "u0": 14.966629547095765,
+       "skin": 3.872983346207417,
+       "dims_eff": 2,
+       "jump": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_2d": {
+        "theta2": 7.440763653560054,
+        "beta_sh": 0.49715693370682207,
+        "compression": 3.006962460928112,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 2
+       },
+       "jump_3d": {
+        "theta2": 4.967648661773964,
+        "beta_sh": 0.33191498768257566,
+        "compression": 4.0061170485435635,
+        "beta0": 0.9977753031397177,
+        "gamma0": 15,
+        "dims": 3
+       },
+       "jump_gamma_3_2": {
+        "beta_sh": 0.46770717334674267,
+        "compression": 3.1333333333333333,
+        "theta2": 7.0
+       },
+       "t_valid": 8410.503382576811,
+       "Lx": 12591.843455189553,
+       "sigma": 0.0,
+       "B1": 0.0,
+       "field_component": "z"
+      }
+     },
+     "provenance": {
+      "git_commit": "29451458dca01da0e82a1bece0984efcf7ee4d11",
+      "run_id": "b012ba98",
+      "created": "2026-11-11T22:59:11+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/relativistic_shock/pair_2d_tail"
+     }
     }
    },
    "images": {
@@ -3704,11 +4074,13 @@
     "pair_2d_long-shock.png": 135479,
     "pair_2d_long_run2-shock.png": 134757,
     "pair_3d-shock.png": 107670,
-    "jump_conditions.png": 47694,
+    "pair_2d_t4000-shock.png": 143385,
+    "pair_2d_tail-shock.png": 142976,
+    "jump_conditions.png": 62145,
     "pair_2d.gif": 5189909
    },
-   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
-   "generated": "2026-11-10"
+   "analysis_commit": "a3b3c722e028cb6fb4a9b583dc5cbbc135c5703b",
+   "generated": "2026-11-12"
   },
   "reconnection": {
    "page": "Magnetic-Reconnection",
@@ -4007,18 +4379,116 @@
       "world_size": 8,
       "run_dir": "output/reconnection/pair_sigma10_large_run2"
      }
+    },
+    "pair_sigma10_xl": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-11-29451458d-example-reconnection-pair_sigma10_xl-run-0e8c5abd.json",
+     "results": {
+      "equilibrium_max_dev_over_B0": 5.283046255488469e-08,
+      "reconnection_rate_peak": 0.1679710788211184,
+      "reconnection_rate_mean_active": 0.06577139149472441,
+      "reconnection_rate_literature": 0.1,
+      "magnetic_energy_converted": 0.7773736250977947,
+      "power_law_index": 2.04371777698676,
+      "power_law_err": 0.016755078331066417,
+      "power_law_range": [
+       5.0,
+       50.0
+      ],
+      "werner2016_index": 2.1213594362117862,
+      "sigma": 10,
+      "E_parallel_share_top1pct": -0.0038182150846581392,
+      "passed": true,
+      "gauss_max": 2.843558721821182e-12
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       3200,
+       1600,
+       4
+      ],
+      "L": [
+       800.0,
+       400.0,
+       1.0
+      ],
+      "dx": [
+       0.25,
+       0.25,
+       0.25
+      ],
+      "dt": 0.125,
+      "n_steps": 32000,
+      "t_end": 4000.0,
+      "ppc": 8,
+      "particles": 367676842,
+      "species": [
+       "electron (q=-1, m=1): n=1, θ=0.01; n=5, u=(0, 0, 0.5), θ=1.12, sech2 along y; n=5, u=(0, 0, -0.5), θ=1.12, sech2 along y",
+       "positron (q=+1, m=1): n=1, θ=0.01; n=5, u=(0, 0, -0.5), θ=1.12, sech2 along y; n=5, u=(0, 0, 0.5), θ=1.12, sech2 along y"
+      ],
+      "boundaries": [
+       "x: periodic",
+       "y: periodic",
+       "z: periodic"
+      ],
+      "fields": [
+       "Bx profile double_tanh"
+      ],
+      "filter_passes": 2,
+      "gpus": 8,
+      "wall_time_s": 1313.9025950471405,
+      "params": {
+       "sigma": 10,
+       "n_cs_over_nb": 5,
+       "delta": 1.0,
+       "Lx": 800,
+       "Ly": 400,
+       "cells_per_skin": 4,
+       "nz": 4,
+       "ppc": 8,
+       "t_end": 4000
+      },
+      "planner": {
+       "B0": 4.47213595499958,
+       "n_cs": 5.0,
+       "beta_d": 0.447213595499958,
+       "u_d": 0.5000000000000001,
+       "Gamma_d": 1.118033988749895,
+       "theta_cs": 1.1180339887498951,
+       "v_A": 0.9534625892455924,
+       "sigma": 10,
+       "delta": 1.0,
+       "y_sheets": [
+        100.0,
+        300.0
+       ],
+       "Lx": 800.0,
+       "Ly": 400.0,
+       "werner_index": 2.1213594362117862
+      }
+     },
+     "provenance": {
+      "git_commit": "29451458dca01da0e82a1bece0984efcf7ee4d11",
+      "run_id": "0e8c5abd",
+      "created": "2026-11-11T22:26:31+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/reconnection/pair_sigma10_xl"
+     }
     }
    },
    "images": {
     "pair_sigma10-reconnection.png": 144046,
     "pair_sigma10_large-reconnection.png": 212163,
     "pair_sigma10_large_run2-reconnection.png": 210073,
-    "power_law.png": 36565,
+    "pair_sigma10_xl-reconnection.png": 336915,
+    "power_law.png": 39220,
     "fieldlines.png": 1182222,
     "pair_sigma10_large_run2.gif": 7274848
    },
-   "analysis_commit": "4c2c58602c7de5f43199449832de5a5730a15a3f",
-   "generated": "2026-11-10"
+   "analysis_commit": "a3b3c722e028cb6fb4a9b583dc5cbbc135c5703b",
+   "generated": "2026-11-12"
   },
   "bow_shock": {
    "page": "Bow-Shock",
@@ -4043,9 +4513,9 @@
        },
        "i": {
         "density": 0.001068016341824185,
-        "u_x": 0.0004045882415194546,
+        "u_x": 0.0004045882415193436,
         "n_end": 1.0000161949856181,
-        "u_x_end": 0.9995954117584805
+        "u_x_end": 0.9995954117584807
        }
       },
       "compression": 3.838451897530008,
@@ -4060,6 +4530,11 @@
       "sheath_spreiter": 0.3709521575187251,
       "magnetopause_magnetic": 0.9456883166690722,
       "wind_density": 0.9898160058661502,
+      "flank": {
+       "plus": 2.2174284417812773,
+       "minus": 2.208429715825246,
+       "asymmetry": 0.002033216075975152
+      },
       "body_charge": 748.640625,
       "absorbed_per_step": [
        1475.5479166666667,
@@ -4187,15 +4662,186 @@
       "world_size": 8,
       "run_dir": "output/wiki/bow_shock/gate"
      }
+    },
+    "dp10": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-11-4d55109b5-example-bow_shock-dp10-run-4b073ac2.json",
+     "results": {
+      "gauss_max": 4.746897319662935e-14,
+      "r_mp": 40.0,
+      "upstream_deviation": 0.0005366991297146573,
+      "upstream": {
+       "e": {
+        "density": 0.0004922901764246035,
+        "u_x": 0.0005366991297146573,
+        "n_end": 1.0004450259362954,
+        "u_x_end": 0.9994992645475912
+       },
+       "i": {
+        "density": 0.00048175950380713317,
+        "u_x": 0.00048153552570140423,
+        "n_end": 1.0004330423400127,
+        "u_x_end": 0.9995553183256412
+       }
+      },
+      "compression": 3.773735429127093,
+      "x_compression": 46.25,
+      "compression_mhd": 2.9653419658152917,
+      "x_magnetopause": 62.38554154506456,
+      "magnetopause": 0.9403614613733859,
+      "x_shock": 42.45350039399438,
+      "shock": 1.4386624901501404,
+      "shock_spreiter": 1.3709521575187251,
+      "sheath": 0.5299037117588722,
+      "sheath_spreiter": 0.3709521575187251,
+      "magnetopause_magnetic": 0.9729946633886069,
+      "wind_density": 0.9949607254315768,
+      "flank": {
+       "plus": 2.3535446891874905,
+       "minus": 2.3413935503864938,
+       "asymmetry": 0.0025881360267050726
+      },
+      "body_charge": 1668.234375,
+      "absorbed_per_step": [
+       5752.353645833334,
+       2293.5606770833333,
+       926.0484210526316
+      ],
+      "fill_max": 0.5670222103806211,
+      "particles_start": 3135541246.0,
+      "particles_end": 3464555371.0,
+      "checks": {
+       "gauss": true,
+       "upstream": true,
+       "compression": true,
+       "magnetopause": true,
+       "shock_upstream": true
+      },
+      "passed": true
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       480,
+       640,
+       640
+      ],
+      "L": [
+       240.0,
+       320.0,
+       320.0
+      ],
+      "dx": [
+       0.5,
+       0.5,
+       0.5
+      ],
+      "dt": 0.25,
+      "n_steps": 11520,
+      "t_end": 2880.0,
+      "ppc": 8,
+      "particles": 3135541246,
+      "species": [
+       "e (q=-1, m=1): n=1, u=(0.2582, 0, 0), θ=0.01",
+       "i (q=+1, m=16): n=1, u=(0.2582, 0, 0), θ=0.000625"
+      ],
+      "boundaries": [
+       "x: open + paired inflow/open",
+       "y: open + flux inflow",
+       "z: open + flux inflow",
+       "absorbing sphere: radius 26.67 at (100, 160, 160)"
+      ],
+      "fields": [
+       "external E=(0, 0.0625, -0)",
+       "external B=(0, 0, 0.25)",
+       "external dipole m=(0, 0, -4.525e+04) at (100, 160, 160)"
+      ],
+      "filter_passes": 4,
+      "gpus": 8,
+      "wall_time_s": 3606.698347921949,
+      "params": {
+       "mass_ratio": 16,
+       "mach_alfven": 4,
+       "wpe_wce": 4,
+       "vte": 0.1,
+       "dp": 10,
+       "box": [
+        6,
+        8,
+        8
+       ],
+       "ppc": 8,
+       "crossings": 3
+      },
+      "planner": {
+       "r_mp": 40.0,
+       "d_i": 4.0,
+       "center": [
+        100.0,
+        160.0,
+        160.0
+       ],
+       "body_radius": 26.666666666666664,
+       "core": 8.0,
+       "v_sw": 0.25,
+       "b_imf": 0.25,
+       "B": [
+        0.0,
+        0.0,
+        0.25
+       ],
+       "E": [
+        0.0,
+        0.0625,
+        -0.0
+       ],
+       "moment": 45254.83399593904,
+       "b_standoff": 0.7071067811865476,
+       "ram_pressure": 1.0,
+       "beta": 0.6400000000000001,
+       "mach_alfven": 4,
+       "mach_fast": 3.230291412348993,
+       "compression_mhd": 2.9653419658152917,
+       "sheath_spreiter": 0.3709521575187251,
+       "shock_standoff_spreiter": 54.838086300749005,
+       "crossing_time": 960.0,
+       "crossing_steps": 3840,
+       "omega_ci_t_end": 45.0,
+       "wce_dt_surface": 1.2557426932522995,
+       "debye_cells": 0.2,
+       "particles": 3145728000,
+       "memory_per_gpu_GB": 78.596065792,
+       "id_fraction": 0.008131083777698223,
+       "coarse_cells": 16,
+       "dims": [
+        1,
+        2,
+        4
+       ],
+       "planet": true,
+       "antiparallel": false,
+       "cos2_bn": 0.0,
+       "upstream_z_range": null
+      }
+     },
+     "provenance": {
+      "git_commit": "4d55109b5f6da9256e6ae58f1c6c8bd0b7671770",
+      "run_id": "4b073ac2",
+      "created": "2026-11-11T21:07:55+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/bow_shock/dp10"
+     }
     }
    },
    "images": {
     "gate-bow_shock.png": 409705,
-    "standoff.png": 33579,
+    "dp10-bow_shock.png": 579994,
+    "standoff.png": 39615,
     "gate.gif": 6588097
    },
-   "analysis_commit": "9ba2a65185cd59bceecdfc4000b57587e924353e",
-   "generated": "2026-11-11"
+   "analysis_commit": "a3b3c722e028cb6fb4a9b583dc5cbbc135c5703b",
+   "generated": "2026-11-12"
   },
   "blast_wave": {
    "page": "Blast-Wave",
@@ -4444,14 +5090,256 @@
       "world_size": 8,
       "run_dir": "output/wiki/blast_wave/gate"
      }
+    },
+    "rm12": {
+     "source": "recorded",
+     "evidence": "bench/results/2026-11-11-c58f533c5-example-blast_wave-rm12-run-031fb299.json",
+     "results": {
+      "gauss_max": 7.315328898194196e-15,
+      "divB_max": 1.2604067095578486e-14,
+      "r_b": 99.8440235064914,
+      "r_m": 48.0,
+      "fast_speed": 0.07739239842086129,
+      "last_step": 2640,
+      "window_samples": 15,
+      "front_speed": 0.16158385843564738,
+      "compression": 2.8690305863107954,
+      "asymmetry": 0.0016104074026234622,
+      "debris_extent": 56.39176852541172,
+      "debris_extent_step": 2376,
+      "debris_extent_le": 48.934784121298634,
+      "debris_extent_start": 22.878799065852487,
+      "ambient_deviation": 0.0008227515571914701,
+      "ahead": {
+       "steps": [
+        0,
+        264,
+        528,
+        792,
+        1056,
+        1320,
+        1584,
+        1848,
+        2112,
+        2376,
+        2640
+       ],
+       "blocks": [
+        192324,
+        186673,
+        182426,
+        176481,
+        169737,
+        161925,
+        152997,
+        143042,
+        132406,
+        120385,
+        107479
+       ],
+       "n:e": [
+        1.0,
+        1.0000210267875616,
+        1.0000042243645464,
+        0.9999677709261271,
+        0.9999097633649447,
+        0.9998485173939783,
+        0.9997957666196239,
+        0.9996874187694272,
+        0.999604064685434,
+        0.9994634432716006,
+        0.9992124035887451
+       ],
+       "n:i": [
+        1.0,
+        1.0000316858351987,
+        1.0000176190380181,
+        0.9999862160673582,
+        0.9999376797381745,
+        0.9998883873476854,
+        0.9998328825896344,
+        0.9997265606801445,
+        0.9995930421380169,
+        0.9994250034452123,
+        0.9991772484428085
+       ],
+       "B": [
+        1.0,
+        1.0000334753837015,
+        1.0000588312110053,
+        1.0000733860950444,
+        1.0000688719750799,
+        1.0000598686856865,
+        1.0000433966936044,
+        1.0000034924761432,
+        0.9999607651314177,
+        0.9998803531086063,
+        0.9997373530735414
+       ]
+      },
+      "front_mach_fast": 2.0878518011155482,
+      "debris_extent_ratio": 1.1523861714732173,
+      "front_end": 117.53537589634287,
+      "front_max": 117.72764983965102,
+      "cavity_max": 50.25,
+      "cavity_static": 12.095242078990784,
+      "compression_mhd": 2.508010763707207,
+      "compression_mhd_front": 2.245452311176926,
+      "front_debris_distance": 17.86445035190308,
+      "front_debris_step": 1056,
+      "debris_rms_along": 52.66016316157057,
+      "debris_rms_across": 23.428693833433993,
+      "energy_budget_change": 0.15160295352788153,
+      "debris_ion_energy_left": 0.13538484450833327,
+      "ambient_ion_energy_gain": 0.4650157411576635,
+      "fill_max": 0.671076380904167,
+      "particles_start": 3182921842.0,
+      "particles_end": 3160513695.0,
+      "potential": {
+       "slice_z": 0.08257388914322257,
+       "slice_y": 0.41027149036828736
+      },
+      "body_charge": 33.07407885389785,
+      "body_charge_max": 65.5691763664035,
+      "n_absorbed": 306982,
+      "ms_per_step": 286.64506338333894,
+      "ns_per_particle_step": 0.7257741127955151,
+      "checks": {
+       "gauss": true,
+       "divB": true,
+       "ambient": true,
+       "front_speed": true,
+       "compression": true,
+       "symmetry": true,
+       "debris_extent": true
+      },
+      "passed": true
+     },
+     "conditions": {
+      "solver": "explicit",
+      "n_cells": [
+       576,
+       576,
+       576
+      ],
+      "L": [
+       288.0,
+       288.0,
+       288.0
+      ],
+      "dx": [
+       0.5,
+       0.5,
+       0.5
+      ],
+      "dt": 0.25,
+      "n_steps": 2640,
+      "t_end": 660.0,
+      "ppc": 8,
+      "particles": 3182921842,
+      "species": [
+       "e (q=-1, m=1): n=1, θ=0.01",
+       "i (q=+1, m=16): n=1, θ=0.000625",
+       "de (q=-1, m=1): n=4.12781, θ=0.01, gauss along r; n=4.12781, θ=0.01, gauss along r; n=4.12781, θ=0.01, gauss along r; n=4.12781, θ=0.01, gauss along r",
+       "di (q=+1, m=16): n=4.12781, θ=0.000625, gauss along r; n=4.12781, θ=0.000625, gauss along r; n=4.12781, θ=0.000625, gauss along r; n=4.12781, θ=0.000625, gauss along r"
+      ],
+      "boundaries": [
+       "x: open + flux inflow",
+       "y: open + flux inflow",
+       "z: open + flux inflow",
+       "absorbing sphere: radius 6.4 at (144, 144, 144)"
+      ],
+      "fields": [
+       "external B=(0, 0, 0.25)",
+       "external dipole m=(0, 0, 221.2) at (144, 144, 144)"
+      ],
+      "filter_passes": 4,
+      "gpus": 8,
+      "wall_time_s": 756.7429673320148,
+      "params": {
+       "mass_ratio": 16,
+       "mach_alfven": 3,
+       "wpe_wce": 4,
+       "vte": 0.1,
+       "rm": 12,
+       "half_width": 1.44,
+       "ppc": 8,
+       "run": 1.25
+      },
+      "planner": {
+       "debris": true,
+       "body": true,
+       "d_i": 4.0,
+       "r_m": 48.0,
+       "r_b": 99.8440235064914,
+       "center": [
+        144.0,
+        144.0,
+        144.0
+       ],
+       "b0": 0.25,
+       "v_a": 0.0625,
+       "v_d": 0.1875,
+       "v_fast": 0.07739239842086129,
+       "beta": 0.6400000000000001,
+       "mach_alfven": 3,
+       "mach_fast": 2.4227185592617446,
+       "debris_gyroradius": 12.0,
+       "shell_radius": 15.84,
+       "shell_width": 4.800000000000001,
+       "shell_peak_density": 16.511255089805903,
+       "debris_beams": 4,
+       "debris_extent_le": 48.934784121298634,
+       "shell_inside_body": 0.000308299974398227,
+       "wpe_dt_peak": 1.046161289244096,
+       "debris_particles": 126009488,
+       "debris_block_cells": 3796416,
+       "debris_slots": 45556992.0,
+       "ambient_slots": 286654464.0,
+       "dipole_radius": 9.600000000000001,
+       "body_radius": 6.4,
+       "core": 1.9200000000000004,
+       "moment": 221.1840000000001,
+       "dipole": [
+        0.0,
+        0.0,
+        1.0
+       ],
+       "t_b": 532.5014587012874,
+       "t_b_steps": 2130.00583480515,
+       "omega_ci_t_end": 10.3125,
+       "wce_dt_surface": 0.4843750000000001,
+       "debye_cells": 0.2,
+       "particles": 3057647616,
+       "memory_per_gpu_GB": 68.620896768,
+       "id_fraction": 0.009057306172053359,
+       "coarse_cells": 10,
+       "every_3d": 264,
+       "every_slice": 66,
+       "dims": [
+        1,
+        2,
+        4
+       ]
+      }
+     },
+     "provenance": {
+      "git_commit": "c58f533c542127503da70baa42cdbff42fbf2ffe",
+      "run_id": "031fb299",
+      "created": "2026-11-11T20:48:46+09:00",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "world_size": 8,
+      "run_dir": "output/blast_wave/rm12"
+     }
     }
    },
    "images": {
     "gate-blast_wave.png": 373019,
+    "rm12-blast_wave.png": 448125,
     "gate.gif": 4077767
    },
-   "analysis_commit": "3752d32118303bef923f3fe7364eb2e7af7e2840",
-   "generated": "2026-11-11"
+   "analysis_commit": "a3b3c722e028cb6fb4a9b583dc5cbbc135c5703b",
+   "generated": "2026-11-12"
   },
   "wakefield": {
    "page": "Plasma-Wakefield",

@@ -81,6 +81,8 @@ quasi-2-D runs, 3-D for `pair_3d`). The shaded band is the ±10 % gate.
 | `pair_2d` | {{ r.pair_2d.dims_eff }}-D | {{ r.pair_2d.beta_sh | .3f }} / {{ r.pair_2d.beta_sh_theory | .3f }} | {{ r.pair_2d.beta_sh_rel_error | +.1% }} | {{ r.pair_2d.compression | .2f }} / {{ r.pair_2d.compression_theory | .2f }} | {{ r.pair_2d.compression_rel_error | +.1% }} | ±10 % |
 | `pair_2d_long` | {{ r.pair_2d_long.dims_eff }}-D | {{ r.pair_2d_long.beta_sh | .3f }} / {{ r.pair_2d_long.beta_sh_theory | .3f }} | {{ r.pair_2d_long.beta_sh_rel_error | +.1% }} | {{ r.pair_2d_long.compression | .2f }} / {{ r.pair_2d_long.compression_theory | .2f }} | {{ r.pair_2d_long.compression_rel_error | +.1% }} | reported |
 | `pair_2d_long_run2` | {{ r.pair_2d_long_run2.dims_eff }}-D | {{ r.pair_2d_long_run2.beta_sh | .3f }} / {{ r.pair_2d_long_run2.beta_sh_theory | .3f }} | {{ r.pair_2d_long_run2.beta_sh_rel_error | +.1% }} | {{ r.pair_2d_long_run2.compression | .2f }} / {{ r.pair_2d_long_run2.compression_theory | .2f }} | {{ r.pair_2d_long_run2.compression_rel_error | +.1% }} | reported |
+| `pair_2d_t4000` | {{ r.pair_2d_t4000.dims_eff }}-D | {{ r.pair_2d_t4000.beta_sh | .3f }} / {{ r.pair_2d_t4000.beta_sh_theory | .3f }} | {{ r.pair_2d_t4000.beta_sh_rel_error | +.1% }} | {{ r.pair_2d_t4000.compression | .2f }} / {{ r.pair_2d_t4000.compression_theory | .2f }} | {{ r.pair_2d_t4000.compression_rel_error | +.1% }} | reported |
+| `pair_2d_tail` | {{ r.pair_2d_tail.dims_eff }}-D | {{ r.pair_2d_tail.beta_sh | .3f }} / {{ r.pair_2d_tail.beta_sh_theory | .3f }} | {{ r.pair_2d_tail.beta_sh_rel_error | +.1% }} | {{ r.pair_2d_tail.compression | .2f }} / {{ r.pair_2d_tail.compression_theory | .2f }} | {{ r.pair_2d_tail.compression_rel_error | +.1% }} | reported |
 | `pair_3d` | {{ r.pair_3d.dims_eff }}-D | {{ r.pair_3d.beta_sh | .3f }} / {{ r.pair_3d.beta_sh_theory | .3f }} | {{ r.pair_3d.beta_sh_rel_error | +.1% }} | {{ r.pair_3d.compression | .2f }} / {{ r.pair_3d.compression_theory | .2f }} | {{ r.pair_3d.compression_rel_error | +.1% }} | reported |
 
 The 3-D run jumps to the 3-D gas values (β_sh ≈ 1/3, n₂/n₁ ≈ 4) while the quasi-2-D runs follow the 2-D
@@ -98,10 +100,12 @@ spectrum, a relativistic Maxwellian with a non-thermal tail and the power-law fi
 
 `pair_3d` (3-D, t = 600).
 
-<details><summary>pair_2d (gate) and the second long realization</summary>
+<details><summary>pair_2d (gate), the second long realization and the runs to t = 4000 and t = 8000</summary>
 
 ![pair_2d](images/relativistic_shock/pair_2d-shock.png)
 ![pair_2d_long_run2](images/relativistic_shock/pair_2d_long_run2-shock.png)
+![pair_2d_t4000](images/relativistic_shock/pair_2d_t4000-shock.png)
+![pair_2d_tail](images/relativistic_shock/pair_2d_tail-shock.png)
 
 </details>
 
@@ -111,12 +115,31 @@ spectrum, a relativistic Maxwellian with a non-thermal tail and the power-law fi
 |---|---|---|---|---|
 | `pair_2d_long` | {{ r.pair_2d_long.nonthermal_fraction | .1% }} | {{ r.pair_2d_long.tail_index_window_p | .2f }} ± {{ r.pair_2d_long.tail_index_window_err | .2f }} | α = {{ r.pair_2d_long.gamma_max_growth_exponent | .2f }} | {{ r.pair_2d_long.eps_B_end | .4f }} |
 | `pair_2d_long_run2` | {{ r.pair_2d_long_run2.nonthermal_fraction | .1% }} | {{ r.pair_2d_long_run2.tail_index_window_p | .2f }} ± {{ r.pair_2d_long_run2.tail_index_window_err | .2f }} | α = {{ r.pair_2d_long_run2.gamma_max_growth_exponent | .2f }} | {{ r.pair_2d_long_run2.eps_B_end | .4f }} |
+| `pair_2d_t4000` (t = 4000) | {{ r.pair_2d_t4000.nonthermal_fraction | .1% }} | {{ r.pair_2d_t4000.tail_index_window_p | .2f }} ± {{ r.pair_2d_t4000.tail_index_window_err | .2f }} | α = {{ r.pair_2d_t4000.gamma_max_growth_exponent | .2f }} | {{ r.pair_2d_t4000.eps_B_end | .4f }} |
+| `pair_2d_tail` (t = 8000) | {{ r.pair_2d_tail.nonthermal_fraction | .1% }} | {{ r.pair_2d_tail.tail_index_window_p | .2f }} ± {{ r.pair_2d_tail.tail_index_window_err | .2f }} | α = {{ r.pair_2d_tail.gamma_max_growth_exponent | .2f }} | {{ r.pair_2d_tail.eps_B_end | .4f }} |
 | literature (2-D, converged) | — | ≈ 2.4 | α = 0.5 | — |
 
-The tail exists but is still young at t = 2000 ω_pe⁻¹ (≈ 520 relativistic plasma times √γ₀/ω_pe): its
-index ({{ r.pair_2d_long.tail_index_window_p | .1f }}) is much steeper than the converged 2.4, which
-Spitkovsky measured at about 8700 ω_pe⁻¹. A converged tail needs t ≳ 8000 ω_pe⁻¹ and about 10⁹ particles
-in quasi-2-D (roadmap item R11).
+**No extended tail up to t = 8000 ω_pe⁻¹.** `pair_2d_long` and its second realization stop at t = 2000
+(≈ 520 relativistic plasma times √γ₀/ω_pe); `pair_2d_t4000` and `pair_2d_tail` take the same set-up to
+t = 4000 and t = 8000 in a longer box ({{ c.pair_2d_tail.particles | , }} particles in the last one).
+
+- **Index**: {{ r.pair_2d_long.tail_index_window_p | .2f }} and
+  {{ r.pair_2d_long_run2.tail_index_window_p | .2f }} at t = 2000,
+  {{ r.pair_2d_t4000.tail_index_window_p | .2f }} ± {{ r.pair_2d_t4000.tail_index_window_err | .2f }} at
+  t = {{ r.pair_2d_t4000.t_spectrum | .0f }} and
+  {{ r.pair_2d_tail.tail_index_window_p | .2f }} ± {{ r.pair_2d_tail.tail_index_window_err | .2f }} at
+  t = {{ r.pair_2d_tail.t_spectrum | .0f }}, each on the window from 3 × the peak of γ dN/dγ to 0.7 × the
+  cut-off (γ ≈ {{ r.pair_2d_tail.tail_window.0 | .0f }}–{{ r.pair_2d_tail.tail_window.1 | .0f }} in the
+  last run). The index does not move towards the converged 2.4, which Spitkovsky (2008) measured at about
+  8700 ω_pe⁻¹.
+- **Largest energy**: the largest γ of the spectrum is {{ r.pair_2d_t4000.gamma_max_t.-1 | .0f }} at the
+  end of `pair_2d_t4000` and {{ r.pair_2d_tail.gamma_max_t.-1 | .0f }} at the end of `pair_2d_tail`: +13 %
+  where γ_max ∝ t^1/2 gives +41 %. The fitted exponent falls from run to run (last column but one of the table).
+- **Non-thermal fraction**: 15–18 % in all four runs.
+
+Time alone does not bring the published tail in this set-up: 62 c/ω_pe across (16 relativistic skin
+depths), 8 particles per cell, a 4-pass current filter. Which of these holds the tail back is not separated
+here (roadmap item R11).
 
 ## Notes
 
