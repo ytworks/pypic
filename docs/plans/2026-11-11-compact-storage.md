@@ -1137,3 +1137,105 @@ Result (2026-11-12, b2d9e76, the same sequence and machine, no other job on the 
 - Test: `test_filter_and_marder_zone_at_open_faces_keep_gauss` runs in `compact` too (the charge
   density of the zone equals the full one at the zone nodes); with the offset of the rank left
   out of the new test of the kernel it fails (checked once).
+
+## A3 — final breakdown of the step and of `push_deposit`
+
+2026-11-12, e1ab0fd (`pypic/` as on b2d9e76), no other job on the GPUs. The benchmark of A0
+(`two_stream/ei`, 256×64×64, 50,331,648 particles, 100 steps after 20 of warm-up,
+`diag_interval=10`, a sort every 50 steps), three repetitions of the sequence `fp64`, `mixed`,
+`compact`, each on 8 GPUs and on 1 GPU. Medians of the three runs; smallest to largest in
+parentheses.
+
+Whole step without `--phases`:
+
+| GPUs | precision | ms / step | ns / particle / step (GPU time) |
+|---|---|---|---|
+| 8 | fp64 | 3.549 (3.446–3.566) | 0.564 |
+| 8 | mixed | 3.171 (3.080–3.192) | 0.504 |
+| 8 | compact | 2.837 (2.777–2.886) | 0.451 |
+| 1 | fp64 | 22.005 (22.005–22.017) | 0.437 |
+| 1 | mixed | 18.185 (18.182–18.197) | 0.361 |
+| 1 | compact | 15.317 (15.312–15.318) | 0.304 |
+
+`compact` is 10.5 % below `mixed` and 20.1 % below `fp64` on 8 GPUs, 15.8 % and 30.4 % on
+1 GPU; the ranges of the three precisions do not overlap on either GPU count.
+
+Parts of the step with `--phases` (the device is synchronised at each phase; mean over the
+ranks; ms):
+
+| part | 8 GPUs `fp64` | `mixed` | `compact` | 1 GPU `fp64` | `mixed` | `compact` |
+|---|---|---|---|---|---|---|
+| step of these runs | 3.878 | 3.635 | 3.234 | 22.239 | 18.426 | 15.553 |
+| `kernel_push` | 2.721 | 2.283 | 1.947 | 20.866 | 16.944 | 14.238 |
+| `migrate` | 0.466 | 0.505 | 0.472 | 0.031 | 0.033 | 0.031 |
+| `reduce_ghosts` | 0.212 | 0.214 | 0.204 | 0.121 | 0.119 | 0.119 |
+| `field_push` | 0.186 | 0.190 | 0.184 | 0.151 | 0.156 | 0.153 |
+| `record` | 0.135 | 0.146 | 0.136 | 0.496 | 0.497 | 0.493 |
+| `sort` | 0.042 | 0.042 | 0.030 | 0.440 | 0.439 | 0.281 |
+| `field_energy` | 0.025 | 0.025 | 0.025 | 0.029 | 0.028 | 0.027 |
+| `zero_J` | 0.021 | 0.021 | 0.021 | 0.024 | 0.024 | 0.024 |
+| outside the named phases | 0.075 | 0.189 | 0.187 | 0.070 | 0.176 | 0.175 |
+
+`apply_bc_J`, `filter_J` and `output` are below 0.004 ms each.
+
+- `kernel_push` is 70.2 %, 62.8 % and 60.2 % of the step of these runs on 8 GPUs (`fp64`,
+  `mixed`, `compact`; ratios of the medians) and 93.8 %, 92.0 % and 91.5 % on 1 GPU.
+- The time outside the named phases is 0.11 ms larger in `mixed` and `compact` than in `fp64`
+  on both GPU counts; the float32 copies of the six field arrays
+  (`Simulation._gather_fields`, PIC-D11) are made there.
+- `sort` on 8 GPUs is 0.042 ms (`fp64`, `mixed`) and 0.030 ms (`compact`); at b830153 it was
+  0.102–0.109 and 0.077–0.078 ms. Between the two commits `pypic/` changed in the pool of the
+  sort (ac90f90) and in `deposit_rho` (b2d9e76, not called in this benchmark). On 1 GPU the
+  phase is within 0.003 ms of b830153 (0.442, 0.441–0.442, 0.283–0.284 there).
+- The medians of the 8-GPU step without `--phases` are 0.10, 0.15 and 0.13 ms below those of
+  b830153 (3.65, 3.32, 2.97); the `sort` phase is 0.05–0.07 ms lower, the rest is not
+  attributed (the three runs of a precision differ by up to 0.12 ms here).
+
+Breakdown of `push_deposit` (shadow run: at every step the push of the engine is timed, and
+the same kernel with zero charge — every deposit is skipped — on copies of the particle rows
+and of the flag list, with the current into scratch arrays; the order of the two alternates;
+mean over the ranks; ms per step). The difference is the median of the three differences.
+
+| GPUs | precision | push | push with zero charge | difference | difference / push |
+|---|---|---|---|---|---|
+| 8 | fp64 | 2.727 | 1.786 | 0.941 | 34.5 % |
+| 8 | mixed | 2.272 | 1.171 | 1.101 | 48.5 % |
+| 8 | compact | 1.935 | 1.059 | 0.876 | 45.3 % |
+| 1 | fp64 | 20.876 | 13.808 | 7.069 | 33.9 % |
+| 1 | mixed | 16.957 | 8.919 | 8.038 | 47.4 % |
+| 1 | compact | 14.262 | 7.940 | 6.323 | 44.3 % |
+
+- The push timed in the shadow run is within 0.024 ms of `kernel_push` above.
+- `compact` against `mixed`: the part that runs with zero charge (decode, gather, Boris push,
+  end point, wrap, store) is 0.112 ms lower on 8 GPUs and 0.979 ms on 1 GPU; the part that the
+  zero charge skips (the shape functions and the Esirkepov deposit) is 0.225 and 1.715 ms
+  lower. So 0.225 of the 0.337 ms and 1.715 of the 2.695 ms that the push gains are in the part
+  skipped with zero charge.
+- `mixed` against `fp64`: the zero-charge part is 0.615 and 4.889 ms lower. The difference
+  column is larger in `mixed` than in `fp64` (1.101 against 0.941, 8.038 against 7.069)
+  although `mixed` changes only the gather (PIC-D11): the difference is not the cost of the
+  deposit code alone. Not examined.
+- `mixed` at e883591 (A0): 1.144 and 8.92 ms with zero charge, 1.078 and 8.02 ms difference.
+- What a fixed-point deposit (R10) would work on: the part skipped with zero charge is
+  0.876 ms of the 2.837 ms `compact` step on 8 GPUs (30.9 %) and 6.323 of 15.317 ms on 1 GPU
+  (41.3 %).
+
+### What was measured: adopted and dropped
+
+"Of the step" is relative to the `mixed` step of the same configuration and GPU count; the
+limit for a speed item is 2 % (A0).
+
+| item | measured | outcome |
+|---|---|---|
+| compact positions (int32 cell, three uint32 fractions; float64 momenta, 56 B per slot), integer route of the step that meets nothing (b830153) | `kernel_push` + `sort`: −10.8 % of the step on 8 GPUs, −15.8 % on 1 GPU (periodic benchmark); −8.8 % and −10.0 % in the bow-shock and blast-wave gate configurations | adopted |
+| shell test of `deposit_rho` from the stored cell (b2d9e76) | −3.7 % (bow shock) and −3.9 % (blast wave) of the step | adopted |
+| pool of the sort (ac90f90) | whole step: the ranges of three runs overlap those without it; the device memory no longer grows with the number of sorts (R5 exit above) | adopted (memory) |
+| product kernel through the index coordinate in double (5edc7f9) | +4.3 % of the step on 8 GPUs, +9.7 % on 1 GPU | replaced by the integer route |
+| float32 stored momenta, FP64 Boris arithmetic (layout (b)) | prototype: −7.9 to −8.0 % of the step on 8 GPUs (layout (a): −9.7 %), 12 B per slot less; \|u\| of gyrating particles shows a secular trend, up to 26 standard errors after 2.3e6 steps | dropped (owner decision 2) |
+| FP32 Boris arithmetic (layout (c)) | prototype: −27.0 to −27.3 % of the step on 8 GPUs, −37.5 % on 1 GPU; the rotation with float32 factors changes \|u\| by a fixed amount per step | dropped (owner decision 2) |
+| default pool emptied after every sort | +7.8 % (`mixed`) and +8.3 % (`compact`) of the step | dropped |
+
+Not examined, and left so: `reduce_ghosts` of the blast wave differing between the precisions;
+the first bow-shock run of a sequence being slower; the speed of a build with reflecting walls
+at production size; which arrays make the grid term of the blast-wave planner larger than the
+measured one; the difference column of `mixed` against `fp64` above.
