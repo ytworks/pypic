@@ -299,6 +299,8 @@ The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the meth
 - Left on the array, on purpose: `implicit.cu` and its two launches (`compact` refuses the
   implicit scheme, like `mixed`), and `migrate.cu` with `particles.migrate`, which copy whole
   rows and get their own record in A2.
-- Null test of the refactor: the FP64 and mixed gates on the A1 commit against the records of
-  17f1b5f, bit for bit where the record of a gate is deterministic (the deposit order is not,
-  ANA-D3: those gates are compared within their recorded run-to-run range). Result: pending.
+- Null test of the refactor, two parts. (1) Bits: the particle rows after one step from the same
+  loaded state, on the tree of 17f1b5f and on the A1 commit, FP64 and mixed; one step, because
+  the order of the atomic deposits differs between two runs of the same code (ANA-D3), so later
+  steps agree only to the last bits. (2) The FP64 and mixed gates on the A1 commit, every value
+  beside its value in the records of 17f1b5f. Result: pending.
