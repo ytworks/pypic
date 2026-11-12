@@ -54,6 +54,9 @@ Explicit solver only (refused with the implicit solver, as `mixed` is); the gath
 
 Fallback: float64 momenta, 56 B.
 
+Amendment (2026-11-12): the fallback applies. Float32 momenta did not meet the gyration
+condition, so the slot holds three float64 momenta and takes 56 B ("A2 — result" below).
+
 Rules that keep the deposit exact:
 
 - Every end point that is stored is first snapped to the lattice of 2^-32 dx. The wall loop,
@@ -140,6 +143,11 @@ The timings need the GPUs to themselves (no other job on the devices that are me
 | Loader, 1 rank vs 2×2 ranks | integers equal; within 2^-32 dx of FP64 |
 | Peak device memory of a production-size run | within 5 % of the planner's figure |
 
+Outcome (2026-11-12): the gyration criterion is not met with float32 momenta (a secular trend;
+"A2 — result" below), so the mode has float64 momenta and 56 B. The gyration test of the
+float32 mode goes with it, the Boris gyration test of `fp64` runs in `compact` too, and
+`.claude/rules/numerics-invariants.md` is not changed.
+
 ### A3 — close-out
 
 Decision of the owner (not taken here): the default among `fp64`, `mixed`, `compact`. The three
@@ -153,6 +161,8 @@ numbers.
 - The gate criteria are the same in every precision. `compact` changes one line of the contract
   (|u| up to the FP32 rounding of the stored momentum), by owner decision 2. FP64 and mixed keep
   their bits (null test of A1).
+  Amendment (2026-11-12): with float64 momenta ("A2 — result") `compact` changes no line of
+  the contract.
 - Charge conservation comes from the deposit: stored end points are lattice points and the
   deposit is computed from them. No Poisson correction.
 - Loading depends only on (seed, global cell, slot); the position within the cell in compact is
@@ -285,6 +295,10 @@ explicit gates in the mode; gyration drift of |u| ≤ 6e-8·√N without a secul
 tests; if one fails the mode keeps float64 momenta — layout (a), 56 B — and (b) is not used.
 The energy record of a float32 mode takes `u² / (γ + 1)` in FP64 (see the method section).
 
+Outcome (2026-11-12): the gyration condition fails with float32 momenta, in layout (b) by a
+trend measured on the product kernel and in layout (c) by a change of |u| per step whose cause
+is known; the mode keeps float64 momenta, layout (a). See "A2 — result".
+
 ## A1 — the accessor layer as written
 
 - Kernels (`pypic/kernels/particles.cu`): a kernel takes the storage as `PSTORE` / `PSTORE_RO`
@@ -398,6 +412,7 @@ Written before the code; what the code ends up doing differently is noted here w
   the cell; `U` (3, cap) float32 = momenta. The id stays the integer-valued double of PIC-D8
   (the same 8 bytes as the int64 of the design table; no kernel or reader changes its type).
   `PSTORE` is these four pointers; `Species.store` returns them.
+  Changed (2026-11-12): `U` is float64 and the slot takes 56 B ("A2 — result").
 - Index coordinate: `XI(p) = (double)i + (double)F * 2^-32` is exact while `|i| < 2^21` (a
   double holds 53 bits, the fraction takes 32), so the kernels that work from `XI / YI / ZI`
   (`deposit_rho`, `deposit_moment`, `gather_at_particles`, `boris_kick`, `cell_index`) need no
@@ -428,6 +443,8 @@ Written before the code; what the code ends up doing differently is noted here w
   hands the two exact end points to the Esirkepov core.
 - Boris rotation in FP32 (A0: 27 % of the step); the energy record takes `u² / (γ + 1)` in FP64.
   Kept only under owner decision 2 (all explicit gates in the mode, gyration drift).
+  Changed (2026-11-12): not kept. The rotation and the energy records are those of `fp64`
+  ("A2 — result").
 - Loader: the cell is the cell of the loop and `F` the upper 32 bits of the same 53-bit random
   number, written directly — not through the physical position, whose rounding could land in
   the neighbouring cell. Face injection and its partners snap their end point the same way.
@@ -444,6 +461,8 @@ Written before the code; what the code ends up doing differently is noted here w
   (the limits and the period are passed in cells), only `mig_take`, `mig_fill` and `mig_append`
   get a compact body, and the `fp64` module keeps its PTX. Cost: 64 bytes per migrating particle
   in the message in place of 56; the store itself is not affected.
+  Changed (2026-11-12): with float64 momenta the record carries the momenta as they are
+  stored; the message takes 64 bytes per migrating particle and the store 56 per slot.
 - New defines: `COMPACT_STORE`, `GNX / GNY / GNZ` (global cells per axis); `OXI ..` also in
   compact.
 
@@ -462,3 +481,160 @@ Written before the code; what the code ends up doing differently is noted here w
   `compact` (31 arrays, measured in `fp64`; the float32 arrays of the gather are not counted
   separately). Both are part of the exit measurement of R5 (peak device memory within 5 % of
   the planner's figure).
+
+## A2 — result (2026-11-12): float32 momenta fail the gyration condition; momenta stay float64
+
+New fact: with the product kernel of f322fe2 (float32 stored momenta, FP64 Boris arithmetic:
+layout (b) of A0) the mean of |u| over particles of one |u| that gyrate in a uniform field
+changes with the number of steps — by up to 26 standard errors after 2.3e6 steps, and at a
+constant rate per step in the group that shows it most clearly. That is a secular trend, so the
+second condition of owner decision 2 is not met. By the rule fixed with the A0 results ("if one
+fails the mode keeps float64 momenta — layout (a), 56 B — and (b) is not used") `compact` stores
+float64 momenta, 56 bytes per slot. The bound 6e-8·√N and the two conditions are not changed.
+The owner can amend the decision; what is known for that is at the end of this section.
+
+### Method
+
+`precision: compact`, one GPU, 8³ cells with `dx` 0.5, uniform `B0` along z, one species with
+q/m = −1 and weight 1e-20, no sort, no diagnostics. 1,024 particles per value of |u|; the phase
+of each is uniform in [0, 2π) (`numpy.random.default_rng(seed)`), the momentum lies in the plane
+across B and is set as the float32 of u·cos, u·sin. After n steps the relative change of |u| of
+every particle is taken against its own start. In the tables "mean/se" is the mean of a group
+over its standard error, "mean/n" the mean per step, and "max" the largest |change| among all
+particles of the run over 6e-8·√n. The script and its outputs are not in the repository.
+
+### Float32 momenta, product kernel of f322fe2
+
+B = 0.5, dt = 0.05 (562 steps per turn at |u| = 2), |u| = 1, 2, 5, 11.3, seed 1:
+
+| steps | mean/se | mean/n | max |
+|---|---|---|---|
+| 2,248 | +0.11 +2.71 −7.51 −4.04 | +1.2e-12 +3.1e-11 −1.6e-10 −6.4e-11 | 1.570 |
+| 35,968 | −1.45 +2.41 −4.86 −3.31 | −3.9e-12 +6.3e-12 −1.8e-11 −1.3e-11 | 1.446 |
+| 143,872 | −5.23 +3.63 −7.06 −0.12 | −7.1e-12 +4.7e-12 −1.4e-11 −2.3e-13 | 1.326 |
+| 575,488 | −9.54 −3.05 −19.50 +3.60 | −6.8e-12 −2.2e-12 −1.4e-11 +3.5e-12 | 1.043 |
+| 2,301,952 | −19.58 +21.46 −15.88 +16.41 | −6.5e-12 +5.1e-12 −6.3e-12 +4.3e-12 | 0.914 |
+
+The same with seed 2:
+
+| steps | mean/se | mean/n | max |
+|---|---|---|---|
+| 2,248 | +1.04 +4.04 −7.34 −2.35 | +1.1e-11 +4.6e-11 −1.6e-10 −3.6e-11 | 1.593 |
+| 35,968 | −1.12 +2.65 −1.40 −1.90 | −3.1e-12 +7.4e-12 −5.4e-12 −7.0e-12 | 1.280 |
+| 143,872 | −4.36 +5.58 −7.85 +0.09 | −5.9e-12 +7.2e-12 −1.5e-11 +1.8e-13 | 1.297 |
+| 575,488 | −8.44 −2.00 −21.15 +2.98 | −6.1e-12 −1.4e-12 −1.5e-11 +2.8e-12 | 1.069 |
+| 2,301,952 | −19.95 +25.09 −16.03 +15.99 | −6.9e-12 +5.6e-12 −6.8e-12 +4.2e-12 | 0.932 |
+
+Values of |u| without short binary fractions, |u| = 0.37, 0.83, 1.7, 2.9, 4.6, 5.3, 6.7, 11.3
+(B = 0.5, dt = 0.05, seed 1):
+
+| steps | mean/se | max |
+|---|---|---|
+| 2,248 | −0.20 −0.98 −3.39 +0.86 +0.20 −0.35 +1.30 −3.35 | 1.675 |
+| 35,968 | +0.68 −0.38 −0.65 +2.09 +3.06 −0.50 +4.18 −2.96 | 1.398 |
+| 143,872 | −1.16 −4.93 −0.46 −1.24 +3.17 −2.97 +3.72 +3.27 | 1.605 |
+| 575,488 | −9.81 −13.51 +4.88 +8.40 +7.31 −8.67 +9.70 +6.74 | 1.367 |
+| 2,301,952 | −20.55 −16.26 +9.23 +16.71 +0.74 −26.00 +23.01 +17.21 | 0.859 |
+
+B = 2, dt = 0.2 (35 steps per turn at |u| = 2), |u| = 0.5, 1, 2, 3, 5, 8, seed 1:
+
+| steps | mean/se | max |
+|---|---|---|
+| 560 | +1.30 +0.16 −0.59 +0.18 +0.16 −1.52 | 1.323 |
+| 2,240 | +1.51 +1.14 +2.80 +1.17 −0.22 −1.79 | 1.460 |
+| 35,840 | +2.67 +2.23 +3.93 +2.09 −0.38 +3.53 | 1.279 |
+| 143,360 | −8.74 +5.15 +2.33 +4.16 +4.92 +4.71 | 1.147 |
+| 573,440 | −22.57 +13.60 −1.17 +1.01 +45.69 +7.09 | 0.744 |
+| 2,293,760 | −24.52 +13.65 −1.07 +1.08 +49.97 +6.94 | 0.530 |
+
+What the tables show:
+
+- A trend. In the |u| = 1 group the mean per step is the same from 143,872 to 2,301,952 steps
+  (−7.1e-12, −6.8e-12, −6.5e-12 with seed 1; −5.9e-12, −6.1e-12, −6.9e-12 with seed 2): the
+  mean grows in proportion to n and ends 19.6 and 20.0 standard errors from zero. With the
+  eight other values of |u|, seven groups end 9.2 to 26.0 standard errors from zero. With
+  B = 2, dt = 0.2 four of six groups are 7 to 46 standard errors from zero at 573,440 steps.
+- It needs a long run and a group to be seen: at 2,248 steps (2,240 with B = 2) 16 of the 22
+  groups are within three standard errors (|u| = 5 is not: −7.5 and −7.3), and the test of this
+  mode written in b064425 (one particle, 16 turns, |change| ≤ 6e-8·√n at the end of each turn)
+  passed.
+- Not explained, and not examined further: the |u| = 2 group changes sign twice (positive up
+  to 143,872 steps, negative at 575,488, +21 and +25 standard errors at 2,301,952; both seeds);
+  the |u| = 4.6 group is +7.3 standard errors from zero at 575,488 steps and +0.7 at 2,301,952;
+  with B = 2, dt = 0.2 the mean of the |u| = 5 group stops growing after 573,440 steps (mean
+  per step +2.1e-11, then +5.4e-12) while in |u| = 0.5 the mean and its standard error both
+  grow about fourfold.
+- The largest single change is 0.53 to 1.68 of 6e-8·√n at the marks: above 1 at 16 of the 17
+  marks before 1e6 steps, below 1 at the four after. Read for every particle the bound is
+  therefore exceeded by some particle, apart from any trend: in a CPU emulation of the same
+  arithmetic with 16,384 particles of random |u| (three settings of B and dt, up to 35,968
+  steps) the spread of the change is 2.15e-8·√n to 2.20e-8·√n (the bound is about 2.8 of
+  these), 0.61 to 0.85 % of the particles lie above the bound at each mark, and the mean stays
+  within 2.25 standard errors. Whether the bound of the decision is meant for every particle
+  or for the spread was not fixed; the outcome here rests on the trend.
+
+### Controls
+
+- Float64 storage, same arithmetic (`precision: mixed`, same script, seed 1, |u| = 1, 2, 5,
+  11.3): mean/se −0.26 +1.80 −0.49 −0.06 at 2,248 steps, +0.51 −0.11 −0.39 −0.95 at 35,968,
+  −0.03 +1.00 −0.21 −0.99 at 143,872 and +0.79 +1.62 −0.32 +0.28 at 575,488; the mean per step
+  is 4e-20 or less in size, max 0.000. The trend comes with the float32 storage.
+- `compact` with float64 momenta (the tree of this commit, one GPU): the digits of the `mixed`
+  control at 2,248, 35,968 and 143,872 steps (the run ends there), max 0.000.
+- A NumPy emulation of the float32 storage with the FP64 rotation gives the printed digits of
+  the product kernel at both seeds up to 143,872 steps. Later the |u| = 2 group differs at
+  575,488 steps (−3.48 against −3.05 with seed 1, −2.36 against −2.00 with seed 2) and the
+  |u| = 2 and 11.3 groups differ by 0.16 at most at 2,301,952 (+21.35 against +21.46 and
+  +16.33 against +16.41 with seed 1); |u| = 1 and 5 agree throughout. The reason for the late
+  differences was not examined.
+- Where the change is made (emulation, |u| = 5, 4,096 particles, 2,248 steps; mean change
+  −4.221e-7, −18.05 standard errors): the rotation in FP64 contributes −7.8e-17 and the
+  rounding of its result to float32 the rest. Sorted by the angle of the momentum in 5° bins,
+  the eight bins at 0°, 85°, 90°, 175°, 180°, 265°, 270° and 355° hold −334.6e-9 of the
+  −422.1e-9 per particle; the other 64 bins lie between −8.3e-9 and +5.2e-9. The mechanism is
+  not established.
+
+### FP32 Boris arithmetic, layout (c): not used
+
+Independent of the storage, the rotation in float32 changes |u| by a fixed amount per step.
+With the rotation factors t and s = 2t / (1 + t²) rounded to float32, `u' = u + (u + u×t)×s`
+multiplies u² by (1 − s·t)² + s², which is 1 only for the exact s. A float32 emulation of the
+rotation alone (B = 2, dt = 0.2, 512 particles per group, |u| = 0.5, 1, 2, 3) against this
+factor summed along the run, as the mean relative change of |u| per step:
+
+| steps | measured | standard error | predicted |
+|---|---|---|---|
+| 35 | +4.301e-9 −1.091e-9 −8.643e-10 +4.285e-10 | 1.6e-10 1.4e-10 1.3e-10 1.7e-10 | +4.196e-9 −1.116e-9 −1.075e-9 +3.994e-10 |
+| 140 | +3.818e-9 −1.130e-9 −9.447e-10 +4.067e-10 | 1.0e-10 6.3e-11 6.3e-11 7.6e-11 | +3.798e-9 −1.098e-9 −1.065e-9 +3.965e-10 |
+| 560 | +2.925e-9 −8.795e-10 −9.364e-10 +3.947e-10 | 7.0e-11 2.6e-11 2.9e-11 3.8e-11 | +2.976e-9 −8.948e-10 −1.000e-9 +3.888e-10 |
+| 2,240 | +1.458e-9 −4.290e-10 −7.822e-10 +3.388e-10 | 3.3e-11 8.2e-12 1.2e-11 1.9e-11 | +1.453e-9 −4.432e-10 −7.921e-10 +3.494e-10 |
+
+Measured and predicted agree within 2.2 standard errors. In the emulation of layout (c) the
+group means are +44.36 −52.27 −65.79 +17.51 −8.35 −2.01 standard errors from zero after 2,240
+steps (|u| = 0.5, 1, 2, 3, 5, 8), where layout (b) has 2.16 at most (+26.76 for |u| = 0.5
+after 35 steps already). So (c), the 27 % of A0, fails the same condition within a few turns,
+and its cause is known.
+
+### What changed in the code
+
+- `CompactSpecies.U` is float64; the accessors `S_UX ..` and `S_SET_MOM` read and write
+  doubles; the migration record carries the momenta as they are. `ROUND_U` and `GAMMA_M1`
+  (rounding to the stored float, and γ − 1 from it) are removed; the energy records are those
+  of `fp64` again. `SLOT_BYTES["compact"]` is 56.
+- The PTX of the `fp64`, `mixed` and implicit builds is the one of A1; only the two compact
+  particle modules change.
+- Tests: `test_boris_gyration_conserves_gamma_and_period` runs in `fp64` and `compact`; its
+  `compact` case fails on the float32 code and passes now (checked once). The gyration-bound
+  test of the float32 mode is deleted with the feature. The loader and output tests compare
+  the momenta with `fp64` exactly. On 4 GPUs `pytest tests/gpu -k "compact or boris"`: 9 passed.
+- `.claude/rules/numerics-invariants.md` is not changed: with float64 momenta `compact` keeps
+  the Boris line of the contract as it stands.
+
+### For the owner's decision
+
+The mode costs 12 bytes per slot more than planned (56 against 44; `fp64` has 64). Measured in
+A0 with prototypes: 56 B with FP64 momenta is 9.7 % faster than the `mixed` step; float32
+storage with FP64 arithmetic was 7.9 to 8.0 % (no gain in speed over float64 storage, only the
+12 bytes). Size of the trend where it was measured: 1e-11 per step or less at 2,301,952 steps
+with B = 0.5 (|u| = 1: 1.5e-5 in all), against a bound of 9.1e-5 there. Allowing float32
+momenta needs an amendment of owner decision 2 by the owner; nothing here assumes it.

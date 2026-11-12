@@ -119,7 +119,7 @@ def test_field_outputs_hold_the_total_field_with_external_fields(tmp_path):
 
 def test_a_compact_run_writes_fp64_physical_values(tmp_path):
     """With the compact storage (PIC-D19) a listed particle starts on the lattice point nearest to
-    where it was put (at most 2^-33 of a cell away) with the float32 of its momentum, and a track
+    where it was put (at most 2^-33 of a cell away) with its momentum, and a track
     holds the FP64 physical values of the accessors."""
     n, dx = 4, 0.5
     pts = np.array([[1.0, 2.0, 3.0, 0.3, 0.0, 0.0], [14.2, 8.0, 3.3, 0.0, -0.2, 0.1],
@@ -133,7 +133,7 @@ def test_a_compact_run_writes_fp64_physical_values(tmp_path):
     start = cp.asnumpy(sp.rows())
     start = start[:, np.argsort(start[7])]
     assert np.max(np.abs(start[:3] - pts.T[:3])) <= dx * 2.0**-33 + 1e-14
-    assert np.array_equal(start[3:6], pts.T[3:6].astype(np.float32).astype(np.float64))
+    assert np.array_equal(start[3:6], pts.T[3:6])
     sim.run()
     sim.close()
     end = cp.asnumpy(sp.rows())

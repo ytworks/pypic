@@ -71,7 +71,7 @@ def particle_defines(
     are the same on every rank layout. ``paired_faces`` (PIC-D13): bit ``2 * axis + side`` per
     paired injection face; 0 compiles the push without the return of the neutraliser. ``body``
     (PIC-D14): the absorbing sphere of the configuration, or None. ``compact`` (PIC-D19): the
-    particles are stored as cell, position within the cell and float32 momenta; the gather is the
+    particles are stored as cell, position within the cell and float64 momenta; the gather is the
     one of ``mixed``, GNX.. are the global cells per axis and S?0I / S?1I the physical range of
     the rank in global cells."""
     D = dict(grid_defs)

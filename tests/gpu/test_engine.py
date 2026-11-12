@@ -41,10 +41,11 @@ def inject(sp, pos, u, w=1e-20):
 
 
 # ----------------------------------------------------------------------- pusher
-def test_boris_gyration_conserves_gamma_and_period():
+@pytest.mark.parametrize("precision", ["fp64", "compact"])
+def test_boris_gyration_conserves_gamma_and_period(precision):
     B = 0.5
     cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, species=[SpeciesConfig("e", -1, 1, [])],
-                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0)
+                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0, precision=precision)
     sim = Simulation(cfg, comm=SelfComm(), verbose=False)
     sp = sim.species[0]
     u0 = 2.0  # relativistic: gamma = sqrt(5)
@@ -63,25 +64,6 @@ def test_boris_gyration_conserves_gamma_and_period():
     expected = nst * 2 * math.atan(0.5 * wc * cfg.dt)
     total = np.unwrap(np.array(ang))[-1] - 0.0
     assert abs(abs(total) - expected) < 2 * 2 * math.atan(0.5 * wc * cfg.dt)
-
-
-def test_compact_momenta_gyrate_within_the_float32_rounding():
-    """Condition of PIC-D19 for float32 momenta: |u| of a gyrating particle may leave its start by
-    the rounding of the stored momentum only, a random walk: at most 6e-8 sqrt(n) (relative) after n
-    steps, at the end of each of 16 periods, so a drift that grows like n fails."""
-    B = 0.5
-    cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, species=[SpeciesConfig("e", -1, 1, [])],
-                    B0=(0, 0, B), diag_interval=0, gauss_interval=0, sort_interval=0, precision="compact")
-    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
-    sp = sim.species[0]
-    u0 = 2.0
-    inject(sp, [2.0, 2.0, 2.0], [u0, 0.0, 0.0])
-    nst = int(round(2 * math.pi * math.sqrt(1 + u0 * u0) / B / cfg.dt))
-    for period in range(1, 17):
-        for _ in range(nst):
-            sim.step()
-        u = math.hypot(float(sp.mom(0)[0]), float(sp.mom(1)[0]))
-        assert abs(u - u0) / u0 <= 6e-8 * math.sqrt(period * nst), period
 
 
 def test_exb_drift():
@@ -1000,9 +982,9 @@ def test_reduced_precision_is_explicit_only(precision):
 
 
 def test_compact_load_is_the_fp64_load_on_the_lattice():
-    """The compact loader (PIC-D19) keeps the upper 32 bits of the random number of the FP64 loader
-    and rounds the same momentum once: the same particles, each less than 2^-32 of a cell below its
-    FP64 position, with the float32 of its FP64 momentum."""
+    """The compact loader (PIC-D19) keeps the upper 32 bits of the random number of the FP64 loader:
+    the same particles, each less than 2^-32 of a cell below its FP64 position, with the same
+    momentum."""
     f, c = (plasma(precision=p) for p in ("fp64", "compact"))
     for a, b in zip(f.species, c.species):
         A, B = (cp.asnumpy(s.rows()) for s in (a, b))
@@ -1010,7 +992,7 @@ def test_compact_load_is_the_fp64_load_on_the_lattice():
         assert np.array_equal(A[6:], B[6:])  # weights and ids
         d = A[:3] - B[:3]
         assert d.min() > -1e-15 and d.max() < 0.2 * 2.0**-32 + 1e-15
-        assert np.array_equal(B[3:6], A[3:6].astype(np.float32).astype(np.float64))
+        assert np.array_equal(B[3:6], A[3:6])
 
 
 # --------------------------------------------------------- review regressions

@@ -4,8 +4,8 @@
 // buffer is split into the particles for the low / high neighbour and those that stay.
 // nrow is the number of rows of P (8, or more while the initial displacement is applied).
 // With the compact storage (PIC-D19) the buffer holds the same 8 (or 11) doubles per particle:
-// the working coordinate of particles.cu (the index coordinate of the box, exact), the momentum
-// (the stored float), w, id and the remaining displacement (Dsp; not read when nrow == 8). The
+// the working coordinate of particles.cu (the index coordinate of the box, exact), the momentum,
+// w, id and the remaining displacement (Dsp; not read when nrow == 8). The
 // receiving rank finds the cell in its own arrays from that coordinate; the classification and
 // the wrap take the limits and the period in cells.
 

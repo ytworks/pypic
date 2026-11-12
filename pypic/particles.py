@@ -275,10 +275,10 @@ class Species:
 
 
 class CompactSpecies(Species):
-    """The storage of ``precision: compact`` (PIC-D19), 44 bytes per particle: ``W`` weight and id
+    """The storage of ``precision: compact`` (PIC-D19), 56 bytes per particle: ``W`` weight and id
     (float64), ``C`` the cell in the arrays of this rank (int32, the flat index of the field
     arrays), ``F`` the position within the cell in 2^-32 of a cell (uint32 per axis), ``U`` the
-    momentum (float32 per axis). The accessors return FP64 physical values; a position is
+    momentum (float64 per axis). The accessors return FP64 physical values; a position is
     (global cell + fraction) * dx with one rounding, the expression of the kernels. The set-up
     displacement has its own array ``Dsp`` while it lasts. The buffers of the migration hold the
     position as the global index coordinate x / dx, which is exact."""
@@ -296,7 +296,7 @@ class CompactSpecies(Species):
         self.W = cp.zeros((2, self.cap), dtype=cp.float64)
         self.C = cp.zeros(self.cap, dtype=cp.int32)
         self.F = cp.zeros((3, self.cap), dtype=cp.uint32)
-        self.U = cp.zeros((3, self.cap), dtype=cp.float32)
+        self.U = cp.zeros((3, self.cap), dtype=cp.float64)
         self.Dsp = None
         self._nodisp = cp.zeros(1, dtype=cp.float64)  # stands for Dsp where a kernel does not read it
 
@@ -331,7 +331,7 @@ class CompactSpecies(Species):
         return self.index_pos(a, lo, hi) * self.h[a]
 
     def mom(self, a, lo=0, hi=None):
-        return self.U[a, self._range(lo, hi)].astype(cp.float64)
+        return self.U[a, self._range(lo, hi)]
 
     def weight(self, lo=0, hi=None):
         return self.W[0, self._range(lo, hi)]
@@ -347,8 +347,7 @@ class CompactSpecies(Species):
         self.W[0, self._range(lo, hi)] *= f
 
     def add_mom(self, a, du, lo=0, hi=None):
-        r = self._range(lo, hi)
-        self.U[a, r] = (self.U[a, r].astype(cp.float64) + du).astype(cp.float32)
+        self.U[a, self._range(lo, hi)] += du
 
     def snap(self, x, a, xp=np):
         """The index coordinate of the position x along axis a, on the lattice of the storage. A
@@ -376,7 +375,7 @@ class CompactSpecies(Species):
         self.ensure_capacity(self.n + m)
         r = slice(self.n, self.n + m)
         self._set_index_pos(r, [self.snap(block[a], a, cp) for a in range(3)])
-        self.U[:, r] = block[3:6].astype(cp.float32)
+        self.U[:, r] = block[3:6]
         self.W[:, r] = block[6:8]
         self.n += m
 
@@ -416,7 +415,7 @@ class CompactSpecies(Species):
         self.ensure_capacity(n)
         r = slice(0, n)
         self._set_index_pos(r, Q[:3])
-        self.U[:, r] = Q[3:6].astype(cp.float32)
+        self.U[:, r] = Q[3:6]
         self.W[:, r] = Q[6:8]
         if self.displacing:
             self.Dsp[:, r] = Q[8:11]

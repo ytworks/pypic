@@ -38,7 +38,7 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
   growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 % (ei/ep/eip/ei_implicit/buneman), Gauss max 7.6e-12,
   implicit energy 1.9e-10; 17 example gates (ANA-D2, with `bow_shock:gate` and `blast_wave:gate`) pass; 93 GPU tests pass.
 - Mixed precision (PIC-D11, Proposed): 21 explicit gates ALL PASSED with `precision: mixed` on e321bd2 (`bench/results/2026-11-12-e321bd238-gpu-gates-mixed.json`), Gauss max 7.6e-12; `blast_wave:gate` (radial beams) is among them.
-- Compact storage (PIC-D19, Proposed): no gate record yet; the commits after e321bd2 on `perf/compact-storage` change `pypic/` and are not gated.
+- Compact storage (PIC-D19, Proposed): float64 momenta, 56 bytes per slot — float32 momenta showed a secular trend of |u| in the gyration runs (second condition of the owner's decision not met). No gate record yet; the commits after e321bd2 on `perf/compact-storage` change `pypic/` and are not gated.
 - Open flow: a magnetised wind through one paired and four flux faces with filter and Marder zone
   stays uniform for three crossings at the bow-shock gate size (null test M2, two field geometries,
   passed; plan Phase 3). Not shown: longer runs; the magnetic energy of the oblique case had not levelled.
@@ -92,6 +92,11 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D10, D12.
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-12 — [design] PIC-D19: float32 momenta dropped (secular trend of |u| in gyration); compact stores float64 momenta, 56 bytes per slot
+- What: changes the entry "PIC-D19 compact particle storage (Proposed): 44 bytes per slot" below. Product kernel of f322fe2 (float32 stored momenta, FP64 Boris), 1,024 particles per |u| in a uniform B: the group mean of the relative change of |u| is −19.6 / +21.5 / −15.9 / +16.4 standard errors from zero after 2,301,952 steps (|u| = 1, 2, 5, 11.3; a second seed alike; 7 of 8 other |u| at 9.2 to 26.0); |u| = 1 drifts −6.5e-12 to −7.1e-12 per step from 143,872 steps on. Float64 storage (`mixed`; `compact` after the change): within 1.8 standard errors. `CompactSpecies.U` is float64, `SLOT_BYTES` compact 56, `ROUND_U` / `GAMMA_M1` removed; the Boris gyration test runs in `compact` too; 9 compact / Boris GPU tests pass; FP64, mixed and implicit PTX unchanged.
+- Why: the owner's decision allows float32 momenta only without a secular trend in the gyration test; otherwise float64 (56 B). FP32 Boris arithmetic is not used either: the rounded rotation factors change |u| by a fixed amount per step (measured against predicted: within 2.2 standard errors). The mechanism of the trend with float32 storage is not established.
+- Refs: PIC-D19; `docs/plans/2026-11-11-compact-storage.md` ("A2 — result"); PR #43. Not gated.
 
 ### 2026-11-12 — [progress] Accessor layer (A1 of PR #43): gates on e321bd2 ALL PASSED in FP64 and mixed; null test against 17f1b5f
 - What: gates on the A1 commit e321bd2, 8 GPUs: FP64 (93 GPU tests, five two-stream gates, 17 example gates) and mixed (four, 17). Beside the records of 17f1b5f: the five `particle_orbits` gates (72 values) equal in all digits; every other gate differs in some values, as the records of 9bfa1a5 and 17f1b5f (one `pypic/` tree) do among themselves. Two mixed metrics differ where that pair agrees (`freq_rel_error_median` of `dawson`, `relativistic`, 7th digit); repeated on each tree (`dawson` twice, `relativistic` three times): runs of the base differ in the same digits and give the value of the A1 record too.

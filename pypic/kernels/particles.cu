@@ -7,20 +7,20 @@
 // (set-up only), and the row copies of migrate.cu.
 
 #ifdef COMPACT_STORE
-// Compact layout, 44 bytes per particle in four arrays:
+// Compact layout, 56 bytes per particle in four arrays:
 //   S_w[row * cap + p]  rows = w, id (double; the id is an integer-valued double)
 //   S_c[p]              the cell of the particle in the arrays of this rank (IDX, int)
 //   S_f[a * cap + p]    the position within that cell along axis a, in units of 2^-32 cell (unsigned int)
-//   S_u[a * cap + p]    the momentum (float; u = gamma v, c = 1)
+//   S_u[a * cap + p]    the momentum (double; u = gamma v, c = 1)
 // A position is a point of a lattice of 2^-32 cell. Its index coordinate cell + f * 2^-32 is exact in
 // a double while |cell| < 2^21, in the arrays of the rank and in the box (Simulation checks the grid).
 #define TWO32 4294967296.0
 #define ITWO32 (1.0 / 4294967296.0)
-#define PSTORE_AS(S) double* S##_w, int* S##_c, unsigned int* S##_f, float* S##_u
+#define PSTORE_AS(S) double* S##_w, int* S##_c, unsigned int* S##_f, double* S##_u
 #define PSTORE PSTORE_AS(P)
 #define PSTORE_RO \
     const double* __restrict__ P_w, const int* __restrict__ P_c, const unsigned int* __restrict__ P_f, \
-    const float* __restrict__ P_u
+    const double* __restrict__ P_u
 // index coordinate (cells from the first one of the arrays of this rank) of particle p of the storage S
 #define S_XI(S, cap, p) ((double)((S##_c)[(p)] / (NY * NZ)) + (double)(S##_f)[(p)] * ITWO32)
 #define S_YI(S, cap, p) ((double)((S##_c)[(p)] / NZ % NY) + (double)(S##_f)[(cap) + (p)] * ITWO32)
@@ -29,14 +29,14 @@
 #define S_X(S, cap, p) ((S_XI(S, cap, p) + (double)(OXI)) * DX)
 #define S_Y(S, cap, p) ((S_YI(S, cap, p) + (double)(OYI)) * DY)
 #define S_Z(S, cap, p) ((S_ZI(S, cap, p) + (double)(OZI)) * DZ)
-#define S_UX(S, cap, p) ((double)(S##_u)[(p)])
-#define S_UY(S, cap, p) ((double)(S##_u)[(cap) + (p)])
-#define S_UZ(S, cap, p) ((double)(S##_u)[2 * (cap) + (p)])
+#define S_UX(S, cap, p) (+(S##_u)[(p)])
+#define S_UY(S, cap, p) (+(S##_u)[(cap) + (p)])
+#define S_UZ(S, cap, p) (+(S##_u)[2 * (cap) + (p)])
 #define S_W(S, cap, p) (+(S##_w)[(p)])
 #define S_ID(S, cap, p) (+(S##_w)[(cap) + (p)])
 #define S_SET_POS(S, cap, p, x, y, z) store_pos(S##_c, S##_f, cap, p, x, y, z)
 #define S_SET_MOM(S, cap, p, ux, uy, uz) \
-    { (S##_u)[(p)] = (float)(ux); (S##_u)[(cap) + (p)] = (float)(uy); (S##_u)[2 * (cap) + (p)] = (float)(uz); }
+    { (S##_u)[(p)] = (ux); (S##_u)[(cap) + (p)] = (uy); (S##_u)[2 * (cap) + (p)] = (uz); }
 #define S_SET_W(S, cap, p, w) { (S##_w)[(p)] = (w); }
 #define S_SET_ID(S, cap, p, id) { (S##_w)[(cap) + (p)] = (id); }
 #define XI(p) S_XI(P, cap, p)
@@ -64,11 +64,6 @@
 #define WBELOW(wall) ((wall) - ITWO32)           // last point below an upper wall
 // uniform point of cell c (advances the stream s): the upper 32 bits of the number urand takes
 #define WRAND(c, s, d) ((double)(c) + (double)(splitmix64(s) >> 32) * ITWO32)
-// gamma - 1 of the momentum u with gamma = g, without the cancellation of g - 1
-#define GAMMA_M1(g, u) (((u)[0] * (u)[0] + (u)[1] * (u)[1] + (u)[2] * (u)[2]) / ((g) + 1.0))
-// the momentum u as the storage will hold it
-#define ROUND_U(u) \
-    { (u)[0] = (double)(float)(u)[0]; (u)[1] = (double)(float)(u)[1]; (u)[2] = (double)(float)(u)[2]; }
 #define PDISP_ARG , double* Dsp                  // the remaining set-up displacement: its own array
 #define DISP(a, p) Dsp[(a) * cap + p]
 
@@ -130,8 +125,6 @@ __device__ __forceinline__ void store_pos(int* C, unsigned int* F, const long lo
 #define WSNAP(x) (x)                             // onto a point that the storage holds
 #define WBELOW(wall) nextafter(wall, 0.0)        // last point below an upper wall
 #define WRAND(c, s, d) (((c) + urand(s)) * (d))  // uniform point of cell c (advances the stream s)
-#define GAMMA_M1(g, u) ((g) - 1.0)               // gamma - 1 of the momentum u with gamma = g
-#define ROUND_U(u)                               // the momentum u as the storage will hold it
 #define PDISP_ARG                                // the remaining set-up displacement: rows 8..10
 #define DISP(a, p) P[(8 + (a)) * cap + p]
 #endif
@@ -363,7 +356,6 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
         u[0] = urx + ex;
         u[1] = ury + ey;
         u[2] = urz + ez;  // second half electric kick
-        ROUND_U(u);       // the particle moves with the momentum that is stored
         double g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
 #ifdef COMPACT_STORE
         const double rg = 1.0 / g1;
@@ -418,11 +410,10 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
             if ((fm >> face) & 1) {
                 unsigned long long sr = hash_key(hash_key(seed ^ RET_SALT, (unsigned long long)step, 0ULL),
                                                  (unsigned long long)PID(p), (unsigned long long)it);
-                lke += w * m * GAMMA_M1(g1, u);
+                lke += w * m * (g1 - 1.0);
                 sample_inflow(rb + (long long)face * nrb * 6, nrb, amin, wall > 0.0 ? -1.0 : 1.0, sr, u);
-                ROUND_U(u);
                 g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
-                lke -= w * m * GAMMA_M1(g1, u);
+                lke -= w * m * (g1 - 1.0);
                 for (int a = 0; a < 3; a++) pos1[a] = WSNAP(pw[a] + (trem * WDT(a) / g1) * u[a]);
                 if (wall > 0.0 && pos1[amin] >= wall) pos1[amin] = WBELOW(wall);
             } else {
@@ -447,7 +438,7 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
             if (do_diag) {
                 ke = 0.0; mx = my = mz = 0.0;
             }
-            ake = w * m * GAMMA_M1(g1, u);
+            ake = w * m * (g1 - 1.0);
             aq = qw;  // zero for test species
             an = 1.0;
             SET_W(p, 0.0);
@@ -458,7 +449,7 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
             if (do_diag) {
                 ke = 0.0; mx = my = mz = 0.0;
             }
-            lke += w * m * GAMMA_M1(g1, u);
+            lke += w * m * (g1 - 1.0);
             lq = qw;  // charge lost: zero for test species
             SET_W(p, 0.0);
             { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = p; }
@@ -893,7 +884,6 @@ __device__ bool layer_sample(const unsigned long long ks, const unsigned long lo
     sm = hash_key(ks ^ ((unsigned long long)tb[5] * 0x2545F4914F6CDD1DULL + 77ULL), gcell, (unsigned long long)slot);
     sample_mj(tb[1], sm, u);
     boost_drift(u, tb[2], tb[3], tb[4], sm);
-    ROUND_U(u);
     g = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
     const double Lg[3] = WBOX;
     const int b0[3] = {BCX0, BCY0, BCZ0};
@@ -995,7 +985,7 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
         SET_ID(p, id_step + tb[6] + cellslot);
         if (migrate) { int sl = atomicAdd(flag, 1); if (sl < listcap) list[sl] = (int)p; }
     }
-    const double ke = w * m * GAMMA_M1(g, u);
+    const double ke = w * m * (g - 1.0);
     atomicAdd(&diag[6], ke);
     atomicAdd(&diag[7], qw);
     atomicAdd(&diag[8], 1.0);
@@ -1032,11 +1022,10 @@ extern "C" __global__ void inject_partners(PSTORE_AS(Pe), const long long cape, 
     unsigned long long sm = pstate[ie];
     double ue[3];
     sample_inflow(rb + (long long)face * nrb * 6, nrb, face >> 1, (face & 1) ? -1.0 : 1.0, sm, ue);
-    ROUND_U(ue);
     const long long p = ne0 + ie;
     S_SET_MOM(Pe, cape, p, ue[0], ue[1], ue[2]);
     const double we = S_W(Pe, cape, p);
-    const double eke = we * me * GAMMA_M1(sqrt(1.0 + ue[0] * ue[0] + ue[1] * ue[1] + ue[2] * ue[2]), ue);
+    const double eke = we * me * (sqrt(1.0 + ue[0] * ue[0] + ue[1] * ue[1] + ue[2] * ue[2]) - 1.0);
     atomicAdd(&diage[6], eke);
     atomicAdd(&diage[7], qe * we);
     atomicAdd(&diage[8], 1.0);
