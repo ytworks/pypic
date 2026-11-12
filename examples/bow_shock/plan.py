@@ -21,6 +21,8 @@ from dataclasses import asdict, dataclass, field
 
 from pypic.config import (
     ID_LIMIT,
+    SLOT_BYTES,
+    SORT_BYTES,
     Beam,
     Body,
     CurrentFilter,
@@ -162,15 +164,17 @@ def plan_bow_shock(p: BowShockParams, n_gpus: int = 1):
     if ids >= ID_LIMIT:
         raise ValueError(f"the run needs {ids:.3g} particle ids, the limit is 2^53: fewer steps, cells or ppc")
     gpus = max(n_gpus, 1)
-    # Device memory of a rank whose particle arrays are full (terms measured at the gate): 8 rows of
-    # float64 per particle slot; 40 bytes per particle of one species during its sort; 31 arrays of
-    # the grid and the arrays an output step holds (one per component of the 3-D output), each with
-    # the ghost and absorbing layers; 1 GB of CUDA context, kernels and NCCL buffers.
+    # Device memory of a rank whose particle arrays are full (terms measured at the gate): the bytes
+    # of a particle slot and of the sort of one species per particle, by precision (pypic.config);
+    # 31 arrays of the grid and the arrays an output step holds (one per component of the 3-D
+    # output), each with the ghost and absorbing layers; 1 GB of CUDA context, kernels and NCCL
+    # buffers.
     slots = n_part * cfg.capacity_factor / gpus
     padded = math.prod(n / d + (2 if d == 1 else 1) * cfg.npml + 2 * GHOST
                        for n, d in zip(cfg.n_cells, cfg.dims or (1, 1, 1)))
     n_out = sum(3 if m.split(":")[0] in ("flux", "E", "B") else 1 for m in moments)
-    mem = (slots * 64 + slots / 2 * 40 + padded * 8 * (31 + n_out)) / 1e9 + 1.0
+    mem = (slots * SLOT_BYTES[cfg.precision] + slots / 2 * SORT_BYTES[cfg.precision]
+           + padded * 8 * (31 + n_out)) / 1e9 + 1.0
     beta = mhd.plasma_beta(p.vte, p.ti_te, b_imf)
     x_mhd = mhd.compression(p.mach_alfven, beta)
     lam_d = p.vte  # Debye length in d_e

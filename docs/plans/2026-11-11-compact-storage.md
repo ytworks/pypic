@@ -389,3 +389,19 @@ Written before the code; what the code ends up doing differently is noted here w
   in the message in place of 56; the store itself is not affected.
 - New defines: `COMPACT_STORE`, `GNX / GNY / GNZ` (global cells per axis); `OXI ..` also in
   compact.
+
+## A2 — what has run
+
+- 2026-11-12, 08daae9, 8 GPUs, no other job on them: `pytest tests/gpu -k compact` — 8 passed
+  (55 s). These are the tests of the mode written in b064425: the loader against the `fp64`
+  loader, the sort and the memory pool after it, the gyration bound of owner decision 2, 1 GPU
+  against the decompositions (closed box and open flow), the refusal with the implicit solver,
+  the output in FP64 physical values. The margins to the bounds were not printed in this run; a run that prints them
+  follows the A1 gates (one GPU job at a time).
+- Bytes by precision for the planners: `SLOT_BYTES` and `SORT_BYTES` in `pypic/config.py`, used
+  by `pypic/setup/planner.py`, `examples/bow_shock/plan.py` and `examples/blast_wave/plan.py`.
+  Not measured yet: the temporaries of the compact sort (32 bytes per particle is an estimate
+  from the widths of the arrays) and the grid term of the two example planners in `mixed` and
+  `compact` (31 arrays, measured in `fp64`; the float32 arrays of the gather are not counted
+  separately). Both are part of the exit measurement of R5 (peak device memory within 5 % of
+  the planner's figure).

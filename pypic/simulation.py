@@ -10,7 +10,7 @@ import numpy as np
 
 from . import body, injection
 from .backend import compile_module, launch
-from .config import FACES, ID_LIMIT, SimConfig
+from .config import FACES, ID_LIMIT, SLOT_BYTES, SimConfig
 from .external import check_config, dipoles_B
 from .grid import FIELD_NAMES, YeeGrid
 from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
@@ -68,7 +68,7 @@ class Simulation:
         self.body = body.check_config(cfg, reach)
         self.decomp = Decomposition.build(cfg.n_cells, dims, self.rank, cfg.boundaries, cfg.npml)
         self.grid = YeeGrid(self.decomp, cfg.dx, cfg.dt, self.comm, ghost=ghost, pml=not self.implicit)
-        if cfg.precision not in ("fp64", "mixed", "compact"):
+        if cfg.precision not in SLOT_BYTES:
             raise ValueError("precision must be 'fp64', 'mixed' or 'compact'")
         self.compact = cfg.precision == "compact"  # the storage of the particles (PIC-D19)
         self.mixed = cfg.precision != "fp64"  # the push gathers from float32 copies of the fields (PIC-D11)

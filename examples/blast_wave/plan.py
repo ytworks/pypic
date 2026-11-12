@@ -23,6 +23,8 @@ from dataclasses import asdict, dataclass, field
 from pypic.config import (
     ID_LIMIT,
     MAX_CAPACITY,
+    SLOT_BYTES,
+    SORT_BYTES,
     Beam,
     Body,
     CurrentFilter,
@@ -235,15 +237,17 @@ def plan_blast_wave(p: BlastWaveParams, n_gpus: int = 1):
     if max(slots_a, slots_d) + 4096 > MAX_CAPACITY:
         raise ValueError(f"{max(slots_a, slots_d):.3g} particle slots per species and GPU exceed 2^31 - 1 "
                          f"(the kernels' particle index): more GPUs, fewer cells or a lower ppc")
-    # Device memory of a rank whose particle arrays are full (terms measured at the bow-shock gate): 8
-    # rows of float64 per particle slot; 40 bytes per particle of one species during its sort; 31
-    # arrays of the grid and the arrays an output step holds (one per component of the 3-D output),
-    # each with the ghost and absorbing layers; 1 GB of CUDA context, kernels and NCCL buffers.
+    # Device memory of a rank whose particle arrays are full (terms measured at the bow-shock gate):
+    # the bytes of a particle slot and of the sort of one species per particle, by precision
+    # (pypic.config); 31 arrays of the grid and the arrays an output step holds (one per component
+    # of the 3-D output), each with the ghost and absorbing layers; 1 GB of CUDA context, kernels
+    # and NCCL buffers.
     slots = len(ambient) * slots_a + 2 * slots_d
     padded = math.prod(m / d + (2 if d == 1 else 1) * cfg.npml + 2 * GHOST
                        for m, d in zip(cfg.n_cells, cfg.dims or (1, 1, 1)))
     n_out = sum(3 if m.split(":")[0] in ("flux", "E", "B") else 1 for m in moments)
-    mem = (slots * 64 + max(slots_a, slots_d) * 40 + padded * 8 * (31 + n_out)) / 1e9 + 1.0
+    mem = (slots * SLOT_BYTES[cfg.precision] + max(slots_a, slots_d) * SORT_BYTES[cfg.precision]
+           + padded * 8 * (31 + n_out)) / 1e9 + 1.0
     beta = mhd.plasma_beta(p.vte, p.ti_te, b0)
     v_fast = mhd.fast_speed(v_a, beta)
     info = {

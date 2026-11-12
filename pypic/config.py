@@ -183,6 +183,14 @@ ID_LIMIT = 2 ** 53  # particle ids (PIC-D8): float64 represents every integer be
 # Particle slots of one species on one GPU: the kernels index particles with int (thread index, n);
 # row offsets row * cap are 64-bit.
 MAX_CAPACITY = 2 ** 31 - 1
+# Device bytes by precision, for the memory estimates of the planners. SLOT_BYTES: one particle slot
+# (fp64, mixed: 8 rows of float64; compact, PIC-D19: weight and id in float64, the cell in int32,
+# three uint32 and three float32). SORT_BYTES: the temporaries of the sort per particle of the
+# species being sorted. 40 was measured at the bow-shock gate. 32 for compact is an estimate, not
+# yet measured: an int32 key in place of the int64 one in the key, its copy and the scratch of the
+# argsort (-12), and the buffer of one row that the int64 key otherwise serves as (+8).
+SLOT_BYTES = {"fp64": 64, "mixed": 64, "compact": 44}
+SORT_BYTES = {"fp64": 40, "mixed": 40, "compact": 32}
 
 
 @dataclass

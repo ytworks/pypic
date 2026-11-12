@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass, field
 
-from ..config import ImplicitConfig, OutputConfig, SimConfig
+from ..config import SLOT_BYTES, ImplicitConfig, OutputConfig, SimConfig
 from ..parallel.decomp import auto_dims
 from ..theory.streaming import fastest_mode, filamentation_estimate
 from .species import Composition, TwoStreamBeams, build_species
@@ -136,7 +136,8 @@ def plan_two_stream(p: TwoStreamParams, n_gpus: int = 1) -> tuple[SimConfig, str
     nbeams = sum(len(s.beams) for s in species)
     ncell = cfg.n_cells[0] * cfg.n_cells[1] * cfg.n_cells[2]
     npart = ncell * cfg.ppc * nbeams
-    bytes_p = npart * 8 * (8 + (6 if implicit else 0)) * cfg.capacity_factor
+    # a slot of the storage; the implicit solver keeps positions and momenta of step n beside it
+    bytes_p = npart * (SLOT_BYTES[cfg.precision] + (48 if implicit else 0)) * cfg.capacity_factor
     bytes_f = ncell * 8 * (9 + (12 if not implicit else 30))
     gpus = max(n_gpus, 1)
     info = {

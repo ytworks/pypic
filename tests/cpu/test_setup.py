@@ -130,6 +130,33 @@ def test_bow_shock_planner_gives_a_configuration_the_engine_accepts():
         P.plan_bow_shock(P.params_from_dict({**params, "coarse": 0.5}))
 
 
+def test_planners_count_the_particle_memory_of_the_precision():
+    import os
+
+    import yaml
+
+    from pypic.config import SLOT_BYTES
+    from pypic.setup.planner import TwoStreamParams, plan_two_stream
+
+    def two_stream(precision):
+        cfg, _, info = plan_two_stream(TwoStreamParams(overrides={"precision": precision}), n_gpus=2)
+        return info["memory_per_gpu_GB"] * 2e9, info["particles"] * cfg.capacity_factor
+
+    (fp64, slots), (mixed, _), (compact, _) = (two_stream(p) for p in ("fp64", "mixed", "compact"))
+    # mixed changes the gather only; compact stores every slot in fewer bytes, the grid as before
+    assert mixed == fp64
+    assert abs((fp64 - compact) / slots - (SLOT_BYTES["fp64"] - SLOT_BYTES["compact"])) < 1e-9
+    for name in ("bow_shock", "blast_wave"):
+        P = _example_planner(name)
+        with open(os.path.join(os.path.dirname(P.__file__), "configs", "gate.yaml")) as f:
+            params = yaml.safe_load(f)
+        mem = {}
+        for precision in ("fp64", "mixed", "compact"):
+            p = P.params_from_dict({**params, "overrides": {"precision": precision}})
+            mem[precision] = getattr(P, f"plan_{name}")(p, n_gpus=8)[2]["memory_per_gpu_GB"]
+        assert mem["compact"] < mem["mixed"] == mem["fp64"], name
+
+
 def test_blast_wave_planner_gives_a_configuration_the_engine_accepts():
     import os
 
