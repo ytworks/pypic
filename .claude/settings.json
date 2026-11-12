@@ -8,6 +8,25 @@
             "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/check_progress_size.py || true"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR\"/research/tools/hooks/session_start.py; [ -f \"$f\" ] || exit 0; python3 \"$f\" || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__github__create_pull_request|mcp__github__update_pull_request",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR\"/research/tools/hooks/guard.py; [ -f \"$f\" ] || exit 0; python3 \"$f\""
+          }
+        ]
       }
     ]
   }
