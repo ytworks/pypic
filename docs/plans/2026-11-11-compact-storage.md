@@ -779,3 +779,65 @@ Limits of this result:
   `mixed` particle PTX of the two commits has the same lines in another order. Not examined.
 - The correction of one figure of the first table: the third `mixed` run on 8 GPUs was
   3.31 ms (3.3146), not 3.32.
+
+## A2 — the open-boundary gate configurations in the three precisions
+
+2026-11-12, f34ac5a, 8 GPUs (rank grid (1, 2, 4)), no other job on them; one run per row, in
+the order of the rows. Both configurations have six open faces with injection, an absorbing
+sphere and the current filter (4 passes, compensated): the test for the inner step is paid for
+every particle, and the particles that meet a face or the body take the general path. Neither
+has a reflecting wall or a periodic axis.
+
+- `bow_shock/gate`: 240×320×320 cells, 391,940,798 particles at the start, 5760 steps,
+  capacity factor 2.
+- `blast_wave/gate`: 384³ cells, 943,088,238 particles at the start, 1760 steps, capacity
+  factor 1.5.
+
+Device memory: `memory.used` of `nvidia-smi`, sampled once per second on every GPU during the
+run. "Peak" is the largest sample of the GPU that had the largest one, "lowest GPU" the largest
+sample of the GPU that had the smallest one. The planner's figure is `memory_per_gpu_GB` of the
+example planner for 8 GPUs (1 GB = 1e9 bytes). The wall time is `Simulation.wall_time`: the
+step loop with its diagnostics and output.
+
+| run | precision | planner GB | peak GB | lowest GPU GB | peak − planner | wall s | ms / step | wall against fp64 |
+|---|---|---|---|---|---|---|---|---|
+| bow shock | fp64 | 11.00 | 10.87 | 10.36 | −1.2 % | 264.0 | 45.83 | — |
+| bow shock | mixed | 11.00 | 10.78 | 10.12 | −2.0 % | 235.8 | 40.94 | −10.7 % |
+| bow shock | compact | 9.42 | 9.36 | 8.79 | −0.7 % | 219.0 | 38.02 | −17.0 % |
+| blast wave | fp64 | 21.45 | 22.21 | 17.67 | +3.6 % | 164.2 | 93.30 | — |
+| blast wave | mixed | 21.45 | 22.15 | 19.74 | +3.2 % | 149.4 | 84.89 | −9.0 % |
+| blast wave | compact | 18.52 | 18.78 | 17.40 | +1.4 % | 137.9 | 78.35 | −16.0 % |
+
+Budget change: `(budget_end − budget_start) / budget_start` of the scalar history (the `dE/E0`
+of the run log). Every run passed the criteria of its gate (`analyze`).
+
+| run | precision | budget change | minus fp64 | Gauss max | div B max | particles at the end |
+|---|---|---|---|---|---|---|
+| bow shock | fp64 | +2.59608e-2 | — | 3.8e-14 | 7.0e-14 | 433,705,825 |
+| bow shock | mixed | +2.59793e-2 | +1.9e-5 | 4.5e-14 | 7.4e-14 | 433,718,684 |
+| bow shock | compact | +2.59088e-2 | −5.2e-5 | 3.6e-14 | 6.8e-14 | 433,766,996 |
+| blast wave | fp64 | +1.94570e-2 | — | 7.1e-15 | 9.1e-15 | 936,673,613 |
+| blast wave | mixed | +1.94545e-2 | −2.5e-6 | 7.3e-15 | 9.8e-15 | 936,670,065 |
+| blast wave | compact | +1.94541e-2 | −2.9e-6 | 7.6e-15 | 8.4e-15 | 936,671,523 |
+
+What the runs show:
+
+- Memory: the peak is within 5 % of the planner's figure in all six runs. In the blast wave it
+  is above the figure the planner calls "up to" in every precision, by 3.6 %, 3.2 % and 1.4 %.
+  `compact` lowers the peak by 1.51 GB per GPU in the bow shock (13.9 %; the planner's
+  difference is 1.57 GB) and by 3.43 GB in the blast wave (15.5 %; planner 2.93 GB).
+- The GPUs of one run differ: in the blast wave the largest samples of the eight GPUs lie
+  between 17.67 and 22.21 GB in `fp64` and between 17.40 and 18.78 GB in `compact`. Which
+  allocation makes the difference between the GPUs was not examined.
+- Time: the wall time of `compact` is 7.1 % (bow shock) and 7.7 % (blast wave) below `mixed`.
+  One run each; the variation between runs of the same build was not measured, and the wall
+  time holds the diagnostics and the output, which do not depend on the precision of the push.
+- Energy budget: its change over the run differs from `fp64` by at most 5.2e-5 of the budget
+  (`compact`, bow shock); the change itself is 2.6e-2 and 1.9e-2 (explicit scheme with open
+  faces: monitored, no limit). The `energy_budget_change` of the blast-wave analysis, which is
+  relative to the initial kinetic energy of the debris, is 0.109002, 0.108987 and 0.108985.
+- The three precisions do not follow the same trajectories (the particle numbers at the end
+  differ by up to 1.4e-4), so the differences above are not a rounding bound of the mode.
+
+Not covered by these runs: a build with reflecting walls or periodic axes at this size (the
+tests and the benchmark above cover them at their sizes), and a production-size run.
