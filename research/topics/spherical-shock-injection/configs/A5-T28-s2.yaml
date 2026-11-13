@@ -1,0 +1,97 @@
+# Campaign A run A5-T28-s2 (topic spherical-shock-injection; design: ../campaign-a.md).
+# Written by campaign_a.py; run with ../run_piston.py.
+mass_ratio: 16.0
+mach_alfven: 5.0
+wpe_wce: 3.5
+vte: 0.28
+ti_te: 0.127551
+rm: 35.0
+shell_radius: 0.33
+shell_width: 0.1
+debris_beams: 2
+body: false
+half_width: 0.46902
+cells_per_de: 2.0
+ppc: 2
+run: 0.31408
+filter_passes: 4
+seed: 54321
+overrides:
+  precision: compact
+output:
+  # As strong-P5.yaml, for a box of 384 d_e (centre 192); hot_e from gamma 1.5 every 36 steps (at the
+  # times of the slices, as `analyze.py census` and `counts` need).
+  diagnostics:
+    - name: coarse
+      kind: fields
+      fields: ["n:e", "flux:e", "ekin:e", "n:i", "flux:i", "ekin:i", "n:de", "flux:de", "ekin:de",
+               "n:di", "flux:di", "ekin:di", E, B, rho]
+      coarsen: [13, 13, 13]
+      every: 144
+    - name: slice_z
+      kind: slice
+      fields: ["n:e", "n:i", "n:de", "n:di", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: z
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 36
+    - name: slice_y
+      kind: slice
+      fields: ["n:e", "n:i", "n:de", "n:di", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: y
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 36
+    - name: slice_x
+      kind: slice
+      fields: ["n:e", "n:i", "n:de", "n:di", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: x
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 36
+    - name: spec_meridional
+      kind: histogram
+      species: [e, i, de, di]
+      quantities: [x, z, ekin]
+      bins: [192, 192, 96]
+      ranges: [[0.0, 384.0], [0.0, 384.0], [0.0001, 100.0]]
+      log: [false, false, true]
+      region: [null, [184.0, 200.0], null]
+      every: 72
+    - name: spec_equatorial
+      kind: histogram
+      species: [e, i, de, di]
+      quantities: [x, y, ekin]
+      bins: [192, 192, 96]
+      ranges: [[0.0, 384.0], [0.0, 384.0], [0.0001, 100.0]]
+      log: [false, false, true]
+      region: [null, null, [184.0, 200.0]]
+      every: 72
+    - name: spec_all
+      kind: histogram
+      species: [e, i, de, di]
+      quantities: [ekin]
+      bins: [224]
+      ranges: [[0.000001, 100.0]]
+      log: [true]
+      every: 36
+    - name: spec_up
+      kind: histogram
+      species: [e, i]
+      quantities: [ekin]
+      bins: [224]
+      ranges: [[0.000001, 10.0]]
+      log: [true]
+      region: [[16.0, 48.0], [16.0, 48.0], [16.0, 368.0]]
+      every: 36
+    - name: hot_e
+      kind: particles
+      species: [e, de]
+      select: {gamma_min: 1.5}
+      every: 36
+    - name: tracks_e
+      kind: tracks
+      species: [e]
+      stride: 947
+      with_fields: true
+      every: 2
