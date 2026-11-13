@@ -312,6 +312,13 @@ def selftest() -> int:
     r2checks.selfcheck(check)
     drive.selfcheck(check)
     sites.selfcheck(check)
+    th = np.radians(np.array([90.0, 0.0, 45.0]))
+    cos_d, tbn_d = sk.dipole_tbn(th, np.full(3, 100.0), np.zeros(3))
+    check("dipole theta_Bn on a sphere", np.allclose(np.degrees(tbn_d), [90.0, 0.0, np.degrees(np.arctan(0.5))]),
+          f"{np.degrees(tbn_d).round(3).tolist()} at polar angles 90, 0, 45 (90, 0, 26.565)")
+    bx_, by_, bz_ = sk.dipole_field(np.array([100.0, 0.0]), np.zeros(2), np.array([0.0, 100.0]), 1e6)
+    check("dipole field, equator and pole", np.allclose([bz_[0], bz_[1]], [-1.0, 2.0]) and np.allclose(bx_, 0.0),
+          f"B_z {bz_.round(6).tolist()} at r = 100 on the equator and the pole for m = 1e6 (-1, 2)")
     campaign.selfcheck(check)
     routes.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
@@ -425,7 +432,7 @@ def _fit_vht(front, theta, t):
     return np.where(((t >= t0) & (t <= t1))[:, None], v, np.nan)
 
 
-def measure_front(planes, d_i, v_a, c_s, omega_ci, r_outer) -> dict:
+def measure_front(planes, d_i, v_a, c_s, omega_ci, r_outer, dipole=None) -> dict:
     """The front of protocol Sect. 4 from one or two meridional planes (results of measure_plane, same outputs).
 
     The front is the mean of the planes where all of them show one. Returns arrays on (time, theta bin):
@@ -455,6 +462,17 @@ def measure_front(planes, d_i, v_a, c_s, omega_ci, r_outer) -> dict:
         out["r_debris_thr"] = np.nanmax(stack["r_debris"], axis=0)
     out["r_debris"] = out["r_debris_thr"][:, 1]
     out.update(sk.front_kinematics(th, t, out["r"]))
+    omega_row = None
+    if dipole is not None:
+        # a dipole along z: theta_Bn from the local field direction, v_A and Omega_ci from |B| at the front
+        out["cos_tbn"], out["tbn"] = sk.dipole_tbn(th[None, :], out["r"], out["r_theta"])
+        with np.errstate(invalid="ignore", divide="ignore"):
+            out["v_ht"] = out["v_n"] / out["cos_tbn"]
+            bmag = dipole["moment"] / out["r"] ** 3 * np.sqrt(1.0 + 3.0 * np.cos(th)[None, :] ** 2)
+        out["b_local"] = bmag
+        v_a = bmag / np.sqrt(dipole["m_i"])
+        omega_ci = bmag / dipole["m_i"]
+        omega_row = dipole["moment"] / dipole["r_ref"] ** 3 / dipole["m_i"]
     fits = [_fit(th, t, r_thr[:, k]) for k in range(len(N_FRONT))]
     out["front"], out["rms"] = fits[1]
     out["fits_thr"] = [f for f, _ in fits]
@@ -472,7 +490,7 @@ def measure_front(planes, d_i, v_a, c_s, omega_ci, r_outer) -> dict:
     out["front_B"], out["rms_B"] = _fit(th, t, out["r_b"], out["b_mean"] >= 1.5)
     out["gap_b"] = out["r"] - out["r_b"]
     out.update(sk.valid_domain(out["r"], out["r_debris"], out["r_bmax"], out["v_n"], out["sigma_v"], out["tbn"], t,
-                               v_a, c_s, omega_ci, r_outer))
+                               v_a, c_s, omega_ci, r_outer, omega_row=omega_row))
     with np.errstate(invalid="ignore", divide="ignore"):
         # a flow along the normal has the radial part u_n R / sqrt(R^2 + R_theta^2)
         u_n = out["u_r"] * np.sqrt(out["r"] ** 2 + out["r_theta"] ** 2) / out["r"]
@@ -490,7 +508,8 @@ def _open(run_dir):
 
 
 def _slice_frames(series, b0, comps):
-    """Frames of a slice series for measure_plane; comps: the two in-plane axes, e.g. "xz"."""
+    """Frames of a slice series for measure_plane; comps: the two in-plane axes, e.g. "xz". b0 is a number (the
+    uniform field) or an array of the plane (the static field of a dipole run): |B| is divided by it."""
     keys = series.keys()
     for i, t in enumerate(series.t):
         bmag = np.sqrt(sum(series.read(f"B{c}", i).astype(float) ** 2 for c in "xyz")) / b0
@@ -535,12 +554,22 @@ def cmd_front(args) -> int:
     half = 0.5 * float(run.L[2])
     r_outer = half - 8.0
     names = [n for n in ("slice_y", "slice_x") if _has_series(run, n)]
+    dips = run.config.get("external_fields", {}).get("dipoles") or []
+    dipole = None
+    if dips:
+        dipole = {"moment": float(dips[0]["moment"][2]), "m_i": m_i, "r_ref": float(args.r_ref)}
     planes = []
     for name in names:
         ser = run.series(name)
         comps = "xz" if name == "slice_y" else "yz"
         a, z = ser.plane_axes("n:i")
-        planes.append(measure_plane(_slice_frames(ser, b0, comps), a, z,
+        norm = b0
+        if dipole is not None:
+            aa, zz = np.meshgrid(np.asarray(a, float) - centre[0 if name == "slice_y" else 1],
+                                 np.asarray(z, float) - centre[2], indexing="ij")
+            bx, by, bz = sk.dipole_field(aa, 0.0 * aa, zz, dipole["moment"], b0)
+            norm = np.sqrt(bx ** 2 + by ** 2 + bz ** 2)
+        planes.append(measure_plane(_slice_frames(ser, norm, comps), a, z,
                                     (centre[0 if name == "slice_y" else 1], centre[2]), d_i))
     t = planes[0]["t"]
     c_s0 = sk.sound_speed(v_a, pl["beta"])
@@ -553,7 +582,7 @@ def cmd_front(args) -> int:
         up["T_i_used"] = t_i
     else:
         c_s = np.full(len(t), c_s0)
-    res = measure_front(planes, d_i, v_a, c_s, omega_ci, r_outer)
+    res = measure_front(planes, d_i, v_a, c_s, omega_ci, r_outer, dipole=dipole)
     th = res["theta"]
     deg = np.degrees(th)
 
@@ -564,7 +593,11 @@ def cmd_front(args) -> int:
     eq_n, eq_b = [], []
     for i in range(len(eq.t)):
         eq_n.append(sk.outermost_crossing(pe.mean(eq.read("n:i", i)), pe.r, N_FRONT[1]))
-        eq_b.append(sk.outermost_crossing(pe.mean(eq.read("Bz", i)) / b0, pe.r, 1.25))
+        if dipole is None:
+            eq_b.append(sk.outermost_crossing(pe.mean(eq.read("Bz", i)) / b0, pe.r, 1.25))
+        else:  # |B_z| over the static |B_z| of the dipole (plus B0) in the equatorial plane
+            static = np.abs(-dipole["moment"] / np.maximum(pe.r, 1e-9) ** 3 + b0)
+            eq_b.append(sk.outermost_crossing(pe.mean(np.abs(eq.read("Bz", i).astype(float))) / static, pe.r, 1.25))
     eq_n, eq_b = np.array(eq_n), np.array(eq_b)
 
     flags = ("ok_planes", "ok_thresholds", "ok_local", "ok_quadrants")
@@ -1047,6 +1080,8 @@ def main(argv=None) -> int:
     p.add_argument("--out", default=None)
     p = sub.add_parser("front", help="front, valid shock domain and compression of a run (protocol Sect. 4)")
     p.add_argument("run", type=Path)
+    p.add_argument("--r-ref", type=float, default=70.0, help="dipole runs: radius [d_e] of the equatorial ion "
+                   "gyro-frequency that sets the persistence of 2 / Omega_ci (dipole-design.md)")
     p = sub.add_parser("cadence", help="work closure of tracks read every 1-4 steps (fixes the track cadence)")
     p.add_argument("run", type=Path)
     p = sub.add_parser("census", help="energetic electrons by origin, class, band and result (protocol Sect. 6)")

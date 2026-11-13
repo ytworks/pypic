@@ -623,8 +623,9 @@ def _in_a_row(mask, n: int):
     return out
 
 
-def valid_domain(radius, r_debris, r_bmax, v_n, sigma_v, tbn, t, v_a: float, c_s, omega_ci: float, r_outer: float,
-                 lead: float = 0.7, mach: float = 1.5, mach_low: float = 1.1, age: float = 2.0) -> dict:
+def valid_domain(radius, r_debris, r_bmax, v_n, sigma_v, tbn, t, v_a, c_s, omega_ci, r_outer: float,
+                 lead: float = 0.7, mach: float = 1.5, mach_low: float = 1.1, age: float = 2.0,
+                 omega_row: float | None = None) -> dict:
     """The valid shock domain of the protocol (Sect. 4) on the (time, theta) bins.
 
     c_s: the upstream sound speed, a number or one value per output (n_t,). Returns the masks
@@ -634,7 +635,9 @@ def valid_domain(radius, r_debris, r_bmax, v_n, sigma_v, tbn, t, v_a: float, c_s
     e (t >= age / Omega_ci and R <= r_outer - V_n / Omega_ci), valid (d and e), and n_row."""
     t = np.asarray(t, float)
     c_s = np.broadcast_to(np.asarray(c_s, float), t.shape)[:, None]
-    n_row = outputs_in(age / omega_ci, float(np.median(np.diff(t))))
+    # v_a and omega_ci may be arrays on the (time, theta) bins (a dipole: the local field at the front); the
+    # persistence then counts outputs with omega_row, the ion gyro-frequency at the reference radius of the design
+    n_row = outputs_in(age / (omega_row if omega_row is not None else omega_ci), float(np.median(np.diff(t))))
     a = np.isfinite(radius)
     with np.errstate(invalid="ignore"):
         v_f = fast_speed(v_a, c_s, tbn)
@@ -670,3 +673,24 @@ def fit_temperature(hist, edges, t_guess: float, lo: float = 0.5, hi: float = 5.
         temp = -sxx / sxy
     ok = ((h > 0).sum(axis=-1) >= 3) & (sxy < 0)
     return np.where(ok, temp, np.nan), sw
+
+
+def dipole_field(x, y, z, moment, b0=0.0):
+    """Field of a point dipole moment (along z, at the origin) plus a uniform b0 along z, at (x, y, z)."""
+    r2 = x * x + y * y + z * z
+    r5 = np.maximum(r2, 1e-30) ** 2.5
+    bx = 3.0 * moment * x * z / r5
+    by = 3.0 * moment * y * z / r5
+    bz = moment * (3.0 * z * z - r2) / r5 + b0
+    return bx, by, bz
+
+
+def dipole_tbn(theta, radius, r_theta):
+    """theta_Bn between the outward normal of a surface r(theta) and a dipole field along z (both hemispheres
+    folded): the field direction in the (r, theta) basis is (2 cos theta, sin theta). Returns (cos_tbn, tbn)."""
+    th = np.broadcast_to(np.asarray(theta, float), np.shape(radius))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        k = np.asarray(r_theta, float) / np.asarray(radius, float)
+        num = np.abs(2.0 * np.cos(th) - k * np.sin(th))
+        cos_tbn = num / (np.sqrt(4.0 * np.cos(th) ** 2 + np.sin(th) ** 2) * np.sqrt(1.0 + k * k))
+    return cos_tbn, np.arccos(np.clip(cos_tbn, 0.0, 1.0))
