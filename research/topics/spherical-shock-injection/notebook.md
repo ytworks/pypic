@@ -3,6 +3,29 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Path (a): electrons born inside the initial debris shell
+
+Script and output: `P5/analysis/figures/patha.py`, `patha.json`. Drift frame and smoothing as for path (b).
+
+- **Birth.** 33,697 tracked electrons start inside the initial debris edge (78 d_e). Share reaching
+  γ_max ≥ 1.5 (≥ 2) by birth radius: 10 % (0.4 %) at 40–50 d_e, 20 % (2.4 %) at 50–60, 15 % (1.5 %) at 60–70,
+  6 % (0.3 %) at 70–80, about 0 below 30 (shell peak at 46 d_e, width 14). By polar angle: 0.35 % at 0–15°,
+  12–14 % at 45–90°. Born outside the shell: 0.2 % (0.002 %).
+- **γ_max ≥ 2 (336).** Main gain window (largest rise of the gyration-averaged γ' over 20 units) starts at
+  t ≈ 50–150 (median 123; 21 of 336 before t = 50). Place: foot 44 %, cavity 22 %, steep wall 22 %, transition
+  layer 0.2 %; 14 d_e inside the debris edge (median); |B| 0.9 B₀; polar angle 77° (median); drift speed 0.30 c.
+  Work over the windows: E_φ +87, E_par +16, E_θ +15, E_r +7 (smoothed), all +90 (unsmoothed); Δγ (lab) +104,
+  Δγ' (drift frame) +153. Smoothed p⊥²/B grows 2.3 times while γ' grows 1.25 times: not adiabatic. The
+  gyration-averaged γ' reaches 1.92 (median): energy also in the plasma frame.
+- **γ_max 1.5–2 (3420):** the same pattern, weaker (γ' level 1.42; foot 36 %, steep 34 %).
+- **Control (inside-born, γ_max < 1.3; 3000):** born nearer the centre or the edge (10 % below 30 d_e), more time
+  in the cavity, main windows spread to late times; γ' level 1.11.
+- **Reading, not decided.** The gain is a drift along E_φ on the inner side of the magnetic wall (foot), not
+  adiabatic, real in the plasma frame. What separates (a) from (b) is the side of the wall: (a) sits on the
+  inner side, (b) on the outer side and is only heated. The electrons that reach the inner side are almost only
+  ambient electrons placed inside the debris shell at t = 0: the mechanism may be physical, but its population
+  depends on the initial overlap of ambient plasma and debris in P5.
+
 ## 2026-11-13 — Path (b) followed along its history: shock heating, and in the plasma frame no more
 
 Owner: find the mechanism of path (b) (heated at the shock, then more) from the place on the sphere and the
