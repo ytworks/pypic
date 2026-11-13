@@ -211,12 +211,14 @@ def preload(table: dict, ly: float, dy: float, h: dict | None = None) -> tuple:
     particles do not carry) is left out; the plasma sets it up."""
     m = table["modes"][0]
     k = m["k"][1]
+    gph = float(m.get("phase", 0.0))  # the mode's own phase, th = k y - w t + phase (review of PR #50)
     kd = 2.0 * math.sin(0.5 * k * dy) / dy  # the discrete derivative of the potential along y
     fields, pert = [], {name: [] for name in m["u"]}
     hx = {"x": h} if h else {}
     for c in "xz":
         a = "xyz".index(c)
         R, ph = _cosine(m["B"]["cos"][a], m["B"]["sin"][a])
+        ph += gph
         if R == 0.0:
             continue
         if h:
@@ -229,6 +231,7 @@ def preload(table: dict, ly: float, dy: float, h: dict | None = None) -> tuple:
     for c in "xz":
         a = "xyz".index(c)
         R, ph = _cosine(m["E"]["cos"][a], m["E"]["sin"][a])
+        ph += gph
         if R == 0.0:
             continue
         if c == "x" and not h:
@@ -238,6 +241,7 @@ def preload(table: dict, ly: float, dy: float, h: dict | None = None) -> tuple:
     for name, u in m["u"].items():
         for a, c in enumerate("xyz"):
             R, ph = _cosine(u["cos"][a], u["sin"][a])
+            ph += gph
             if R > 0.0:
                 pert[name].append({"shape": {"y": _ycos(ly, ph), **hx}, "velocity": R, "velocity_component": c})
     return fields, pert

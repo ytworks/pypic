@@ -235,3 +235,21 @@ def test_marder_zone_leaves_no_incident_field_on_the_outer_conductor():
     assert float(cp.max(cp.abs(g.Ez[int(wall[0])]))) == 0.0
     assert float(cp.max(cp.abs(g.Ey[int(wall[0])]))) == 0.0
     sim.close()
+
+
+def test_a_fluctuation_alone_staggers_the_momenta(monkeypatch):
+    """Without E0, B0, initial fields or displacements, a fluctuation table still acts on the particles
+    next to its face from t = 0: the loaded momenta are taken back half a step (review of PR #50)."""
+    calls = []
+    orig = Simulation._initial_half_kick
+
+    def spy(self):
+        calls.append(True)
+        return orig(self)
+
+    monkeypatch.setattr(Simulation, "_initial_half_kick", spy)
+    cfg = M.config(steps=1)
+    cfg.B0, cfg.E0 = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.close()
+    assert calls

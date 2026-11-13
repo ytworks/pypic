@@ -185,3 +185,27 @@ def test_stats_of_a_segment_without_steps():
     run = SimpleNamespace(scalars=s, meta={"run": {"wall_time_s": 0.1, "steps": 0, "ns_per_particle_step": 0.0}})
     out = analyze._stats(run)
     assert math.isnan(out["ms_per_step"]) and out["gauss_max"] == 1e-15
+
+
+def test_preload_keeps_the_phase_of_the_mode():
+    """The loaded wave is the incident one at t = 0 also for a mode with a phase of its own: every
+    preloaded field and velocity carries the table's phase (review of PR #50)."""
+    from pypic.profiles import evaluate
+
+    sp = T.two_fluid(16)
+    k, ly = 2 * math.pi / 32, 32.0
+    table = T.fluctuation(T.parallel_wave(k, B, sp, "R", 0.2), 0.05, phase=0.7)
+    fields, pert = T.preload(table, ly, 0.25)
+    m = table["modes"][0]
+    y = np.linspace(0.0, ly, 64, endpoint=False)
+    th = k * y + m["phase"]
+    for f in fields:  # profiles of B_x, B_z, E_x along y
+        a = "xyz".index(f["component"][1])
+        C, S = m[f["component"][0]]["cos"][a], m[f["component"][0]]["sin"][a]
+        shape = {kk: v for kk, v in f.items() if kk not in ("kind", "component", "axis")}
+        assert np.allclose(evaluate(shape, y), C * np.cos(th) + S * np.sin(th), atol=1e-12)
+    for p in pert["i"]:
+        a = "xyz".index(p["velocity_component"])
+        C, S = m["u"]["i"]["cos"][a], m["u"]["i"]["sin"][a]
+        assert np.allclose(p["velocity"] * evaluate(p["shape"]["y"], y), C * np.cos(th) + S * np.sin(th),
+                           atol=1e-12)

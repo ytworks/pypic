@@ -170,7 +170,8 @@ class Simulation:
             self._relax = ([cp.flatnonzero(m) for m in edges], math.exp(-cfg.body.relax * cfg.dt))
         if self.fluct is not None:
             self._tfsf_start()
-        if not self.implicit and (moved or fields_set or any(self.B0) or self.external):
+        # an inflow fluctuation (PIC-D26) acts on the particles next to its face from t = 0 on
+        if not self.implicit and (moved or fields_set or any(self.B0) or self.external or self.fluct is not None):
             if self.fluct is not None:
                 self._tfsf_gather(0.0, +1.0)
             self._initial_half_kick()

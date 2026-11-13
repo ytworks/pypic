@@ -374,6 +374,13 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
     periodic copies of a point get different incident corrections. `test_modes_must_fit_a_periodic_axis`.
   - **P2:** a series file without a committed row (a writer killed during its first creation) is made anew when
     a run continues. `test_rowless_series_left_by_a_killed_writer_is_made_anew`.
+- **Review of PR #50, round 9** (Codex, on 5968a2d): two findings, fixed with tests that fail on the code
+  before.
+  - **P2:** a fluctuation table alone (without E0, B0, initial fields or displacements) triggers the initial
+    half kick. `test_a_fluctuation_alone_staggers_the_momenta`.
+  - **P2:** `alfven_inflow`'s `theory.preload` carries the mode's own phase into every loaded field and
+    velocity. `test_preload_keeps_the_phase_of_the_mode` (CPU).
+  - Neither changes the configurations run so far: they have B0 ≠ 0 and phase 0.
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 
