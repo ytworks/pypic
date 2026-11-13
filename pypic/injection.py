@@ -231,6 +231,13 @@ def check_fluctuation(cfg):
             raise ValueError("inflow fluctuation mode: k needs three components")
         if k[axis] != 0.0:
             raise ValueError("inflow fluctuation mode: k must have no component along the normal of the face")
+        for a in range(3):  # periodic copies of a point must see the same incident field (review of PR #50)
+            if a != axis and k[a] != 0.0 and tuple(cfg.boundaries[a]) == ("periodic", "periodic"):
+                L = cfg.n_cells[a] * cfg.dx[a]
+                turns = k[a] * L / (2.0 * math.pi)
+                if abs(turns - round(turns)) > 1e-9 * max(1.0, abs(turns)):
+                    raise ValueError(f"inflow fluctuation mode: k_{'xyz'[a]} L_{'xyz'[a]} / 2 pi = {turns:.6g} must be "
+                                     "an integer on a periodic axis")
         w, ph = float(m.get("omega", 0.0)), float(m.get("phase", 0.0))
         Bc, Bs = _pair(m.get("B"), "B")
         Ec, Es = _pair(m.get("E"), "E")

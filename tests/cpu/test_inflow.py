@@ -10,6 +10,7 @@ from pypic.config import Injection, Window
 from pypic.injection import check_fluctuation
 
 K, W, B0 = 0.5, 0.2, 1.0
+LY = 2 * math.pi / K  # one wavelength across the periodic y axis
 
 
 def _mode():
@@ -28,7 +29,7 @@ def _cfg(mode, **kw):
     bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
     sp = [SpeciesConfig("e", -1, 1, [Beam(1.0, (-0.05, 0, 0), 1e-3)]),
           SpeciesConfig("i", 1, 16, [Beam(1.0, (-0.05, 0, 0), 1e-4)])]
-    return SimConfig(n_cells=(16, 8, 2), boundaries=bc, species=sp, B0=(0, B0, 0),
+    return SimConfig(n_cells=(16, 8, 2), dx=(0.1, LY / 8, 0.1), boundaries=bc, species=sp, B0=(0, B0, 0),
                      injection=Injection(faces={"x+": "flux"}, fluctuation={"face": "x+", "modes": [mode]}), **kw)
 
 
@@ -64,7 +65,8 @@ def test_unsupported_combinations_are_refused():
 
 def _beam_cfg(drift, mode):
     bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
-    return SimConfig(n_cells=(16, 8, 2), boundaries=bc, species=[SpeciesConfig("e", -1, 1, [Beam(1.0, drift, 0.0)])],
+    return SimConfig(n_cells=(16, 8, 2), dx=(0.1, LY / 8, 0.1), boundaries=bc,
+                     species=[SpeciesConfig("e", -1, 1, [Beam(1.0, drift, 0.0)])],
                      injection=Injection(faces={"x+": "flux"}, fluctuation={"face": "x+", "modes": [mode]}))
 
 
@@ -101,3 +103,13 @@ def test_faraday_is_checked_against_its_own_terms():
     mode = {"k": [0.0, K, 0.0], "omega": w, "B": {"cos": [0.0, 0.0, b]}, "u": {"i": {"sin": [Js, 0.0, 0.0]}}}
     with pytest.raises(ValueError, match="omega B - k x E"):
         check_fluctuation(_cfg(mode))
+
+
+def test_modes_must_fit_a_periodic_axis():
+    """A wave number that does not fit the periodic y axis (k L / 2 pi not an integer) gives different
+    incident corrections at the periodic copies of a point; refused (review of PR #50)."""
+    m = copy.deepcopy(_mode())
+    cfg = _cfg(m)
+    cfg.dx = (0.1, 0.2, 0.1)  # L_y = 1.6, k L_y / 2 pi = 0.127
+    with pytest.raises(ValueError, match="must be an integer on a periodic axis"):
+        check_fluctuation(cfg)

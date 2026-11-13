@@ -259,3 +259,21 @@ def test_series_cut_keeps_only_the_committed_prefix(tmp_path):
     assert truncate_series(path, 6) == 6
     with h5py.File(path, "r") as f:
         assert f["step"][...].tolist() == list(range(6))
+
+
+def test_rowless_series_left_by_a_killed_writer_is_made_anew(tmp_path):
+    """A writer killed during its first creation leaves a file with only ``t`` (or ``t`` and ``step``)
+    and no row: the continued run makes it anew instead of failing (review of PR #50)."""
+    import h5py
+
+    from pypic.output.h5 import SeriesWriter
+
+    path = str(tmp_path / "s.h5")
+    with h5py.File(path, "w") as f:
+        f.create_dataset("t", shape=(0,), maxshape=(None,), dtype=np.float64)
+    w = SeriesWriter(path, {"diagnostic": "s"}, "deflate", 1, max_rows=4, append=True)
+    for s in range(3):
+        w.append(s, 0.5 * s, {"v": np.full(2, float(s))})
+    w.close()
+    with h5py.File(path, "r") as f:
+        assert f["step"][...].tolist() == [0, 1, 2] and f["v"].shape == (3, 2)

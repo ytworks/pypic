@@ -80,6 +80,14 @@ class SeriesWriter:
         self.n = 0  # rows on disk
         self.buf = []  # pending rows: (step, t, data)
         if append and os.path.exists(path):  # a run continued from a checkpoint (OUT-D6)
+            with h5py.File(path, "r") as f:
+                committed = int(f["step"].shape[0]) if "step" in f else 0
+            if committed == 0:
+                # no committed row: the file may hold a schema that a killed writer left half made
+                # (only ``t``, or ``t`` and ``step``); it is made anew (review of PR #50)
+                os.remove(path)
+                append = False
+        if append and os.path.exists(path):
             self.f = h5py.File(path, "a", libver="latest")
             if "step" in self.f:
                 self.ds = {k: v for k, v in self.f.items() if k not in self.FIXED}

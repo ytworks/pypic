@@ -78,8 +78,8 @@ def test_the_table_of_the_wave_satisfies_maxwell_with_its_current():
     table = T.fluctuation(T.parallel_wave(k, B, sp, "R", 0.2), v0)
     table["tolerance"] = 5e-3
     u0 = v0 / math.sqrt(1 - v0 * v0)
-    cfg = SimConfig(n_cells=(16, 8, 2), species=[SpeciesConfig(n, q, m, [Beam(d, (-u0, 0, 0), 1e-3)])
-                                                 for n, q, m, d in sp],
+    cfg = SimConfig(n_cells=(16, 8, 2), dx=(0.25, 4.0, 0.25),  # one wavelength (32) across y
+                    species=[SpeciesConfig(n, q, m, [Beam(d, (-u0, 0, 0), 1e-3)]) for n, q, m, d in sp],
                     boundaries=(("open", "open"), ("periodic", "periodic"), ("periodic", "periodic")),
                     B0=(0, B, 0), E0=(0, 0, v0 * B), injection=Injection(faces={"x+": "flux"}, fluctuation=table))
     out = check_fluctuation(cfg)

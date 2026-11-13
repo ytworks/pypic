@@ -368,6 +368,12 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
   - **P2:** a series cut keeps the committed prefix only: the strictly increasing steps before the checkpoint
     step. Before, it searched steps that a writer killed between extending and filling the datasets had left
     unsorted. `test_series_cut_keeps_only_the_committed_prefix` (CPU); it fails on the code before.
+- **Review of PR #50, round 8** (Codex, on ad15a7e): two findings, fixed with tests that fail on the code
+  before.
+  - **P2:** a mode's wave number must fit each periodic transverse axis (k L / 2π an integer). Otherwise the
+    periodic copies of a point get different incident corrections. `test_modes_must_fit_a_periodic_axis`.
+  - **P2:** a series file without a committed row (a writer killed during its first creation) is made anew when
+    a run continues. `test_rowless_series_left_by_a_killed_writer_is_made_anew`.
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 
