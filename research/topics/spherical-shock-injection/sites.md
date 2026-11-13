@@ -69,3 +69,6 @@ Besides its site, each sample of a tracked electron gets:
 
 Across the field the distance to the front is Δn / sin θ_Bn, along it Δn / cos θ_Bn. Near the equator the
 field lies along the surface and Δn is the cross-field distance; at middle latitudes it is not.
+
+**Dipole runs (2026-11-13):** |B| is divided by the static field at each cell (the dipole plus B0) instead of
+B0, so every rule above reads "the compression over the static field" (`sites.cmd_sites`).

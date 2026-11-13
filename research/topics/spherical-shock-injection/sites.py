@@ -107,10 +107,19 @@ def cmd_sites(args) -> int:
     if not np.allclose(t, fz["t"]):
         raise SystemExit("slice_y and front.npz are not at the same times")
     nt, nth = len(t), len(theta)
+    # |B| over the static field: B0 for a uniform field; for a dipole run the dipole plus B0 at every cell, so that
+    # the profile is a compression ratio (B0 replaced by the local field in the rule of the docstring)
+    norm = b0
+    dips = run.config.get("external_fields", {}).get("dipoles") or []
+    if dips:
+        from shockkin import dipole_field
+        X, Z = np.meshgrid(xc, zc, indexing="ij")
+        bx, by, bz = dipole_field(X, 0.0 * X, Z, float(dips[0]["moment"][2]), b0)
+        norm = np.sqrt(bx ** 2 + by ** 2 + bz ** 2)
     prof = np.full((nt, nth, len(rc)), np.nan, np.float32)
     r0, r1, rb = (np.full((nt, nth), np.nan) for _ in range(3))
     for i in range(nt):
-        bmag = np.sqrt(sum(np.asarray(s[k][i], float) ** 2 for k in ("Bx", "By", "Bz"))) / b0
+        bmag = np.sqrt(sum(np.asarray(s[k][i], float) ** 2 for k in ("Bx", "By", "Bz"))) / norm
         prof[i] = ray_profiles(bmag, xc, zc, theta_edges, r_edges)
         for j in range(nth):
             r0[i, j], r1[i, j], rb[i, j] = boundaries(rc, prof[i, j].astype(float), fz["r"][i, j], d_i)

@@ -3,6 +3,24 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — D1: a compression front through the dipole; no separated shock by the fixed definition
+
+- **Run** D1 from `e221e2c` (8 GPUs, 1760 steps, 14.5 min, dE/E0 +5.7 %). `analyze.py front` adapted to a dipole
+  first (`2b9fef3`: θ_Bn, V_HT, v_A and Ω_ci from the local dipole field at the front; persistence at the
+  equatorial Ω_ci of r = 70 d_e).
+- **Front** (ambient ions ≥ 1.5 n₀): appears at t = 72 at r ≈ 73 d_e at polar angles 57.5–87.5° together, at
+  42.5° at t = 108 (r 79), at 27.5° at t = 216 (r 103), near the pole only at the end. Local θ_Bn as the dipole
+  gives it: 85–90° (87.5°), 58–68° (72.5°), 37–40° (57.5°), 21–26° (42.5°), 12–18° (27.5°). Local fast Mach
+  2–4 throughout. Equatorial speed 0.28 c between r = 83 and 93 (above V_d), about 0.15 c later.
+- **Valid bins: 0** (criteria a 533, c 470, b 0). The front leads the debris edge by 8–19 d_e at the equator
+  against the 15–32 d_e required (0.7 of the local ion gyroradius at V_n, which grows as r³); at 42.5–72.5° it
+  stays within 0–10 d_e of the edge; at 27.5° the debris runs ahead of the front along the field.
+- **Against the predictions of `dipole-design.md` Sect. 3:** place and time of the first front as predicted
+  (the middle latitudes form at the same time as the equator, not after); the speed near R_m above and later
+  below 0.8–0.9 V_d. D-A was not testable by design.
+- **Reading:** in D1 the compression is strong (fast Mach 2–4) but stays driven by the debris through the whole
+  window in which the ions are magnetised: the local gyroradius grows faster than the front separates.
+
 ## 2026-11-13 — The target is a dipole: everything in a uniform field discarded
 
 - **Owner:** the aim was the planet as a magnet (a dipole); all runs so far are to be discarded and the design
