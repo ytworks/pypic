@@ -1,4 +1,4 @@
-# Cairns (1987): The electron distribution function upstream from the Earth's bow shock
+# Cairns (1987a): The electron distribution function upstream from the Earth's bow shock
 
 - Ref: J. Geophys. Res. 92(A3), 2315–2327 (1987); DOI 10.1029/JA092iA03p02315; peer-reviewed.
 - Read: 2026-11-13, abstract; topics: spherical-shock-injection
