@@ -184,3 +184,29 @@ def test_particles_next_to_the_face_feel_the_total_field():
     err = P[5][sel].std() / np.sqrt(sel.sum())
     assert abs(P[5][sel].mean()) < 4 * err
     sim.close()
+
+
+def test_tracks_next_to_the_face_report_the_total_field(tmp_path):
+    """The tracks gather the fields at the particles like the push: across the fluctuation face they
+    see the total field (review of PR #50). A table of zero amplitude in a uniform B0 = B y: a test
+    particle a quarter of a cell inside the face reports B_y = B0 (before the fix: 0.75 B0)."""
+    from pypic import SpeciesConfig
+    from pypic.analysis import open_run
+    from pypic.config import Injection, OutputConfig
+
+    fl = M.fluctuation()
+    for m in fl["modes"]:
+        m["B"] = m["E"] = {"cos": [0, 0, 0], "sin": [0, 0, 0]}
+        m["u"] = {}
+    cfg = M.config(steps=1)
+    cfg.injection = Injection(faces={"x+": "flux"}, fluctuation=fl)
+    u0 = M.V0 / math.sqrt(1 - M.V0 ** 2)
+    cfg.species = list(cfg.species) + [SpeciesConfig("t", -1, 1, [], test=True,
+                                                     particles=[[M.LX - 0.25 * M.DX, 3.0, 0.2, -u0, 0, 0]])]
+    cfg.output = OutputConfig(dir=str(tmp_path), diagnostics=[
+        dict(name="tr", kind="tracks", species=["t"], stride=1, every=1, with_fields=True, dtype="float64")])
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run()
+    sim.close()
+    tr = open_run(str(tmp_path)).tracks("tr", "t")
+    assert abs(float(np.asarray(tr["By"])[0, 0]) / M.B - 1.0) < 1e-9

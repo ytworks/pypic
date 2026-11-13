@@ -225,3 +225,15 @@ def test_rolled_back_tracks_are_made_anew_for_the_new_ids(tmp_path):
     assert truncate_series(tp, 9) == 1
     with pytest.raises(ValueError, match="tracked ids differ"):
         TrackWriter(tp, {}, "deflate", 1, np.array([1, 2]), append=True)
+
+
+def test_run_record_counts_the_steps_of_the_segment():
+    """A run continued from a checkpoint executes only its own segment: the record divides its wall
+    time by those steps, not by the step it ended on (review of PR #50)."""
+    from types import SimpleNamespace
+
+    from pypic.setup.runner import run_stats
+
+    sim = SimpleNamespace(wall_time=2.0, push_rate=lambda: 0.5, step_count=100, _run_steps=20)
+    st = run_stats(sim, 2)
+    assert st["steps"] == 20 and st["step_end"] == 100 and 1e3 * st["wall_time_s"] / st["steps"] == 100.0

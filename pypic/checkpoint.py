@@ -197,6 +197,9 @@ def pending_matches(r, n: int, last: int, count: int) -> bool:
     return last == min(n - 1, r.last) and last - count == lo
 
 
+RESTORE_CHUNK = 1 << 22  # particles per host-to-device copy of a restore onto another layout
+
+
 # ------------------------------------------------------------------------------- GPU side
 def _counters(sim):
     """Per-rank cumulative sums (cupy arrays), in the order of meta['reduced']: sdiag per species,
@@ -623,9 +626,17 @@ def _restore_other(sim, path, meta):
             if q == 0:
                 _restore_tracks(sim, z)
     for i, sp in enumerate(sim.species):
-        Q = np.concatenate(parts[i], axis=1) if parts[i] else np.zeros((8, 0))
-        sp.n = 0
-        sp._set_records(cp.asarray(Q))
+        # the records go to the device in chunks into storage freed and reserved first, so no full-size
+        # device temporary is needed (review of PR #50)
+        m = sum(p.shape[1] for p in parts[i])
+        sp.reserve_empty(m)
+        at = 0
+        for blk in parts[i]:
+            for s0 in range(0, blk.shape[1], RESTORE_CHUNK):
+                q = blk[:, s0: s0 + RESTORE_CHUNK]
+                sp._set_records(cp.asarray(q), start=at)
+                at += q.shape[1]
+        sp.n = m
         if sp.Pn is not None and sp.Pn.shape[1] != sp.cap:
             sp.Pn = cp.zeros((6, sp.cap), dtype=cp.float64)
     if sim.implicit:

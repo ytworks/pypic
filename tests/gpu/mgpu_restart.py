@@ -2,7 +2,8 @@
 
     mgpu_restart.py <dims> <case> <mode> <dir> [flags]
 
-case: two_stream (periodic counter-streaming electrons, every output diagnostic) | open_flow (six open
+case: big (counter-streaming electrons only, large stores) | two_stream (periodic counter-streaming electrons,
+every output diagnostic) | open_flow (six open
 faces, x- paired: the bank) | compact (open flow with filter, Marder zone, sphere, dipole and the
 compact storage) | window (a warm plasma in a moving window) | implicit (the implicit solver with an
 absorbing layer) | vacuum (no particle species, a laser antenna).
@@ -53,7 +54,10 @@ common = dict(dims=dims, n_steps=2 * N if mode != "part" else N + 3, checkpoint=
               restart=src or (os.path.join(out, "checkpoint") if mode == "resume" else None),
               output=OutputConfig(dir=out, diagnostics=diags, scalars=True, overwrite="overwrite" in flags))
 beams_e = [Beam(0.5, (0.3, 0.05, 0), 0.01), Beam(0.5, (-0.3, 0, 0.05), 0.01)]
-if case == "two_stream":
+if case == "big":  # particle stores large against everything else, for the memory of a restore
+    cfg = SimConfig(n_cells=(64, 32, 32), dx=(0.2,) * 3, dt=0.08, ppc=16, diag_interval=2, gauss_interval=0,
+                    species=[SpeciesConfig("e", -1, 1, beams_e)], **common)
+elif case == "two_stream":
     cfg = SimConfig(n_cells=(32, 8, 8), dx=(0.2,) * 3, dt=0.08, ppc=4, diag_interval=2, gauss_interval=4,
                     species=[SpeciesConfig("e", -1, 1, beams_e), SpeciesConfig("i", 1, 25, [Beam(1.0, theta=0.001)])],
                     **common)
@@ -94,7 +98,20 @@ else:  # open flow (tests/gpu/mgpu_open_flow.py: inject, compact)
                                                "z+": "flux"}, neutralizer="e"), **common)
 if "seed" in flags:
     cfg.seed += 1
-sim = Simulation(cfg, verbose=False)
+class _Peak(cp.cuda.MemoryHook):
+    name = "peak"
+
+    def __init__(self):
+        self.pool = cp.get_default_memory_pool()
+        self.start = self.peak = self.pool.used_bytes()
+
+    def malloc_postprocess(self, **kw):
+        self.peak = max(self.peak, self.pool.used_bytes())
+
+
+with _Peak() as _hook:  # growth of the device memory in use while the run is set up (and restored)
+    sim = Simulation(cfg, verbose=False)
+peak = _hook.peak - _hook.start
 start = sim.step_count
 sim.run()
 if "kill" in flags:  # an abrupt end after the checkpoint: the series files stay open for SWMR writing
@@ -120,6 +137,8 @@ if sim.rank == 0:
                                             "injected_charge", "lost_charge", "n_injected", "absorbed_charge",
                                             "n_absorbed", "boundary_flux", "dissipated", "window_out", "antenna",
                                             "n_particles", "gauss")})
+    res["peak"] = peak
+    res["store"] = int(sum(a.nbytes for a in sim.species[0].store)) if sim.species else 0
     res["ids"] = s[:-1].tolist()
     res["bank"] = float(s[-1])
     print(json.dumps(res))

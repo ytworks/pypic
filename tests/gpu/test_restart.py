@@ -21,6 +21,7 @@ SCRIPT = os.path.join(HERE, "mgpu_restart.py")
 TOL = 1e-10
 EXACT = ("step", "ids", "n_particles", "n_injected", "n_absorbed", "shift", "end")
 NOISE = ("gauss", "divB", "rho", "fill")  # round-off quantities, and the fill of the arrays (depends on the layout)
+MEMORY = ("peak", "store")  # device memory of the set-up (a fresh one and a restore differ)
 
 
 def _run(n, dims, case, mode, d, *extra, check=True):
@@ -52,7 +53,7 @@ def _compare(ref, o, dref, do):
     """Worst relative difference of the histories, the fields and the output files; exact items equal."""
     worst = 0.0
     for k, v in ref.items():
-        if k == "start" or k in NOISE:
+        if k == "start" or k in NOISE or k in MEMORY:
             continue
         if k in EXACT:
             assert o[k] == v, k
@@ -323,3 +324,18 @@ def test_compact_restore_with_an_empty_species(tmp_path):
     assert sim.step_count == 4 and sim.species[2].n == 0
     sim.run()
     sim.close()
+
+
+def test_restore_onto_another_layout_needs_no_full_size_device_copy(tmp_path):
+    """A restore onto another layout sends the records to the device in chunks into storage released
+    and reserved first (review of PR #50): on 1 GPU from a checkpoint of 2 GPUs, the peak growth of
+    the device memory while the run is set up exceeds that of a fresh set-up by less than half a
+    particle store (before: a full-size upload of the records while the loaded store was alive)."""
+    base = str(tmp_path / "b")
+    _run(2, "2,1,1", "big", "part", base)
+    fresh = _run(1, "1,1,1", "big", "part", str(tmp_path / "f"), "peak")
+    o = _run(1, "1,1,1", "big", "resume", base, "peak")
+    assert o["start"] == 20
+    growth = (o["peak"] - fresh["peak"]) / fresh["store"]
+    print(f"[restore onto another layout] peak growth over a fresh set-up {growth:.3f} store")  # diagnostic
+    assert growth < 0.5, growth

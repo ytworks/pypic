@@ -338,6 +338,17 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
   - **P2:** pending averages are dropped when the new schedule does not average (`keep_pending`; CPU test).
   - **P2:** a track file whose rows were all cut back is made anew for the ids of the continued run; one with
     rows of other ids is refused (CPU test).
+- **Review of PR #50, round 4** (Codex, on 81083fc): three findings, each fixed with a test that fails on the
+  code before.
+  - **P1:** a restore onto another layout uploaded the whole record array next to the loaded store. Storage is
+    now released and reserved first (`reserve_empty`), and the records go in chunks of 2²² particles
+    (`_set_records(start=)`). `test_restore_onto_another_layout_needs_no_full_size_device_copy`: peak growth
+    over a fresh set-up 0.24 store (0.62 before; limit 0.5).
+  - **P2:** the tracks gathered across the fluctuation face without the incident field. The outputs now run
+    with the total field on the half plane outside (`_output_step`).
+    `test_tracks_next_to_the_face_report_the_total_field`: B_y = B0 (0.75 B0 before).
+  - **P3:** the run record divided the wall time of a continued segment by the total steps. `run_stats` records
+    the steps of the segment and the step it ended on (CPU test).
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 

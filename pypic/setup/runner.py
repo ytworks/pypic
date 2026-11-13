@@ -42,6 +42,14 @@ def load_params(path: str, sets: list[str]) -> dict:
     return d
 
 
+def run_stats(sim, world: int) -> dict:
+    """The record of a run: the wall time and the steps of this run() (a run continued from a
+    checkpoint executes only its own segment; review of PR #50), and the step it ended on."""
+    steps = int(getattr(sim, "_run_steps", sim.step_count))
+    return {"wall_time_s": sim.wall_time, "ns_per_particle_step": sim.push_rate(), "gpus": world,
+            "steps": steps, "step_end": int(sim.step_count)}
+
+
 def run_example(example: str, plan, params_from_dict, argv=None, doc: str | None = None) -> int:
     ap = argparse.ArgumentParser(description=doc, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", required=True)
@@ -91,8 +99,7 @@ def run_example(example: str, plan, params_from_dict, argv=None, doc: str | None
     sim.output.update_meta({"example": example, "config_file": a.config, "params": d, "planner": info,
                             "report": full_report})
     sim.run(progress=a.progress)
-    stats = {"wall_time_s": sim.wall_time, "ns_per_particle_step": sim.push_rate(), "gpus": world,
-             "steps": sim.step_count}
+    stats = run_stats(sim, world)
     sim.output.update_meta({"run": stats})
     sim.close()
     if rank == 0:

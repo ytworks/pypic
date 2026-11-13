@@ -1451,11 +1451,24 @@ class Simulation:
         if float(np.sum(wd[:, 3])) > 0.0:  # the reduced count: every rank raises
             raise RuntimeError(self._WALL_ERROR)
 
+    def _output_step(self):
+        """The outputs due at this time level. With a fluctuation face (PIC-D26) the gathers of the
+        outputs (tracks with fields) see the total field across the face, as the push does; the
+        incident field sits only on the half plane outside the physical domain meanwhile (review of
+        PR #50)."""
+        if self.fluct is not None:
+            self._tfsf_gather(self.time, +1.0)
+        try:
+            self.output.on_step()
+        finally:
+            if self.fluct is not None:
+                self._tfsf_gather(self.time, -1.0)
+
     # ------------------------------------------------------------------ run
     def step(self):
         cfg = self.cfg
         # file output of the state at time level n (collective; rank 0 writes)
-        self.output.on_step()
+        self._output_step()
         do_diag = cfg.diag_interval > 0 and self.step_count % cfg.diag_interval == 0
         if cfg.sort_interval and self.step_count % cfg.sort_interval == 0:
             for sp in self.species:
@@ -1501,7 +1514,7 @@ class Simulation:
                     # a run that starts without energy (cold plasma at rest, no field) has no E0
                     msg += f" dE/E0={de / e0:+.3e}" if e0 else f" dE={de:+.3e}"
                 print(msg, flush=True)
-        self.output.on_step()  # outputs due at the final time level
+        self._output_step()  # outputs due at the final time level
         self.output.flush()
         cp.cuda.Device().synchronize()
         self.wall_time = time.perf_counter() - t0
