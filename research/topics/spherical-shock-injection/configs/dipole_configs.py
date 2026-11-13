@@ -53,8 +53,27 @@ overrides:
     return head + body + outputs(BOX, debris)
 
 
+DISK = """    - name: disk_e             # every electron in an equatorial slab (|z - c| < 20, |x - c|, |y - c| < 130 d_e):
+      # the electrons that collect in the equatorial disk of D1, followed by id from dump to dump (D1-disk)
+      kind: particles
+      species: [e]
+      region: [[62.0, 322.0], [62.0, 322.0], [172.0, 212.0]]
+      every: 36
+"""
+
+
+def config_disk():
+    """D1-disk: D1 with the same physics and seed; the tracks and hot_e are replaced by the slab dump."""
+    text = config("D1-disk", True)
+    head, rest = text.split("    - name: hot_e", 1)
+    return head.replace("Dipole run D1-disk", "Dipole run D1-disk (D1 rerun with a dump of the equatorial slab)") + DISK
+
+
 if __name__ == "__main__":
     for name, debris in (("D1", True), ("D1-null", False)):
         with open(os.path.join(HERE, name + ".yaml"), "w") as f:
             f.write(config(name, debris))
         print(name)
+    with open(os.path.join(HERE, "D1-disk.yaml"), "w") as f:
+        f.write(config_disk())
+    print("D1-disk")
