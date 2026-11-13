@@ -415,12 +415,32 @@ the wall (`apply_bc_B` zeroes the normal B) and the motional E = −v × B, whic
 tangential profile at a wall (PIC-D18).
 
 ### PIC-D25 — Restart checkpoints, onto the same or another layout (2026-11-13) — Status: Proposed
-Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2).
-- `checkpoint: {every, keep}` writes `<output>/checkpoint/step-<n>/`: one file of arrays per rank and `meta.json`
-  from rank 0. The directory is completed by a rename after a barrier.
-- **Restore:** onto the same layout directly, or onto another one by global particle positions, field blocks with
-  global index ranges, the bank by global column, and the reduced counters.
-- The configuration must match except for an allow-list.
+Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2). Code: `pypic/checkpoint.py`.
+- **Writing:** `checkpoint: {every: N, keep: 2}` (needs `output.dir`). At the end of every N-th step (state at
+  the start of step n) the output is flushed, then every rank writes `rank-<r>.npz` into
+  `<output.dir>/checkpoint/step-<n>.tmp/`; after a reduction of the per-rank error flags rank 0 writes
+  `meta.json` and renames the directory to `step-<n>`. The last `keep` complete checkpoints stay.
+- **State:**
+  - `rank-<r>.npz`: E, B and J with ghosts, the CPML memory, the implicit `Eprev`; the particle store of each
+    species as built (FP64 rows, or the compact W, C, F, U) with n and the capacity; the injection bank and its
+    `binfo`; the per-rank cumulative counters (`sdiag`, window sums, antenna work); the running sums of the
+    averaged diagnostics; the layout of the rank; the ids of the tracks (rank 0).
+  - `meta.json`: format, commit, configuration, layout, step and time, history, per-species kinetic energy,
+    boundary flux, dissipated energy, Picard count, window shift, the counters reduced over the ranks, the
+    particle numbers, the output manager's state.
+  - Not saved: what a step rebuilds (the float32 gather copies, the implicit iterates `E1`, `Eh`, `Bh`, `Pn`, the
+    flag lists, the partners of an injection). The random numbers depend on (seed, step, cell, slot) only.
+- **Restore:** `restart: <step-<n> dir or checkpoint dir>` in the configuration or `run.py --restart`. A
+  `.tmp` directory is never read. The checkpoint is read and its configuration compared before the set-up;
+  only `pypic.checkpoint.ALLOWED` may differ (run length, dims, output directory and cadences, the
+  checkpoint block, `restart`). The simulation is built as usual, then its state is replaced.
+  - **Same layout:** the arrays are copied back, the capacity included (the state is the run's, bit for bit).
+  - **Another layout:** the particles of every file in global form (FP64 positions; compact cells expanded with
+    the stored rank layout to exact index coordinates); each rank keeps those inside the bounds of the
+    migration, so each particle is kept once. Fields: the owned block from the overlapping owned blocks of the
+    files (global index ranges), then wall conditions and the ghost exchange. The bank by global face column.
+    The reduced counters on rank 0, zero elsewhere. The averaged sums by their global axis.
+  - The particle numbers summed over the ranks must equal the stored ones; every rank raises together.
 
 Why: roadmap R2; research runs of 20–160 h on GPUs shared with other jobs.
 

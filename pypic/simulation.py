@@ -9,7 +9,7 @@ import time
 import cupy as cp
 import numpy as np
 
-from . import antenna, body, injection, window
+from . import antenna, body, checkpoint, injection, window
 from .backend import compile_module, launch
 from .config import FACES, ID_LIMIT, SLOT_BYTES, SimConfig
 from .external import check_config, dipoles_B
@@ -37,6 +37,10 @@ class Simulation:
         self.comm = comm if comm is not None else init_from_env()
         self.rank = self.comm.rank
         self.verbose = verbose and self.rank == 0
+        checkpoint.check_config(cfg)
+        # restart (PIC-D25): the checkpoint is read and its configuration checked before the set-up
+        self._restart = checkpoint.open_restart(self) if cfg.restart else None
+        self._restart_step = self._restart[1]["step"] if self._restart else None
         dims = cfg.dims or auto_dims(self.comm.size, cfg.n_cells)
         if int(np.prod(dims)) != self.comm.size:
             raise ValueError(f"dims {dims} do not match {self.comm.size} ranks")
@@ -193,6 +197,10 @@ class Simulation:
         from .output.manager import OutputManager
 
         self.output = OutputManager(self)
+        if self._restart:
+            checkpoint.restore(self, *self._restart)
+            if self.verbose:
+                print(f"[pypic] continued from {self._restart[0]} (step {self.step_count})", flush=True)
 
     # ----------------------------------------------------------------- set-up
     def _beam_block(self, b):
@@ -1433,9 +1441,14 @@ class Simulation:
                     self._window_advance(s)
         self.step_count += 1
         self.time += cfg.dt
+        every = cfg.checkpoint.every
+        if every and self.step_count % every == 0:
+            checkpoint.save(self)
 
     def run(self, n_steps: int | None = None, progress: int = 0):
-        n = self.cfg.n_steps if n_steps is None else n_steps
+        """Run ``n_steps`` steps; by default cfg.n_steps, less the steps before the checkpoint that a
+        continued run starts from (PIC-D25)."""
+        n = max(self.cfg.n_steps - (self._restart_step or 0), 0) if n_steps is None else n_steps
         t0 = time.perf_counter()
         for i in range(n):
             self.step()

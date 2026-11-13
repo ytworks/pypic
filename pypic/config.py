@@ -509,6 +509,21 @@ class OutputConfig:
 
 
 @dataclass
+class Checkpoint:
+    """Restart checkpoints (PIC-D25): every ``every`` steps (0: none) the state goes to
+    ``<output.dir>/checkpoint/step-<n>/``; the last ``keep`` complete checkpoints are kept."""
+
+    every: int = 0
+    keep: int = 2
+
+    def __post_init__(self):
+        for k, lo in (("every", 0), ("keep", 1)):
+            v = getattr(self, k)
+            if isinstance(v, bool) or not isinstance(v, int) or v < lo:
+                raise ValueError(f"checkpoint.{k} must be an integer >= {lo} (got {v!r})")
+
+
+@dataclass
 class SimConfig:
     n_cells: tuple = (64, 16, 16)
     dx: tuple = (0.1, 0.1, 0.1)
@@ -564,6 +579,11 @@ class SimConfig:
     # at once, so set this (and watch the ``fill`` history) rather than rely on it.
     capacity_factor: float = 1.3
     output: OutputConfig = field(default_factory=OutputConfig)
+    # restart checkpoints (PIC-D25): written every checkpoint.every steps into <output.dir>/checkpoint
+    checkpoint: Checkpoint = field(default_factory=Checkpoint)
+    # continue from a checkpoint (PIC-D25): a directory step-<n> or a checkpoint directory (its latest
+    # complete step); the configuration must equal the stored one but for pypic.checkpoint.ALLOWED
+    restart: str | None = None
 
     def __post_init__(self):
         if not float(self.capacity_factor) >= 1.0:
@@ -609,10 +629,12 @@ class SimConfig:
         lasers = [v if isinstance(v, Laser) else Laser(**v) for v in d.pop("lasers", [])]
         window = d.pop("window", None)
         window = window if window is None or isinstance(window, Window) else Window(**window)
+        ck = d.pop("checkpoint", None) or {}
+        ck = ck if isinstance(ck, Checkpoint) else Checkpoint(**ck)
         for k in ("n_cells", "dx", "B0", "E0", "dims", "lattice"):
             if d.get(k) is not None:
                 d[k] = tuple(d[k])
         if "boundaries" in d:
             d["boundaries"] = tuple(tuple(b) for b in d["boundaries"])
         return cls(species=sp, implicit=imp, output=out, current_filter=flt, external_fields=ext,
-                   injection=inj, body=body, lasers=lasers, window=window, **d)
+                   injection=inj, body=body, lasers=lasers, window=window, checkpoint=ck, **d)

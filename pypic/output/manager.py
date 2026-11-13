@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import re
 import secrets
 import shutil
 
@@ -72,6 +73,8 @@ class OutputManager:
         self.meta = {}
         self.history_seen = 0  # history rows seen by on_step (every rank: it decides a collective)
         self.scalar_rows = 0  # history rows taken by the scalars writer (rank 0)
+        # a run continued from the checkpoint of this step appends to its run directory (OUT-D6)
+        self.append_step = getattr(sim, "_restart_step", None)
         if not self.enabled:
             if self.cfg.diagnostics:
                 raise ValueError("output.diagnostics are configured but output.dir is not set")
@@ -98,8 +101,12 @@ class OutputManager:
     def _claim_directory(self):
         """Refuse a directory that already holds run output: files the new run does not rewrite
         (other dump iterations, other diagnostics) would be read as part of it. Decided on rank 0
-        and reduced, so every rank raises together. output.overwrite removes those entries first."""
+        and reduced, so every rank raises together. output.overwrite removes those entries first.
+        A run continued from a checkpoint opens its directory in append mode instead (OUT-D6)."""
         d = self.cfg.dir
+        if self.append_step is not None:
+            self._root_io(f"opening the output directory {d} in append mode", self._open_append)
+            return
         present = [e for e in self.RUN_ENTRIES if os.path.lexists(os.path.join(d, e))] if self.root else []
         refuse = float(bool(present) and not self.cfg.overwrite)
         if self.sim.comm.allreduce_scalar(refuse, "max") > 0:
@@ -118,6 +125,50 @@ class OutputManager:
             self.write_run_json()
 
         self._root_io(f"preparing the output directory {d}", prepare)
+
+    DUMP = re.compile(r"_(\d{8})\.h5$")
+
+    def _open_append(self):
+        """Append mode (OUT-D6, rank 0): keep the identity and metadata of the run; cut what the
+        interrupted run wrote at the checkpoint step and later (rows of the series and tracks, dump
+        files), which this run writes again; note the restart in run.json."""
+        d, n = self.cfg.dir, self.append_step
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, "run.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                old = json.load(f)
+            self.run_id, self.created = old.get("run_id", self.run_id), old.get("created", self.created)
+            self.meta.update(old.get("meta") or {})
+        self.meta.setdefault("restarts", []).append(
+            {"step": n, "checkpoint": self.sim.cfg.restart, "world_size": self.sim.comm.size,
+             "time": _dt.datetime.now().astimezone().isoformat(timespec="seconds")})
+        from .h5 import truncate_series
+
+        series = [os.path.join(d, "scalars.h5")]
+        for sub in ("reduced", "tracks"):
+            p = os.path.join(d, sub)
+            if os.path.isdir(p):
+                series += [os.path.join(p, e) for e in sorted(os.listdir(p)) if e.endswith(".h5")]
+        for p in series:
+            if os.path.exists(p):
+                kept = truncate_series(p, n)
+                if p.endswith("scalars.h5"):
+                    self.scalar_rows = kept
+        for sub in ("fields", "particles"):
+            top = os.path.join(d, sub)
+            for root, _dirs, files in os.walk(top):
+                for e in files:
+                    m = self.DUMP.search(e)
+                    if m and int(m.group(1)) >= n:
+                        os.remove(os.path.join(root, e))
+        self.write_run_json()
+
+    def after_restore(self):
+        """The state of a continued run is set (pypic.checkpoint.restore): the scalars writer takes the
+        history rows from those the file holds (rank 0)."""
+        n = len(self.sim.history["step"])
+        self.scalar_rows = min(self.scalar_rows, n) if self.cfg.scalars else 0
 
     def _root_io(self, what: str, fn, *args):
         """Run a file operation on rank 0 and share its outcome (collective: every rank calls it at
@@ -289,7 +340,7 @@ class OutputManager:
             a = {"diagnostic": name, "kind": dg.d.kind, "every_steps": dg.r.every, "dt": self.sim.cfg.dt}
             a.update(attrs or {})
             self.writers[name] = SeriesWriter(os.path.join(self.cfg.dir, "reduced", f"{name}.h5"), a,
-                                              self.cfg.codec, self.cfg.level)
+                                              self.cfg.codec, self.cfg.level, append=self.append_step is not None)
         return self.writers[name]
 
     def _row(self, data: dict) -> dict:
@@ -325,7 +376,7 @@ class OutputManager:
                         {"diagnostic": d.name, "species": sp, "every_steps": dg.r.every, "dt": sim.cfg.dt,
                          "time_offsets": json.dumps({"position": 0.0, "momentum": self.time_centering()["momentum"],
                                                      "fields": 0.0})},
-                        self.cfg.codec, self.cfg.level, ids)
+                        self.cfg.codec, self.cfg.level, ids, append=self.append_step is not None)
                 self.writers[key].append(step, t, rows)
         elif d.kind in ("lineout", "modes"):
             w = self._series(dg)
@@ -356,7 +407,8 @@ class OutputManager:
         if "__scalars__" not in self.writers:
             attrs = {"diagnostic": "scalars", "every_steps": self.sim.cfg.diag_interval}
             self.writers["__scalars__"] = SeriesWriter(os.path.join(self.cfg.dir, "scalars.h5"), attrs,
-                                                       self.cfg.codec, self.cfg.level)
+                                                       self.cfg.codec, self.cfg.level,
+                                                       append=self.append_step is not None)
         w = self.writers["__scalars__"]
         sl = slice(self.scalar_rows, n)
         data = {k: np.asarray(h[k][sl], dtype=np.float64) for k in SCALAR_KEYS}
