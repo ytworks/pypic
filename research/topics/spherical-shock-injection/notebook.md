@@ -3,6 +3,28 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — P5 electrons, first look: maps first, highest energies first (owner's instruction)
+
+- **Owner:** look at the distribution maps first for the whole picture, then from the highest energies down.
+  Figures and their scripts (not in git; observation only): `P5/analysis/figures/` on the NVMe output.
+- **Why the census was replaced by counts.** P5 dumps 1–7 million ambient electrons with γ ≥ 1.25 per output
+  (S25: 9–74 thousand); the census, which traces each electron along its field line, did not finish in 30 min.
+  `analyze.py counts` gives O8 as fixed (counts by class, band and energy; no result, origin or mechanism).
+- **Whole box.** γ ≥ 1.5: 0.6 million at most (t = 180); γ ≥ 3: 1469 at most (t = 144, 2.6 / Ω_ci); largest
+  γ 4.8. The tail of the spectrum reaches γ − 1 ≈ 3–4 at t = 144–216 and recedes after. L-null: no electron
+  with γ ≥ 1.5 in any dump.
+- **The highest energies are not at the shock.** γ ≥ 3 electrons sit at polar angles 60°–88°, 5–20 d_e inside
+  the debris edge and 10–30 d_e behind the front, with pitch cosines near 0 (median |μ| 0.17–0.28). The six
+  tracked electrons with the largest γ (4.15 at most; 11 tracked reach γ ≥ 3, 350 reach γ ≥ 2) are ambient
+  electrons born inside the debris shell (r = 55–68 d_e). They stay inside the debris edge and never meet the
+  front. Their γ rises and falls by 1–2 within each gyration (period 45–50, Larmor radius about 6 d_e); the
+  work is done by E perpendicular to B; the envelope peaks near t = 150 and decays.
+- **Upstream.** γ ≥ 1.5 ahead of the front: up to 3069 per dump (t = 360), all at foot θ_Bn and polar angles
+  of 0°–50° (outside the valid domain), mostly γ 1.5–2; none at 50°–90°. At the last dump their distance to the
+  z faces is 29 d_e (median; 10 % within 6.5 d_e), and 90 of 2719 were injected at a face.
+- **Not decided.** Whether the piston-region energization is physical (debris ions streaming through ambient
+  electrons) or numerical (dense shell, ω_pe dt up to 1.05) is open: L-null has no debris and cannot tell.
+
 ## 2026-11-13 — P5 run: a strong shock on a sphere was made (verdict fixed before the run)
 
 - **Run.** `P5` from `e6f1890`: 1440 steps, 755 s, 53 GB; Gauss 1.3e-14, div B 1.8e-14, `fill` 0.71, energy
