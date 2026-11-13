@@ -3,6 +3,13 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Expert check skipped
+
+- The owner decided that the expert check (asking the authors of `fulat2026pic`) is skipped, because it cannot be
+  done.
+- The novelty claim rests on the literature search alone (`survey-shock-alfvenic-turbulence.md` and the notes the
+  review asked for). The README says so under "Related work and novelty".
+
 ## 2026-11-13 — Minimal model; amendment of the falsification criteria
 
 - **`design/model.py`** (output `design/model.md`): an encounter chain on a multiply connected field line.

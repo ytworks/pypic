@@ -112,7 +112,8 @@ The review found it was two questions; the draft is kept in the history of this 
   - Forward citations of eight seed works: 318 works, 95 screened.
   - About 12 arXiv queries, about 200 hits.
   - Web searches; observations and parameters.
-  - Not done: asking experts (the authors of `fulat2026pic`); theses and 2026 meeting abstracts.
+  - Not done: asking experts — not possible, skipped by the owner's decision (2026-11-13); theses and 2026 meeting
+    abstracts.
 - **Novelty claim, as narrow as it is:**
   - The mechanism is known (`jokipii2007adiabatic`). Its test-particle tests disagree (`guo2015acceleration` against
     `qin2018effects`).
@@ -232,7 +233,6 @@ Open. Intended: a peer-reviewed journal paper (ApJ or JGR).
   (Approach).
 - **Missing before the production runs:**
   - the realization spread, to compare with the predicted excess (pilot);
-  - an expert check (the authors of `fulat2026pic`);
   - full texts of `jokipii1993perpendicular`, `giacalone2005*`, `jokipii2007adiabatic` and `barnes1974large`, not
     reachable from here (IOP, Wiley and ADS refuse).
 - **Then:** the plan of E1 on main.
