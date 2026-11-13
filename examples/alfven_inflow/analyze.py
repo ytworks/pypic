@@ -375,9 +375,9 @@ def movie(run_dir: str, out: str | None = None, fps: int = 12, n_frames: int = 1
     info = run.meta["planner"]
     m = Movie(run, title="Alfvénic wave carried into a piston shock" if info["wall"] else
               "Alfvénic wave carried in by a flow", ncols=3, panel_size=(5.4, 3.6))
-    a = 1.5 * info["amplitude"]
+    a = (3.0 if info["wall"] else 1.5) * info["amplitude"]  # the downstream of a shock holds larger B_z
     m.add(SlicePanel(run, "plane", "Bz", scale=1.0 / info["b0"], vlim=(-a, a), label="B_z / B0"))
-    top = 1.15 * info["shock"]["compression"] + 0.5 if info["wall"] else 1.5
+    top = 1.6 * info["shock"]["compression"] if info["wall"] else 1.5  # room for the overshoot
     m.add(SlicePanel(run, "plane", "n:i", signed=False, vlim=(0.0, top), label="n_i / n0"))
     m.add(LineoutPanel(run, "profile", ["n:e", "n:i"], ylim=(0.0, top)))
     return m.save(out or os.path.join(run_dir, "alfven_inflow.mp4"), fps=fps, n_frames=n_frames, dpi=dpi)
