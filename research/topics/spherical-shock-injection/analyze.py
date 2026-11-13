@@ -597,7 +597,8 @@ def cmd_front(args) -> int:
             eq_b.append(sk.outermost_crossing(pe.mean(eq.read("Bz", i)) / b0, pe.r, 1.25))
         else:  # |B_z| over the static |B_z| of the dipole (plus B0) in the equatorial plane
             static = np.abs(-dipole["moment"] / np.maximum(pe.r, 1e-9) ** 3 + b0)
-            eq_b.append(sk.outermost_crossing(pe.mean(np.abs(eq.read("Bz", i).astype(float))) / static, pe.r, 1.25))
+            ring = pe.mean(np.abs(eq.read("Bz", i).astype(float)))
+            eq_b.append(sk.outermost_crossing(ring / static.reshape((-1,) + (1,) * (ring.ndim - 1)), pe.r, 1.25))
     eq_n, eq_b = np.array(eq_n), np.array(eq_b)
 
     flags = ("ok_planes", "ok_thresholds", "ok_local", "ok_quadrants")
