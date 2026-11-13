@@ -3,6 +3,19 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — D1: reflection law at the dipole shock and first returns to the other hemisphere
+
+- `reflect_law.py` on D1 (entries of electrons born outside the shell; reflection = back upstream with
+  γ_out > 1.02 γ_in; this definition has a floor of boundary flicker of about 8 %).
+- **Law:** reflected share 14–15 % at local θ_Bn 0–45° (polar angles 30–60° in a dipole), 8–9 % at 45–90°
+  (the floor); 16 % at V_HT 0.1–0.2 c, 8–9 % above 0.3 c. Gain γ_out / γ_in median 1.03–1.05, p90 1.06–1.11,
+  about the bound of one reflection.
+- **D-A in the PIC run:** of 13,718 reflected tracked electrons, 145 (1 %) later enter the layer in the other
+  hemisphere; 5 of them are reflected again there (γ_out / γ_in median 1.03). The trap acts in D1, rarely and with
+  small gains, as expected from the bounce and sweep times (`dipole-design.md`).
+- Next: the persistent definition with the gyro-period from the local |B| (the campaign summary used B0), the
+  reflection table fixed, then a test-particle model of many bounces in the collapsing trap.
+
 ## 2026-11-13 — D1-disk: how the electrons of the equatorial disk gain energy
 
 - **Run** D1-disk from `38f05bc` (D1 with the same seed; every electron of the slab |z| < 20, |x|, |y| < 130 d_e
