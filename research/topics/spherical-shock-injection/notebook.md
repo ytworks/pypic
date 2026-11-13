@@ -3,6 +3,22 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — P5: does the gain zone follow the front or the debris edge? The debris edge
+
+- **Owner's questions:** how the debris edge and the front differ, and whether a gain near the front is not an
+  acceleration mechanism. Definitions (`analyze.py`, protocol Sect. 4): the front is the outermost radius where
+  the ambient ion density (averaged over d_i) reaches 1.5 n₀; the debris edge is the outermost radius where the
+  debris ion density reaches 0.1 n₀. Two species, measured independently.
+- **Test** (script and figure `P5/analysis/figures/host.py`, `p5_host.png`): net change of γ of the tracked
+  electrons against r − r_front and against r − r_debris, in two windows while the two separate.
+  - γ_max ≥ 2: against the front the peak moves from −17 to −27 d_e (gain-weighted mean −19 to −28) while the
+    front leads the debris edge by 4 then 13 d_e; against the debris edge it stays at −11 then −9 (mean −17,
+    −12).
+  - γ_max 1.5–2: front −15 to −27 (mean −19 to −25); debris edge −13 to −9 (mean −15 to −12).
+- **Reading.** The gain zone moves with the debris edge, 9–13 d_e inside it, and falls behind the front as
+  the shock separates. It is an acceleration mechanism of the piston (the magnetic wall at the debris edge),
+  not of the shock transition, whose net work on these electrons is negative. Limits: two windows, one run.
+
 ## 2026-11-13 — P5: several heating sites? By the fixed rule "one process"; the fixed sites split one structure
 
 Scripts and figure: `P5/analysis/figures/sites.py`, `sitedef.py`, `p5_sites.png`.
