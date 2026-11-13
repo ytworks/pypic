@@ -670,7 +670,7 @@ def selfcheck(check):
     want = np.zeros((len(CLASSES), len(E_NAMES)), np.int64)
     eb = e_bin(rec["gamma"][last])
     np.add.at(want, (rec["cls"][last][eb >= 0], eb[eb >= 0]), 1)
-    got_c, got_u, _ = count_dump(model, dumps[-1][1], dumps[-1][0], chunk=997)
+    got_c, got_u, _ = count_dump(model, dict(dumps[-1][1], time=dumps[-1][0]), dumps[-1][0], chunk=997)
     check("census, counts without back-tracing", np.array_equal(got_c, want) and got_u.sum() == want[:2].sum(),
           f"{int(want.sum())} electrons in the last dump; class x energy table equal in chunks of 997")
 
@@ -828,7 +828,7 @@ def count_dump(model, part, t, chunk=2_000_000):
     radii = [[] for _ in CLASSES]
     n = len(part["id"])
     for a in range(0, n, chunk):
-        sub = {k: np.asarray(v)[a:a + chunk] for k, v in part.items()}
+        sub = {k: (np.asarray(v)[a:a + chunk] if np.ndim(v) == 1 and len(v) == n else v) for k, v in part.items()}
         rec = classify_only(model, sub, float(t))
         eb = e_bin(rec["gamma"])
         ok = eb >= 0
