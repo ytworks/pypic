@@ -23,6 +23,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import baseline  # noqa: E402
+import campaign  # noqa: E402
 import census  # noqa: E402
 import drive  # noqa: E402
 import orbits  # noqa: E402
@@ -310,6 +311,7 @@ def selftest() -> int:
     r2checks.selfcheck(check)
     drive.selfcheck(check)
     sites.selfcheck(check)
+    campaign.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
@@ -1050,6 +1052,13 @@ def main(argv=None) -> int:
     p.add_argument("--null", type=Path, help="null.json of the run without a driver (floors N1, N3, N5)")
     p.add_argument("--tau", type=float, help="tau_dwell that replaces 3 gyro-periods (the rule of protocol "
                    "Sect. 3.2); the result goes to analysis/census-tau.json and .npz, census.json is kept")
+    p = sub.add_parser("campaign", help="campaign A: one pass over the tracks (entries, gamma_max, frame, sites)")
+    p.add_argument("run", type=Path)
+    p.add_argument("--chunk", type=int, default=60000)
+    p.add_argument("--seed", type=int, default=1)
+    p = sub.add_parser("prune", help="delete tracks and particle dumps of an analysed run (campaign A)")
+    p.add_argument("run", type=Path)
+    p.add_argument("--null", action="store_true", help="a null run: counts.json is not required")
     p = sub.add_parser("sites", help="site boundaries along each ray from the |B| profile (sites.md); after front")
     p.add_argument("run", type=Path)
     p = sub.add_parser("sitegain", help="net change of gamma of the tracked electrons per site and theta_Bn")
@@ -1104,6 +1113,10 @@ def main(argv=None) -> int:
         return orbits.cmd_tracks(args)
     if args.cmd == "census":
         return census.cmd_census(args)
+    if args.cmd == "campaign":
+        return campaign.cmd_campaign(args)
+    if args.cmd == "prune":
+        return campaign.cmd_prune(args)
     if args.cmd == "sites":
         return sites.cmd_sites(args)
     if args.cmd == "sitegain":
