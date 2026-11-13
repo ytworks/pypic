@@ -471,6 +471,8 @@ Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 3, amended 2026-1
     taken away after.
 - **Motional background:** E0 tangential to a reflecting face is allowed when the open face of that axis carries
   the fluctuation.
+- **Gather:** the push and the initial half kick gather the total field across the face. The incident E_a, B_b,
+  B_c are on the half plane outside while they gather.
 - **Energy record:** the Poynting flux through the face is that of the total field. The incident B is added on
   the half plane outside the face for `poynting_out`.
 - **Refused:** a window; a face that does not inject.

@@ -298,3 +298,28 @@ def test_nine_digit_dump_steps_are_recognised():
 
     assert OutputManager.DUMP.search("fields_123456789.h5").group(1) == "123456789"
     assert OutputManager.DUMP.search("fields_00000042.h5").group(1) == "00000042"
+
+
+def test_compact_restore_with_an_empty_species(tmp_path):
+    """A compact species without particles on a rank restores (review of PR #50: its one-dimensional
+    cell array was reshaped to (-1, 0))."""
+    from pypic import Beam, SimConfig, SpeciesConfig
+    from pypic.config import Checkpoint, OutputConfig
+    from pypic.parallel.comm import SelfComm
+    from pypic.simulation import Simulation
+
+    def cfg(n_steps=4, **kw):
+        return SimConfig(n_cells=(16, 8, 8), dx=(0.2,) * 3, dt=0.08, ppc=4, n_steps=n_steps, precision="compact",
+                         gauss_interval=0, species=[SpeciesConfig("e", -1, 1, [Beam(1.0, (0.1, 0, 0), 1e-3)]),
+                                                    SpeciesConfig("i", 1, 25, [Beam(1.0, theta=1e-4)]),
+                                                    SpeciesConfig("t", -1, 1, test=True)],
+                         checkpoint=Checkpoint(every=4, keep=1), output=OutputConfig(dir=str(tmp_path / "run")), **kw)
+
+    sim = Simulation(cfg(), comm=SelfComm(), verbose=False)
+    assert sim.species[2].n == 0
+    sim.run()
+    sim.close()
+    sim = Simulation(cfg(n_steps=8, restart=str(tmp_path / "run" / "checkpoint")), comm=SelfComm(), verbose=False)
+    assert sim.step_count == 4 and sim.species[2].n == 0
+    sim.run()
+    sim.close()

@@ -188,3 +188,40 @@ def test_pending_average_samples_against_the_schedule(first, every, last, n, acc
 
     r = Resolved("a", "lineout", every, False, "", first, last, 0, True)
     assert ck.pending_matches(r, n, acc_last, count) is kept
+
+
+def test_pending_averages_are_dropped_when_the_schedule_stops_averaging():
+    """A cadence change may turn averaging off (every: auto -> an integer): pending samples that match
+    the timing are still dropped (review of PR #50)."""
+    from types import SimpleNamespace
+
+    from pypic.checkpoint import keep_pending, pending_matches
+
+    r = SimpleNamespace(first=0, every=10, last=100, average=True)
+    assert pending_matches(r, 15, 14, 4) and keep_pending(r, 15, 14, 4)
+    r.average = False
+    assert not keep_pending(r, 15, 14, 4)
+
+
+def test_rolled_back_tracks_are_made_anew_for_the_new_ids(tmp_path):
+    """A track file whose rows were all cut back (the checkpoint came before its first output) is made
+    anew for the ids of the continued run; one that keeps rows of other ids is refused (review of
+    PR #50)."""
+    import h5py
+
+    from pypic.output.h5 import TrackWriter, truncate_series
+
+    tp = str(tmp_path / "t.h5")
+    t = TrackWriter(tp, {}, "deflate", 1, np.array([3, 5]))
+    for s in range(4, 8):
+        t.append(s, s, {"x": np.array([s, -s], dtype=float)})
+    t.close()
+    assert truncate_series(tp, 2) == 0
+    t = TrackWriter(tp, {}, "deflate", 1, np.array([4, 6, 9]), append=True)
+    t.append(3, 3.0, {"x": np.array([1.0, 2.0, 3.0])})
+    t.close()
+    with h5py.File(tp, "r") as f:
+        assert f["id"][...].tolist() == [4, 6, 9] and f["step"][...].tolist() == [3]
+    assert truncate_series(tp, 9) == 1
+    with pytest.raises(ValueError, match="tracked ids differ"):
+        TrackWriter(tp, {}, "deflate", 1, np.array([1, 2]), append=True)

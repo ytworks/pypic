@@ -170,7 +170,11 @@ class Simulation:
         if self.fluct is not None:
             self._tfsf_start()
         if not self.implicit and (moved or fields_set or any(self.B0) or self.external):
+            if self.fluct is not None:
+                self._tfsf_gather(0.0, +1.0)
             self._initial_half_kick()
+            if self.fluct is not None:
+                self._tfsf_gather(0.0, -1.0)
         if self.implicit:
             self._init_implicit()
         self.step_count = 0
@@ -711,6 +715,8 @@ class Simulation:
             for d in self.sdiag:
                 d[:4] = 0
             self._fe = g.field_energy_local()  # fields at t^n; reduced over the ranks in _record
+        if self.fluct is not None:  # the push gathers the total field across the TF/SF face (PIC-D26)
+            self._tfsf_gather(self.time, +1.0)
         fields = self._gather_fields()
         if self.injection:
             # decided from the configuration and the step: every rank raises together
@@ -728,6 +734,8 @@ class Simulation:
                 lst, np.int32(lst.size), np.int32(do_diag), seed, step, np.int32(self.inj_fmask[i]),
                 self.inj_rb, np.int32(self.inj_nrb), self.bank, self.binfo, self.fl_rows[i], np.int32(self.fl_n[i]),
                 np.int32(self.fl_face), np.float64(self.time + 0.5 * self.cfg.dt)))
+        if self.fluct is not None:
+            self._tfsf_gather(self.time, -1.0)
         if self.inj_launch:
             self._inject(do_diag)
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
@@ -847,6 +855,19 @@ class Simulation:
             sl, xyz = pl
             xyz[a] = cp.full((1, 1, 1), half * g.dx[a])
             getattr(g, tgt)[sl] += (fac * dte / d) * self._incident(src, xyz, tB)
+
+    def _tfsf_gather(self, t: float, sign: float):
+        """Add (sign = +1) or take away (-1) the incident field at time t on the half plane outside the
+        fluctuation face for the components staggered across it (E_a, B_b, B_c): a particle within
+        half a cell of the face interpolates between the face's two sides, and must see the total
+        field on both (review of PR #50)."""
+        a, b, c, node, half, sgn = self._tfsf_axes()
+        for comp in ("E" + "xyz"[a], "B" + "xyz"[b], "B" + "xyz"[c]):
+            pl = self._plane(comp, half)
+            if pl is None:
+                continue
+            sl, xyz = pl
+            getattr(self.grid, comp)[sl] += sign * self._incident(comp, xyz, t)
 
     def _tfsf_half_B(self, t: float, sign: float):
         """Add (sign = +1) or take away (-1) the incident B_b, B_c at time t on the half plane outside

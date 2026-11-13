@@ -327,6 +327,17 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
     `test_rejection_bound_takes_the_whole_perturbation`.
   - **P3:** dump names of nine digits and more are recognised by the append mode.
     `test_nine_digit_dump_steps_are_recognised`.
+- **Review of PR #50, round 3** (Codex, on d4deeb9): four findings, each fixed with a test that fails on the
+  code before.
+  - **P1:** a particle within half a cell of the fluctuation face interpolated between the total field inside
+    and the scattered field outside. The push (and the initial half kick) now gathers the total field: the
+    incident E_a, B_b, B_c are added on the half plane outside before the gather and taken away after.
+    `test_particles_next_to_the_face_feel_the_total_field`: with a table of zero amplitude the electrons in the
+    last quarter cell keep u_z = 0 within 4 standard errors (−0.0026, seven of them, before).
+  - **P2:** a compact species with no particles on a rank restores (`test_compact_restore_with_an_empty_species`).
+  - **P2:** pending averages are dropped when the new schedule does not average (`keep_pending`; CPU test).
+  - **P2:** a track file whose rows were all cut back is made anew for the ids of the continued run; one with
+    rows of other ids is refused (CPU test).
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 

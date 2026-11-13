@@ -178,6 +178,13 @@ def prune(root: str, keep: int, current: int) -> None:
             shutil.rmtree(os.path.join(root, e))
 
 
+def keep_pending(r, n: int, last: int, count: int) -> bool:
+    """Whether the pending samples of an averaged diagnostic are restored: the schedule ``r`` still
+    averages (review of PR #50: a cadence change can turn averaging off) and the samples are those it
+    takes for its next output (pending_matches)."""
+    return bool(r.average) and pending_matches(r, n, last, count)
+
+
 def pending_matches(r, n: int, last: int, count: int) -> bool:
     """Whether the ``count`` pending samples of an averaged diagnostic, the steps (last - count, last]
     (one per step), are the samples that the schedule ``r`` (output.schedule.Resolved) takes for its
@@ -429,7 +436,8 @@ def restore(sim, path: str, meta: dict) -> None:
         dg.n_acc, dg.t_acc = int(a["n"]), float(a["t"])
         # the schedule may have changed (t_start, t_end, every, n_steps): the pending samples are kept
         # only if they are those that the new schedule takes for its next output
-        if not pending_matches(dg.r, sim.step_count, int(om["acc_step"][dg.d.name]), dg.n_acc):
+        # nor if the new schedule does not average at all (review of PR #50)
+        if not keep_pending(dg.r, sim.step_count, int(om["acc_step"][dg.d.name]), dg.n_acc):
             dg.accum, dg.n_acc, dg.t_acc = None, 0, 0.0
     out.history_seen = len(sim.history["step"])
     out.after_restore()
@@ -471,12 +479,16 @@ def _set_species(sim, sp, i, z, cap):
             arr = cp.empty(shape, dtype=dtype)
             setattr(sp, name, arr)
         arr = getattr(sp, name)
-        host = np.ascontiguousarray(host).reshape(-1 if len(shape) == 1 else shape[0], n)
-        rows = [arr] if len(shape) == 1 else [arr[r] for r in range(shape[0])]
-        for r, row in enumerate(rows):
+        host = np.ascontiguousarray(host)
+        if len(shape) == 1:  # one row; an empty species has host of size 0 (review of PR #50)
+            pairs = [(arr, host.reshape(-1))]
+        else:
+            host = host.reshape(shape[0], n)
+            pairs = [(arr[r], host[r]) for r in range(shape[0])]
+        for row, h in pairs:
             row[n:].fill(0)
             if n:
-                row[:n].set(host[r] if len(shape) > 1 else host.reshape(-1))
+                row[:n].set(h)
 
     if sim.compact:
         sp.Dsp = None

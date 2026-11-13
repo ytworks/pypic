@@ -162,3 +162,25 @@ def test_entering_particles_take_the_mode_at_their_physical_place():
     C, S = m["u"]["i"]["cos"][2], m["u"]["i"]["sin"][2]
     ref = (C - 1j * S) * np.exp(-1j * m["omega"] * t)
     assert abs(f64["i", 2] / ref - 1) < 0.2
+
+
+def test_particles_next_to_the_face_feel_the_total_field():
+    """A particle within half a cell of the face interpolates between the total field inside and the
+    scattered field outside; the push gathers the total field on both sides (review of PR #50). With a
+    table of zero amplitude the flow is a balanced E0 = -v x B0: the electrons in the last quarter cell
+    keep u_z = 0 within four standard errors (before the fix: -0.0026, seven of them)."""
+    from pypic.config import Injection
+
+    fl = M.fluctuation()
+    for m in fl["modes"]:
+        m["B"] = m["E"] = {"cos": [0, 0, 0], "sin": [0, 0, 0]}
+        m["u"] = {}
+    cfg = M.config(steps=100)
+    cfg.injection = Injection(faces={"x+": "flux"}, fluctuation=fl)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run()
+    P = cp.asnumpy(sim.species[0].rows())
+    sel = P[0] >= M.LX - 0.25
+    err = P[5][sel].std() / np.sqrt(sel.sum())
+    assert abs(P[5][sel].mean()) < 4 * err
+    sim.close()

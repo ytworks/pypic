@@ -183,6 +183,18 @@ class TrackWriter(SeriesWriter):
 
     def __init__(self, path: str, attrs: dict, codec: str, level: int, ids: np.ndarray, append: bool = False):
         self.ids = np.asarray(ids, dtype=np.uint64)
+        if append and os.path.exists(path):
+            # A continued run appends to tracks of the same particles. A file whose rows were all cut back
+            # (the checkpoint came before its first output) belongs to no output of this run: it is made
+            # anew for the ids of this run (review of PR #50). Rows of other particles are refused.
+            with h5py.File(path, "r") as f:
+                old = f["id"][...] if "id" in f else None
+                n_rows = int(f["step"].shape[0]) if "step" in f else 0
+            if old is None or not np.array_equal(old, self.ids):
+                if n_rows:
+                    raise ValueError(f"{path}: the tracked ids differ from those of the run being continued")
+                os.remove(path)
+                append = False
         super().__init__(path, attrs, codec, level, chunk_bytes=1 << 20, max_rows=64, append=append)
 
     def _before_swmr(self):
