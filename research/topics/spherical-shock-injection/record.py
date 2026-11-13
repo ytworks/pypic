@@ -40,6 +40,10 @@ METRICS = {
     "phi": ("null", "bins on the detected front", "measured (error below 50 %)", "bins of the valid domain",
             "measured, valid domain", "significantly negative", "mean over the outputs with a detected front"),
     "baseline": ("phi", "phi_cells", "N3", "share reflected", "rule gamma >= 1.5", "rule gamma 1.25-1.5 (extra)"),
+    "drive": ("R_m", "rho_d", "R_m / rho_d", "R_B", "omega_ci_inv", "O1 first valid front", "O2 valid",
+              "O2 valid and driven", "O2 debris-edge speed over front speed, valid bins", "O3 fast Mach, valid bins",
+              "O3 fast Mach, driven bins", "O3 valid and strong", "O3 valid, driven and strong",
+              "O4 exponent m of R ~ t^m per polar angle", "history"),
 }
 
 

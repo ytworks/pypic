@@ -12,6 +12,8 @@ including unknown ones:
 - changes in the shape of the front as the shock normal goes continuously from perpendicular to
   parallel to the field.
 
+**Narrowed (owner, 2026-11-13):** the theme is the acceleration mechanism at a shock on a sphere.
+
 ## Background
 - **The injection problem.** Nonthermal electrons are inferred at astrophysical shocks such as
   supernova remnants and observed at heliospheric shocks. Diffusive (first-order Fermi) shock
@@ -38,7 +40,19 @@ including unknown ones:
   expanding into a magnetised plasma (`examples/blast_wave`, PIC-D17, gated at M_A = 3).
 
 ## Research question
-Draft (the owner's purpose; to be narrowed after the survey and the review):
+**Narrowing of 2026-11-13 (the owner's decision):** the acceleration mechanism at a shock on a sphere.
+- **What it settles.** The subject is how particles gain energy at the spherical front. How the shock forms
+  and how the debris couples to the ambient plasma are conditions of the experiment, not subjects. The
+  injection problem of supernova remnants as a whole is background.
+- **Our reading, to be confirmed by the owner.** The subject is what the sphere adds: the third point of the
+  draft below and the groups 6 and 7 of the list. A mechanism known from planar shocks that acts locally on
+  the sphere is then a baseline to subtract, not a subject. The species stays the electrons of the purpose
+  of 2026-11-12; the narrowing names none.
+- **Still open.** One question with a controlling number and a threshold (stance: one question, small enough
+  to answer). The two direct predecessors are read first: `kraussvarban1991electron` (electrons at a curved
+  shock) and `giacalone2017acceleration` (protons at a spherical blast wave).
+
+Draft of 2026-11-12 (the owner's purpose), kept as the frame of the narrowing:
 
 > At a spherical collisionless shock expanding into a uniform magnetic field:
 > - which mechanisms inject thermal electrons into the nonthermal population — known ones alone
@@ -198,6 +212,11 @@ Run and analysed 2026-11-13: L-null, L, M, M-null, H, against the protocol fixed
 (`exploratory-results.md`): no signal at the registered threshold, and the runs sampled a weak, decaying shock
 instead of the designed Mach numbers. Review R2 (`reviews/2026-11-13-results-r2.md`) confirms the verdict; its
 corrections are in the results document and in the notebook.
+
+Narrowed 2026-11-13 by the owner: the theme is the acceleration mechanism at a shock on a sphere (Research
+question). One question with a controlling number is still open.
+
+Run 2026-11-13: S25, an observation of a longer drive (`shock-forming-run.md`); see the notebook for its state.
 
 Next (order of `exploratory-results.md`, Sect. 8):
 - reading `kraussvarban1991electron` and `giacalone2017acceleration` in full (access beyond arXiv);

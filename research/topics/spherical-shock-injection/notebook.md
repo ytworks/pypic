@@ -3,6 +3,28 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — The owner narrows the theme: the acceleration mechanism at a shock on a sphere
+
+Written while S25 runs (started 12:44 from commit `66a3629`); none of its outputs has been read yet.
+
+- **Decision of the owner:** the theme is narrowed to the acceleration mechanism at a shock on a sphere.
+- **What it settles** (README, Research question): the formation of the shock and the coupling of the debris
+  are conditions of the experiment, not subjects. Our reading, not yet confirmed: the subject is what the
+  sphere adds (transport along the front between obliquities, drifts along it, mirroring in the draped field,
+  expansion and deceleration); planar mechanisms that act locally are the baseline.
+- **What changes, and the fact that changes it.** The fact is this decision.
+  - The second run named in `shock-forming-run.md` Sect. 6 (cells of 1 d_e, electron scales not resolved) is
+    withdrawn as the next run: it is an observation of ion scales and cannot show how electrons gain energy.
+    The next design starts from the narrowed question, not from the drive.
+  - S25 keeps its role and its fixed observables. It answers a condition of the theme: whether this box can
+    hold a shock that is still driven. Its strength is expected below the first critical Mach number, so it
+    is not expected to show acceleration.
+  - **Added to the analysis of S25, before any output was read:** O7, the registered measures on the tracked
+    electrons (`analyze.py tracks`: reflections, encounters, the change of the foot θ_Bn between gain and
+    escape, K1–K3 of the protocol), as counts beside the census O6. No residual is claimed, as for O6.
+- **What does not change:** the two predecessors are read in full before any hypothesis, and the question
+  still needs a controlling number and a threshold. Both full texts are still not obtained.
+
 ## 2026-11-13 — Run S25 designed: a longer drive (before the run)
 
 - **Instruction of the owner:** first run a condition in which a shock forms, and look at it. This changes the
