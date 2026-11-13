@@ -61,7 +61,7 @@ for cc, ks in by_el.items():
             break
 out["D-A: reflected electrons (tracked)"] = n_el
 out["D-A: of these, a later entry in the other hemisphere"] = hemi_changes
-out["D-A: of these, reflected again there (gain ratio p50)"] = [len(gains_second),
-                                                                   float(np.median(gains_second)) if gains_second else None]
+med2 = float(np.median(gains_second)) if gains_second else None
+out["D-A: of these, reflected again there (gain ratio p50)"] = [len(gains_second), med2]
 json.dump(out, open(R + "/analysis/reflect_law.json", "w"), indent=1)
 print(json.dumps(out, indent=1))
