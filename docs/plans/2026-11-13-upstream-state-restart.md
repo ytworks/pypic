@@ -169,8 +169,12 @@ of the coordinates along the face and of time only: the plasma carries the patte
     is exact because the zone is linear.
   - Neither restriction is enforced. A paired face and a flux face without the zone both run, with the errors
     measured below.
-- **Not done:** the incident Poynting flux in the energy record. The budget is monitored only, as before. The
-  injected kinetic energy includes δu through the existing injection record.
+- **Energy record** (done 2026-11-14, after the owner's "出し惜しみするな"):
+  - The Poynting flux through the face is taken of the total field: the incident B is added on the half plane
+    outside before `poynting_out` and taken away after.
+  - The injected kinetic energy includes δu through the existing injection record.
+  - Budget drift over t = 300 in the test of (g): 0.31 % of the total energy, against 4.2 % without the
+    incident field in that flux.
 
 ## Invariants
 

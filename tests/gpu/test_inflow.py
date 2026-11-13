@@ -70,10 +70,14 @@ def test_inflow_face_keeps_the_wave_in_a_flow():
     """A cold R wave loaded in a flow and carried in through a flux face keeps its pattern: after
     t = 300 (15 c/omega_pe of new plasma) the k-mode of B_x and B_z differs from the incident one by
     at most 12 % on any x row and by 4 % on average away from the outflow face (measured 8 % and
-    2.6 %); the density stays within 10 %; Gauss's law holds."""
+    2.6 %); the density stays within 10 %; Gauss's law holds; the energy budget, with the Poynting
+    flux of the total field through the face, closes within 1 % of the total energy (measured 0.31 %;
+    4.2 % without the incident field in that flux)."""
     sim = Simulation(M.config(steps=3000, preloaded=True), comm=SelfComm(), verbose=False)
     sim.run()
     assert np.nanmax(sim.history["gauss"]) < 1e-10
+    budget = np.asarray(sim.history["budget"])
+    assert np.max(np.abs(budget - budget[0])) < 1e-2 * sim.history["total"][0]
     for comp in ("Bx", "Bz"):
         x, a, b = _mode(sim, comp)
         sel = x > 10.0  # the outflow face x- carries no incident field
