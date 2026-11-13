@@ -774,6 +774,9 @@ class Simulation:
             g.marder_zone(self._charge_density(zone=True), self.zone_depth, self.marder)
             if self.fluct is not None:
                 self._tfsf_total(t0 + dt, -1.0)
+                # the conductor behind the absorbing layer holds no scattered field: the subtraction must
+                # not leave -E_inc on it (review of PR #50; a restore onto another layout rebuilds it as 0)
+                g.apply_bc_E()
         if self._has_open:
             if self.fluct is not None:  # the flux of the total field through the fluctuation face (PIC-D26)
                 self._tfsf_half_B(t0 + dt, +1.0)

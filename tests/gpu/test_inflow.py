@@ -220,3 +220,18 @@ def test_a_fluctuation_without_an_injecting_face_is_refused():
     cfg.injection = Injection(faces={}, fluctuation=M.fluctuation())
     with pytest.raises(ValueError, match="injecting faces"):
         Simulation(cfg, comm=SelfComm(), verbose=False)
+
+
+def test_marder_zone_leaves_no_incident_field_on_the_outer_conductor():
+    """The Marder zone acts on the total field beyond the face; taking the incident field away again
+    must leave the tangential E on the conductor behind the absorbing layer at zero, as a restore
+    onto another layout rebuilds it (review of PR #50; before: -E0 there)."""
+    sim = Simulation(M.config(steps=2, preloaded=True), comm=SelfComm(), verbose=False)
+    sim.run()
+    g = sim.grid
+    pos = g.global_positions(0, 0.0)
+    wall = np.nonzero(np.abs(pos - (M.NX + sim.cfg.npml)) < 1e-9)[0]
+    assert wall.size == 1
+    assert float(cp.max(cp.abs(g.Ez[int(wall[0])]))) == 0.0
+    assert float(cp.max(cp.abs(g.Ey[int(wall[0])]))) == 0.0
+    sim.close()

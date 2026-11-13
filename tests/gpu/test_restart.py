@@ -326,6 +326,7 @@ def test_compact_restore_with_an_empty_species(tmp_path):
     sim.close()
 
 
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 2, reason="needs >= 2 GPUs")
 def test_restore_onto_another_layout_needs_no_full_size_device_copy(tmp_path):
     """A restore onto another layout sends the records to the device in chunks into storage released
     and reserved first (review of PR #50): on 1 GPU from a checkpoint of 2 GPUs, the peak growth of
@@ -339,3 +340,17 @@ def test_restore_onto_another_layout_needs_no_full_size_device_copy(tmp_path):
     growth = (o["peak"] - fresh["peak"]) / fresh["store"]
     print(f"[restore onto another layout] peak growth over a fresh set-up {growth:.3f} store")  # diagnostic
     assert growth < 0.5, growth
+
+
+def test_restart_through_a_link_keeps_its_checkpoint(tmp_path):
+    """A checkpoint reached through a symbolic link, restored into its own directory whose run.json is
+    gone, with output.overwrite: the clean-up compares canonical paths and keeps the checkpoint it
+    restores from (review of PR #50)."""
+    a = tmp_path / "a"
+    _run(1, "1,1,1", "two_stream", "part", str(a))
+    os.remove(a / "run.json")
+    link = tmp_path / "link"
+    os.symlink(a, link)
+    step = sorted(p for p in os.listdir(a / "checkpoint") if p.startswith("step-"))[-1]
+    o = _run(1, "1,1,1", "two_stream", "resume", str(a), "overwrite", f"from={link / 'checkpoint' / step}")
+    assert o["start"] == 20 and o["end"] == 40

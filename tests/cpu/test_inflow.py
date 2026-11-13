@@ -90,3 +90,14 @@ def test_rejection_bound_takes_the_whole_perturbation():
     cfg.injection.fluctuation["modes"][0]["u"]["i"]["cos"] = [0.0, 0.3, 0.0]
     du = abs(_mode()["u"]["i"]["sin"][0])
     assert check_fluctuation(cfg)["du_n"][1] == pytest.approx(math.hypot(du, 0.3))
+
+
+def test_faraday_is_checked_against_its_own_terms():
+    """A slow mode (omega / k = 0.001) with a time-dependent B, no E and the current of Ampere's law
+    violates Faraday's law by 100 %; it is refused although the Ampere scale k|B| is much larger
+    (review of PR #50)."""
+    w, b = 0.001 * K, 0.1
+    Js = -K * b  # J_sin = -k x B_cos with B_cos = b z, E = 0
+    mode = {"k": [0.0, K, 0.0], "omega": w, "B": {"cos": [0.0, 0.0, b]}, "u": {"i": {"sin": [Js, 0.0, 0.0]}}}
+    with pytest.raises(ValueError, match="omega B - k x E"):
+        check_fluctuation(_cfg(mode))

@@ -159,10 +159,11 @@ class OutputManager:
             have = None
         if want is not None and have == want:
             return [], ""
-        src = os.path.abspath(self.sim._restart[0])
+        # canonical paths: the checkpoint may be reached through a link (review of PR #50)
+        src = os.path.realpath(self.sim._restart[0])
 
         def holds_src(e):
-            p = os.path.abspath(os.path.join(self.cfg.dir, e))
+            p = os.path.realpath(os.path.join(self.cfg.dir, e))
             return os.path.commonpath([src, p]) == p
 
         return [e for e in present if not holds_src(e)], f" (run_id {have}; the checkpoint is of run_id {want})"

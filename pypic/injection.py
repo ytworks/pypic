@@ -258,8 +258,10 @@ def check_fluctuation(cfg):
         checks = [
             ("k . B", [_dot(k, Bc), _dot(k, Bs)], kk * max(_norm(Bc), _norm(Bs), 1e-300)),
             ("the charge density k . E", [_dot(k, Ec), _dot(k, Es)], qn),
+            # Faraday's law against its own terms (review of PR #50: the Ampere scale hides slow modes)
             ("omega B - k x E", [_norm([w * Bc[a] - _cross(k, Ec)[a] for a in range(3)]),
-                                 _norm([w * Bs[a] - _cross(k, Es)[a] for a in range(3)])], scale),
+                                 _norm([w * Bs[a] - _cross(k, Es)[a] for a in range(3)])],
+             max(abs(w) * max(_norm(Bc), _norm(Bs)), _norm(_cross(k, Ec)), _norm(_cross(k, Es)), 1e-300)),
             # Ampere: J_cos = k x B_sin + omega E_sin, J_sin = -k x B_cos - omega E_cos
             ("Ampere (cos)", [_norm([J[0][a] - _cross(k, Bs)[a] - w * Es[a] for a in range(3)])], scale),
             ("Ampere (sin)", [_norm([J[1][a] + _cross(k, Bc)[a] + w * Ec[a] for a in range(3)])], scale),

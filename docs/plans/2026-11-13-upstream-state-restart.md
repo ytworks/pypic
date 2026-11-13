@@ -355,6 +355,15 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
     (`test_a_fluctuation_without_an_injecting_face_is_refused`).
   - **P2:** a segment of zero steps reports its timing as unavailable, in `alfven_inflow` and `blast_wave`
     (CPU test).
+- **Review of PR #50, round 6** (Codex, on 4da37f8): four findings. Each of the first three is fixed with a
+  test that fails on the code before.
+  - **P1:** the clean-up of a continued run compares canonical paths, so a checkpoint reached through a link is
+    kept. `test_restart_through_a_link_keeps_its_checkpoint`.
+  - **P2:** after the Marder zone the incident E is taken away and the conductor behind the absorbing layer is
+    set to zero again. Before, −E_inc was left there, which a restore onto another layout rebuilds as 0.
+    `test_marder_zone_leaves_no_incident_field_on_the_outer_conductor`.
+  - **P2:** Faraday's law is checked against its own terms (|ω B|, |k × E|). `test_faraday_is_checked_against_its_own_terms`.
+  - **P2:** the new two-GPU restore test is skipped on hosts with one device.
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 
