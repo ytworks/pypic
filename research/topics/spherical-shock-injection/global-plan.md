@@ -86,8 +86,9 @@ thermal electrons ≈ 0.01):
 electrons born outside the shell by γ_max in each run, the ordered list of steps that carry their gain (block
 work ≥ 0.05 in γ, with its site, polar band and dominant component, and the reflections of the entry table).
 Each electron is assigned the pattern R1–R5 whose signature it meets (rules as above, R3 split into
-R3a–R3c; an electron meeting none is "other"); the share of each pattern is reported per run and per temperature. A pattern is called the route to
-high energy in a set when it holds for more than half of the top 1 % in both seeds.
+R3a–R3c; an electron meeting none is "other"); the share of each pattern is reported per run and per
+temperature. A pattern is called the route to high energy in a set when it holds for more than half of the
+top 1 % in both seeds.
 
 ## 3. Evidence so far (P5; notebook 2026-11-13)
 
