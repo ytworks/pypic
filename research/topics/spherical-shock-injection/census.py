@@ -670,8 +670,10 @@ def selfcheck(check):
     want = np.zeros((len(CLASSES), len(E_NAMES)), np.int64)
     eb = e_bin(rec["gamma"][last])
     np.add.at(want, (rec["cls"][last][eb >= 0], eb[eb >= 0]), 1)
-    got_c, got_u, _ = count_dump(model, dict(dumps[-1][1], time=dumps[-1][0]), dumps[-1][0], chunk=997)
-    check("census, counts without back-tracing", np.array_equal(got_c, want) and got_u.sum() == want[:2].sum(),
+    got_c, got_u, _, got_b, got_p = count_dump(model, dict(dumps[-1][1], time=dumps[-1][0]), dumps[-1][0], chunk=997)
+    n_up = want[:2].sum()
+    check("census, counts without back-tracing", np.array_equal(got_c, want) and got_u.sum() == n_up
+          and got_b.sum() == n_up and got_p.sum() == n_up,
           f"{int(want.sum())} electrons in the last dump; class x energy table equal in chunks of 997")
 
 
@@ -821,10 +823,13 @@ def cmd_census(args) -> int:
 
 
 def count_dump(model, part, t, chunk=2_000_000):
-    """Counts of one dump without back-tracing: by_class[class, energy], upstream[flag, energy], and the
-    radius (10/50/90 %) of the electrons with gamma >= 1.5 per class."""
+    """Counts of one dump without back-tracing: by_class[class, energy], upstream[flag, energy], the radius
+    (10/50/90 %) of the electrons with gamma >= 1.5 per class, and the upstream electrons by foot band
+    [band, energy] and by polar angle of the position in 10 deg bins [bin, energy]."""
     by_class = np.zeros((len(CLASSES), len(E_NAMES)), np.int64)
     upstream = np.zeros((4, len(E_NAMES)), np.int64)
+    up_band = np.zeros((NO_FOOT + 1, len(E_NAMES)), np.int64)
+    up_polar = np.zeros((9, len(E_NAMES)), np.int64)
     radii = [[] for _ in CLASSES]
     n = len(part["id"])
     for a in range(0, n, chunk):
@@ -835,6 +840,9 @@ def count_dump(model, part, t, chunk=2_000_000):
         np.add.at(by_class, (rec["cls"][ok], eb[ok]), 1)
         up = ok & (rec["cls"] <= 1)
         np.add.at(upstream, (rec["flag"][up], eb[up]), 1)
+        np.add.at(up_band, (rec["band"][up], eb[up]), 1)
+        polar = np.clip(np.degrees(np.arctan2(rec["rho_gc"], rec["z_abs"])) // 10, 0, 8).astype(int)
+        np.add.at(up_polar, (polar[up], eb[up]), 1)
         r = np.hypot(rec["rho_gc"], rec["z_abs"])
         for c in range(len(CLASSES)):
             m = (rec["cls"] == c) & (rec["gamma"] >= 1.5)
@@ -845,7 +853,7 @@ def count_dump(model, part, t, chunk=2_000_000):
         if radii[c]:
             q = np.percentile(np.concatenate(radii[c]), (10, 50, 90))
             rad[name] = [float(v) for v in q]
-    return by_class, upstream, rad
+    return by_class, upstream, rad, up_band, up_polar
 
 
 def cmd_counts(args) -> int:
@@ -866,11 +874,15 @@ def cmd_counts(args) -> int:
         if not len(part["id"]):
             rows.append({"t": float(t), "n": 0})
             continue
-        by_class, upstream, rad = count_dump(model, part, t)
+        by_class, upstream, rad, up_band, up_polar = count_dump(model, part, t)
         rows.append({"t": float(t), "n": int(len(part["id"])),
                      "by_class": {c: by_class[i].tolist() for i, c in enumerate(CLASSES) if by_class[i].any()},
                      "upstream_by_flag": {f: upstream[i].tolist() for i, f in enumerate(FLAGS) if upstream[i].any()},
-                     "radius_gamma>=1.5": rad})
+                     "radius_gamma>=1.5": rad,
+                     "upstream_by_band": {(f"{10 * b}-{10 * b + 10}" if b < NO_FOOT else "no foot"): up_band[b].tolist()
+                                          for b in range(NO_FOOT + 1) if up_band[b].any()},
+                     "upstream_by_polar_angle": {f"{10 * b}-{10 * b + 10}": up_polar[b].tolist() for b in range(9)
+                                                 if up_polar[b].any()}})
         print(f"t {t:6.1f}  n {len(part['id']):9d}  " + "; ".join(
             f"{c}: {int(by_class[i, 1:].sum())}" for i, c in enumerate(CLASSES) if by_class[i, 1:].any()), flush=True)
     out = {"run": str(run_dir), "commit": run.info.get("git_commit"), "energy_bins": list(E_NAMES),
