@@ -53,7 +53,7 @@ overrides:
     return head + body + outputs(BOX, debris)
 
 
-DISK = """    - name: disk_e             # every electron in an equatorial slab (|z - c| < 20, |x - c|, |y - c| < 130 d_e):
+DISK = """    - name: disk_e    # every electron in an equatorial slab (|z - c| < 20, |x - c|, |y - c| < 130 d_e):
       # the electrons that collect in the equatorial disk of D1, followed by id from dump to dump (D1-disk)
       kind: particles
       species: [e]

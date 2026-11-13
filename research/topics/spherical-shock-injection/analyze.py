@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import baseline  # noqa: E402
 import campaign  # noqa: E402
 import census  # noqa: E402
+import disk  # noqa: E402
 import drive  # noqa: E402
 import orbits  # noqa: E402
 import potential  # noqa: E402
@@ -1095,6 +1096,8 @@ def main(argv=None) -> int:
     p.add_argument("--chunk", type=int, default=60000)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--summary-only", action="store_true", help="rewrite campaign.json from the saved tables")
+    p = sub.add_parser("disk", help="dipole runs: histories and mechanism of the equatorial disk (disk_e dump)")
+    p.add_argument("run", type=Path)
     p = sub.add_parser("routes", help="M6 of global-plan.md: routes of the top 1 % electrons (after campaign)")
     p.add_argument("run", type=Path)
     p = sub.add_parser("prune", help="delete tracks and particle dumps of an analysed run (campaign A)")
@@ -1156,6 +1159,8 @@ def main(argv=None) -> int:
         return census.cmd_census(args)
     if args.cmd == "campaign":
         return campaign.write_summary(args.run) if args.summary_only else campaign.cmd_campaign(args)
+    if args.cmd == "disk":
+        return disk.cmd_disk(args)
     if args.cmd == "routes":
         return routes.cmd_routes(args)
     if args.cmd == "prune":
