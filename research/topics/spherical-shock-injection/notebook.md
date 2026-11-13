@@ -3,6 +3,28 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Run S25 designed: a longer drive (before the run)
+
+- **Instruction of the owner:** first run a condition in which a shock forms, and look at it. This changes the
+  order recommended in `exploratory-results.md` Sect. 8 (read the two predecessors, narrow the question, then
+  design). The readings and the narrowing stay conditions before any hypothesis.
+- **New command `analyze.py drive`** (`drive.py`), run on the recorded outputs of L and M before the design:
+  - L: first valid front at 3.30 / Ω_ci with the debris edge at 1.00 R_m and at 0.57 of the front speed;
+    35 of 241 valid bins are driven (edge at half the front speed or faster), longest 1.32 / Ω_ci.
+  - M: first valid front at 2.70 / Ω_ci with the debris edge moving inwards; no driven valid bin.
+  - So both shocks became valid as free, decaying fronts. Criterion (b), the lead over the debris edge, is the
+    last to hold; the speed criterion (c) holds from the first output that has a speed.
+- **Design.** In this box only M_A moves R_m / ρ_d = (R_B / d_i) M_A^(−5/3). S25: M_A = 2.5, `rm` 20.1,
+  R_m / ρ_d = 8.0 (L: 4.6), nominal fast Mach 2.27 (L: 2.95), β = 0.25. Everything else as L.
+- **Fixed before the run** (`shock-forming-run.md`, Sect. 5): observables O1–O6, the predictions of three
+  readings of where the front becomes valid (a time, a length, the stalling of the debris), and the verdict
+  rule (driven valid bins for 4 / Ω_ci or longer at one polar angle: a driven shock formed; 2.5 or less: no
+  better than L).
+- **Not done:** no review before the run (an observation with the registered front definition; nothing is
+  claimed), no null run for this condition.
+- **Note on a number.** `exploratory-results.md` gives "at most 2.6 / Ω_ci" for the time L holds a fast Mach
+  number of 2 or more at one polar angle. `drive` gives 2.31: it counts k outputs in a row as k − 1 intervals.
+
 ## 2026-11-13 — Review R2 of the results: verdict stands; corrections to the entries on L and on M, M-null and H
 
 - **What was reviewed.** The first version of `exploratory-results.md` (commit `69459cd`), by the research

@@ -1,0 +1,108 @@
+# Run S25 of the topic spherical-shock-injection (designed 2026-11-13): a condition in which the debris drives
+# the front for longer than in L. Record and reasons: ../shock-forming-run.md. An observation run: it supports
+# no hypothesis. Run with examples/blast_wave/run.py (../exploratory-protocol.md, Sect. 8).
+#
+# It differs from explore-L.yaml in three numbers only: mach_alfven and wpe_wce 3.5 -> 2.5 (B0 = 0.4, V_d stays
+# 0.25 c) and rm 16.0 -> 20.1 d_i, which keeps R_B at 148 d_e and so the box, the grid and the step count.
+# R_m / rho_d (the ion gyro-times for which the piston pushes) rises from 4.6 to 8.0; the price is a weaker
+# nominal shock: M_A = 2.5, beta = 0.25, fast Mach number 2.27 (L: 2.95). 2960 steps are 18.5 / Omega_ci.
+mass_ratio: 16
+mach_alfven: 2.5
+wpe_wce: 2.5
+vte: 0.1
+ti_te: 1.0
+rm: 20.1
+shell_radius: 0.33
+shell_width: 0.1
+debris_beams: 4
+body: false          # no absorbing sphere and no dipole: a remnant has no magnetised body
+half_width: 1.3      # the planner's lower limit, in R_B
+cells_per_de: 2.0
+ppc: 2
+run: 1.25
+filter_passes: 4
+seed: 12345
+overrides:
+  precision: compact
+output:
+  # This list replaces the planner's. The entries coarse, slice_z and slice_y repeat the planner's own
+  # diagnostics (same names, block size and cadence), because examples/blast_wave/analyze.py reads them; the
+  # slices also carry the electron moments and J. The others are for the electrons. The box is 384 d_e wide,
+  # centre at 192. The list is that of explore-L.yaml, unchanged, so that the two runs are read the same way.
+  diagnostics:
+    - name: coarse
+      kind: fields
+      fields: ["n:e", "flux:e", "ekin:e", "n:i", "flux:i", "ekin:i", "n:de", "flux:de", "ekin:de",
+               "n:di", "flux:di", "ekin:di", E, B, rho]
+      coarsen: [13, 13, 13]
+      every: 296
+    - name: slice_z            # equatorial plane, z = centre: theta_Bn = 90 deg all around
+      kind: slice
+      fields: ["n:e", "n:i", "n:de", "n:di", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: z
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 74
+    - name: slice_y            # meridional plane, y = centre: contains B0, all theta_Bn from 0 to 90 deg
+      kind: slice
+      fields: ["n:e", "n:i", "n:de", "n:di", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: y
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 74
+    - name: slice_x            # second meridional plane, x = centre: tests that the front is axisymmetric
+      kind: slice
+      fields: ["n:e", "n:i", "n:de", "n:di", "flux:i", "flux:e", "ekin:e", "ekin:i", E, B, J]
+      axis: x
+      position: 192.0
+      coarsen: [1, 1, 1]
+      every: 74
+    - name: spec_meridional    # energy spectra by position in a slab of 16 d_e around the meridional plane
+      kind: histogram
+      species: [e, i, de, di]
+      quantities: [x, z, ekin]
+      bins: [192, 192, 96]
+      ranges: [[0.0, 384.0], [0.0, 384.0], [0.0001, 100.0]]
+      log: [false, false, true]
+      region: [null, [184.0, 200.0], null]
+      every: 148
+    - name: spec_equatorial    # the same in a slab of 16 d_e around the equatorial plane
+      kind: histogram
+      species: [e, i, de, di]
+      quantities: [x, y, ekin]
+      bins: [192, 192, 96]
+      ranges: [[0.0, 384.0], [0.0, 384.0], [0.0001, 100.0]]
+      log: [false, false, true]
+      region: [null, null, [184.0, 200.0]]
+      every: 148
+    - name: spec_all           # energy spectra of the whole box
+      kind: histogram
+      species: [e, i, de, di]
+      quantities: [ekin]
+      bins: [224]
+      ranges: [[0.000001, 100.0]]
+      log: [true]
+      every: 74
+    - name: spec_up            # far upstream (a corner column the blast never reaches): numerical heating
+      kind: histogram
+      species: [e, i]
+      quantities: [ekin]
+      bins: [224]
+      ranges: [[0.000001, 10.0]]
+      log: [true]
+      region: [[16.0, 48.0], [16.0, 48.0], [16.0, 368.0]]
+      every: 74
+    - name: hot_e              # every electron with gamma >= 1.25, with its id; the census counts gamma >= 1.5.
+      # The margin below 1.5 gives the history of an electron before it crosses the threshold (review R1).
+      kind: particles
+      species: [e, de]
+      select: {gamma_min: 1.25}
+      every: 74
+    - name: tracks_e           # about 9.6e5 ambient electrons followed from the start, with E and B at the
+      # particle. Stride 947 (prime, shares no factor with 768), every 2 steps: the cadence at which the work
+      # of the recorded field closes per orbit (check-L-cadence, protocol Sect. 2); 55 GB on disk.
+      kind: tracks
+      species: [e]
+      stride: 947
+      with_fields: true
+      every: 2

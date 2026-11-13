@@ -24,6 +24,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import baseline  # noqa: E402
 import census  # noqa: E402
+import drive  # noqa: E402
 import orbits  # noqa: E402
 import potential  # noqa: E402
 import r2checks  # noqa: E402
@@ -306,6 +307,7 @@ def selftest() -> int:
     potential.selfcheck(check)
     record.selfcheck(check)
     r2checks.selfcheck(check)
+    drive.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
@@ -1069,12 +1071,16 @@ def main(argv=None) -> int:
     p = sub.add_parser("r2", help="review R2: pre-valid bins, regime, epsilon, ramp width, thermal nu tau, ids")
     p.add_argument("run")
     p.add_argument("--null", required=True, help="directory of the null run (its analysis/null.json)")
+    p = sub.add_parser("drive", help="how long the debris drives the front (shock-forming-run.md); after front")
+    p.add_argument("run")
     p = sub.add_parser("record", help="write runs/<date>-<commit>-<name>.json and runs/index.json (clean tree)")
     p.add_argument("run")
     p.add_argument("name")
     args = ap.parse_args(argv)
     if args.cmd == "record":
         return record.cmd_record(args)
+    if args.cmd == "drive":
+        return drive.cmd_drive(args)
     if args.cmd == "r2null":
         return r2checks.cmd_r2null(args)
     if args.cmd == "r2":
