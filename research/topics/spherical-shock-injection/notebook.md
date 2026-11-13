@@ -3,6 +3,30 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — P5: several heating sites visited in turn? Criteria fixed before the analysis
+
+- **Owner:** do not hold on to one process. If two heating mechanisms sit at different places and some
+  electrons enter both selectively, those electrons are accelerated: the different heating sites act as the
+  scatterers of a kind of second-order Fermi process.
+- **Sites** (radius r of the electron against, at its polar angle and time, the radius r_Bmax of the
+  B maximum and the front r_f from `front.npz`; d_i = 4 d_e):
+  S1 cavity, r < r_Bmax − 10 d_e; S2 inner edge of the piston, r_Bmax − 10 ≤ r < r_Bmax; S3 outer side of the
+  pile-up and the front layer, r_Bmax ≤ r ≤ r_f + d_i; S4 upstream, r > r_f + d_i. A visit is a run of
+  consecutive samples (every 2 steps) at one site; its gain is the change of γ over it.
+- **Data:** the tracked electrons with γ_max ≥ 1.5 (5741) and, as the reference, a random sample of 20,000
+  tracked electrons with γ_max < 1.25; each one up to the time of its γ_max.
+- **Fixed now. "Gains from several sites" (the owner's picture) holds if all three hold:**
+  1. For γ_max ≥ 2, at least two sites each give more than 10 % of the summed positive net gain.
+  2. At fixed total time at the gaining sites, γ_max rises with the number of site changes (median in the
+     upper third of the number of changes above the median in the lower third, in each of three bins of
+     time).
+  3. At each gaining site, the mean relative gain per visit, Δγ / γ at entry, differs by less than a factor 2
+     between γ at entry 1.0–1.5 and 1.5–3 (a gain proportional to the energy, as for Fermi).
+- **"One process" holds** if one site gives 90 % or more of the summed net gain of the γ_max ≥ 2 electrons.
+  Between the two: undecided, and the numbers are reported.
+- **Second-order signature, reported in any case:** per site, the mean and the rms of the gain per visit; the
+  rms against the number of visits.
+
 ## 2026-11-13 — P5: the fields where the electrons gain energy (owner: observe the acceleration itself)
 
 Scripts and figures: `P5/analysis/figures/fields.py`, `work.py`, `orbitfield.py` (NVMe output, not in git).
