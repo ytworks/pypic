@@ -3,6 +3,27 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Unselected electrons and crossings of the transition layer (sites of sites.md)
+
+- **Owner:** "the transition layer gives a net loss" has the wrong premise: to lose, an electron must have
+  gained before; the layer may just hold electrons before and during their energisation. Agreed: that statement
+  came from electrons selected by γ_max ≥ 1.5 or 2, windowed up to their γ_max. **Withdrawn** as a property of
+  the layer. Script: `P5/analysis/figures/crossing.py` (100,000 random tracked electrons, no selection).
+- **(1) Net change of γ per site, whole run:** cavity +192 (1 % of the time), foot +834 (1 %), steep wall
+  +1732 (11 %), transition layer −1204 (9 %), upstream +96 (78 %). A sum per site mixes populations (electrons
+  coming in from upstream and electrons coming out from inside); its sign is not a property of the place.
+- **(2) First entries from upstream into the layer (23,518):** into the steep wall 18,558, of which 93 % gain
+  (Δγ p10/50/90 = 0.005 / 0.054 / 0.147, mean +0.067): shock heating. Back upstream 4891, Δγ ≈ 0.
+- **(3) After the layer:** of those that gained more than 0.05 (9750), 0.7 % later reach γ ≥ 1.5; of those that
+  gained nothing (1254), none. A heating-then-wall path exists and is rare.
+- **(4) Origin:** γ_max ≥ 2 in the sample: 32, none ever entered the layer from upstream; all born at
+  r = 51–69 d_e (inside the initial debris shell). γ_max 1.5–2: 574, of which 114 came from upstream.
+- **Readings, not decided:** (a) the highest energies belong to ambient electrons placed inside the debris
+  shell at t = 0 and pushed from the start, a population that may depend on the initial set-up; (b) shock
+  heating followed by gain at the wall is a second path, reaching γ 1.5–2 in P5.
+- `analyze.py sitegain` (run before this) groups by γ_max with the same window and has the same selection; its
+  per-site sums are not used.
+
 ## 2026-11-13 — Correction: the gain at the wall is not shown to be "not the shock"
 
 - **Owner:** the wall foot is a place the shock passed earlier; the earlier claims were one-sided.
