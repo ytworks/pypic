@@ -292,6 +292,22 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
   - B = 0.1 (the tested case): 2–3 % inside, 5–8 % next to the face, amplitude ratio 0.985, densities
     0.94–1.0.
 - **Piston (B = 0.1):** shock with downstream density about 3. B_z mode ahead of it 0.78–1.50 of the incident.
+- **Error next to the face** (B = 0.5, t = 300, scan of 2026-11-14; inside 30 < x < L − 8 / within 4 c/ω_pe of
+  the face):
+
+  | case | B_x | B_z | B_y |
+  |---|---|---|---|
+  | base (32 ppc, filter, Marder 0.125) | 1.4 % / 9.1 % | 3.0 % / 8.5 % | 1.5 % / 17 % |
+  | Marder 0.0625 | 1.3 / 8.4 | 3.0 / 6.9 | 1.4 / 17 |
+  | without the filter | 4.2 / 11 | 6.8 / 8.3 | 1.9 / 19 |
+  | 128 ppc | 1.2 / 8.9 | 2.9 / 7.7 | 1.3 / 17 |
+  | Marder zone without the incident E_y | 1.4 / 9.1 | 3.0 / 8.3 | 1.5 / 17 |
+  | without the Marder zone | 11 / 24 | 17 / 41 | 7.4 / 36 |
+
+  - The residual next to the face is not noise (128 ppc), not the filter, not the Marder number, and not the
+    incident E_y that the plasma has no charge for.
+  - The Marder zone is needed.
+  - The cause of the residual is not established.
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 
