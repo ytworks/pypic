@@ -283,10 +283,12 @@ def clear_open_flags(path: str) -> bool:
     return True
 
 
-def truncate_series(path: str, step: int) -> int:
+def truncate_series(path: str, step: int, committed: int | None = None) -> int:
     """Cut the rows of a series (or tracks) file at ``step`` and later (a run continued from the
     checkpoint of that step writes them again, OUT-D6). Returns the rows kept. The open-for-write
-    flags of a writer that was killed are cleared first (:func:`clear_open_flags`)."""
+    flags of a writer that was killed are cleared first (:func:`clear_open_flags`). ``committed``:
+    the rows the file had at the checkpoint (its meta.json); no more are kept, so an unwritten first
+    row of fill zeros (step 0) is not taken for output (review of PR #50)."""
     clear_open_flags(path)
     with h5py.File(path, "a", libver="latest") as f:
         if "step" not in f:
@@ -299,6 +301,8 @@ def truncate_series(path: str, step: int) -> int:
         keep = 0
         while keep < steps.size and steps[keep] < step and (keep == 0 or steps[keep] > steps[keep - 1]):
             keep += 1
+        if committed is not None:
+            keep = min(keep, int(committed))
         if keep < steps.size:
             for k, ds in f.items():
                 if k not in SeriesWriter.FIXED:

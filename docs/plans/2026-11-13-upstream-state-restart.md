@@ -381,6 +381,17 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
   - **P2:** `alfven_inflow`'s `theory.preload` carries the mode's own phase into every loaded field and
     velocity. `test_preload_keeps_the_phase_of_the_mode` (CPU).
   - Neither changes the configurations run so far: they have B0 ≠ 0 and phase 0.
+- **Review of PR #50, round 10** (Codex, on 5b3bcb9): one finding.
+  - **P2:** a diagnostic killed while writing its first row leaves step 0 of fill zeros, which the step alone
+    cannot tell from an output at step 0. The checkpoint now records the rows of every series and tracks file
+    after its flush (`meta.json`, `output.committed`), and a continued run keeps no more than those.
+    `test_unwritten_first_row_is_not_kept` (CPU); it fails on the code before.
+- **Cost of the fluctuation face.** The incident field is evaluated about ten times per step on planes and on
+  the absorbing layer. Measured on 2 GPUs: the null piston (384 × 128 × 2 cells, 6.3e6 to 1.2e7 particles) takes
+  9.6 ms per step, against 7.4 ms on c571302, before the corrections of rounds 3 and 4 (gather, outputs,
+  conductor). Caching the spatial parts (`_incident_cached`) saves 2.5 %; the rest is the launch of the small
+  CuPy operations, about 2 ms per step whatever the number of particles. Against a production step of
+  hundreds of ms this is below 1 %.
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 

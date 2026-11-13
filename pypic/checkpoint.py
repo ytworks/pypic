@@ -311,6 +311,10 @@ def save(sim) -> str:
         "counter_sizes": [int(c.size) for c in counters], "reduced": reduced[: reduced.size - S].tolist(),
         "particles": [int(round(v)) for v in reduced[reduced.size - S:]],
         "output": {"last": out.last, "acc_step": out.acc_step,
+                   # rows on disk of every series and tracks file after the flush above (rank 0, which writes
+                   # this file): a continued run keeps at most these (review of PR #50)
+                   "committed": {os.path.relpath(w.path, out.cfg.dir): int(w.n) for w in out.writers.values()}
+                   if out.enabled and sim.rank == 0 else {},
                    "acc": {str(k): {"n": out.diags[k].n_acc, "t": out.diags[k].t_acc,
                                     "list": isinstance(out.diags[k].accum, list)} for k, _ in _accumulators(sim)}},
     }

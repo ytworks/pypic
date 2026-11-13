@@ -195,9 +195,11 @@ class OutputManager:
             p = os.path.join(d, sub)
             if os.path.isdir(p):
                 series += [os.path.join(p, e) for e in sorted(os.listdir(p)) if e.endswith(".h5")]
+        committed = ((self.sim._restart[1] or {}).get("output") or {}).get("committed")  # None: an older format
         for p in series:
             if os.path.exists(p):
-                kept = truncate_series(p, n)
+                rows = None if committed is None else committed.get(os.path.relpath(p, d), 0)
+                kept = truncate_series(p, n, rows)
                 if p.endswith("scalars.h5"):
                     self.scalar_rows = kept
         for sub in ("fields", "particles"):

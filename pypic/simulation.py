@@ -88,6 +88,7 @@ class Simulation:
         self.injection = injection.check_config(cfg)
         # PIC-D26; checked even without an injecting face, which refuses a table that nothing carries in
         self.fluct = injection.check_fluctuation(cfg)
+        self._inc_cache = {}  # spatial parts of the incident field on the TF/SF planes (_incident_cached)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
             self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body,
             window=next(_WINDOW_MODULES) if self.window else 0, x_low=self.decomp.x_low(ghost),
@@ -801,6 +802,32 @@ class Simulation:
             out += C[c] * cp.cos(th) + S[c] * cp.sin(th)
         return out
 
+    def _incident_cached(self, key, comp: str, coords, t: float):
+        """``_incident`` on a fixed set of points named by ``key``: the spatial parts are computed
+        once, cos(th) = cos(k.r + phase) cos(w t) + sin(k.r + phase) sin(w t), so a step costs a few
+        multiply-adds per mode instead of the trigonometric functions on every point."""
+        ent = self._inc_cache.get(key)
+        if ent is None:
+            c, kind = "xyz".index(comp[1]), comp[0]
+            bg = float((self.cfg.E0 if kind == "E" else self.cfg.B0)[c])
+            shape = cp.broadcast(*coords).shape
+            terms = []
+            for m in self.fluct["modes"]:
+                C, S = m[kind]
+                if C[c] == 0.0 and S[c] == 0.0:
+                    continue
+                k = m["k"]
+                th = k[0] * coords[0] + k[1] * coords[1] + k[2] * coords[2] + m["phase"]
+                ca, sa = cp.cos(th), cp.sin(th)
+                terms.append((m["omega"], cp.broadcast_to(C[c] * ca + S[c] * sa, shape).copy(),
+                              cp.broadcast_to(C[c] * sa - S[c] * ca, shape).copy()))
+            ent = self._inc_cache[key] = (bg, shape, terms)
+        bg, shape, terms = ent
+        out = cp.full(shape, bg)
+        for w, P, Q in terms:
+            out += math.cos(w * t) * P + math.sin(w * t) * Q
+        return out
+
     def _plane(self, target: str, at: float):
         """Local slice of field ``target`` on the plane of global position ``at`` (cells) along the
         normal of the fluctuation face (ghost copies included: every rank that holds the plane
@@ -844,7 +871,7 @@ class Simulation:
                 continue
             sl, xyz = pl
             xyz[a] = cp.full((1, 1, 1), node * g.dx[a])
-            getattr(g, tgt)[sl] += (fac * dtb / d) * self._incident(src, xyz, tE)
+            getattr(g, tgt)[sl] += (fac * dtb / d) * self._incident_cached(("B", tgt), src, xyz, tE)
 
     def _tfsf_E(self, dte: float, tB: float):
         """E on the face plane (total) was updated with the scattered B of the half plane outside: add
@@ -859,7 +886,7 @@ class Simulation:
                 continue
             sl, xyz = pl
             xyz[a] = cp.full((1, 1, 1), half * g.dx[a])
-            getattr(g, tgt)[sl] += (fac * dte / d) * self._incident(src, xyz, tB)
+            getattr(g, tgt)[sl] += (fac * dte / d) * self._incident_cached(("E", tgt), src, xyz, tB)
 
     def _tfsf_gather(self, t: float, sign: float):
         """Add (sign = +1) or take away (-1) the incident field at time t on the half plane outside the
@@ -872,7 +899,7 @@ class Simulation:
             if pl is None:
                 continue
             sl, xyz = pl
-            getattr(self.grid, comp)[sl] += sign * self._incident(comp, xyz, t)
+            getattr(self.grid, comp)[sl] += sign * self._incident_cached(("gather", comp), comp, xyz, t)
 
     def _tfsf_half_B(self, t: float, sign: float):
         """Add (sign = +1) or take away (-1) the incident B_b, B_c at time t on the half plane outside
@@ -884,7 +911,7 @@ class Simulation:
             if pl is None:
                 continue
             sl, xyz = pl
-            getattr(self.grid, comp)[sl] += sign * self._incident(comp, xyz, t)
+            getattr(self.grid, comp)[sl] += sign * self._incident_cached(("half", comp), comp, xyz, t)
 
     def _tfsf_total(self, t: float, sign: float):
         """Add (sign = +1) or take away (-1) the incident E at time t on the points beyond the
@@ -911,7 +938,7 @@ class Simulation:
                 shape = [1, 1, 1]
                 shape[b] = -1
                 coords.append(cp.asarray((x * g.dx[b]).reshape(shape)))
-            getattr(g, comp)[tuple(sl)] += sign * self._incident(comp, coords, t)
+            getattr(g, comp)[tuple(sl)] += sign * self._incident_cached(("total", comp), comp, coords, t)
 
     def _tfsf_start(self):
         """The fields outside the fluctuation face hold the scattered field (total - incident). The
