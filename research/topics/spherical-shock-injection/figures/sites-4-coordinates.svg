@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 330"><style>
+.b-cav { fill:#e9ecf2; } .b-foot { fill:#f6d9d2; } .b-steep { fill:#d6e2f3; }
+.b-trans { fill:#e2e2dc; } .b-up { fill:#fbfbf8; }
+.debris { fill:none; stroke:#2f8a3e; stroke-width:2.5; stroke-dasharray:8 5; }
+.bmax { fill:none; stroke:#26302c; stroke-width:3; }
+.front { fill:none; stroke:#0f8fa0; stroke-width:2.5; stroke-dasharray:2 4; stroke-linecap:round; }
+.fl { stroke:#5d6b66; stroke-width:1.2; }
+.flw { fill:none; stroke:#5d6b66; stroke-width:1.2; }
+.flc { stroke:#5d6b66; stroke-width:1; stroke-dasharray:3 6; }
+.ax { stroke:#1c2421; stroke-width:1.2; }
+.ray { stroke:#5d6b66; stroke-width:1; stroke-dasharray:4 4; }
+.thin { fill:none; stroke:#1c2421; stroke-width:1.2; }
+.dash { stroke-dasharray:3 3; }
+.mk { fill:#1c2421; } .mkm { fill:#a2307f; } .mkr { fill:#b8382a; } .mkg { fill:#2f8a3e; }
+.lab { fill:#1c2421; font-size:13px; font-family:'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif; }
+.lab.sm { font-size:11.5px; fill:#5d6b66; }
+.lab.b { font-weight:700; }
+.lab.red { fill:#b8382a; } .lab.mag { fill:#a2307f; } .lab.grn { fill:#2f8a3e; }
+.lab.on { fill:#1c2421; }
+.bsym { fill:#ffffff; stroke:#1c2421; stroke-width:1.2; } .bdot { fill:#1c2421; }
+.ephi { fill:none; stroke:#a2307f; stroke-width:2.2; }
+.loop { fill:none; stroke:#b8382a; stroke-width:1.6; }
+.drift { fill:none; stroke:#b8382a; stroke-width:2.5; }
+.bprof { fill:none; stroke:#26302c; stroke-width:2.5; }
+.grid { stroke:#c9d1cd; stroke-width:1; }
+.s1 { fill:#e9ecf2; stroke:#c9d1cd; } .s2 { fill:#d6e2f3; stroke:#c9d1cd; }
+.s3 { fill:#e2e2dc; stroke:#c9d1cd; } .s4 { fill:#fbfbf8; stroke:#c9d1cd; }
+.gain { fill:#f6d9d2; stroke:#b8382a; } .loss { fill:#d6e2f3; stroke:#2b5fa8; }
+.nvec { stroke:#1c2421; stroke-width:2; } .bvec { stroke:#2f8a3e; stroke-width:2.5; }
+.dot { fill:#1c2421; } .edot { fill:#b8382a; } .dn { stroke:#1c2421; stroke-width:1.2; }
+</style><rect width="100%" height="100%" fill="#ffffff"/><defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk"/></marker>
+<marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk"/></marker>
+<marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mkm"/></marker>
+<marker id="ahd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mkr"/></marker>
+<marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mkg"/></marker>
+</defs><path class="front" d="M40,250 Q260,150 480,250"/><text class="lab sm" x="470" y="268" text-anchor="end">衝撃波面（極角ごとの r_f(θ) をつないだ面）</text><circle class="dot" cx="260" cy="200" r="4"/><line class="nvec" x1="260" y1="200" x2="260" y2="40" marker-end="url(#ah)"/><text class="lab b" x="266" y="50">n（面の法線）</text><line class="bvec" x1="260" y1="200" x2="399.3" y2="102.5" marker-end="url(#ahg)"/><text class="lab b grn" x="405.3" y="102.5">B（電子の位置で測った局所磁場）</text><path class="thin" d="M260,140 A60,60 0 0 1 309.1,165.6"/><text class="lab" x="282" y="134">局所 θ_Bn</text><circle class="edot" cx="190" cy="90" r="6"/><text class="lab red" x="180" y="80" text-anchor="end">電子</text><line class="thin dash" x1="190" y1="90" x2="190" y2="194"/><line class="dn" x1="164" y1="90" x2="164" y2="196" marker-start="url(#ahs)" marker-end="url(#ahs)"/><text class="lab" x="158" y="145" text-anchor="end">Δn</text><text class="lab sm" x="20" y="300">場所の座標 =（法線方向の距離 Δn、局所 θ_Bn、|B|/B₀）</text><text class="lab sm" x="20" y="318">磁力線を横切る距離 = Δn / sin θ_Bn　　磁力線に沿った距離 = Δn / cos θ_Bn</text></svg>

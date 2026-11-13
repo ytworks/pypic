@@ -30,6 +30,7 @@ import potential  # noqa: E402
 import r2checks  # noqa: E402
 import record  # noqa: E402
 import shockkin as sk  # noqa: E402
+import sites  # noqa: E402
 import upstream  # noqa: E402
 
 GAMMA_EDGES = [1.5, 2.0, 3.0, 5.0, np.inf]  # one threshold for all runs: gamma >= 1.5
@@ -308,6 +309,7 @@ def selftest() -> int:
     record.selfcheck(check)
     r2checks.selfcheck(check)
     drive.selfcheck(check)
+    sites.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
@@ -1048,6 +1050,11 @@ def main(argv=None) -> int:
     p.add_argument("--null", type=Path, help="null.json of the run without a driver (floors N1, N3, N5)")
     p.add_argument("--tau", type=float, help="tau_dwell that replaces 3 gyro-periods (the rule of protocol "
                    "Sect. 3.2); the result goes to analysis/census-tau.json and .npz, census.json is kept")
+    p = sub.add_parser("sites", help="site boundaries along each ray from the |B| profile (sites.md); after front")
+    p.add_argument("run", type=Path)
+    p = sub.add_parser("sitegain", help="net change of gamma of the tracked electrons per site and theta_Bn")
+    p.add_argument("run", type=Path)
+    p.add_argument("--chunk", type=int, default=100000)
     p = sub.add_parser("counts", help="electrons per dump by class and energy, without back-tracing (large runs)")
     p.add_argument("run", type=Path)
     p = sub.add_parser("n3c", help="fluctuation power upstream of the front against the null run (N3c)")
@@ -1097,6 +1104,10 @@ def main(argv=None) -> int:
         return orbits.cmd_tracks(args)
     if args.cmd == "census":
         return census.cmd_census(args)
+    if args.cmd == "sites":
+        return sites.cmd_sites(args)
+    if args.cmd == "sitegain":
+        return sites.cmd_sitegain(args)
     if args.cmd == "counts":
         return census.cmd_counts(args)
     if args.cmd == "selftest":

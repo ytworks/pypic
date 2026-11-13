@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 490"><style>
+.b-cav { fill:#e9ecf2; } .b-foot { fill:#f6d9d2; } .b-steep { fill:#d6e2f3; }
+.b-trans { fill:#e2e2dc; } .b-up { fill:#fbfbf8; }
+.debris { fill:none; stroke:#2f8a3e; stroke-width:2.5; stroke-dasharray:8 5; }
+.bmax { fill:none; stroke:#26302c; stroke-width:3; }
+.front { fill:none; stroke:#0f8fa0; stroke-width:2.5; stroke-dasharray:2 4; stroke-linecap:round; }
+.fl { stroke:#5d6b66; stroke-width:1.2; }
+.flw { fill:none; stroke:#5d6b66; stroke-width:1.2; }
+.flc { stroke:#5d6b66; stroke-width:1; stroke-dasharray:3 6; }
+.ax { stroke:#1c2421; stroke-width:1.2; }
+.ray { stroke:#5d6b66; stroke-width:1; stroke-dasharray:4 4; }
+.thin { fill:none; stroke:#1c2421; stroke-width:1.2; }
+.dash { stroke-dasharray:3 3; }
+.mk { fill:#1c2421; } .mkm { fill:#a2307f; } .mkr { fill:#b8382a; } .mkg { fill:#2f8a3e; }
+.lab { fill:#1c2421; font-size:13px; font-family:'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif; }
+.lab.sm { font-size:11.5px; fill:#5d6b66; }
+.lab.b { font-weight:700; }
+.lab.red { fill:#b8382a; } .lab.mag { fill:#a2307f; } .lab.grn { fill:#2f8a3e; }
+.lab.on { fill:#1c2421; }
+.bsym { fill:#ffffff; stroke:#1c2421; stroke-width:1.2; } .bdot { fill:#1c2421; }
+.ephi { fill:none; stroke:#a2307f; stroke-width:2.2; }
+.loop { fill:none; stroke:#b8382a; stroke-width:1.6; }
+.drift { fill:none; stroke:#b8382a; stroke-width:2.5; }
+.bprof { fill:none; stroke:#26302c; stroke-width:2.5; }
+.grid { stroke:#c9d1cd; stroke-width:1; }
+.s1 { fill:#e9ecf2; stroke:#c9d1cd; } .s2 { fill:#d6e2f3; stroke:#c9d1cd; }
+.s3 { fill:#e2e2dc; stroke:#c9d1cd; } .s4 { fill:#fbfbf8; stroke:#c9d1cd; }
+.gain { fill:#f6d9d2; stroke:#b8382a; } .loss { fill:#d6e2f3; stroke:#2b5fa8; }
+.nvec { stroke:#1c2421; stroke-width:2; } .bvec { stroke:#2f8a3e; stroke-width:2.5; }
+.dot { fill:#1c2421; } .edot { fill:#b8382a; } .dn { stroke:#1c2421; stroke-width:1.2; }
+</style><rect width="100%" height="100%" fill="#ffffff"/><defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk"/></marker>
+<marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk"/></marker>
+<marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mkm"/></marker>
+<marker id="ahd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mkr"/></marker>
+<marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mkg"/></marker>
+</defs><rect class="b-up" x="0" y="0" width="480" height="490"/><path class="b-cav" d="M40,470 L40.0,178.8 A291.2,291.2 0 0 1 331.2,470.0 Z"/><path class="b-foot" d="M40.0,153.2 A316.8,316.8 0 0 1 356.8,470.0 L331.2,470.0 A291.2,291.2 0 0 0 40.0,178.8 Z"/><path class="b-steep" d="M40.0,121.2 A348.8,348.8 0 0 1 388.8,470.0 L356.8,470.0 A316.8,316.8 0 0 0 40.0,153.2 Z"/><path class="b-trans" d="M40.0,91.8 A378.2,378.2 0 0 1 418.2,470.0 L388.8,470.0 A348.8,348.8 0 0 0 40.0,121.2 Z"/><line class="fl" x1="430" y1="20" x2="430" y2="470" marker-end="url(#ah)"/><line class="fl" x1="455" y1="20" x2="455" y2="470" marker-end="url(#ah)"/><path class="flw"  d="M40.0,138.8 A331.2,331.2 0 0 1 371.2,470.0"/><path class="flw"  d="M40.0,130.8 A339.2,339.2 0 0 1 379.2,470.0"/><path class="flw"  d="M40.0,122.8 A347.2,347.2 0 0 1 387.2,470.0"/><line class="flc" x1="120" y1="260.8" x2="120" y2="470"/><line class="flc" x1="200" y1="313.2" x2="200" y2="470"/><path class="debris"  d="M40.0,127.6 A342.4,342.4 0 0 1 382.4,470.0"/><path class="bmax"  d="M40.0,121.2 A348.8,348.8 0 0 1 388.8,470.0"/><path class="front"  d="M40.0,104.6 A365.4,365.4 0 0 1 405.4,470.0"/><line class="ax" x1="40" y1="470" x2="40" y2="12" marker-end="url(#ah)"/><line class="ax" x1="40" y1="470" x2="474" y2="470" marker-end="url(#ah)"/><text class="lab b" x="48" y="22">z（B₀ の向き）</text><text class="lab b" x="470" y="462" text-anchor="end">x（赤道）</text><path class="thin" d="M40.0,278.0 A192.0,192.0 0 0 1 197.3,359.9" marker-end="url(#ahs)"/><line class="ray" x1="40" y1="470" x2="367.7" y2="240.6"/><text class="lab" x="114.0" y="277.6" text-anchor="start">θ（極角）≈ θ_Bn</text><text class="lab b" x="122.3" y="371.9" text-anchor="start">キャビティ</text><text class="lab sm" x="135.1" y="384.4" text-anchor="start">|B| ≈ 0.5 B₀</text><text class="lab b" x="290.5" y="172.4" text-anchor="start">上流</text><text class="lab sm" x="320.3" y="198.4" text-anchor="start">|B| = B₀</text><text class="lab sm" x="400" y="40" text-anchor="end">上流の磁力線（まっすぐ）</text><text class="lab sm" x="92.8" y="137.3" text-anchor="start">壁の中では磁力線が</text><text class="lab sm" x="110.1" y="140.2" text-anchor="start">面に沿って曲がり圧縮</text></svg>

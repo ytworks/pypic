@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 360"><style>
+.b-cav { fill:#e9ecf2; } .b-foot { fill:#f6d9d2; } .b-steep { fill:#d6e2f3; }
+.b-trans { fill:#e2e2dc; } .b-up { fill:#fbfbf8; }
+.debris { fill:none; stroke:#2f8a3e; stroke-width:2.5; stroke-dasharray:8 5; }
+.bmax { fill:none; stroke:#26302c; stroke-width:3; }
+.front { fill:none; stroke:#0f8fa0; stroke-width:2.5; stroke-dasharray:2 4; stroke-linecap:round; }
+.fl { stroke:#5d6b66; stroke-width:1.2; }
+.flw { fill:none; stroke:#5d6b66; stroke-width:1.2; }
+.flc { stroke:#5d6b66; stroke-width:1; stroke-dasharray:3 6; }
+.ax { stroke:#1c2421; stroke-width:1.2; }
+.ray { stroke:#5d6b66; stroke-width:1; stroke-dasharray:4 4; }
+.thin { fill:none; stroke:#1c2421; stroke-width:1.2; }
+.dash { stroke-dasharray:3 3; }
+.mk { fill:#1c2421; } .mkm { fill:#a2307f; } .mkr { fill:#b8382a; } .mkg { fill:#2f8a3e; }
+.lab { fill:#1c2421; font-size:13px; font-family:'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif; }
+.lab.sm { font-size:11.5px; fill:#5d6b66; }
+.lab.b { font-weight:700; }
+.lab.red { fill:#b8382a; } .lab.mag { fill:#a2307f; } .lab.grn { fill:#2f8a3e; }
+.lab.on { fill:#1c2421; }
+.bsym { fill:#ffffff; stroke:#1c2421; stroke-width:1.2; } .bdot { fill:#1c2421; }
+.ephi { fill:none; stroke:#a2307f; stroke-width:2.2; }
+.loop { fill:none; stroke:#b8382a; stroke-width:1.6; }
+.drift { fill:none; stroke:#b8382a; stroke-width:2.5; }
+.bprof { fill:none; stroke:#26302c; stroke-width:2.5; }
+.grid { stroke:#c9d1cd; stroke-width:1; }
+.s1 { fill:#e9ecf2; stroke:#c9d1cd; } .s2 { fill:#d6e2f3; stroke:#c9d1cd; }
+.s3 { fill:#e2e2dc; stroke:#c9d1cd; } .s4 { fill:#fbfbf8; stroke:#c9d1cd; }
+.gain { fill:#f6d9d2; stroke:#b8382a; } .loss { fill:#d6e2f3; stroke:#2b5fa8; }
+.nvec { stroke:#1c2421; stroke-width:2; } .bvec { stroke:#2f8a3e; stroke-width:2.5; }
+.dot { fill:#1c2421; } .edot { fill:#b8382a; } .dn { stroke:#1c2421; stroke-width:1.2; }
+</style><rect width="100%" height="100%" fill="#ffffff"/><defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk"/></marker>
+<marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk"/></marker>
+<marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mkm"/></marker>
+<marker id="ahd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mkr"/></marker>
+<marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mkg"/></marker>
+</defs><rect class="b-cav" x="70.0" y="30" width="217.6" height="220"/><rect class="b-foot" x="287.6" y="30" width="82.9" height="220"/><rect class="b-steep" x="370.5" y="30" width="103.6" height="220"/><rect class="b-trans" x="474.2" y="30" width="95.3" height="220"/><rect class="b-up" x="569.5" y="30" width="70.5" height="220"/><text class="lab b" x="173.6" y="46" text-anchor="middle">キャビティ</text><text class="lab b" x="329.1" y="46" text-anchor="middle">裾野</text><text class="lab b" x="422.4" y="46" text-anchor="middle">急斜面</text><text class="lab b" x="521.9" y="46" text-anchor="middle">遷移層</text><text class="lab b" x="604.8" y="46" text-anchor="middle">上流</text><polyline class="bprof" points="80.4,232.4 101.1,232.4 121.8,231.6 142.5,233.2 163.3,230.8 184.0,230.4 204.7,230.4 225.5,230.8 246.2,228.4 266.9,230.8 287.6,229.6 308.4,226.8 329.1,222.8 349.8,217.2 370.5,201.2 391.3,160.4 412.0,103.6 432.7,108.0 453.5,80.0 474.2,79.2 494.9,150.4 515.6,172.4 536.4,197.2 557.1,208.0 577.8,209.6 598.5,209.6 619.3,210.0"/><line class="grid" x1="70" y1="250" x2="640" y2="250"/><text class="lab sm" x="64" y="254" text-anchor="end">0</text><line class="grid" x1="70" y1="210" x2="640" y2="210"/><text class="lab sm" x="64" y="214" text-anchor="end">1</text><line class="grid" x1="70" y1="170" x2="640" y2="170"/><text class="lab sm" x="64" y="174" text-anchor="end">2</text><line class="grid" x1="70" y1="130" x2="640" y2="130"/><text class="lab sm" x="64" y="134" text-anchor="end">3</text><line class="grid" x1="70" y1="90" x2="640" y2="90"/><text class="lab sm" x="64" y="94" text-anchor="end">4</text><text class="lab sm" x="64" y="24" text-anchor="end">|B|/B₀</text><line class="debris" x1="453.5" y1="30" x2="453.5" y2="250"/><line class="bmax" x1="474.2" y1="30" x2="474.2" y2="250"/><line class="front" x1="526.0" y1="30" x2="526.0" y2="250"/><text class="lab sm" x="457.5" y="80">デブリ端 107</text><text class="lab sm" x="478.2" y="94">r_Bmax 109</text><text class="lab sm" x="530.0" y="108">面 114</text><text class="lab sm" x="70.0" y="266" text-anchor="middle">70</text><text class="lab sm" x="287.6" y="266" text-anchor="middle">91</text><text class="lab sm" x="370.5" y="266" text-anchor="middle">99</text><text class="lab sm" x="474.2" y="266" text-anchor="middle">109</text><text class="lab sm" x="567.5" y="266" text-anchor="middle">118</text><text class="lab sm" x="640.0" y="266" text-anchor="middle">125</text><text class="lab sm" x="640" y="282" text-anchor="end">r [d_e]（赤道、t = 144）</text><text class="lab b" x="64" y="314" text-anchor="end">旧定義（廃止）</text><rect class="s1" x="70.0" y="300" width="300.5" height="20" rx="2"/><text class="lab sm on" x="220.3" y="314" text-anchor="middle">S1（〜r_Bmax−10）</text><rect class="s2" x="370.5" y="300" width="103.6" height="20" rx="2"/><text class="lab sm on" x="422.4" y="314" text-anchor="middle">S2</text><rect class="s3" x="474.2" y="300" width="93.3" height="20" rx="2"/><text class="lab sm on" x="520.8" y="314" text-anchor="middle">S3</text><rect class="s4" x="567.5" y="300" width="72.5" height="20" rx="2"/><text class="lab sm on" x="603.7" y="314" text-anchor="middle">S4</text><text class="lab b" x="64" y="344" text-anchor="end">実測 γ≥2</text><rect class="gain" x="194.4" y="330" width="186.5" height="20" rx="2"/><text class="lab sm on" x="287.6" y="344" text-anchor="middle">利得（r_Bmax−27〜−9）</text><rect class="loss" x="391.3" y="330" width="82.9" height="20" rx="2"/><text class="lab sm on" x="432.7" y="344" text-anchor="middle">損失</text></svg>
