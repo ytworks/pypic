@@ -445,17 +445,37 @@ Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2). Code: `pypic/
 Why: roadmap R2; research runs of 20–160 h on GPUs shared with other jobs.
 
 ### PIC-D26 — A turbulent inflow face: a prescribed fluctuation carried in by the injected plasma (2026-11-13) — Status: Proposed
-Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 3).
-- **Mode table:** the inflow fluctuation is a table of modes along the face, evaluated at the birth point and step.
-  - Carriers, paired partners and returned neutralisers get its δv.
-  - The rejection bound includes max |δv|.
-- **Fields:** δB and E = −v × B enter through a total-field / scattered-field surface on unchecked nodes inside
-  the face.
-- **Motional background:** a uniform `E0` tangential to a reflecting face is allowed when the open face of the same
-  axis injects the flow that carries it.
-- **Without a table:** the kernels compute what they compute today, bit for bit.
+Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 3, amended 2026-11-14).
+- **Table:** `injection.fluctuation`: one injecting face and a list of modes, each uniform along its normal
+  (k_n = 0).
+  - Each mode has B, E and per species δu, as c cos θ + s sin θ with θ = k · r − ω t + φ.
+  - `injection.check_fluctuation` checks k · B = 0, ω B = k × E, Ampère's law with Σ q n δu / γ, and the charge
+    k · E against Σ |q n|.
+- **Particles:**
+  - Carriers (`layer_sample`), paired partners (`inject_partners`) and neutralisers returned at the face
+    (`push_deposit`) take δu at their birth point, at t + Δt/2.
+  - The rejection bound of the inflow table includes |δu_n|.
+  - Without a table the kernels take the old paths.
+- **Fields:** a total-field / scattered-field surface on the face plane.
+  - After each half push of B and after the push of E, the incident E (resp. B) of the face plane (resp. the
+    half plane outside) corrects the half plane outside (resp. the face plane).
+  - The incident field is the uniform E0, B0 plus the modes, evaluated from global coordinates on every local
+    copy.
+  - The region beyond the face starts at zero.
+  - The Marder zone (PIC-D16) acts on the total field: the incident E is added beyond the face before it and
+    taken away after.
+- **Motional background:** E0 tangential to a reflecting face is allowed when the open face of that axis carries
+  the fluctuation.
+- **Refused:** a window; a face that does not inject.
+- **Recommended:** a `flux` face with the Marder zone. A paired face ties the electrons' birth rate to the ions'
+  flux, which differs from theirs in a wave by the wave current (plan, Results).
 
 Why: fluctuations that meet the shock at a fixed age, for spectra that age or rotate in a loaded upstream.
+
+Not established:
+- the incident Poynting flux in the energy record;
+- the errors next to the face (5–15 % of the mode in the last 2 c/ω_pe) at other parameters;
+- several modes at once (the table takes them; the test has one).
 
 ## Review amendments
 

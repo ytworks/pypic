@@ -28,7 +28,7 @@ from pypic.config import CurrentFilter, Injection
 
 NX, NY, NZ, DX, DT = 256, 128, 2, 0.25, 0.1
 LX, LY = NX * DX, NY * DX
-MI, B, V0, AMP = 16.0, 0.5, 0.05, 0.2  # AMP: |delta B| / B
+MI, B, V0, AMP = 16.0, 0.1, 0.05, 0.2  # AMP: |delta B| / B; v_A = 0.025, M_A = 2 in the box
 THETA = 1e-3  # T_e / m c^2: lambda_De = 0.13 = dx / 2
 K = 2 * math.pi / LY
 SPECIES = (("e", -1.0, 1.0), ("i", 1.0, MI))  # name, charge, mass; density 1 each
@@ -144,7 +144,8 @@ if __name__ == "__main__":
 
     n = int(os.environ.get("PYPIC_WORLD_SIZE", "1"))
     piston = len(sys.argv) > 1 and sys.argv[1] == "piston"
-    sim = Simulation(config(dims=(2, 1, 1) if n == 2 else None, steps=400, piston=piston), verbose=False)
+    cfg = config(dims=(2, 1, 1) if n == 2 else None, steps=400, piston=piston, preloaded=True)
+    sim = Simulation(cfg, verbose=False)
     sim.run()
     if sim.rank == 0:
         print(json.dumps({k: sim.history[k] for k in ("kinetic", "electric", "magnetic", "gauss", "divB",

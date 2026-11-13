@@ -19,8 +19,8 @@ Older Change Log entries: `docs/progress/archive/change-log.md`.
 
 ## Current Status
 
-Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D22 Accepted, PIC-D23 Proposed),
-`docs/design/output-analysis.md` (OUT-D1..D5, ANA-D1..D3 Accepted).
+Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D22 Accepted, PIC-D23..D26 Proposed),
+`docs/design/output-analysis.md` (OUT-D1..D5, ANA-D1..D3 Accepted; OUT-D6 Proposed).
 
 | Milestone | Status |
 |---|---|
@@ -101,6 +101,26 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D22 Accep
 
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
+
+### 2026-11-14 — [progress] PR #50: PIC-D24 (frozen-in states), PIC-D25/OUT-D6 (restart) and PIC-D26 (turbulent inflow) built; not gated
+- What: the three stages of the plan of 2026-11-13 are on branch `upstream-state-restart` (PR #50).
+  - PIC-D24: a vector potential (div B 4e-16) and shaped perturbations; the motional E loaded by a charge
+    displacement, within 5.6e-5 of the target.
+  - PIC-D25, OUT-D6: restart onto the same or another layout. Continued against uninterrupted runs: ≤ 5.0e-14
+    in six cases; 2 GPUs restored on 1 and on 4 GPUs: ≤ 3.1e-14.
+  - PIC-D26: an injecting face that carries a fluctuation table (δu on the entering particles, TF/SF fields on
+    the face plane).
+    - Vacuum: scattered field 0.26 %.
+    - A cold R wave in a flow through a flux face, with the Marder zone acting on the total field: mode error
+      2–3 % inside the box and up to 8 % next to the face.
+    - A paired face modulates the electron density by (δv_i − δv_e) / V; flux faces are recommended.
+- Why: amendments of the plan (2026-11-14) with their reasons.
+  - The TF/SF surface sits on the face plane; tables are checked by Maxwell's equations.
+  - Three criteria of (g) and (h) were ill-posed. They failed as written and are recorded as failed: the
+    scattered field in a noisy plasma, the current of the half control volume of the face layer, the upstream
+    amplitude at a shock that reflects the wave.
+- Refs: `docs/plans/2026-11-13-upstream-state-restart.md` (Results, amendments); PIC-D24..D26, OUT-D6; R2, R12;
+  `tests/gpu/test_frozen_in.py`, `test_restart.py`, `test_inflow.py`. Not gated yet; the Codex review is pending.
 
 ### 2026-11-13 — [design] PIC-D24..D26 and OUT-D6 Proposed: frozen-in states, turbulent inflow, restart (R2, R12)
 - What: one pull request (branch `upstream-state-restart`) for the engine needs of the research topic
