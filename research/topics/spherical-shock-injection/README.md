@@ -218,6 +218,10 @@ question). One question with a controlling number is still open.
 
 Run 2026-11-13: S25, an observation of a longer drive (`shock-forming-run.md`); see the notebook for its state.
 
+Run 2026-11-13, after the owner's instruction to start from a strong shock: P5, a heavy piston
+(`strong-shock-run.md`). **Verdict, by the rule fixed before the run: a strong shock on a sphere was made**
+(fast Mach 3.0–3.6 at polar angles 52.5°–87.5° for about 2 / Ω_ci, ended by the box). Electrons not yet read.
+
 Next (order of `exploratory-results.md`, Sect. 8):
 - reading `kraussvarban1991electron` and `giacalone2017acceleration` in full (access beyond arXiv);
 - the owner's decision on the question, with a controlling number and a threshold;

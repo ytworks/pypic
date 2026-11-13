@@ -186,3 +186,76 @@ M_A = 5):
 - The valid domain is a definition. Its lead criterion alone sets a lowest time of about 0.7 r / Ω_ci
   (r: compression), and its persistence needs 2 / Ω_ci of the run after that. So the run shows at most the
   first 2–3 / Ω_ci of a strong shock.
+
+## 7. The observation (added 2026-11-13, after the run)
+
+Run `P5` from commit `e6f1890`: 1440 steps in 755 s on 8 GPUs, 53 GB. Record:
+`runs/2026-11-13-e6f189046-P5.json`. Analysis: `front`, `drive` and the checks of the example.
+
+**O7, the run itself.** Gauss law 1.3 × 10⁻¹⁴, div B 1.8 × 10⁻¹⁴, `fill` 0.71, energy budget +4.4 % of the
+initial energy (dE/E0 of the run log +3.9 %). Upstream T_e 0.0100 → 0.0104, T_i 0.0099 → 0.0098. Of the checks
+of the example, Gauss law, div B, ambient, front speed, compression and symmetry pass; `debris_extent` fails,
+a check in windows of R_B, which does not apply (Sect. 6).
+
+**The front and its valid domain.** 738 bins (41 outputs × 18 polar angles); a front in 458, valid in 96 at 7
+polar angles: 52.5°, 57.5° and 67.5°–87.5°. Per polar angle (medians over the valid bins): V_n = 0.261–0.277 c,
+fast Mach number 3.21–3.31, θ_Bn 50°–87° (48°–87° over all valid bins), compression of B 3.7–4.0 (bin) and
+4.2–4.5 (cell), front ahead of the debris edge by 12–18 d_e. No de Hoffmann–Teller frame beyond θ_Bn =
+71–75°: 40 of the 96 valid bins (the polar angles 77.5°–87.5°) are beyond it.
+
+| | predicted | observed |
+|---|---|---|
+| E1 first valid front | t = 2.8–3.4 / Ω_ci; R = 125–140 d_e | t = **3.86** / Ω_ci (missed); R = **134.4** d_e (met) |
+| E2 fast Mach number there | 3.6–3.9 | **3.32** (missed; above 3) |
+| E3 valid and high, longest at one polar angle | 1.7–2.3 / Ω_ci, ended by (e) | **2.09** / Ω_ci (87.5°), ended by (e) (met) |
+| E4 front speed over V_d at R_m; at 1.2 R_m | 0.85–0.89; 0.77–0.85 | **0.83; 0.74** (both below; above 0.7) |
+| E5 exponent m | 0.8–1 | **0.50** (missed) |
+
+- **O1.** At 57.5° and 87.5° at once, t = 216. R = 0.96 R_m = 6.7 ρ_d = 33.6 d_i = 0.33 R_B. The debris edge is
+  at 0.88 R_m (123 d_e), 11 d_e = 0.56 ρ_d behind the front, and moves at 0.77 of the front speed.
+- **O2.** Fast Mach number in the valid bins, 10 / 50 / 90 %: 3.02 / 3.25 / 3.56; per polar angle 3.21–3.31.
+- **O3.** Valid and high: 87 of the 96 valid bins, at all 7 polar angles; the longest 2.09 / Ω_ci (87.5°),
+  median 1.93. All valid bins are driven (debris edge at 0.63 / 0.69 / 0.80 of the front speed) and strong.
+- **O4.** Front speed over V_d (polar angles ≥ 60°, medians), with the columns of Sect. 4:
+
+| R / R_m | L | S25 | P5 |
+|---|---|---|---|
+| 0.83–0.90 | 0.93 | 0.94 | 0.80 |
+| 1.0 | 0.85 | 0.89 | 0.83 |
+| 1.14 | 0.80 | 0.86 | 0.74 |
+| 1.2 | 0.77 | 0.85 | 0.74 |
+
+  The front moves at 0.93 V_d at 0.70 R_m (t = 1.6 / Ω_ci), slows to 0.77 V_d at 0.92 R_m, rises to 0.84 V_d at
+  1.0 R_m (around the first valid front) and falls to 0.73 V_d beyond 1.15 R_m. So the speed does not follow
+  R / R_m as in L and S25: at M_A = 5 it is 5–15 % lower. The exponent m = 0.49–0.51 at the 7 polar angles.
+- **E5 was built wrongly.** m is the slope of log R against log t from the centre, and the front starts at
+  0.65 R_m. A front at a constant speed v from R₀ has the slope v t / (R₀ + v t), about 0.46 at the first
+  valid front. So m cannot tell a driven front from Sedov here; m is kept as defined and the miss is recorded.
+- **Fast Mach number in time** (medians over the bins with a front): 3.96 at 1.6 / Ω_ci, 3.6–3.8 at
+  1.8–3.0 / Ω_ci, 3.4–3.5 at the first valid front, 3.05 at 6.1 / Ω_ci. The front was strongest before it was
+  valid; the valid domain starts when the front leads the debris edge (criterion b).
+- **O5, what ends the valid bins.** Criterion (e) at every polar angle: the front reaches the usable box
+  (167–171 d_e) at t = 342–351. The fast Mach number is still 3.0–3.1 there. 62.5° and the polar angles below
+  52.5° have no valid bin: (b) is met there only from t = 243 (37.5°–47.5°, 62.5°) or not at all (below
+  37.5°), and the persistence of 2 / Ω_ci (criterion d) does not fit before (e).
+- **O6.** θ_Bn 48°–87°, compression 3.7–4.0 (bin), the luminal angle 71–75° (above).
+
+**Verdict by the rule of Sect. 6: a strong shock on a sphere was made.** The valid and high bins last
+2.09 / Ω_ci at 87.5° (≥ 1.5), and the median fast Mach number of the valid bins is 3.25 (≥ 3).
+
+**Side observation (Sect. 6).** Reading T of `shock-forming-run.md` expected the first valid front at
+2.7–3.3 / Ω_ci; it came at 3.86 / Ω_ci (outputs 0.16 / Ω_ci apart): T, a fixed time, does not hold here.
+Reading R expected no delay of its own and is not tested by this run. In units of the debris the first valid
+front leads the edge by 0.56 ρ_d (L 0.66, S25 0.72), close to the 0.7 V_n / Ω_ci of criterion (b).
+
+**What the result is and is not.**
+
+- It is a strong (fast Mach 3.0–3.6), supercritical, driven shock on the part of a sphere from 52.5° to 87.5°
+  polar angle (θ_Bn 48°–87°) for about 2 / Ω_ci, at mass ratio 16, with one seed.
+- Not shown: its shape at the polar angles below 52.5° (no valid bin), its evolution after the front leaves the
+  usable box, and anything about electrons. Within the valid domain, four of the seven polar angles are beyond
+  the luminal angle: there the planar baseline of one reflection does not apply.
+- **O8 is not done yet.** `analyze.py census` needs the particle dumps at the times of the slices; this config
+  dumps `hot_e` every 72 steps and the slices every 36 (a slip of the design, Sect. 5). The census is to be
+  adapted to a dump cadence that is a multiple of the slice cadence, with a selftest, and then run on P5 with
+  `L-null` as the floor; the counts are added here as a dated addition.

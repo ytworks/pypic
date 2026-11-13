@@ -3,6 +3,24 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — P5 run: a strong shock on a sphere was made (verdict fixed before the run)
+
+- **Run.** `P5` from `e6f1890`: 1440 steps, 755 s, 53 GB; Gauss 1.3e-14, div B 1.8e-14, `fill` 0.71, energy
+  budget +4.4 %. Record `runs/2026-11-13-e6f189046-P5.json`. Account: `strong-shock-run.md` Sect. 7.
+- **Verdict: made.** Valid bins at 7 polar angles (52.5°–87.5°, θ_Bn 48°–87°), all driven and strong; valid
+  and high (fast Mach ≥ 3) up to 2.09 / Ω_ci; median fast Mach of the valid bins 3.25. All end by
+  criterion (e), the box, with the fast Mach number still 3.0–3.1.
+- **Predictions.** E1 time missed (3.86 against 2.8–3.4 / Ω_ci), radius met; E2 missed (3.32 against 3.6–3.9);
+  E3 met; E4 below (0.83 and 0.74 of V_d at R_m and 1.2 R_m): the front speed did not follow R / R_m as in
+  L and S25; E5 missed (0.50) and was built wrongly (m from the centre of a front that starts at 0.65 R_m).
+- **Seen.** The fast Mach number was highest (3.6–4.0) before the front was valid; the lead criterion (b) sets
+  the start. 40 of the 96 valid bins are beyond the luminal angle (71–75°).
+- **Slip.** The config dumps `hot_e` every 72 steps and the slices every 36; `census` needs them at the same
+  times and refused. O8 waits for an adapted census.
+- **Literature.** 37 + 48 notes committed (spot-checked against OpenAlex). The piston-shock survey: formation
+  in about 1–2.5 / Ω_ci at 1–2.5 ρ (Schaeffer 2020), strong shocks in the literature all have a sustained
+  source, finite clouds gave M_A ≈ 2. P5 is a finite shell that gave fast Mach 3–3.6 while it was driven.
+
 ## 2026-11-13 — Strong shock first: run P5 designed (before the run); S25 read in part
 
 - **Instructions of the owner (two).** (1) "Why are the shocks still weak? Start from making a strong shock on

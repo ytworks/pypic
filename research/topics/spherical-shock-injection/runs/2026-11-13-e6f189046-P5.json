@@ -1,0 +1,661 @@
+{
+ "name": "P5",
+ "created": "2026-11-13T13:18:37+09:00",
+ "run": {
+  "commit": "e6f1890460a01c0b56a2448c2edd3f82379f85cf",
+  "commit is an ancestor of the commit of this record": true,
+  "example": "blast_wave",
+  "config": "research/topics/spherical-shock-injection/configs/strong-P5.yaml",
+  "config_sha256": "4d45ef8dc6ba2976a5b608071c76af8d888e4b83cc5303f499c37d3492d6e473",
+  "seed": 12345,
+  "ppc": 2,
+  "mass_ratio": 16,
+  "wpe_wce": 3.5,
+  "mach_alfven": 5.0,
+  "species": [
+   "e",
+   "i",
+   "de",
+   "di"
+  ],
+  "n_cells": [
+   768,
+   768,
+   768
+  ],
+  "steps": 1440,
+  "dt": 0.25,
+  "gpus": 8,
+  "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "wall_time_s": 754.9742647618987,
+  "ns_per_particle_step": 1.9557231233398262,
+  "particles_at_the_end": 2147296930,
+  "run_id": "40329f62",
+  "pypic_version": "0.1.0"
+ },
+ "output": {
+  "path": "/home/y-takagi/pypic/output/research/spherical-shock-injection/P5",
+  "bytes": 56595945533,
+  "in git": false
+ },
+ "checks": {
+  "gauss": {
+   "max": 1.2614909117303341e-14,
+   "limit": 1e-10,
+   "ok": true
+  },
+  "divB": {
+   "max": 1.7610912728116546e-14,
+   "limit": 1e-12,
+   "ok": true
+  },
+  "fill": {
+   "max": 0.7056901277921027,
+   "limit": 0.95,
+   "ok": true
+  },
+  "energy budget, relative change (monitored)": 0.03925251322981645
+ },
+ "analysis": {
+  "commit": "d1b4176330dbc4840eefeead82c456bde5b5f2e5",
+  "files": {
+   "drive.json": {
+    "sha256": "077fb499ef4aacaeef01bde657255c632f045c7c40eb10f50462def21634841e",
+    "written": "2026-11-13T13:31:26"
+   },
+   "front.json": {
+    "sha256": "6b61d2726252579727329965317883c6a3e65c4e62fec96b0ed1845a8ecfb375",
+    "written": "2026-11-13T13:31:25"
+   }
+  },
+  "metrics": {
+   "drive": {
+    "R_m": 140.0,
+    "rho_d": 20.0,
+    "R_m / rho_d": 7.0,
+    "R_B": 409.36248334980127,
+    "omega_ci_inv": 56.0,
+    "O1 first valid front": {
+     "t": 216.0,
+     "t Omega_ci": 3.8571428571428568,
+     "polar angles": 2,
+     "R, median [d_e]": 134.38278155383122,
+     "R / R_m": 0.9598770110987944,
+     "R / rho_d": 6.719139077691561,
+     "R / d_i": 33.595695388457806,
+     "R / R_B": 0.3282733201493719,
+     "debris edge / R_m": 0.8815395698871562,
+     "debris-edge speed over front speed": 0.7697726144356521,
+     "fast Mach, median": 3.3236439620425724
+    },
+    "O2 valid": {
+     "bins": 96,
+     "polar angles": 7,
+     "longest [1/Omega_ci]": 2.25,
+     "at polar angle [deg]": 57.5,
+     "median over the polar angles [1/Omega_ci]": 2.089285714285714
+    },
+    "O2 valid and driven": {
+     "bins": 96,
+     "polar angles": 7,
+     "longest [1/Omega_ci]": 2.25,
+     "at polar angle [deg]": 57.5,
+     "median over the polar angles [1/Omega_ci]": 2.089285714285714
+    },
+    "O2 debris-edge speed over front speed, valid bins": {
+     "n": 96,
+     "p10": 0.6267406850918593,
+     "p50": 0.692283232041103,
+     "p90": 0.8004176361299511
+    },
+    "O3 fast Mach, valid bins": {
+     "n": 96,
+     "p10": 3.0181629479644023,
+     "p50": 3.2548118452326094,
+     "p90": 3.5567521830293707
+    },
+    "O3 fast Mach, driven bins": {
+     "n": 96,
+     "p10": 3.0181629479644023,
+     "p50": 3.2548118452326094,
+     "p90": 3.5567521830293707
+    },
+    "O3 valid and strong": {
+     "bins": 96,
+     "polar angles": 7,
+     "longest [1/Omega_ci]": 2.25,
+     "at polar angle [deg]": 57.5,
+     "median over the polar angles [1/Omega_ci]": 2.089285714285714
+    },
+    "O3 valid, driven and strong": {
+     "bins": 96,
+     "polar angles": 7,
+     "longest [1/Omega_ci]": 2.25,
+     "at polar angle [deg]": 57.5,
+     "median over the polar angles [1/Omega_ci]": 2.089285714285714
+    },
+    "O3 valid and high": {
+     "bins": 87,
+     "polar angles": 7,
+     "longest [1/Omega_ci]": 2.089285714285714,
+     "at polar angle [deg]": 87.5,
+     "median over the polar angles [1/Omega_ci]": 1.9285714285714284
+    },
+    "O3 valid, driven and high": {
+     "bins": 87,
+     "polar angles": 7,
+     "longest [1/Omega_ci]": 2.089285714285714,
+     "at polar angle [deg]": 87.5,
+     "median over the polar angles [1/Omega_ci]": 1.9285714285714284
+    },
+    "O3 fast Mach, valid bins, by polar angle": [
+     {
+      "polar angle [deg]": 52.5,
+      "bins": 14,
+      "p10": 3.033322025045096,
+      "p50": 3.2308336693489323,
+      "p90": 3.4605482058957127
+     },
+     {
+      "polar angle [deg]": 57.5,
+      "bins": 15,
+      "p10": 3.035348035731913,
+      "p50": 3.284377927993106,
+      "p90": 3.4673656418043017
+     },
+     {
+      "polar angle [deg]": 67.5,
+      "bins": 13,
+      "p10": 2.872398627132711,
+      "p50": 3.3099058111054944,
+      "p90": 3.58547243540778
+     },
+     {
+      "polar angle [deg]": 72.5,
+      "bins": 14,
+      "p10": 3.017004887334532,
+      "p50": 3.2562667219486743,
+      "p90": 3.5155018143945287
+     },
+     {
+      "polar angle [deg]": 77.5,
+      "bins": 13,
+      "p10": 3.064888747285977,
+      "p50": 3.2147889639906753,
+      "p90": 3.5677836332855373
+     },
+     {
+      "polar angle [deg]": 82.5,
+      "bins": 13,
+      "p10": 3.137957973817402,
+      "p50": 3.2229393303689915,
+      "p90": 3.5373659832858384
+     },
+     {
+      "polar angle [deg]": 87.5,
+      "bins": 14,
+      "p10": 3.15062800357187,
+      "p50": 3.2617023396932048,
+      "p90": 3.5601530480111045
+     }
+    ],
+    "O4 exponent m of R ~ t^m per polar angle": {
+     "n": 7,
+     "p0": 0.4884771153621975,
+     "p50": 0.5027782735488217,
+     "p100": 0.5058353339439274
+    },
+    "history": [
+     {
+      "t": 72.0,
+      "t Omega_ci": 1.2857142857142856,
+      "front": 5,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.6480520765571042,
+      "debris edge / R_m": 0.7000343527326086,
+      "speed ratio": null,
+      "fast Mach": null
+     },
+     {
+      "t": 81.0,
+      "t Omega_ci": 1.4464285714285714,
+      "front": 7,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.6711932851195958,
+      "debris edge / R_m": 0.7122193180090396,
+      "speed ratio": null,
+      "fast Mach": null
+     },
+     {
+      "t": 90.0,
+      "t Omega_ci": 1.607142857142857,
+      "front": 8,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.6940105963001766,
+      "debris edge / R_m": 0.7237005872233778,
+      "speed ratio": 0.30983651454400646,
+      "fast Mach": 3.9584542891776233
+     },
+     {
+      "t": 99.0,
+      "t Omega_ci": 1.7678571428571428,
+      "front": 9,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.7119169446596001,
+      "debris edge / R_m": 0.7306449311395102,
+      "speed ratio": 0.19828973796129037,
+      "fast Mach": 3.748198840477373
+     },
+     {
+      "t": 108.0,
+      "t Omega_ci": 1.9285714285714284,
+      "front": 11,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.7284035549317383,
+      "debris edge / R_m": 0.7410208336363105,
+      "speed ratio": 0.21894942352559743,
+      "fast Mach": 3.651124336296659
+     },
+     {
+      "t": 117.0,
+      "t Omega_ci": 2.089285714285714,
+      "front": 11,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.7511236239769516,
+      "debris edge / R_m": 0.744129998798372,
+      "speed ratio": 0.3107062391117066,
+      "fast Mach": 3.7176627654217214
+     },
+     {
+      "t": 126.0,
+      "t Omega_ci": 2.25,
+      "front": 11,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.7697262366217993,
+      "debris edge / R_m": 0.7422992611954681,
+      "speed ratio": 0.4120956024400142,
+      "fast Mach": 3.732392533172628
+     },
+     {
+      "t": 135.0,
+      "t Omega_ci": 2.4107142857142856,
+      "front": 12,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.7885229141695853,
+      "debris edge / R_m": 0.756006751894844,
+      "speed ratio": 0.5212111572049762,
+      "fast Mach": 3.744967404636487
+     },
+     {
+      "t": 144.0,
+      "t Omega_ci": 2.571428571428571,
+      "front": 13,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.8084226123657893,
+      "debris edge / R_m": 0.770209327864432,
+      "speed ratio": 0.6841425267217766,
+      "fast Mach": 3.7651686625480694
+     },
+     {
+      "t": 153.0,
+      "t Omega_ci": 2.732142857142857,
+      "front": 13,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.8294767106169207,
+      "debris edge / R_m": 0.7844694484860953,
+      "speed ratio": 0.7085097810413847,
+      "fast Mach": 3.7507644467832244
+     },
+     {
+      "t": 162.0,
+      "t Omega_ci": 2.892857142857143,
+      "front": 14,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.8494139112017507,
+      "debris edge / R_m": 0.8008561162314601,
+      "speed ratio": 0.7214870465225194,
+      "fast Mach": 3.7065235279407576
+     },
+     {
+      "t": 171.0,
+      "t Omega_ci": 3.0535714285714284,
+      "front": 14,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.8687584704474997,
+      "debris edge / R_m": 0.815384758732053,
+      "speed ratio": 0.7444208942335921,
+      "fast Mach": 3.607816602769273
+     },
+     {
+      "t": 180.0,
+      "t Omega_ci": 3.214285714285714,
+      "front": 14,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.8876044306768516,
+      "debris edge / R_m": 0.8296445563777878,
+      "speed ratio": 0.7611279260240544,
+      "fast Mach": 3.503259418472168
+     },
+     {
+      "t": 189.0,
+      "t Omega_ci": 3.375,
+      "front": 14,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.9048955278593811,
+      "debris edge / R_m": 0.8438542796015923,
+      "speed ratio": 0.7803434390925018,
+      "fast Mach": 3.374114070745284
+     },
+     {
+      "t": 198.0,
+      "t Omega_ci": 3.5357142857142856,
+      "front": 15,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.92257456506197,
+      "debris edge / R_m": 0.8599507694257995,
+      "speed ratio": 0.7973222656428274,
+      "fast Mach": 3.3853755666809837
+     },
+     {
+      "t": 207.0,
+      "t Omega_ci": 3.696428571428571,
+      "front": 15,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 0.940213784023045,
+      "debris edge / R_m": 0.8730647116985862,
+      "speed ratio": 0.7693087882381945,
+      "fast Mach": 3.410160553852231
+     },
+     {
+      "t": 216.0,
+      "t Omega_ci": 3.8571428571428568,
+      "front": 15,
+      "valid": 2,
+      "driven": 2,
+      "strong": 2,
+      "high": 2,
+      "R / R_m": 0.9569283976534503,
+      "debris edge / R_m": 0.886541339158373,
+      "speed ratio": 0.7776922153553814,
+      "fast Mach": 3.4241765920447174
+     },
+     {
+      "t": 225.0,
+      "t Omega_ci": 4.017857142857142,
+      "front": 15,
+      "valid": 6,
+      "driven": 6,
+      "strong": 6,
+      "high": 6,
+      "R / R_m": 0.9763503204709368,
+      "debris edge / R_m": 0.8996690074003284,
+      "speed ratio": 0.7721404776858255,
+      "fast Mach": 3.4729087002582064
+     },
+     {
+      "t": 234.0,
+      "t Omega_ci": 4.178571428571428,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 7,
+      "R / R_m": 0.9941502472529645,
+      "debris edge / R_m": 0.9170288475047119,
+      "speed ratio": 0.7864602280789122,
+      "fast Mach": 3.4641999019000433
+     },
+     {
+      "t": 243.0,
+      "t Omega_ci": 4.339285714285714,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 6,
+      "R / R_m": 1.0124005215626917,
+      "debris edge / R_m": 0.9304937403373051,
+      "speed ratio": 0.7060633315988895,
+      "fast Mach": 3.4989651763681078
+     },
+     {
+      "t": 252.0,
+      "t Omega_ci": 4.5,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 7,
+      "R / R_m": 1.0291955424440964,
+      "debris edge / R_m": 0.9440054408812253,
+      "speed ratio": 0.6715904985957082,
+      "fast Mach": 3.463607643474979
+     },
+     {
+      "t": 261.0,
+      "t Omega_ci": 4.660714285714286,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 7,
+      "R / R_m": 1.0479730903320554,
+      "debris edge / R_m": 0.9576443338715649,
+      "speed ratio": 0.7181813936153517,
+      "fast Mach": 3.4511721787654936
+     },
+     {
+      "t": 270.0,
+      "t Omega_ci": 4.821428571428571,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 7,
+      "R / R_m": 1.0678830474723184,
+      "debris edge / R_m": 0.971137349022538,
+      "speed ratio": 0.7187045015850141,
+      "fast Mach": 3.3374337203612736
+     },
+     {
+      "t": 279.0,
+      "t Omega_ci": 4.982142857142857,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 7,
+      "R / R_m": 1.0873688547125555,
+      "debris edge / R_m": 0.983830275761658,
+      "speed ratio": 0.7221759078785099,
+      "fast Mach": 3.2333288262739392
+     },
+     {
+      "t": 288.0,
+      "t Omega_ci": 5.142857142857142,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 7,
+      "R / R_m": 1.1063024911357655,
+      "debris edge / R_m": 0.997813092129859,
+      "speed ratio": 0.7183391505632664,
+      "fast Mach": 3.148539724223699
+     },
+     {
+      "t": 297.0,
+      "t Omega_ci": 5.303571428571428,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 7,
+      "R / R_m": 1.1197435757442504,
+      "debris edge / R_m": 1.0111826682261515,
+      "speed ratio": 0.7082820834592833,
+      "fast Mach": 3.1165229803327614
+     },
+     {
+      "t": 306.0,
+      "t Omega_ci": 5.464285714285714,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 6,
+      "R / R_m": 1.1322964922755678,
+      "debris edge / R_m": 1.02130077752072,
+      "speed ratio": 0.7159390575527709,
+      "fast Mach": 3.036887500569288
+     },
+     {
+      "t": 315.0,
+      "t Omega_ci": 5.625,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 5,
+      "R / R_m": 1.151179966715336,
+      "debris edge / R_m": 1.031818936689807,
+      "speed ratio": 0.7087767318394456,
+      "fast Mach": 3.057375526180084
+     },
+     {
+      "t": 324.0,
+      "t Omega_ci": 5.785714285714286,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 6,
+      "R / R_m": 1.1663764136594719,
+      "debris edge / R_m": 1.0428270193477707,
+      "speed ratio": 0.7259199335520045,
+      "fast Mach": 3.142886681407096
+     },
+     {
+      "t": 333.0,
+      "t Omega_ci": 5.946428571428571,
+      "front": 16,
+      "valid": 7,
+      "driven": 7,
+      "strong": 7,
+      "high": 5,
+      "R / R_m": 1.1810158893394733,
+      "debris edge / R_m": 1.053430128181043,
+      "speed ratio": 0.7031409174522188,
+      "fast Mach": 3.053370883414928
+     },
+     {
+      "t": 342.0,
+      "t Omega_ci": 6.107142857142857,
+      "front": 16,
+      "valid": 4,
+      "driven": 4,
+      "strong": 4,
+      "high": 2,
+      "R / R_m": 1.1971942036669772,
+      "debris edge / R_m": 1.0649334789766371,
+      "speed ratio": 0.6603019596368966,
+      "fast Mach": 3.0496453899584948
+     },
+     {
+      "t": 351.0,
+      "t Omega_ci": 6.267857142857142,
+      "front": 17,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 1.2126931472837126,
+      "debris edge / R_m": 1.0797734722882355,
+      "speed ratio": null,
+      "fast Mach": null
+     },
+     {
+      "t": 360.0,
+      "t Omega_ci": 6.428571428571428,
+      "front": 17,
+      "valid": 0,
+      "driven": 0,
+      "strong": 0,
+      "high": 0,
+      "R / R_m": 1.2274299570008627,
+      "debris edge / R_m": 1.085570349406368,
+      "speed ratio": null,
+      "fast Mach": null
+     }
+    ]
+   },
+   "front": {
+    "n_outputs": 41,
+    "bins": 738,
+    "detected_bins": 458,
+    "valid_bins": 96,
+    "usable_bins": 94,
+    "fit_rms": 0.9419352322220864,
+    "fit_rms_B": 0.982638127774286,
+    "flags_in_valid": {
+     "ok_planes": 96,
+     "ok_thresholds": 96,
+     "ok_local": 96,
+     "ok_quadrants": 94
+    },
+    "flow_within_30pct": {
+     "valid": 96,
+     "of": 96
+    }
+   }
+  }
+ }
+}

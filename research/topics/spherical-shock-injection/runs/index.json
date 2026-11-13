@@ -76,6 +76,17 @@
    "output_bytes": 16876112976,
    "checks_ok": true,
    "analysis_commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48"
+  },
+  {
+   "file": "2026-11-13-e6f189046-P5.json",
+   "name": "P5",
+   "created": "2026-11-13T13:18:37+09:00",
+   "commit": "e6f1890460a01c0b56a2448c2edd3f82379f85cf",
+   "config": "research/topics/spherical-shock-injection/configs/strong-P5.yaml",
+   "wall_time_s": 754.9742647618987,
+   "output_bytes": 56595945533,
+   "checks_ok": true,
+   "analysis_commit": "d1b4176330dbc4840eefeead82c456bde5b5f2e5"
   }
  ]
 }
