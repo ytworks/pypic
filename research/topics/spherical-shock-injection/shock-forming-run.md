@@ -120,7 +120,8 @@ All from `analyze.py front` (protocol Sect. 4, unchanged) and `analyze.py drive`
 
 ## 7. The observation (added 2026-11-13, after the run)
 
-Run `S25` from commit `66a3629`: 2960 steps in 1310 s on 8 GPUs, 60 GB. Record: `runs/` (name `S25`).
+Run `S25` from commit `66a3629`: 2960 steps in 1310 s on 8 GPUs, 60 GB. Record:
+`runs/2026-11-13-66a362926-S25.json`.
 Analysis: `front`, `drive`, `census`, `tracks` and the nine checks of the example.
 
 **O5, the run itself.** The nine checks pass (Gauss law 6.8 × 10⁻¹⁵, div B 2.5 × 10⁻¹⁴, `fill` 0.68, energy
@@ -183,4 +184,16 @@ S25 doubled the driven time of L (1.32 / Ω_ci) and did not reach "a driven shoc
   (27.5 d_e) is the shell edge of L; in S25 the shell ends at 34.6 d_e, so ambient electrons born between the
   two are counted as "swept by the front". The numerical scattering rate is taken from this run
   (ν = 0.0029 at γ = 1.25–1.5).
+
+**O7, the tracks (counts; no mechanism is read).** 956,674 tracked ambient electrons (stride 947).
+
+- By path: 557,946 never left the upstream, 231,154 transmitted, 113,483 in the layer at the end, 16,846
+  start behind the front, 15,564 met the front once and went back upstream, 2,795 returned from downstream,
+  18,886 have no sample in the range of the fitted front.
+- Reaching γ ≥ 1.25: 1886; γ ≥ 1.5: 40, of which 37 start behind the front, 2 went back upstream after one
+  encounter and 1 was transmitted.
+- One encounter and back upstream: 15,236 at all energies (1515 in the valid domain); 18 leave with
+  γ ≥ 1.25. Several encounters with γ ≥ 1.5 (K2): 0. Superluminal foot without μ conserved (K3): 0. K1 on
+  tracks: 0. None of the census residuals is on a track.
+- Work closure (N4): 2019 of the 2262 orbits with |Δγ| ≥ 0.1 close within 10 %.
 

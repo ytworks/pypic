@@ -78,6 +78,17 @@
    "analysis_commit": "3f5c43715862e96d2b142d8e9aa0c3a027d52c48"
   },
   {
+   "file": "2026-11-13-66a362926-S25.json",
+   "name": "S25",
+   "created": "2026-11-13T12:44:09+09:00",
+   "commit": "66a362926768be2d89e73e8b9df552fc1ffec959",
+   "config": "research/topics/spherical-shock-injection/configs/explore-S25.yaml",
+   "wall_time_s": 1309.7574305050075,
+   "output_bytes": 64136181666,
+   "checks_ok": true,
+   "analysis_commit": "bdb6e6b851c6950039136c66f4c23373796a354b"
+  },
+  {
    "file": "2026-11-13-e6f189046-P5.json",
    "name": "P5",
    "created": "2026-11-13T13:18:37+09:00",
