@@ -26,8 +26,7 @@ Sections follow `.claude/rules/research/stance.md`. Mark a section as open rathe
   a conflicting result in `qin2018effects`.
 
 ## Research question
-Proposed 2026-11-13 after the review (`reviews/2026-11-13-plan.md`, Major 6). It is the owner's decision and is not
-fixed yet.
+Fixed by the owner on 2026-11-13. It was proposed after the review (`reviews/2026-11-13-plan.md`, Major 6).
 
 > At a supercritical perpendicular shock (M_A ≈ 4.5, β ≈ 1) moving into large-scale incompressible Alfvénic
 > fluctuations, with electrons followed self-consistently from the thermal pool:
@@ -131,7 +130,7 @@ The review found it was two questions; the draft is kept in the history of this 
     (3.5, `trotta2019electron`), so ripples are part of the baseline.
 
 ## Approach
-Proposed with the question. The numbers are fixed by the pilot runs, and the criteria are fixed before the
+Accepted with the question (2026-11-13). The numbers are fixed by the pilot runs, and the criteria are fixed before the
 production runs.
 
 **Geometry:**
@@ -216,8 +215,8 @@ Open. Intended: a peer-reviewed journal paper (ApJ or JGR).
   - design estimates (`design/estimates.py` and `estimates.md`);
   - notes on the works the review asked for;
   - this revision, which proposes one question and a new Approach.
-- **The owner's decision on the question is open.**
-- **Missing before the question is fixed:**
+- **The question is fixed** (owner, 2026-11-13).
+- **Missing before the production runs:**
   - the minimal model and the expected size of the effect (review, Major 4);
   - an expert check (the authors of `fulat2026pic`);
   - full texts of `jokipii1993perpendicular`, `giacalone2005*`, `jokipii2007adiabatic` and `barnes1974large`, not

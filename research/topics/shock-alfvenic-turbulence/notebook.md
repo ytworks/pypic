@@ -3,6 +3,15 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Question fixed by the owner
+
+- The owner accepted the question and the Approach of the revision (b793c45): "これでok".
+- Still to come before the production runs:
+  - the minimal model and the expected size of the effect;
+  - the expert check;
+  - the engine work E1–E3 on main;
+  - the pilot runs.
+
 ## 2026-11-13 — Revision after the review: one question, design estimates
 
 - **Paper work** (review, "Shortest path"): `design/estimates.py` (output `design/estimates.md`).
