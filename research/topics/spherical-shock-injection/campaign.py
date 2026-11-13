@@ -21,6 +21,8 @@ X_EDGES = np.array([0.0, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0, 20.0, np.
 POLAR_EDGES = np.arange(0.0, 90.1, 10.0)
 SMOOTH = 12.5   # time units over which E and B are averaged for the drift frame (about one gyration)
 AFTER = 8       # samples after leaving the layer at which gamma_out is read
+HIST_EVERY = 4  # the saved histories keep every 4th sample, with the work summed over each block of 4
+HIST_GAMMA = 1.25  # histories of every electron with gamma_max >= this, and of a random 2 %
 
 
 def entries_of(site_row):
@@ -112,6 +114,8 @@ def cmd_campaign(args) -> int:
     ent = []
     net = {k: np.zeros(len(sites.NAMES)) for k in ("random", "inside", "outside")}
     tim = {k: np.zeros(len(sites.NAMES)) for k in net}
+    hist = {k: [] for k in ("col", "x", "y", "z", "ux", "uy", "uz", "Bx", "By", "Bz", "site", "W_par", "W_phi",
+                            "W_r", "W_theta", "W_all")}
     for a in range(0, n, args.chunk):
         cols = np.arange(a, min(n, a + args.chunk))
         D = {k: np.asarray(tr.f[k][:, cols], float) for k in ("x", "y", "z", "ux", "uy", "uz", "Bx", "By", "Bz")}
@@ -169,15 +173,43 @@ def cmd_campaign(args) -> int:
                 m = (s[:, sel] == k_) & np.isfinite(dg[:, sel])
                 net[key][k_] += float(dg[:, sel][m].sum())
                 tim[key][k_] += float(m.sum())
-        # drift-frame level: electrons with gamma_max >= 1.5 and a random 2 % of the chunk
-        sel = np.flatnonzero((gmax[cols] >= 1.5) | (rng.random(len(cols)) < 0.02))
+        # drift-frame level and histories: electrons with gamma_max >= HIST_GAMMA and a random 2 % of the chunk
+        sel = np.flatnonzero((gmax[cols] >= HIST_GAMMA) | (rng.random(len(cols)) < 0.02))
         if len(sel):
             E = np.stack([np.asarray(tr.f[k][:, cols[sel]], float) for k in ("Ex", "Ey", "Ez")])
             lv = drift_frame_level(g[:, sel], u[:, :, sel], E, B[:, :, sel], w)
             level[cols[sel]] = np.nanmax(np.where(np.isfinite(lv), lv, -1.0), axis=0)
+            xs, ys, zs = x[:, sel], y[:, sel], z[:, sel]
+            v = u[:, :, sel] / g[:, sel]
+            Bs = B[:, :, sel]
+            bh = Bs / np.maximum(np.linalg.norm(Bs, axis=0), 1e-30)
+            rr = np.sqrt(xs ** 2 + ys ** 2 + zs ** 2)
+            rho = np.hypot(xs, ys)
+            ephi = np.stack([-ys, xs, np.zeros_like(xs)]) / np.maximum(rho, 1e-9)
+            er = np.stack([xs, ys, zs]) / np.maximum(rr, 1e-9)
+            eth = np.cross(ephi, er, axis=0)
+            pw = {"W_par": -np.sum(E * bh, axis=0) * np.sum(v * bh, axis=0),
+                  "W_phi": -np.sum(E * ephi, axis=0) * np.sum(v * ephi, axis=0),
+                  "W_r": -np.sum(E * er, axis=0) * np.sum(v * er, axis=0),
+                  "W_theta": -np.sum(E * eth, axis=0) * np.sum(v * eth, axis=0),
+                  "W_all": -np.sum(E * v, axis=0)}
+            nb = len(t) // HIST_EVERY
+            for k_, val in pw.items():
+                blk = np.nan_to_num(val[: nb * HIST_EVERY]).reshape(nb, HIST_EVERY, -1).sum(axis=1) * dt
+                hist[k_].append(blk.astype(np.float32))
+            idx = slice(0, nb * HIST_EVERY, HIST_EVERY)
+            for k_, val in (("x", xs), ("y", ys), ("z", zs), ("ux", u[0][:, sel]), ("uy", u[1][:, sel]),
+                            ("uz", u[2][:, sel]), ("Bx", Bs[0]), ("By", Bs[1]), ("Bz", Bs[2])):
+                hist[k_].append(val[idx].astype(np.float32))
+            hist["site"].append(s[idx][:, sel].astype(np.int8))
+            hist["col"].append(cols[sel])
         print(f"campaign: {min(n, a + args.chunk)}/{n} tracked electrons; entries {len(ent)}", flush=True)
     ent = np.array(ent, float).reshape(-1, 19)
     dest = run_dir / "analysis"
+    np.savez_compressed(dest / "campaign_hist.npz", t=t[0: (len(t) // HIST_EVERY) * HIST_EVERY: HIST_EVERY],
+                        every=HIST_EVERY, gamma_cut=HIST_GAMMA,
+                        **{k: (np.concatenate(v) if k == "col" else np.concatenate(v, axis=1))
+                           for k, v in hist.items() if v})
     np.save(dest / "campaign_entries.npy", ent)
     np.savez_compressed(dest / "campaign_tracks.npz", ids=np.asarray(tr.ids), gmax=gmax, t_gmax=t[kmax],
                         birth_r=birth_r, birth_polar=birth_pol, level_drift_frame=level,
@@ -281,7 +313,7 @@ def cmd_prune(args) -> int:
     run_dir = Path(args.run)
     an = run_dir / "analysis"
     need = ["null.json"] if args.null else ["campaign.json", "campaign_entries.npy", "campaign_tracks.npz",
-                                             "counts.json"]
+                                             "campaign_hist.npz", "counts.json"]
     missing = [q for q in need if not (an / q).exists()]
     if missing:
         print(f"not pruned: missing {missing}")
