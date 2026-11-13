@@ -201,3 +201,26 @@ otherwise as a GPU test; the research pilot is recorded in the topic, not here.
 - **Review:** `~/.local/bin/codex review --base main -c model="gpt-6.1-sol" -c model_reasoning_effort="ultra"`,
   repeated after each round of fixes until it reports no findings. Each round and its outcome are recorded in the
   PR.
+
+## Results
+
+### Stage 2 (PIC-D25, OUT-D6), measured 2026-11-13 on RTX PRO 6000
+
+`tests/gpu/test_restart.py` with `tests/gpu/mgpu_restart.py`; largest relative difference over the histories,
+E and B on the box, and every dataset of the output files (round-off quantities gauss, div B, rho and the
+layout-dependent `fill` excluded); particle numbers, id sums, injected and absorbed counts equal in every case.
+- (d) 2N steps against N + checkpoint + 3 steps (cut by the restart) + restart + N:
+  two-stream 1 GPU 6.5e-15, 2 GPUs 9.3e-15 (every output kind, averaged lineout and modes with running sums at
+  the checkpoint, tracks); open flow with a paired face, 2 GPUs 1.5e-14 (bank > 0); compact 1 GPU 1.6e-15;
+  moving window 1 GPU 9.1e-15 (26 shifts); implicit with an absorbing layer 1 GPU 5.0e-14.
+  The compact case runs 2 × 10 steps: over 2 × 20 steps two identical fresh runs already differ by 1.3e-10
+  (float32 gather of `mixed`, atomic deposits), the same as the restart did.
+- (e) A `step-<n>.tmp` (the last checkpoint renamed, as by a crash before the rename) is skipped: the restart
+  continues from the checkpoint before, 3.6e-15 against the uninterrupted run. A changed seed is refused before
+  the set-up, naming the key.
+- (f) 2 GPUs (2,1,1) restored on 1 and on 4 GPUs against the restore on 2: two-stream 3.1e-14 / 2.3e-14 (4 on
+  2,2,1), open flow 2.6e-14 / 2.5e-14, compact 3.3e-15 / 2.4e-15, window 9.8e-15 / 1.6e-14 (4 on 4,1,1). The
+  window case found two faults during the work, both fixed: the CPML memory exchanged between a rank with an
+  absorbing layer and one without (hang), and the rank bounds taken before the window shift was restored.
+- CPU: `tests/cpu/test_checkpoint.py` (schema and refusals, allow-list, `.tmp` and incomplete directories, prune,
+  meta.json round trip, cut and append of a series and of tracks); all fail on the code before (no module).
