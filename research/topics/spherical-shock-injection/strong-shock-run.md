@@ -104,3 +104,85 @@ above 60°, where the front exists from the start):
   valid shock lasts about 2 / Ω_ci.
 - **What is extrapolated.** The table assumes that the two regularities above hold at M_A = 5. M (M_A = 6,
   R_m / ρ_d = 1.9) did not couple; no run has both a high M_A and a high R_m / ρ_d. That is what this run tests.
+
+## 5. The run
+
+- **Config.** `configs/strong-P5.yaml`: `explore-L.yaml` with `mach_alfven` 3.5 → 5.0, `rm` 16 → 35 d_i,
+  `debris_beams` 4 → 2, and `half_width`, `run` and the output cadences set for this box. The plasma, the grid,
+  the cell, the particles per cell, the filter and the seed are those of L.
+- **Planner** (`run_piston.py --plan-only` with the launcher on 8 GPUs). B₀ = 0.2857, v_A = 0.0714, fast speed
+  0.0848, β = 0.49; V_d = 0.357, nominal fast Mach 4.21; R_m = 140 d_e, ρ_d = 20 d_e, R_B = 409 d_e (outside
+  the box); shell at 46.2 d_e, width 14.0 d_e, peak density 16.5 n₀ in 2 beams per species (ω_pe dt ≤ 1.05);
+  3.9 × 10⁸ debris particles (L: 0.75 × 10⁸); 768³ cells of 0.5 d_e, dt = 0.25; 68.1 GB per GPU.
+- **Length.** 1440 steps, t = 360 = 6.4 / Ω_ci. By Sect. 4 the front is then at the edge of the usable box
+  (184 d_e). A shorter run (t = 320) would leave only 0.4 / Ω_ci between the predicted first valid front plus
+  the persistence of criterion (d) and the end of the run; this one leaves 1.1 / Ω_ci.
+- **Outputs.** Slices and the two box spectra every 36 steps (9 time units = 0.16 / Ω_ci, 41 outputs; L:
+  0.33 / Ω_ci); the spectra by position and `hot_e` every 72 steps; tracks every 2 steps as in L. The front
+  speed is a slope over five outputs as before, here over 0.64 / Ω_ci (L: 1.3 / Ω_ci). The measured error of
+  that slope in L and S25 (median 0.002 c) scales to about 0.004 c: 0.05 in the fast Mach number.
+- **Name and place.** Run `P5`; output in `/mnt/nvme/pypic/output/research/spherical-shock-injection/P5`
+  (linked from `output/research/spherical-shock-injection/P5`). The command of the protocol (Sect. 8) with
+  `run_piston.py` in place of `examples/blast_wave/run.py`; the stop rules of the protocol. Expected: 12 minutes
+  on 8 GPUs (S25: 0.44 s per step) and about 40 GB.
+- **Null run.** `L-null`: the same plasma, grid, particles and seed without the debris; its outputs up to
+  t = 360 give the floor.
+
+## 6. What is observed (fixed before the run)
+
+From `analyze.py front` (protocol Sect. 4, unchanged) and `analyze.py drive`, which now also counts the *high*
+bins: fast Mach number 3 or more.
+
+- **O1** first valid front: time in 1/Ω_ci; radius in d_e, R_m and ρ_d; its lead over the debris edge; the
+  speed of the debris edge over the speed of the front.
+- **O2** fast Mach number in the valid bins: 10 / 50 / 90 % over all of them and per polar angle.
+- **O3** valid and high bins: how many, at how many polar angles, the longest duration at one polar angle; the
+  same for the bins that are also driven.
+- **O4** front speed over V_d against R / R_m (the table of Sect. 4 with a third column), and the exponent m of
+  R ∝ t^m per polar angle.
+- **O5** what ends the valid bins: criterion (e), the edge of the box, or criterion (c), the weakening.
+- **O6** the range of θ_Bn of the valid bins, the compression, and the angle beyond which no de
+  Hoffmann–Teller frame exists (cos θ_Bn < V_n / c).
+- **O7** upstream electron and ion temperature at the start and the end, the conservation checks (Gauss law,
+  div B, energy budget), `fill`. The checks of `examples/blast_wave/analyze.py` that use windows in R_B do not
+  apply: R_B lies outside the box.
+- **O8** census of the electrons with γ ≥ 1.5 and the tracks, as counts by band. No residual, no origin split
+  (`census.SHELL_RADIUS` is the shell of L) and no mechanism is read from them in this document.
+
+**Predictions** (Sect. 4, near the equator; they assume that the two regularities of L and S25 hold at
+M_A = 5):
+
+| | predicted | if the coupling fails as in M |
+|---|---|---|
+| E1 first valid front | t = 2.8–3.4 / Ω_ci (157–190); R = 125–140 d_e | none, or late and slow |
+| E2 fast Mach number there | 3.6–3.9 | below 3 |
+| E3 valid and high bins, longest at one polar angle | 1.7–2.3 / Ω_ci, ended by criterion (e) | none |
+| E4 front speed over V_d at R = R_m; at 1.2 R_m | 0.85–0.89; 0.77–0.85 | below 0.7 at R_m |
+| E5 exponent m | 0.8–1 (a driven front; L and S25: 0.53–0.54) | – |
+
+- The range of E1 is wider than 3.24–3.30 / Ω_ci because L and S25 give the first output after the event
+  (intervals of 0.33 and 0.46 / Ω_ci).
+- **Verdict, fixed now.** "A strong shock on a sphere was made" if the valid and high bins last 1.5 / Ω_ci or
+  longer at one polar angle and the median fast Mach number of all valid bins is 3 or more. "Not made" if no
+  bin is valid and high, or they last less than 0.5 / Ω_ci. Undecided between.
+- **If no bin is valid because the persistence (d) does not fit into the run**, the verdict is "not shown":
+  the bins that meet (a)–(c) and (e) are then described with their fast Mach number, and the definition is not
+  changed after the run.
+- **Side observation.** The time of the first valid front bears on the readings of `shock-forming-run.md`
+  (Sect. 5): reading T expects 2.7–3.3 / Ω_ci here too; reading R (a length of 72–73 d_e) expects no delay of
+  its own, because the debris edge starts beyond that length.
+
+**Limits, known before the run.**
+
+- One condition, one seed, mass ratio 16, 2 particles per cell. "Strong" means a fast Mach number of 3–4:
+  supercritical, far below the Mach numbers of a remnant.
+- The shock is young and thin: valid for about 2 / Ω_ci, with a downstream layer of about one debris
+  gyroradius between the front and the debris. It is driven all the time; the decay of a free blast wave is
+  not in this run.
+- V_d = 0.357 c. A de Hoffmann–Teller frame exists only below θ_Bn of about 70°; the planar baseline of the
+  protocol (one reflection) applies only there.
+- The debris has half the particles per unit of charge of L (2 beams), and the thermal electron gyroradius
+  (0.35 d_e) is below the cell (0.5 d_e), as in L.
+- The valid domain is a definition. Its lead criterion alone sets a lowest time of about 0.7 r / Ω_ci
+  (r: compression), and its persistence needs 2 / Ω_ci of the run after that. So the run shows at most the
+  first 2–3 / Ω_ci of a strong shock.

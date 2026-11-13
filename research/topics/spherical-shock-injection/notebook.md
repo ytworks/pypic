@@ -3,6 +3,34 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Strong shock first: run P5 designed (before the run); S25 read in part
+
+- **Instructions of the owner (two).** (1) "Why are the shocks still weak? Start from making a strong shock on
+  a sphere." (2) Works that cannot be read in full are read by their abstract, so that their outline is known.
+- **The fact that changes the plan** is instruction (1). The next run is designed for the strength of the
+  shock: `strong-shock-run.md`, config `configs/strong-P5.yaml`, runner `run_piston.py`. Sections 1–6 of that
+  document (reasons, design, observables, predictions E1–E5, verdict rule, limits) are committed before the run.
+- **Why weak** (Sect. 2 there). The planner ties the box to the stopping radius, so with the box fixed
+  R_m / ρ_d falls as M_A^(−5/3): a high M_A gave a cloud that does not couple (M, H), a low one a weak shock by
+  construction (L, S25).
+- **The lever.** A heavy piston: R_m = 140 d_e = 7 ρ_d in the box of L, M_A = 5 (V_d = 0.357 c), the debris
+  does not stop inside the box, and the run ends when the front reaches the edge of the usable box.
+- **S25, read so far** (run from `66a3629`: 2960 steps, 1310 s, nine checks passed; `front` and `drive` run
+  with the code of `c122e4d`; census done, tracks still running, nothing recorded yet).
+  - First valid front at 3.24 / Ω_ci, R = 71.0 d_e = 0.88 R_m; debris edge at 0.79 R_m and at 0.66 of the front
+    speed. Valid and driven bins last 2.78 / Ω_ci at the longest: by the rule fixed before the run,
+    **undecided** (between 2.5 and 4). Fast Mach in the valid bins 1.54 / 1.74 / 2.03: weak, as expected.
+  - Reading P (the stalling of the debris) is rejected. Readings T and R are still not separated.
+  - Used for P5 (Sect. 4 there): in L and S25 the front speed over V_d follows R / R_m, and the front becomes
+    valid at 3.2–3.3 / Ω_ci, 1.9–2.3 ρ_d outside the initial debris edge.
+  - The full account goes into `shock-forming-run.md` Sect. 7 with the record.
+- **A slip in the order.** `drive.py` and `record.py` were extended (the count of bins with fast Mach ≥ 3,
+  commit `f09d19a`) before S25 was recorded. The fixed observables of S25 do not change; `drive` is run again
+  on S25 with the committed code before its record is written.
+- **Literature, in progress.** Three searches run: abstract-level notes for the works listed as cited and
+  not read, for those found and not read, and a survey of piston-driven strong shocks. Their notes are checked
+  and committed when they arrive. If one of them gives a fact against the design of P5, that is a new entry.
+
 ## 2026-11-13 — The owner narrows the theme: the acceleration mechanism at a shock on a sphere
 
 Written while S25 runs (started 12:44 from commit `66a3629`); none of its outputs has been read yet.
