@@ -308,6 +308,12 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
     incident E_y that the plasma has no charge for.
   - The Marder zone is needed.
   - The cause of the residual is not established.
+- **Review of PR #50, round 1** (Codex, P1): with `precision: compact` the working positions are cell units. The
+  mode is now evaluated at the physical place: `WPHYS` at the birth point and at the wall point of a returned
+  neutraliser. `test_entering_particles_take_the_mode_at_their_physical_place`: fp64 and compact equal within
+  2 %, and the ions' z velocity within 20 % of the incident (measured 8 %); it fails on the code before.
+  - Seen, not explained: the x velocity of the entering ions is 0.86 of the incident with a phase of −0.27 rad,
+    the same in both storages.
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 
