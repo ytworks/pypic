@@ -3,6 +3,17 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — D1: reflections that persist (local gyro-period), without the flicker floor
+
+- `reflect_law.py` now counts a reflection only if the electron, after its return with γ_out > 1.02 γ_in, stays
+  upstream for one gyro-period or gets d_i + 2 ρ_e ahead, both from the static dipole |B| at the front radius of
+  its polar angle and time. D1: 2678 such reflections of 134,694 entries (the 2 % definition: 15,230).
+- **Law:** 4.5 % at V_HT 0.1–0.2 c, 2.2 % at 0.2–0.3 c, 0.1–0.3 % above (the cut-off near 0.3 c); 3.5–4.4 % at
+  local θ_Bn 0–45°, 1 % at 45–60°, 0.2 % above; 3.6 % at V_HT / v < 1 falling to 0.3 % above 10. Gain γ_out / γ_in
+  median 1.06–1.08, p90 1.11–1.16.
+- **D-A:** of 2668 persistently reflected tracked electrons, 5 enter the layer later in the other hemisphere and
+  none is reflected there. In D1 the trap is not seen with this definition.
+
 ## 2026-11-13 — D1: reflection law at the dipole shock and first returns to the other hemisphere
 
 - `reflect_law.py` on D1 (entries of electrons born outside the shell; reflection = back upstream with

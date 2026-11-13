@@ -18,8 +18,20 @@ c = np.array(run.meta["planner"]["center"], float)
 E = np.load(R + "/analysis/campaign_entries.npy")
 col, tin, pol, tbn, vht, v, vpar, ret, gin, gout, ins = E[:, :11].T
 comp = E[:, 13]
-ref = (ret == 1) & (gout > 1.02 * gin)
-out = {"entries": int(len(E)), "reflections_2pc": int(ref.sum())}
+ref2 = (ret == 1) & (gout > 1.02 * gin)
+# persistent: after the return the electron stays upstream for one gyro-period or gets d_i + 2 rho_e ahead, with
+# the gyro-period and rho_e from the static dipole |B| at the front radius of that polar angle and time
+fz = np.load(R + "/analysis/front.npz")
+moment = float(run.config["external_fields"]["dipoles"][0]["moment"][2])
+d_i = float(run.meta["planner"]["d_i"])
+i_f = np.array([int(np.argmin(np.abs(fz["t"] - q))) for q in tin])
+r_f = np.array([np.interp(np.radians(pp), fz["theta"], fz["r"][k]) for pp, k in zip(pol, i_f)])
+b_loc = moment / r_f ** 3 * np.sqrt(1 + 3 * np.cos(np.radians(pol)) ** 2)
+t_up, ahead = E[:, 14], E[:, 15]
+persist = (t_up >= 2 * np.pi * gin / b_loc) | (ahead >= d_i + 2 * np.sqrt(gin ** 2 - 1) / b_loc)
+ref = ref2 & persist
+out = {"entries": int(len(E)), "reflections_2pc": int(ref2.sum()), "reflections_persistent": int(ref.sum()),
+       "definition": "persistent: gamma_out > 1.02 gamma_in, and one local gyro-period upstream or d_i + 2 rho_e ahead"}
 bins = {"V_HT [c]": (vht, [0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 1.0, 3.0]),
         "local theta_Bn [deg]": (tbn, [0, 15, 30, 45, 60, 75, 90]),
         "polar angle [deg]": (pol, [0, 15, 30, 45, 60, 75, 90]),
