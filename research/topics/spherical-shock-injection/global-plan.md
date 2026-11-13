@@ -37,6 +37,46 @@ sphere couple its latitudes?**
 - **D, the driver:** in the driven phase the magnetic wall at the debris edge energises electrons on its inner
   side (path a). It is a property of the driven phase and of the set-up, and is kept apart from G0–G3.
 
+## 2b. How do electrons reach high energy? Hypotheses on the order of the steps
+
+Owner (2026-11-13): hypotheses on the sequence of the energising mechanisms are needed; the aim is to know how
+electrons reach high energy. The energy one step can give, with the numbers of P5 (γ − 1 of the upstream
+thermal electrons ≈ 0.01):
+
+| step | where | gain of one step (P5) |
+|---|---|---|
+| heating in one crossing | transition layer | γ' + 0.05–0.2 (plasma frame) |
+| one SDA reflection, bound from rest γ_HT²(1 + V_HT²) | the front, by V_HT | 1.20 at V_HT 0.3 c; 1.67 at 0.5; 2.9 at 0.7; 4.6 at 0.8 |
+| drift along E_φ in the gradient of the wall | inner side of the wall | γ' ≈ 1.7–2.1 (electrons born inside the shell) |
+| repeated reflections at one latitude | polar cap | settle near γ ≈ 1.24 in P5 (no ladder) |
+
+![Energy ladder](figures/energy-ladder.svg)
+
+- **R1, latitude ladder:** pre-heated by reflection at the polar cap (small V_HT, frequent) → moved to a lower
+  latitude → reflected there, where V_HT and the bound are larger and only pre-heated electrons are reflected →
+  the largest gain near the luminal angle. *Signature:* successive reflections at increasing polar angle with
+  increasing gain. On an upstream field line the next encounter lies closer to the pole, so R1 needs transport
+  across the field or along the draped downstream field.
+- **R2, heating then drift:** heated once at a quasi-perpendicular latitude → drift along the motional E_φ in
+  the gradient of the downstream wall, on the closed azimuthal path. *Signature:* a small gain in the layer, then
+  a large gain on the wall done by E_φ, with a long azimuthal path.
+- **R3, Fermi at the polar cap:** reflection → returned by upstream waves → many cycles at one latitude with a
+  fixed relative gain. *Signature:* many reflections at one latitude, constant Δγ/γ. P5 is against it so far
+  (the relative gain falls with γ).
+- **R4, stochastic in the downstream:** after heating, gains and losses between downstream structures (wall,
+  ramp, fluctuations) with a positive net (the owner's earlier picture of several heating sites). *Signature:*
+  gains of both signs at alternating sites; the spread grows with the number of site changes.
+- **R5, one SDA step:** an electron of the thermal tail is reflected once near the luminal angle and has its
+  maximum from that step alone (no chain; the G0 picture). *Signature:* one reflection, γ_out near the bound,
+  near the luminal angle.
+
+**M6, the order of the steps (fixed now, before the histories of campaign A are read):** for the top 1 % of the
+electrons born outside the shell by γ_max in each run, the ordered list of steps that carry their gain (block
+work ≥ 0.05 in γ, with its site, polar band and dominant component, and the reflections of the entry table).
+Each electron is assigned the pattern R1–R5 whose signature it meets (rules as above; an electron meeting none is
+"other"); the share of each pattern is reported per run and per temperature. A pattern is called the route to
+high energy in a set when it holds for more than half of the top 1 % in both seeds.
+
 ## 3. Evidence so far (P5; notebook 2026-11-13)
 
 | band (polar angle) | θ_Bn | what is seen |
