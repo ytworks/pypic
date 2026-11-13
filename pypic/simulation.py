@@ -562,11 +562,24 @@ class Simulation:
         cfg, g = self.cfg, self.grid
         moving = False
         residual = 0.0  # largest |F(x) - x0| / L of the density inverses on this rank
+        too_close = 0.0  # 1 if a shaped displacement moves a particle near a non-periodic face
         for si, (sc, sp) in enumerate(zip(cfg.species, self.species)):
             disp = None
             for bi, b in enumerate(sc.beams):
                 lo, hi = self._beam_ranges[(si, bi)]
                 for pt in b.perturbation:
+                    if "shape" in pt:  # PIC-D24: amplitude x product of 1-D shapes at the loaded place
+                        f = None
+                        for ax_name, spec in pt["shape"].items():
+                            v = evaluate(spec, sp.pos("xyz".index(ax_name), lo, hi), cp)
+                            f = v if f is None else f * v
+                        if "velocity" in pt:
+                            sp.add_mom("xyz".index(pt["velocity_component"]), pt["velocity"] * f, lo, hi)
+                        if "displacement" in pt:
+                            if disp is None:
+                                disp = cp.zeros((3, sp.cap))
+                            disp["xyz".index(pt["displacement_component"]), lo:hi] += pt["displacement"] * f
+                        continue
                     a = "xyz".index(pt.get("axis", "x"))
                     if cfg.boundaries[a][0] != "periodic":
                         raise ValueError("perturbations need a periodic axis")
@@ -586,6 +599,7 @@ class Simulation:
                             residual = max(residual, res / g.L[a])
                             disp[a, lo:hi] += x - x0
             if disp is not None:
+                too_close = max(too_close, self._displacement_near_face(sp, disp))
                 sp.set_displacement(disp)
                 moving = True
         if not any(b.perturbation and any(("density" in p or "displacement" in p) for p in b.perturbation)
@@ -593,6 +607,11 @@ class Simulation:
             return False  # decided from the configuration: identical on every rank
         # every rank reaches this reduction (the branch above depends on the configuration only)
         residual = self.comm.allreduce_scalar(residual, "max")
+        too_close = self.comm.allreduce_scalar(too_close, "max")
+        if too_close > 0.0:
+            raise ValueError("shaped displacement (PIC-D24): particles closer than one cell plus the largest "
+                             "displacement to a non-periodic face of the displaced axis must not move; give the "
+                             "shape exact zeros there (e.g. ramp or step)")
         if residual > 1e-12:
             raise RuntimeError(f"density perturbation: the inverse of the cumulative density did not converge "
                                f"(max residual {residual:.3g} L)")
@@ -625,6 +644,25 @@ class Simulation:
         for sp in self.species:
             sp.end_displacement()
         return moving or rounds > 0
+
+    def _displacement_near_face(self, sp, disp) -> float:
+        """1.0 if a particle of this rank with a displacement along a non-periodic axis c lies closer
+        than one cell plus the largest such displacement (over all ranks) to a face of axis c."""
+        cfg, g = self.cfg, self.grid
+        flag = 0.0
+        for c in range(3):
+            if cfg.boundaries[c][0] == "periodic" and cfg.boundaries[c][1] == "periodic":
+                continue
+            d = cp.abs(disp[c, : sp.n])
+            dmax = self.comm.allreduce_scalar(float(cp.max(d)) if sp.n else 0.0, "max")
+            if dmax == 0.0 or not sp.n:
+                continue
+            x = sp.pos(c)
+            margin = g.dx[c] + dmax
+            near = (x < margin) | (x > g.L[c] - margin)
+            if bool(cp.any(near & (d > 0.0))):
+                flag = 1.0
+        return flag
 
     def _initial_half_kick(self):
         """Explicit leapfrog: loaded momenta are at t = 0; with non-zero initial E or B push them

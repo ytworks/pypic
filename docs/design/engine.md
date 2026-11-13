@@ -407,7 +407,7 @@ Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 1).
   a displacement amplitude.
   - Displacements use the virtual move of PIC-D9, so div E = ρ holds.
   - They are refused near a non-periodic face, within one cell plus the largest displacement.
-- **E from a charge displacement:** displacing one species by ξ = E / (q n) loads a target E with div E = ρ exact.
+- **E from a charge displacement:** displacing one species by ξ = −E / (q n) loads a target E with div E = ρ exact.
   The uniform part stays in `E0`.
 
 Why: a perpendicular shock driven into Alfvénic fluctuations frozen into the flow needs B_x(x, y) that vanishes at

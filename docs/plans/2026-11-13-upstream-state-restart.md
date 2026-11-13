@@ -55,8 +55,10 @@ Three generic primitives of the initial state. They are not specific to an exper
    - Refused:
      - an A component that is not zero (|A| ≤ 1e-14 · max|A|) on the plane of a non-periodic face it is tangential
        to (the wall would zero the normal B and leave div B);
-     - a shape along an axis of length 1 cell that is not uniform;
-     - the implicit solver with a non-periodic face (as for every initial field at walls).
+   - Amended 2026-11-13, before the first run: the first draft also refused a shape along an axis of one cell and
+     the implicit solver with a non-periodic face. Both are dropped:
+     - a shape along a one-cell axis is evaluated at the single place of that cell, the same on every rank;
+     - the other initial-field kinds are allowed with the implicit solver at walls too.
 2. **Shaped perturbations** (`Beam.perturbation` gains the key `shape`):
    - Form: `{"shape": {"y": {...}, "x": {...}}, "velocity": u1, "velocity_component": "x"}` or
      `{"shape": {...}, "displacement": ξ, "displacement_component": "y"}`.
@@ -69,7 +71,7 @@ Three generic primitives of the initial state. They are not specific to an exper
        non-periodic face (the wall or an open face would take them);
      - `density` together with `shape` (the inverse of the cumulative density exists only for the periodic cosine).
 3. **E from a charge displacement:** no new key.
-   - A target E field is loaded by displacing one species by ξ = E / (q n) with primitive 2: moving the charge
+   - A target E field is loaded by displacing one species by ξ = −E / (q n) with primitive 2: moving the charge
      deposits the current whose −Δt J is that E. This holds for any E, with div E = ρ exact.
    - The uniform part stays in `E0` (PIC-D18).
    - This is documented in PIC-D24 with the formula. The engine does not compute E = −v × B itself.
@@ -168,8 +170,14 @@ of the coordinates along the face and of time only: the plasma carries the patte
   - (a) Potential A_z = a(y) h(x) with reflecting x walls and h = 0 near them: div B ≤ 1e-12, normal B zero on the
     wall, B equal to the analytic curl within 1e-12 relative.
   - (b) Shaped velocity and electron displacement that load E_z(x, y) = −(v × B)_z of an Alfvénic slab over a uniform
-    drift in a reflecting-wall box: Gauss ≤ 1e-10; E equal to the target within the filter's transfer at that
-    wavelength; in the uniform region the plasma keeps its drift for 2 Ω_ci⁻¹ within 1 % (ExB balance).
+    drift in a reflecting-wall box (`tests/gpu/mgpu_frozen.py`): E_z equal to the target within 1e-3 of the
+    perturbation; Gauss ≤ 1e-10 and div B ≤ 1e-12 over 240 steps; outside the light cones of the walls each species
+    keeps its mean drift within 1 % (E × B balance of the uniform part). Amended 2026-11-13, before the first run of
+    the test: the first wording asked for 2 Ω_ci⁻¹, which the light cones of the walls do not leave room for in a
+    test box. Measured on the first run: E_z within 5.6e-5, drift within 0.2 %. The mode amplitude of δE_z changes
+    by 8 % over 0.75 Ω_ci⁻¹ (a linear polarization is a sum of R and L waves of different speed at k d_i = 0.39).
+    That is wave physics, not a test of the engine. The test state carries the Ampère current J_z = −∂_y δB_x on
+    the ions; without it δE_z grew by 30 % (the probe of 2026-11-13).
   - (c) 1 vs 2 GPUs for (a)+(b): relative ≤ 1e-10.
   - (d) Restart: 2N steps against N + checkpoint + restart + N, for the two-stream benchmark configuration on 1 and
     2 GPUs, an open-flow configuration with paired injection (bank state), `precision: compact`, a window

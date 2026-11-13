@@ -4,7 +4,60 @@ from __future__ import annotations
 
 from dataclasses import MISSING, asdict, dataclass, field, fields
 
-PERTURBATION_KEYS = {"axis", "mode", "phase", "density", "displacement", "velocity", "velocity_component"}
+PERTURBATION_KEYS = {"axis", "mode", "phase", "density", "displacement", "velocity", "velocity_component", "shape",
+                     "displacement_component"}
+SHAPED_KEYS = {"shape", "velocity", "velocity_component", "displacement", "displacement_component"}
+
+
+def validate_shape_map(shape, what: str) -> dict:
+    """A map {axis: 1-D shape (pypic.profiles)} with at least one of the axes x, y, z (PIC-D24)."""
+    from .profiles import validate
+
+    if not isinstance(shape, dict) or not shape:
+        raise ValueError(f"{what}: 'shape' maps one or more of the axes x, y, z to a 1-D shape")
+    out = {}
+    for a, spec in shape.items():
+        if a not in ("x", "y", "z"):
+            raise ValueError(f"{what}: shape axis must be x, y or z (got {a!r})")
+        if not isinstance(spec, dict):
+            raise ValueError(f"{what}: the shape along {a} must be a dict such as {{'shape': 'cos', ...}}")
+        out[a] = validate(spec)
+    return out
+
+
+def validate_shaped_perturbation(p: dict) -> None:
+    """Shaped perturbation of a beam (PIC-D24): amplitude x product of 1-D shapes."""
+    unknown = set(p) - SHAPED_KEYS
+    if unknown:
+        raise KeyError(f"shaped perturbation: key(s) {sorted(unknown)} do not go with 'shape' "
+                       "(axis, mode and phase belong to the sinusoidal form; density has no shaped form)")
+    p["shape"] = validate_shape_map(p["shape"], "shaped perturbation")
+    if "velocity" not in p and "displacement" not in p:
+        raise ValueError("shaped perturbation needs velocity or displacement")
+    for key, comp in (("velocity", "velocity_component"), ("displacement", "displacement_component")):
+        if key in p:
+            if p.get(comp) not in ("x", "y", "z"):
+                raise ValueError(f"shaped perturbation: {comp} (x, y or z) is required with {key}")
+            p[key] = float(p[key])
+        elif comp in p:
+            raise KeyError(f"shaped perturbation: {comp} without {key}")
+
+
+POTENTIAL_KEYS = {"kind", "component", "shape", "scale"}
+
+
+def validate_potential(spec: dict) -> dict:
+    """Initial field of kind 'potential' (PIC-D24): B += discrete curl A, A_c = scale x product of 1-D
+    shapes evaluated on the c-edges (the places of E_c)."""
+    spec = dict(spec)
+    unknown = set(spec) - POTENTIAL_KEYS
+    if unknown:
+        raise KeyError(f"initial field potential: unknown key(s) {sorted(unknown)}")
+    if spec.get("component") not in ("Ax", "Ay", "Az"):
+        raise ValueError(f"initial field potential: component must be Ax, Ay or Az (got {spec.get('component')!r})")
+    spec["shape"] = validate_shape_map(spec.get("shape"), "initial field potential")
+    spec["scale"] = float(spec.get("scale", 1.0))
+    return spec
 
 
 @dataclass
@@ -16,7 +69,14 @@ class Beam:
       density: alpha       n = density * (1 + alpha cos(k x + phase)) exactly (particles moved)
       displacement: xi     x = x0 + xi sin(k x0 + phase) (Lagrangian displacement)
       velocity: u1         u_c += u1 sin(k x0 + phase), c = velocity_component (default: axis)
-    Moves are deposited as currents, so the initial E satisfies Gauss's law exactly."""
+    or a shaped perturbation (PIC-D24): ``shape`` maps axes to 1-D shapes (pypic.profiles) whose
+    product f(x0) multiplies the amplitudes; the axes may be periodic or not:
+      velocity: u1         u_c += u1 f(x0), c = velocity_component (required)
+      displacement: xi     x_c = x0_c + xi f(x0), c = displacement_component (required); refused for
+                           particles closer than one cell plus the largest move to a non-periodic face
+                           of axis c
+    Moves are deposited as currents, so the initial E satisfies Gauss's law exactly; displacing one
+    species by xi = -E / (q n) loads a target field E (PIC-D24)."""
 
     density: float  # in units of the reference density n0
     drift: tuple = (0.0, 0.0, 0.0)  # proper velocity u = gamma v / c
@@ -71,6 +131,11 @@ class Beam:
             unknown = set(p) - PERTURBATION_KEYS
             if unknown:
                 raise KeyError(f"unknown perturbation key(s) {sorted(unknown)}")
+            if "shape" in p:
+                validate_shaped_perturbation(p)
+                continue
+            if "displacement_component" in p:
+                raise KeyError("displacement_component belongs to a shaped perturbation (with 'shape')")
             if p.get("axis", "x") not in ("x", "y", "z") or p.get("velocity_component", "x") not in ("x", "y", "z"):
                 raise ValueError("perturbation axis / velocity_component must be x, y or z")
             if int(p.get("mode", 1)) < 1:
@@ -462,6 +527,9 @@ class SimConfig:
     #   "direction": 1}   exact discrete eigenmode of the solver (Yee or Crank-Nicolson)
     #  {"kind": "profile", "component": "Bx", "axis": "y", "shape": "tanh", ...}  (pypic.profiles; a
     #   component may only vary along another axis)
+    #  {"kind": "potential", "component": "Az", "shape": {"x": {...}, "y": {...}}, "scale": s}  B += the
+    #   discrete curl of A (PIC-D24): div B = 0 bitwise; A tangential to a non-periodic face must be zero
+    #   on it
     initial_fields: list = field(default_factory=list)
     # subtract the box-averaged current every step (= a uniform external neutralising current):
     # removes the k = 0 plasma oscillation driven by a net beam current (Buneman); periodic boxes only
@@ -498,6 +566,13 @@ class SimConfig:
             raise ValueError("capacity_factor must be >= 1")
         if not 0.0 <= float(self.marder_zone) <= 1.0 / 6.0:
             raise ValueError("marder_zone is a Marder number: 0 (off) or 0 < nu <= 1/6")
+        fields = []
+        for f in self.initial_fields:
+            f = dict(f)
+            if f.get("kind") == "potential":
+                f = validate_potential(f)
+            fields.append(f)
+        self.initial_fields = fields
         if self.lattice is not None:
             lat = tuple(self.lattice)
             if len(lat) != 3 or any(int(v) != v or v < 1 for v in lat) or lat[0] * lat[1] * lat[2] != self.ppc:
