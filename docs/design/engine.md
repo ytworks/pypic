@@ -466,6 +466,8 @@ Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 3, amended 2026-1
     taken away after.
 - **Motional background:** E0 tangential to a reflecting face is allowed when the open face of that axis carries
   the fluctuation.
+- **Energy record:** the Poynting flux through the face is that of the total field. The incident B is added on
+  the half plane outside the face for `poynting_out`.
 - **Refused:** a window; a face that does not inject.
 - **Recommended:** a `flux` face with the Marder zone. A paired face ties the electrons' birth rate to the ions'
   flux, which differs from theirs in a wave by the wave current (plan, Results).
@@ -473,7 +475,6 @@ Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 3, amended 2026-1
 Why: fluctuations that meet the shock at a fixed age, for spectra that age or rotate in a loaded upstream.
 
 Not established:
-- the incident Poynting flux in the energy record;
 - the errors next to the face (5–15 % of the mode in the last 2 c/ω_pe) at other parameters;
 - several modes at once (the table takes them; the test has one).
 

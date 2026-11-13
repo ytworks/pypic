@@ -541,8 +541,9 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
                                                  (unsigned long long)PID(p), (unsigned long long)it);
                 lke += w * m * (g1 - 1.0);
                 if (nflu > 0 && face == flface) {  // returned with the fluctuation at the wall point (PIC-D26)
+                    const double rp[3] = {WPHYS(pw[0], DX), WPHYS(pw[1], DY), WPHYS(pw[2], DZ)};
                     double dd[3];
-                    fluct_du(flu, nflu, pw, tnow, dd);
+                    fluct_du(flu, nflu, rp, tnow, dd);
                     sample_inflow(rb + (long long)face * nrb * 6, nrb, amin, wall > 0.0 ? -1.0 : 1.0, sr, u, dd);
                 } else {
                     sample_inflow(rb + (long long)face * nrb * 6, nrb, amin, wall > 0.0 ? -1.0 : 1.0, sr, u, nullptr);
@@ -1184,9 +1185,10 @@ __device__ bool layer_sample(const unsigned long long ks, const unsigned long lo
     r0[2] = WRAND(gc[2], sp, DZ);
     sm = hash_key(ks ^ ((unsigned long long)tb[5] * 0x2545F4914F6CDD1DULL + 77ULL), gcell, (unsigned long long)slot);
     sample_mj(tb[1], sm, u);
-    if (nflu > 0) {  // the inflow fluctuation at the birth point (PIC-D26)
+    if (nflu > 0) {  // the inflow fluctuation at the birth point (PIC-D26), in physical coordinates
+        const double rp[3] = {WPHYS(r0[0], DX), WPHYS(r0[1], DY), WPHYS(r0[2], DZ)};
         double dd[3];
-        fluct_du(flu, nflu, r0, tnow, dd);
+        fluct_du(flu, nflu, rp, tnow, dd);
         boost_drift(u, tb[2] + dd[0], tb[3] + dd[1], tb[4] + dd[2], sm);
     } else {
         boost_drift(u, tb[2], tb[3], tb[4], sm);

@@ -70,10 +70,14 @@ def test_inflow_face_keeps_the_wave_in_a_flow():
     """A cold R wave loaded in a flow and carried in through a flux face keeps its pattern: after
     t = 300 (15 c/omega_pe of new plasma) the k-mode of B_x and B_z differs from the incident one by
     at most 12 % on any x row and by 4 % on average away from the outflow face (measured 8 % and
-    2.6 %); the density stays within 10 %; Gauss's law holds."""
+    2.6 %); the density stays within 10 %; Gauss's law holds; the energy budget, with the Poynting
+    flux of the total field through the face, closes within 1 % of the total energy (measured 0.31 %;
+    4.2 % without the incident field in that flux)."""
     sim = Simulation(M.config(steps=3000, preloaded=True), comm=SelfComm(), verbose=False)
     sim.run()
     assert np.nanmax(sim.history["gauss"]) < 1e-10
+    budget = np.asarray(sim.history["budget"])
+    assert np.max(np.abs(budget - budget[0])) < 1e-2 * sim.history["total"][0]
     for comp in ("Bx", "Bz"):
         x, a, b = _mode(sim, comp)
         sel = x > 10.0  # the outflow face x- carries no incident field
@@ -125,3 +129,36 @@ def test_inflow_is_decomposition_independent():
         a, b = np.asarray(outs[1][k]), np.asarray(outs[2][k])
         assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-10, k
     assert np.nanmax(np.asarray(outs[2]["gauss"], dtype=float)) < 1e-10
+
+
+def _entering_modes(precision):
+    cfg = M.config(steps=50, preloaded=True)
+    cfg.precision = precision
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    sim.run()
+    out = {}
+    for sp in sim.species:
+        P = cp.asnumpy(sp.rows())
+        sel = P[0] > M.LX - 0.3  # entered in the last steps
+        for a in (0, 2):
+            out[sp.name, a] = 2 * np.mean(P[3 + a][sel] * np.exp(-1j * M.K * P[1][sel]))
+    t = sim.time
+    sim.close()
+    return out, t
+
+
+def test_entering_particles_take_the_mode_at_their_physical_place():
+    """The compact storage works in cell units; the mode is evaluated at the physical place of the
+    entering particles with both storages (review of PR #50): the k-mode of their velocity is the
+    same with fp64 and compact within 2 % (measured: equal to the printed digits; before the fix the
+    compact particles took the mode at 1/dy times their place), and the ions' z velocity is the
+    incident one within 20 % (measured 8 %; the electrons entering through the face carry the
+    flux-weighted bias of a thermal speed close to the flow)."""
+    f64, t = _entering_modes("fp64")
+    cmp_, _ = _entering_modes("compact")
+    for key, v in f64.items():
+        assert abs(cmp_[key] / v - 1) < 0.02, key
+    m = M.fluctuation()["modes"][0]
+    C, S = m["u"]["i"]["cos"][2], m["u"]["i"]["sin"][2]
+    ref = (C - 1j * S) * np.exp(-1j * m["omega"] * t)
+    assert abs(f64["i", 2] / ref - 1) < 0.2

@@ -766,7 +766,11 @@ class Simulation:
             if self.fluct is not None:
                 self._tfsf_total(t0 + dt, -1.0)
         if self._has_open:
+            if self.fluct is not None:  # the flux of the total field through the fluctuation face (PIC-D26)
+                self._tfsf_half_B(t0 + dt, +1.0)
             self.flux_out += dt * g.poynting_out()
+            if self.fluct is not None:
+                self._tfsf_half_B(t0 + dt, -1.0)
 
     # ------------------------------------------- inflow fluctuation: total-field / scattered-field face (PIC-D26)
     def _incident(self, comp: str, coords, t: float):
@@ -843,6 +847,18 @@ class Simulation:
             sl, xyz = pl
             xyz[a] = cp.full((1, 1, 1), half * g.dx[a])
             getattr(g, tgt)[sl] += (fac * dte / d) * self._incident(src, xyz, tB)
+
+    def _tfsf_half_B(self, t: float, sign: float):
+        """Add (sign = +1) or take away (-1) the incident B_b, B_c at time t on the half plane outside
+        the fluctuation face, so that the Poynting flux through the face (which averages B across it)
+        is that of the total field: the energy that the incident wave brings in enters the record."""
+        a, b, c, node, half, sgn = self._tfsf_axes()
+        for comp in ("B" + "xyz"[b], "B" + "xyz"[c]):
+            pl = self._plane(comp, half)
+            if pl is None:
+                continue
+            sl, xyz = pl
+            getattr(self.grid, comp)[sl] += sign * self._incident(comp, xyz, t)
 
     def _tfsf_total(self, t: float, sign: float):
         """Add (sign = +1) or take away (-1) the incident E at time t on the points beyond the

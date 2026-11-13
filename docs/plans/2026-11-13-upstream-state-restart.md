@@ -169,8 +169,12 @@ of the coordinates along the face and of time only: the plasma carries the patte
     is exact because the zone is linear.
   - Neither restriction is enforced. A paired face and a flux face without the zone both run, with the errors
     measured below.
-- **Not done:** the incident Poynting flux in the energy record. The budget is monitored only, as before. The
-  injected kinetic energy includes δu through the existing injection record.
+- **Energy record** (done 2026-11-14, after the owner's "出し惜しみするな"):
+  - The Poynting flux through the face is taken of the total field: the incident B is added on the half plane
+    outside before `poynting_out` and taken away after.
+  - The injected kinetic energy includes δu through the existing injection record.
+  - Budget drift over t = 300 in the test of (g): 0.31 % of the total energy, against 4.2 % without the
+    incident field in that flux.
 
 ## Invariants
 
@@ -288,6 +292,28 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
   - B = 0.1 (the tested case): 2–3 % inside, 5–8 % next to the face, amplitude ratio 0.985, densities
     0.94–1.0.
 - **Piston (B = 0.1):** shock with downstream density about 3. B_z mode ahead of it 0.78–1.50 of the incident.
+- **Error next to the face** (B = 0.5, t = 300, scan of 2026-11-14; inside 30 < x < L − 8 / within 4 c/ω_pe of
+  the face):
+
+  | case | B_x | B_z | B_y |
+  |---|---|---|---|
+  | base (32 ppc, filter, Marder 0.125) | 1.4 % / 9.1 % | 3.0 % / 8.5 % | 1.5 % / 17 % |
+  | Marder 0.0625 | 1.3 / 8.4 | 3.0 / 6.9 | 1.4 / 17 |
+  | without the filter | 4.2 / 11 | 6.8 / 8.3 | 1.9 / 19 |
+  | 128 ppc | 1.2 / 8.9 | 2.9 / 7.7 | 1.3 / 17 |
+  | Marder zone without the incident E_y | 1.4 / 9.1 | 3.0 / 8.3 | 1.5 / 17 |
+  | without the Marder zone | 11 / 24 | 17 / 41 | 7.4 / 36 |
+
+  - The residual next to the face is not noise (128 ppc), not the filter, not the Marder number, and not the
+    incident E_y that the plasma has no charge for.
+  - The Marder zone is needed.
+  - The cause of the residual is not established.
+- **Review of PR #50, round 1** (Codex, P1): with `precision: compact` the working positions are cell units. The
+  mode is now evaluated at the physical place: `WPHYS` at the birth point and at the wall point of a returned
+  neutraliser. `test_entering_particles_take_the_mode_at_their_physical_place`: fp64 and compact equal within
+  2 %, and the ions' z velocity within 20 % of the incident (measured 8 %); it fails on the code before.
+  - Seen, not explained: the x velocity of the entering ions is 0.86 of the incident with a phase of −0.27 rad,
+    the same in both storages.
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 
