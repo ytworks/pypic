@@ -3,6 +3,35 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Item 2 begins: the P5 shock reflects electrons upstream at high latitude (SDA level)
+
+- **Literature against P5** (notes; shock M_A ≈ V_sh / v_A ≈ 3.8, β_e ≈ 0.25, m_i/m_e = 16): unlimited SSA
+  trapping M_A ≥ (1+α)(m_i/m_e)^(2/3) ≈ 7.6 not met (`matsumoto2012electron`, `bohdan2019kinetic`); Buneman onset
+  ≈ 1.2 met; SDA-like oblique regime M_A ≲ (m_i/m_e)^(1/2) = 4 at its edge and escape for θ_Bn ≲ 84°
+  (`riquelme2011electron`); potential effect for θ_Bn ≲ 75° (`amano2007electron`); efficient SDA 7 ≤ M_A ≤ 33,
+  β_e ≈ 1 not met (`lezhnin2021kinetic`).
+- **Missed before:** the upstream γ ≥ 1.5 electrons at polar angles 0–50° (counts) are in the upstream rest
+  frame, where no frame correction applies. The upstream "thermal" verdict of the local-fit test was wrong for
+  beams: a beam inside a cell raises the fitted temperature of that cell.
+- **Reflections** (script `P5/analysis/figures/reflect.py`; electrons born outside the shell that enter the
+  transition layer from upstream and return upstream): 57,951 events by 46,801 electrons. Returning with
+  γ ≥ 1.25: 641 events (419 electrons), ≥ 1.5: 16 (10), max 1.65, none ≥ 2. Share returning with γ ≥ 1.25 by
+  polar angle: 3.9 % at 10–20°, 2.7 % at 20–30°, 2.1 % at 30–40°, 1.0 % at 40–50°, about 0 above 60°; local θ_Bn
+  of those 16–47°, V_HT 0.27–0.37 c. γ_out against the head-on bound γ_HT²(1 + V_HT²) from rest: 0.85–1.26
+  (median 1.05). μ_out / μ_in median 1.18, wide.
+- **Repeated reflections:** 4792 electrons reflect twice or more (polar ≈ 25°). Between reflections the energy
+  does not change. The relative gain per reflection falls with γ: +2.0 % at γ 1.0–1.05, +0.5 % at 1.05–1.15,
+  −1.3 % at 1.15–1.3 (not Fermi-like); repeated reflections settle near the SDA level ≈ 1.24. Many repeats come
+  9 time units apart and may be one encounter flickering across the boundary r_f + d_i.
+- **Sphere-specific idea tested:** on a field line of fixed ρ the expanding sphere is met at θ = asin(ρ/R(t)),
+  so later encounters lie closer to the pole. 89 % of successive reflections move pole-ward, by 0.6° (median):
+  seen, small. γ_out of electrons entering with γ < 1.1 stays at 1.04–1.06 for V_HT from 0.25 to 0.7 c, against a
+  bound rising from 1.17 to 1.94: the gain does not follow V_HT; the idea does not explain the falling gain.
+- **Reading.** The P5 shock does accelerate electrons by reflection at high latitude (θ_Bn 15–50°), to about the
+  SDA level of its V_HT (γ ≈ 1.25, at most 1.65). At more perpendicular latitudes (larger V_HT, larger bound)
+  hardly any electron is reflected. Open: why the gain stays flat in V_HT; what returns electrons for separate
+  encounters.
+
 ## 2026-11-13 — Path (a): electrons born inside the initial debris shell
 
 Script and output: `P5/analysis/figures/patha.py`, `patha.json`. Drift frame and smoothing as for path (b).
