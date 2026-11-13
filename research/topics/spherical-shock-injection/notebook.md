@@ -3,6 +3,26 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — P5: is there a nonthermal component at all? Not at the shock; yes inside the debris
+
+- **Owner:** without a nonthermal component the question does not arise. So the first test is an excess over
+  the local thermal distribution, not the counts above a fixed γ (a sum of regions of different temperature
+  looks like a tail).
+- **Method** (functions of `census.py`; script and output `P5/analysis/figures/nonthermal.py`, `.txt`): the
+  meridional slab spectra (cells of 2 d_e), a Maxwell–Jüttner fit of the bulk of each cell, and the measured
+  weight above γ − 1 = 0.56 and 1.0 against the fit (0.9, 1.0, 1.1 T). Lab-frame energies (bulk flow
+  included). Regions: A, shock downstream (from 3 d_i behind the front to the debris edge); B, inside the debris
+  edge; C, upstream.
+- **A, at the shock:** thermal. Above 0.56: 0.06–0.69 against 0.06–2.3 expected (t = 252–360). Above 1.0: one
+  or two macro-electrons (weight 0.0625 each). The region is thin (12–18 d_e) and exists in the slab only from
+  t = 252: 160–1350 cells, so the test is weak.
+- **B, inside the debris edge:** a tail above the local fit. Above 1.0: 32–126 against 1.9–3.0 expected
+  (15–40 times, t = 108–288); above 0.56: 2–3 times. This is where the γ ≥ 3 electrons are.
+- **C, upstream:** thermal within the fits (above 1.0: at most 0.8 against 0.16).
+- **Reading.** In P5 no nonthermal electrons are seen at the shock; the only nonthermal component is in the
+  piston region. Limits: one slab (y near 0), the cell-mixing of temperatures and the anisotropy are not
+  separated, and B's tail is not yet shown to be physical rather than numerical.
+
 ## 2026-11-13 — P5 electrons, first look: maps first, highest energies first (owner's instruction)
 
 - **Owner:** look at the distribution maps first for the whole picture, then from the highest energies down.
