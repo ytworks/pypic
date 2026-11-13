@@ -376,3 +376,32 @@ layout-dependent `fill` excluded); particle numbers, id sums, injected and absor
     schedule from the start).
   - No particle species: the reduced counters are no longer cut to an empty list.
     `test_restart_without_particles_onto_another_layout` (2 → 1 GPU, antenna work, 2.8e-15).
+
+### Example `examples/alfven_inflow`, measured 2026-11-14 on 2 RTX PRO 6000
+
+The example uses all three stages; its README has the details.
+- **Gate `alfven_inflow:gate`.** The criteria are those of (g) as amended, unchanged, plus div B ≤ 1e-12. They
+  are in `scripts/gpu_gates.py` and ANA-D2. The run is the set-up of the test, with V₀ = 2 v_A = 0.0485 in place
+  of 0.05. On a502a2c:
+  - row errors B_x 8.30 % / 2.63 % (largest / mean), B_z 10.86 % / 2.90 %;
+  - densities within 1.89 %;
+  - Gauss 4.7e-15.
+  FP64, `mixed` and `compact` agree to 4 or more digits, and the single-gate runs pass with each precision.
+- **Fault found by the gate.** Before d341a49 the `compact` run failed (row errors 72 % and 74 %): the entering
+  particles took the mode at their index coordinate. The fix is in Stage 3.
+- **Piston** (reported, not gated), on c571302. The set-up: wall at x−, V₀ = 3 v_A, M_A = 4.39 from the jump
+  conditions. The wave is loaded with an envelope h(x) by the PIC-D24 primitives and carried in through x+.
+  Checkpoints are written every 4000 steps. The null run uses a table of zero amplitude: E₀ at the wall needs a
+  table.
+  - Records: `bench/results/2026-11-14-c57130205-example-alfven_inflow-piston-run-9245d02a.json` and
+    `…-run-d6549bc2.json` (null).
+  - Shock speed 0.0318 c with the wave and 0.0366 c without, against 0.0336 c.
+  - Downstream density 2.94 and 2.71, against 3.16.
+  - T_e + T_i within 2 % of the jump conditions.
+  - The k-mode ahead of the shock: 0.98 (B_x) and 1.12 (B_z) of the incident wave on average.
+  - The k-mode behind it: 2.40 and 4.25 with the wave, 0.62 and 0.65 in the null run.
+- **Restart.** The piston run continued from its step-8000 checkpoint agrees to round-off for 200 steps
+  (≤ 1.2e-16). The difference then grows as round-off does in the shock: 4e-7 at the end.
+- **The envelope vanishes at the face as well as at the wall.** An A tangential to the open face must be zero on
+  it, so B_x(y) is either on the wall or on the face plane at t = 0. The face side has no wave over its last
+  9 c/ω_pe; that plasma is flushed in and reaches the shock at t ≈ 850.

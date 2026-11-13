@@ -1,0 +1,25 @@
+# Piston (reported, not a gate): a reflecting wall at x- stops the flow V0 = 3 v_A; the perpendicular shock
+# (jump conditions: r = 3.16, M_A = 4.4 in the shock frame) moves into the plasma that carries the cold R
+# wave (k d_i = 0.785, |dB| / B0 = 0.2). The wave is loaded at t = 0 with an envelope h(x) that vanishes
+# within 4 c/omega_pe of the wall and over the last 8 before the face (PIC-D24), and the face carries it in
+# from t = 0 on (PIC-D26). The shock meets the loaded wave until t ~ 850 and the wave of the face after
+# t ~ 900. 384 x 128 x 2 cells, 6.3e6 particles at t = 0, 13000 steps (t = 1300 = 8.1 / Omega_ci).
+# Restart checkpoints every 4000 steps (PIC-D25): run.py --restart output/alfven_inflow/piston/checkpoint
+mass_ratio: 16
+wpe_wce: 10
+theta_e: 1.0e-3
+flow_mach: 3
+branch: R
+amplitude: 0.2
+ly: 32
+lx: 96
+wall: true
+load: envelope
+wall_ramp: [4, 12]
+face_ramp: 8
+ppc: 32
+t_end: 1300
+frames: 65
+profiles: 130
+spectra: 26
+checkpoint: {every: 4000, keep: 2}

@@ -26,6 +26,7 @@
 | [磁化惑星のバウショック](Bow-Shock-ja) | 磁化した風の中の双極子の磁気圏界面とバウショック（開いた 3 次元の箱、吸収球） | 圧力平衡、垂直 MHD 衝撃波と Spreiter et al.（1966）の離れ距離 | 磁気圏界面 {{ bow_shock:r.gate.magnetopause | .2f }} R_mp、衝撃波 {{ bow_shock:r.gate.shock | .2f }}（参照値 {{ bow_shock:r.gate.shock_spreiter | .2f }}）R_mp |
 | [磁化天体のまわりの爆風](Blast-Wave-ja) | 双極子をもつ吸収球のまわりで、磁化プラズマの中へ膨張するデブリの殻（開いた 3 次元の箱） | 速い磁気音波の速度、Le et al.（2021）のデブリの広がりのスケーリング | 波面は速い磁気音波の速度の {{ blast_wave:r.gate.front_mach_fast | .2f }} 倍、デブリの広がりはスケーリングの {{ blast_wave:r.gate.debris_extent_ratio | .2f }} 倍 |
 | [プラズマ航跡場](Plasma-Wakefield-ja) | 冷たいプラズマの中のレーザーパルスと電子バンチの航跡場（レーザーアンテナ、移動ウィンドウ）、強いパルスの空洞 | 航跡場の線形理論（振幅、波数、半径方向の構造）、Lu et al.（2007）のスケーリング | 振幅は理論の {{ wakefield:r.laser_linear.amplitude_ratio | .3f }} 倍（パルス）と {{ wakefield:r.beam_linear.amplitude_ratio | .3f }} 倍（バンチ） |
+| [流れに運ばれて衝撃波へ入るアルヴェン的な波](Alfven-Inflow-ja) | 乱流流入面から開いた箱へ運び込まれる冷たい 2 流体の R 波と、同じ波に当たる垂直ピストン衝撃波（M_A ≈ 4.4） | 冷たい 2 流体プラズマの分散関係、垂直 MHD 衝撃波のジャンプ条件 | k モードは入射波との差が平均 {{ alfven_inflow:r.gate.Bz_mean | .1% }}、衝撃波の速度はジャンプ条件の {{ alfven_inflow:r.piston.shock_speed_ratio | .2f }} 倍 |
 
 ## ギャラリー
 
@@ -34,6 +35,7 @@
 | <img src="images/two_stream/ei.gif" width="280"><br>二流体: 位相空間の渦 | <img src="images/filamentation/pair.gif" width="280"><br>フィラメンテーション: 電流フィラメント | <img src="images/reconnection/pair_sigma10_large_run2.gif" width="280"><br>リコネクション: プラズモイド |
 | <img src="images/landau_damping/wavebreaking.gif" width="280"><br>砕波: シートの交差 | <img src="images/relativistic_shock/pair_2d.gif" width="280"><br>相対論的衝撃波 | <img src="images/particle_orbits/orbits.gif" width="280"><br>テスト粒子軌道 |
 | <img src="images/bow_shock/gate.gif" width="280"><br>バウショック: イオン密度 | <img src="images/blast_wave/gate.gif" width="280"><br>爆風: 磁場、周囲とデブリのイオン | <img src="images/wakefield/laser_bubble.gif" width="280"><br>航跡場: 強いレーザーパルスの空洞 |
+| <img src="images/alfven_inflow/piston.gif" width="280"><br>アルヴェン的な波: そこへ進む衝撃波 | | |
 
 ## ページの作り方
 
