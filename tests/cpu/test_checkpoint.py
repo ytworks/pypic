@@ -310,3 +310,22 @@ def test_committed_rows_are_carried_through_a_second_restart():
 
     assert committed_rows(out, rank=0) == {"reduced/rare.h5": 7, "reduced/often.h5": 5}
     assert committed_rows(out, rank=1) == {}
+
+
+def test_series_datasets_are_cut_to_one_length(tmp_path):
+    """A writer killed between resizing ``t`` and ``step`` leaves ``t`` longer than the committed
+    rows; the cut brings every time-dependent dataset to the rows kept (review of PR #50)."""
+    import h5py
+
+    from pypic.output.h5 import SeriesWriter, truncate_series
+
+    path = str(tmp_path / "s.h5")
+    w = SeriesWriter(path, {}, "deflate", 1, max_rows=4)
+    for s in range(4):
+        w.append(s, 0.5 * s, {"v": np.full(2, float(s))})
+    w.close()
+    with h5py.File(path, "a") as f:
+        f["t"].resize(8, axis=0)
+    assert truncate_series(path, 10, committed=4) == 4
+    with h5py.File(path, "r") as f:
+        assert f["t"].shape[0] == f["step"].shape[0] == f["v"].shape[0] == 4

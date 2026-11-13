@@ -393,6 +393,10 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
   - **P2:** a paired face refuses a table whose neutraliser normal fluctuation reaches its inward drift plus
     three thermal speeds: some phases would have no inward velocity to draw. A flux face takes such a table.
     `test_paired_face_needs_an_inward_velocity_at_every_phase` (CPU).
+- **Review of PR #50, round 12** (Codex, on e277b27): one finding.
+  - **P2:** a series cut brings every time-dependent dataset to the rows kept. A writer killed between
+    resizing `t` and `step` could leave them of different lengths. `test_series_datasets_are_cut_to_one_length`
+    (CPU); it fails on the code before.
 - **Cost of the fluctuation face.** The incident field is evaluated about ten times per step on planes and on
   the absorbing layer. Measured on 2 GPUs: the null piston (384 × 128 × 2 cells, 6.3e6 to 1.2e7 particles) takes
   9.6 ms per step, against 7.4 ms on c571302, before the corrections of rounds 3 and 4 (gather, outputs,

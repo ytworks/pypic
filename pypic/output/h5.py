@@ -303,10 +303,11 @@ def truncate_series(path: str, step: int, committed: int | None = None) -> int:
             keep += 1
         if committed is not None:
             keep = min(keep, int(committed))
-        if keep < steps.size:
-            for k, ds in f.items():
-                if k not in SeriesWriter.FIXED:
-                    ds.resize(keep, axis=0)
+        # every time-dependent dataset to the same length: a writer killed between resizing ``t`` and
+        # ``step`` leaves them of different lengths (review of PR #50)
+        for k, ds in f.items():
+            if k not in SeriesWriter.FIXED and ds.shape[0] != keep:
+                ds.resize(keep, axis=0)
         return keep
 
 
