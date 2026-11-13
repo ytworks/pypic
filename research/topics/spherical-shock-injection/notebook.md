@@ -3,6 +3,20 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Correction: the gain at the wall is not shown to be "not the shock"
+
+- **Owner:** the wall foot is a place the shock passed earlier; the earlier claims were one-sided.
+- **Facts.** The front crossed r = 91–103 d_e at t = 72–108 (equator), so the foot at t = 144 (91–99 d_e) is
+  plasma the front swept. r_Bmax moves with the front, 4–7 d_e behind it. The compressed field and the motional
+  E_φ there come from the shocked downstream flow together with the field the piston pushes out.
+- **Withdrawn:** the reading of the entry "does the gain zone follow the front or the debris edge" that the
+  energisation is "a mechanism of the piston, not of the shock", and the same words in the replies to the owner.
+  That the gain zone keeps its distance to the debris edge does not assign it to the piston: the downstream of a
+  driven shock is bounded by the piston. The data do not separate the two.
+- **Kept, as observations:** the gain is by drift along E_φ on the inner side of the wall; the front layer gives
+  a net loss to these electrons; the gaining electrons were born at r = 52–71 d_e, inside the initial debris
+  shell. What these mean for the mechanism is open.
+
 ## 2026-11-13 — P5: does the gain zone follow the front or the debris edge? The debris edge
 
 - **Owner's questions:** how the debris edge and the front differ, and whether a gain near the front is not an
