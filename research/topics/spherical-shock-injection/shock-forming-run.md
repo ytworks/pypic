@@ -117,3 +117,70 @@ All from `analyze.py front` (protocol Sect. 4, unchanged) and `analyze.py drive`
   box 768 d_e, R_m = 128 d_e, R_m / ρ_d = 9.1, nominal fast Mach 2.95. It needs a wider shell (ω_pe dt ≤ 1.2
   at the peak), has a Debye length of 0.1 cells (L: 0.2) and does not resolve electron scales: an ion-scale
   observation whose upstream heating must be measured in the run itself.
+
+## 7. The observation (added 2026-11-13, after the run)
+
+Run `S25` from commit `66a3629`: 2960 steps in 1310 s on 8 GPUs, 60 GB. Record: `runs/` (name `S25`).
+Analysis: `front`, `drive`, `census`, `tracks` and the nine checks of the example.
+
+**O5, the run itself.** The nine checks pass (Gauss law 6.8 × 10⁻¹⁵, div B 2.5 × 10⁻¹⁴, `fill` 0.68, energy
+budget +9.1 % of the initial energy, compression 3.0). Upstream T_e rises from 0.0100 to 0.0110 (10 %), T_i
+stays at 0.0099.
+
+**The front and its valid domain.** 738 bins (41 outputs × 18 polar angles); a front in 387, valid in 214,
+all at polar angles of 37.5° to 87.5° (none nearer to the axis). Medians per polar angle in the valid bins:
+V_n = 0.180–0.199 c, fast Mach number 1.71–1.81, compression of B 1.8–2.1 (bin) and 2.0–2.3 (cell), front ahead
+of the debris edge by 12–33 d_e. No de Hoffmann–Teller frame beyond θ_Bn = 76–81°.
+
+| | T: a time | R: a length | P: stalling | observed |
+|---|---|---|---|---|
+| O1 first valid front, t [1/Ω_ci] | 2.7–3.3 | 3.7–4.2 | ≥ 5.5 | **3.24** (output before: 2.78) |
+| … radius | ≤ 0.8 R_m | 0.9 R_m (72–73 d_e) | – | **0.88 R_m** (71.0 d_e; output before: 66 d_e) |
+| … debris edge: place; speed over front speed | –; ≥ 0.7 | – | R_m; 0.57 | **0.79 R_m; 0.66** |
+| O2 valid and driven, longest [1/Ω_ci] | about 5 | about 4 | ≤ 2.5 | **2.78** |
+
+- **O1.** At 6 polar angles at once. In other units: 7.1 ρ_d, 17.8 d_i, 0.48 R_B. Fast Mach number 2.1 there.
+- **O2.** Valid: 214 bins at 11 polar angles, the longest 11.1 / Ω_ci (87.5°). Valid and driven: 66 bins at 11
+  polar angles, the longest 2.78 / Ω_ci (42.5°), median 2.3. The speed of the debris edge over that of the
+  front falls steadily: 0.66 at 3.2 / Ω_ci, 0.50 at 6.5, 0.34 at 8.3, below 0.15 after 11.5.
+- **O3.** Fast Mach number, 10 / 50 / 90 %: 1.54 / 1.74 / 2.03 in the valid bins, 1.80 / 1.99 / 2.09 in the
+  driven ones. At 2 or above: 29 bins at 8 polar angles, the longest 2.3 / Ω_ci; all of them are driven. None
+  at 3 or above. Median over the bins with a front: 2.15 at 2.8 / Ω_ci, 1.99 at 4.6, 1.75 at 8.3, 1.39 at 17.6.
+- **O4.** m = 0.53–0.55 at the 11 polar angles (median 0.536); L: 0.54.
+- **What ends the valid bins.** Criterion (c) at every polar angle: the fast Mach number falls below 1.5,
+  between 9.3 / Ω_ci (37.5°, R = 115 d_e) and 14.3 / Ω_ci (87.5°, R = 159 d_e). The box does not end them.
+
+**Verdict by the rule of Sect. 5: undecided.** The valid and driven bins last 2.78 / Ω_ci, between 2.5 and 4.
+S25 doubled the driven time of L (1.32 / Ω_ci) and did not reach "a driven shock formed".
+
+**The three readings.**
+
+- **P is rejected.** The front is valid at 3.24 / Ω_ci, while the debris edge is at 0.79 R_m and still moves at
+  0.66 of the front speed. Validity does not wait for the stalling.
+- **T and R are not separated.** The time fits T (3.24 against 3.30 in L); T's other predictions are not all
+  met (radius 0.88 against ≤ 0.8 R_m; edge speed 0.66 against ≥ 0.7; driven 2.8 against about 5 / Ω_ci). The
+  radius, 71 d_e, is again the length of R (72–73 d_e), but R's time (3.7–4.2 / Ω_ci) is not met. With outputs
+  0.46 / Ω_ci apart the two cannot be told apart in this run.
+- **Seen beside the readings** (used in `strong-shock-run.md` Sect. 4): in units of the debris, L and S25
+  agree. The front becomes valid 1.9–2.3 ρ_d outside the initial debris edge, when it leads the edge by
+  0.7 ρ_d, and its speed over V_d follows R / R_m. This is a description of two runs, not a tested rule.
+
+**Strength, as expected:** weak. The fast Mach number is 2.1 at the first valid front and falls from there.
+
+**O6, the census (counts; no residual is claimed).** 1,234,713 electron records with γ ≥ 1.25 in 41 outputs.
+
+- **Ambient electrons with γ ≥ 1.5.** 57 at t = 37 and 533 at 55.5, before any front is found; 3245–3506 at
+  t = 92.5–129.5 (2.3–3.2 / Ω_ci, the time up to the first valid front); 1231 at 222 (5.6 / Ω_ci); 109 at 370;
+  11–33 after 444 (11 / Ω_ci). Nearly all are in the layer or downstream and are classed "swept by the front".
+- **Upstream of the front** there are at most 13 of them in one output, against the registered signal
+  threshold of 100: no band is measurable. Summed over the outputs (one electron counts once per output):
+  9 "S0 at exit", 10 undetermined and 3 residual at a detected front, of which 7, 2 and 2 are in the valid
+  domain; 116 undetermined where no front is found.
+- **Debris electrons with γ ≥ 1.5** (weights; they are the driver, not the ambient plasma): 1337 at t = 74,
+  2530 at 129.5, about 1000 at 370–407 and 3185 at the end; 70–570 of them are upstream of the front from
+  t = 148 on.
+- **Limits of the census here.** No null run and no second seed for this condition. `census.SHELL_RADIUS`
+  (27.5 d_e) is the shell edge of L; in S25 the shell ends at 34.6 d_e, so ambient electrons born between the
+  two are counted as "swept by the front". The numerical scattering rate is taken from this run
+  (ν = 0.0029 at γ = 1.25–1.5).
+
