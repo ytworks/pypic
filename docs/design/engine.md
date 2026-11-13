@@ -3,7 +3,8 @@
 Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12..D16 2026-11-11, bow-shock plan;
 PIC-D17 2026-11-11, blast-wave plan; PIC-D18 2026-11-12, more-examples plan; PIC-D11 and PIC-D19 2026-11-12,
 compact-storage plan, as options: the default precision stays `fp64`; PIC-D20..D22 2026-11-12, wakefield
-plan); PIC-D23 **Proposed** (2026-11-12, wakefield plan).
+plan); PIC-D23 **Proposed** (2026-11-12, wakefield plan); PIC-D24..D26 **Proposed** (2026-11-13,
+upstream-state-restart plan).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -395,6 +396,46 @@ Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 3, amendment of 2026-11-12). B
 Why: the linear wakefield gates lost 6.9 % (bunch) and 8.3 % (laser) of the amplitude with 8 random places per cell, and 2.8 % with 32: the loss follows the noise of the load, not the driver. With a 2 × 2 × 2 lattice, the same 8 particles per cell and the same cost, the bunch gate measures +0.51 % and the run without a driver has no field at all. The alternative, 32 random particles per cell, needs four times the memory and time and still loses 2.8 %.
 
 Not established: the wake still loses amplitude far behind the bunch with the lattice (3.6 to 4.2 % in the wavelengths 6 to 8, 8 to 16 % in 9 to 12, outside the window of the gate); the cause is not identified. A cold lattice is not a thermal equilibrium: a warm plasma on a lattice has the density of the lattice and the velocities of the draw, and the known instabilities of a cold beam on a grid are not removed. No run with the implicit solver.
+
+### PIC-D24 — Frozen-in initial states: a vector potential and shaped perturbations (2026-11-13) — Status: Proposed
+Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 1).
+- **Vector potential:** the `initial_fields` kind `potential` adds B = discrete curl A.
+  - A_c is a product of 1-D shapes on the c-edges, so div B = 0 bitwise.
+  - It is refused where A is tangential to a non-periodic face and not zero on it. The wall would zero the normal
+    B there and leave div B.
+- **Shaped perturbations:** a `shape` (a product of 1-D shapes along any axes, periodic or not) times a velocity or
+  a displacement amplitude.
+  - Displacements use the virtual move of PIC-D9, so div E = ρ holds.
+  - They are refused near a non-periodic face, within one cell plus the largest displacement.
+- **E from a charge displacement:** displacing one species by ξ = E / (q n) loads a target E with div E = ρ exact.
+  The uniform part stays in `E0`.
+
+Why: a perpendicular shock driven into Alfvénic fluctuations frozen into the flow needs B_x(x, y) that vanishes at
+the wall (`apply_bc_B` zeroes the normal B) and the motional E = −v × B, which is neither uniform nor allowed as a
+tangential profile at a wall (PIC-D18).
+
+### PIC-D25 — Restart checkpoints, onto the same or another layout (2026-11-13) — Status: Proposed
+Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2).
+- `checkpoint: {every, keep}` writes `<output>/checkpoint/step-<n>/`: one file of arrays per rank and `meta.json`
+  from rank 0. The directory is completed by a rename after a barrier.
+- **Restore:** onto the same layout directly, or onto another one by global particle positions, field blocks with
+  global index ranges, the bank by global column, and the reduced counters.
+- The configuration must match except for an allow-list.
+
+Why: roadmap R2; research runs of 20–160 h on GPUs shared with other jobs.
+
+### PIC-D26 — A turbulent inflow face: a prescribed fluctuation carried in by the injected plasma (2026-11-13) — Status: Proposed
+Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 3).
+- **Mode table:** the inflow fluctuation is a table of modes along the face, evaluated at the birth point and step.
+  - Carriers, paired partners and returned neutralisers get its δv.
+  - The rejection bound includes max |δv|.
+- **Fields:** δB and E = −v × B enter through a total-field / scattered-field surface on unchecked nodes inside
+  the face.
+- **Motional background:** a uniform `E0` tangential to a reflecting face is allowed when the open face of the same
+  axis injects the flow that carries it.
+- **Without a table:** the kernels compute what they compute today, bit for bit.
+
+Why: fluctuations that meet the shock at a fixed age, for spectra that age or rotate in a loaded upstream.
 
 ## Review amendments
 

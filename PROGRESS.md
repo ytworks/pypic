@@ -102,6 +102,20 @@ Snapshot date: 2026-11-12. Decisions: `docs/design/engine.md` (PIC-D1..D22 Accep
 Newest first; only the most recent entries are kept here (see the size budget in
 `.claude/rules/progress-log.md`).
 
+### 2026-11-13 — [design] PIC-D24..D26 and OUT-D6 Proposed: frozen-in states, turbulent inflow, restart (R2, R12)
+- What: one pull request (branch `upstream-state-restart`) for the engine needs of the research topic
+  `shock-alfvenic-turbulence`.
+  - Stage 1, PIC-D24: a vector potential (B = discrete curl A, div B = 0 bitwise) and shaped perturbations
+    (products of 1-D shapes, any axis), from which the motional E is loaded by a charge displacement.
+  - Stage 2, PIC-D25 and OUT-D6: restart checkpoints, onto the same or another layout, with appended output.
+  - Stage 3, PIC-D26: an inflow face that carries a prescribed fluctuation (δv on carriers, partners and
+    neutralisers; δB and E through a TF/SF surface).
+- Why: reflecting walls zero the normal B, and PIC-D18 allows only a uniform tangential E at a wall. Research runs
+  of 20–160 h need restart.
+  - Owner's instructions (2026-11-13): a PR from main; merged after a Codex (gpt-6.1-sol, ultra) review with no
+    findings, on the owner's instruction; do not hold back.
+- Refs: `docs/plans/2026-11-13-upstream-state-restart.md`; PIC-D24, PIC-D25, PIC-D26, OUT-D6; R2, R12.
+
 ### 2026-11-12 — [progress] PR #42, the one pull request: gates on 300c1a4 ALL PASSED in FP64, mixed and compact
 - What: `pytest tests/gpu` (124 tests) and `scripts/gpu_gates.py --gpus 8` in the three precisions on the clean commit 300c1a4, 8 GPUs, no other job on them, once for R3, R5, R6 and R8 together: six two-stream gates in FP64, five in `mixed` and `compact`; 24 example gates in FP64 and `mixed`, 22 in `compact` (a moving window is refused there, so without `wakefield:laser_linear` and `beam_linear`). The two window gates after the review fixes: amplitude −1.33 % / +0.51 % in both (limit 5 %), Gauss at most 1.2e-13 and 3.7e-15. Growth error +3.0 / −1.7 / −2.3 / +3.5 / −4.7 / +2.2 % (ei/ep/eip/ei_implicit/buneman/ei_b0, FP64); largest Gauss residual 7.6e-12 / 7.6e-12 / 2.6e-13; implicit energy 1.9e-10. `buneman` in `mixed` / `compact`: −5.14 / −4.66 % (the two values of those records; not examined). Reported, no criterion of that gate: div B of `plasma_waves:perpendicular` 1.07e-12 / 9.48e-13 / 9.64e-13. The three track plans are Done.
 - Why: the head has the `pypic/` of no parent of its merges (review fixes of the window on one side, the accessor layer of PIC-D19 under the window kernels on the other), so the records of c54e5d1, a213c5d and d523e3b did not cover it; the one gate run is taken on its final tree.

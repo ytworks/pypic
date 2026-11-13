@@ -89,6 +89,16 @@ Not established: a time-averaged output (`average`, the `auto` cadence of spectr
 
 Measured (2026-11-12, RTX PRO 6000; diagnostic only): the laser run of W2 with a window on 2×2×1 GPUs against the box at rest on 1 GPU, regions at the same laboratory places, outputs at 85 and 200 shifts: dump coordinates within 1.8e-15, dump E_y within 6.0e-15 of its maximum, slice 2.2e-15, lineout of the density 9.5e-15, x histogram 2.2e-16 (relative), the same 245,716 particles of a region with positions within 5.3e-15. With J moved by the shift (0e34252; the same two runs, the two dumps): J_y within 4.4e-13 and 9.4e-13 of its maximum in the window, E_y within 3.0e-15 and 5.0e-15 of the largest E_y of the box at rest.
 
+
+### OUT-D6 — Restart appends to its run directory (2026-11-13) — Status: Proposed
+Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2).
+- A run continued from a checkpoint (PIC-D25) opens its existing run directory in append mode. This amends the
+  refusal of OUT-D1.
+- What is restored:
+  - the reduced series continue from the stored step;
+  - averaged diagnostics restore their accumulators;
+  - tracks keep their ids.
+- Rows written after the checkpoint by the interrupted run are cut back to the checkpoint step.
 ### PIC-D8 — Persistent particle ids (see `docs/design/engine.md`)
 
 ### ANA-D1 — Analysis package on CPU only
