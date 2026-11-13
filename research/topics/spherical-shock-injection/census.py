@@ -665,6 +665,15 @@ def selfcheck(check):
     check("census, dump spacing", ok, "dumps on every slice: 9; on every second: 18; off the slices, uneven or "
           "single: refused")
 
+    # (9) counts without back-tracing (large runs) agree with the census on the class and the energy bin
+    last = rec["dump"] == len(dumps) - 1
+    want = np.zeros((len(CLASSES), len(E_NAMES)), np.int64)
+    eb = e_bin(rec["gamma"][last])
+    np.add.at(want, (rec["cls"][last][eb >= 0], eb[eb >= 0]), 1)
+    got_c, got_u, _ = count_dump(model, dumps[-1][1], dumps[-1][0], chunk=997)
+    check("census, counts without back-tracing", np.array_equal(got_c, want) and got_u.sum() == want[:2].sum(),
+          f"{int(want.sum())} electrons in the last dump; class x energy table equal in chunks of 997")
+
 
 # ------------------------------------------------------------------ the command
 def _open(run_dir):
@@ -808,6 +817,70 @@ def cmd_census(args) -> int:
     np.savez_compressed(dest / f"{stem}.npz", all_table=all_t, up_table=up_t, n3b=acc, times=times, **small)
     report(out)
     print(f"wrote {dest / (stem + '.json')} and {stem}.npz ({len(rec['id'])} electron records)")
+    return 0
+
+
+def count_dump(model, part, t, chunk=2_000_000):
+    """Counts of one dump without back-tracing: by_class[class, energy], upstream[flag, energy], and the
+    radius (10/50/90 %) of the electrons with gamma >= 1.5 per class."""
+    by_class = np.zeros((len(CLASSES), len(E_NAMES)), np.int64)
+    upstream = np.zeros((4, len(E_NAMES)), np.int64)
+    radii = [[] for _ in CLASSES]
+    n = len(part["id"])
+    for a in range(0, n, chunk):
+        sub = {k: np.asarray(v)[a:a + chunk] for k, v in part.items()}
+        rec = classify_only(model, sub, float(t))
+        eb = e_bin(rec["gamma"])
+        ok = eb >= 0
+        np.add.at(by_class, (rec["cls"][ok], eb[ok]), 1)
+        up = ok & (rec["cls"] <= 1)
+        np.add.at(upstream, (rec["flag"][up], eb[up]), 1)
+        r = np.hypot(rec["rho_gc"], rec["z_abs"])
+        for c in range(len(CLASSES)):
+            m = (rec["cls"] == c) & (rec["gamma"] >= 1.5)
+            if m.any():
+                radii[c].append(r[m])
+    rad = {}
+    for c, name in enumerate(CLASSES):
+        if radii[c]:
+            q = np.percentile(np.concatenate(radii[c]), (10, 50, 90))
+            rad[name] = [float(v) for v in q]
+    return by_class, upstream, rad
+
+
+def cmd_counts(args) -> int:
+    """Counts of the ambient electrons per dump by class and energy bin, without back-tracing (no result, no
+    origin): for runs whose dumps are too large for the census (P5: millions of electrons per dump)."""
+    run_dir = Path(args.run)
+    run = _open(run_dir)
+    model = FrontModel.from_run(run, run_dir)
+    if model.front is None:
+        print("no fitted front in analysis/front.json: run the command front first")
+        return 1
+    p = run.particles("hot_e")
+    times = np.asarray(p.times, float)
+    model.dt_dump = dump_spacing(times, model.t)
+    rows = []
+    for it, t in zip(p.iterations, times):
+        part = p.get(it, "e")
+        if not len(part["id"]):
+            rows.append({"t": float(t), "n": 0})
+            continue
+        by_class, upstream, rad = count_dump(model, part, t)
+        rows.append({"t": float(t), "n": int(len(part["id"])),
+                     "by_class": {c: by_class[i].tolist() for i, c in enumerate(CLASSES) if by_class[i].any()},
+                     "upstream_by_flag": {f: upstream[i].tolist() for i, f in enumerate(FLAGS) if upstream[i].any()},
+                     "radius_gamma>=1.5": rad})
+        print(f"t {t:6.1f}  n {len(part['id']):9d}  " + "; ".join(
+            f"{c}: {int(by_class[i, 1:].sum())}" for i, c in enumerate(CLASSES) if by_class[i, 1:].any()), flush=True)
+    out = {"run": str(run_dir), "commit": run.info.get("git_commit"), "energy_bins": list(E_NAMES),
+           "classes": list(CLASSES), "flags": list(FLAGS), "dump_spacing": model.dt_dump, "rows": rows,
+           "notes": ["no back-tracing: no result (S0, S1, ...), no K1, no origin",
+                     "class: an electron within d_i of the front is in the layer",
+                     "radius: of the guiding centre in the x-y plane and |z|, in d_e"]}
+    dest = run_dir / "analysis" / "counts.json"
+    dest.write_text(json.dumps(out, indent=1))
+    print(f"wrote {dest}")
     return 0
 
 

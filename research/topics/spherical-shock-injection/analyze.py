@@ -1048,6 +1048,8 @@ def main(argv=None) -> int:
     p.add_argument("--null", type=Path, help="null.json of the run without a driver (floors N1, N3, N5)")
     p.add_argument("--tau", type=float, help="tau_dwell that replaces 3 gyro-periods (the rule of protocol "
                    "Sect. 3.2); the result goes to analysis/census-tau.json and .npz, census.json is kept")
+    p = sub.add_parser("counts", help="electrons per dump by class and energy, without back-tracing (large runs)")
+    p.add_argument("run", type=Path)
     p = sub.add_parser("n3c", help="fluctuation power upstream of the front against the null run (N3c)")
     p.add_argument("run")
     p.add_argument("null")
@@ -1095,6 +1097,8 @@ def main(argv=None) -> int:
         return orbits.cmd_tracks(args)
     if args.cmd == "census":
         return census.cmd_census(args)
+    if args.cmd == "counts":
+        return census.cmd_counts(args)
     if args.cmd == "selftest":
         return selftest()
     if args.cmd == "front":
