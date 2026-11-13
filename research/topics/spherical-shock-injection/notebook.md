@@ -3,6 +3,23 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — D1-disk: how the electrons of the equatorial disk gain energy
+
+- **Run** D1-disk from `38f05bc` (D1 with the same seed; every electron of the slab |z| < 20, |x|, |y| < 130 d_e
+  dumped every 36 steps; 644 s; 49 GB). `analyze.py disk` (`32380b5`): electrons followed by id; fields at the
+  electron from the equatorial slice. Animation: artifact "D1 赤道の円盤" (frames from `disk_hist.npz`).
+- **Target:** 2281 electrons in the disk with γ ≥ 1.5 at the end; born at r = 35–42 d_e, polar angle 72–89°
+  (between the planet and the debris shell). Control: 9124 born in the same band that stay below 1.2.
+- **History (medians):** t = 0–220 both groups carried outwards with the debris (r 40 → 65 d_e), no gain.
+  t = 230–280 the target gains γ 1.03 → 1.38 at r = 60–68 d_e, on the inner foot of the magnetic wall inside the
+  cavity, where |B| at the electron has its minimum (about 0.2 of the static dipole); p_perp² / |B| jumps about 20
+  times (not adiabatic). The target travels −1 rad in azimuth (median), and E_φ does positive work on that motion
+  (estimated from the change of azimuth: 697 of the summed Δγ 1291, 54 %); the control hardly turns and E_φ does
+  negative work on it (−1207). After t = 280 the target moves back to r ≈ 58 d_e and reaches γ 1.57.
+- **Reading:** magnetospheric electrons between the planet and the ejecta reach the inner foot of the wall of
+  the expanding cavity, drift in −φ along the motional E_φ and gain non-adiabatically; they end at the magnetic
+  equator. Open: what selects them against the control; the other half of the gain (sampling every 9 time units).
+
 ## 2026-11-13 — D1: a compression front through the dipole; no separated shock by the fixed definition
 
 - **Run** D1 from `e221e2c` (8 GPUs, 1760 steps, 14.5 min, dE/E0 +5.7 %). `analyze.py front` adapted to a dipole
