@@ -3,6 +3,19 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — The target is a dipole: everything in a uniform field discarded
+
+- **Owner:** the aim was the planet as a magnet (a dipole); all runs so far are to be discarded and the design
+  redone. Then (answers to two questions): a shock that spreads outwards from the planet through its own
+  magnetosphere, with the dipole dominant over the whole box.
+- **The fact that changes the plan:** the runs had `body: false` (no planet, no dipole) since the first design;
+  I designed them for a uniform field. Campaign A was stopped at A7-T28 (5 of its 12 main runs done); all run
+  outputs of the topic were deleted (837 GB); the records in `runs/` and this notebook stay as history.
+- **New design:** `dipole-design.md`: B_eq(r) = 0.333 (70 / r)³, planet radius 32 d_e, V_d = 0.25 c, the window of
+  a magnetised supercritical shock is about 70–105 d_e at the equator (M_A 3–10); θ_Bn = arctan(tan θ / 2) on a
+  sphere. Hypotheses D-A (converging mirrors on closed field lines) to D-E. First runs D1 and D1-null; D1 cannot
+  test D-A (a bounce between the hemispheres takes longer than the run).
+
 ## 2026-11-13 — M6 routes: rules fixed on P5 (pilot), before any campaign run is classified
 
 - `routes.py` (`analyze.py routes`), rules in its docstring. Revised three times on P5 only (P5 is the base run,

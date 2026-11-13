@@ -14,6 +14,11 @@ including unknown ones:
 
 **Narrowed (owner, 2026-11-13):** the theme is the acceleration mechanism at a shock on a sphere.
 
+**Clarified (owner, 2026-11-13):** the shock spreads outwards from a magnetised planet through its own dipole
+magnetosphere, with the dipole dominant over the whole box ("the planet as a magnet"). The runs in a uniform
+field (L, M, H, S25, P5, campaign A) are discarded as targets and their outputs deleted; they are background.
+Design: `dipole-design.md`.
+
 ## Background
 - **The injection problem.** Nonthermal electrons are inferred at astrophysical shocks such as
   supernova remnants and observed at heliospheric shocks. Diffusive (first-order Fermi) shock
