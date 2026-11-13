@@ -113,3 +113,22 @@ def test_modes_must_fit_a_periodic_axis():
     cfg.dx = (0.1, 0.2, 0.1)  # L_y = 1.6, k L_y / 2 pi = 0.127
     with pytest.raises(ValueError, match="must be an integer on a periodic axis"):
         check_fluctuation(cfg)
+
+
+def test_paired_face_needs_an_inward_velocity_at_every_phase():
+    """A cold neutraliser whose normal fluctuation exceeds its inward drift has phases without an inward
+    velocity; a paired face refuses such a table (review of PR #50), a flux face takes it."""
+    bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    sp = [SpeciesConfig("e", -1, 1, [Beam(1.0, (-0.05, 0, 0), 0.0)]),
+          SpeciesConfig("i", 1, 16, [Beam(1.0, (-0.05, 0, 0), 0.0)])]
+    mode = copy.deepcopy(_mode())
+    mode["u"]["e"] = {"cos": [0.08, 0.0, 0.0]}  # normal fluctuation 0.08 > inward drift 0.05, cold
+
+    def cfg(kind):
+        return SimConfig(n_cells=(16, 8, 2), dx=(0.1, LY / 8, 0.1), boundaries=bc, species=sp,
+                         injection=Injection(faces={"x+": kind}, neutralizer="e" if kind == "paired" else None,
+                                             fluctuation={"face": "x+", "modes": [mode], "tolerance": 1e9}))
+
+    with pytest.raises(ValueError, match="no inward"):
+        check_fluctuation(cfg("paired"))
+    check_fluctuation(cfg("flux"))

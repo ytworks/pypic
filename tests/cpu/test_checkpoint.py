@@ -295,3 +295,18 @@ def test_unwritten_first_row_is_not_kept(tmp_path):
     assert truncate_series(path, 20, committed=0) == 0
     with h5py.File(path, "r") as f:
         assert f["step"].shape == (0,)
+
+
+def test_committed_rows_are_carried_through_a_second_restart():
+    """Rows kept by a restart for a file whose writer the continued segment does not reopen before its
+    next checkpoint are carried into that checkpoint (review of PR #50): the record holds the kept rows
+    beside those of the open writers."""
+    from types import SimpleNamespace
+
+    out = SimpleNamespace(retained_rows={"reduced/rare.h5": 7, "reduced/often.h5": 3},
+                          writers={"often": SimpleNamespace(path="/run/reduced/often.h5", n=5)},
+                          cfg=SimpleNamespace(dir="/run"), enabled=True)
+    from pypic.checkpoint import committed_rows
+
+    assert committed_rows(out, rank=0) == {"reduced/rare.h5": 7, "reduced/often.h5": 5}
+    assert committed_rows(out, rank=1) == {}

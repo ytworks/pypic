@@ -278,4 +278,15 @@ def check_fluctuation(cfg):
                 raise ValueError(f"inflow fluctuation mode k={k}: {what} is {max(abs(v) for v in vals):.3g}, above "
                                  f"{tol:g} of {ref:.3g} (PIC-D26)")
         out_modes.append({"k": k, "omega": w, "phase": ph, "B": (Bc, Bs), "E": (Ec, Es)})
+    # A paired face samples the neutraliser's inward velocity at every phase (sample_inflow): the inward
+    # drift plus three thermal speeds of some beam must exceed the largest normal fluctuation, or a phase
+    # has (practically) no inward velocity to draw (review of PR #50). A flux face has no such limit.
+    if inj.faces.get(face) == "paired":
+        ne = index[inj.neutralizer]
+        dn = sum(math.hypot(row[5 + axis], row[8 + axis]) for row in rows[ne])  # one row per mode, in order
+        best = max(_inward_velocity(b, f) + 3.0 * math.sqrt(b.theta) for b in cfg.species[ne].beams)
+        if best <= dn:
+            raise ValueError(f"paired face {face!r}: the neutraliser's normal fluctuation ({dn:.3g}) reaches its "
+                             f"inward drift plus three thermal speeds ({best:.3g}); some phases have no inward "
+                             "velocity to draw (use a flux face)")
     return {"face": f, "modes": out_modes, "rows": rows, "du_n": du_n}

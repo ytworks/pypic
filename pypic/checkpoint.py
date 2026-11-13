@@ -178,6 +178,17 @@ def prune(root: str, keep: int, current: int) -> None:
             shutil.rmtree(os.path.join(root, e))
 
 
+def committed_rows(out, rank: int) -> dict:
+    """Rows on disk per series and tracks file at a checkpoint (rank 0 writes meta.json): those a
+    restart kept for files whose writer is not open (they are carried, review of PR #50), and those of
+    the open writers after the flush."""
+    if not out.enabled or rank != 0:
+        return {}
+    rows = dict(out.retained_rows)
+    rows.update({os.path.relpath(w.path, out.cfg.dir): int(w.n) for w in out.writers.values()})
+    return rows
+
+
 def keep_pending(r, n: int, last: int, count: int) -> bool:
     """Whether the pending samples of an averaged diagnostic are restored: the schedule ``r`` still
     averages (review of PR #50: a cadence change can turn averaging off) and the samples are those it
@@ -313,8 +324,7 @@ def save(sim) -> str:
         "output": {"last": out.last, "acc_step": out.acc_step,
                    # rows on disk of every series and tracks file after the flush above (rank 0, which writes
                    # this file): a continued run keeps at most these (review of PR #50)
-                   "committed": {os.path.relpath(w.path, out.cfg.dir): int(w.n) for w in out.writers.values()}
-                   if out.enabled and sim.rank == 0 else {},
+                   "committed": committed_rows(out, sim.rank),
                    "acc": {str(k): {"n": out.diags[k].n_acc, "t": out.diags[k].t_acc,
                                     "list": isinstance(out.diags[k].accum, list)} for k, _ in _accumulators(sim)}},
     }

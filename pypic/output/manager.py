@@ -73,6 +73,7 @@ class OutputManager:
         self.meta = {}
         self.history_seen = 0  # history rows seen by on_step (every rank: it decides a collective)
         self.scalar_rows = 0  # history rows taken by the scalars writer (rank 0)
+        self.retained_rows = {}  # rows kept by a restart per series file (rank 0; review of PR #50)
         # a run continued from the checkpoint of this step appends to its run directory (OUT-D6)
         self.append_step = getattr(sim, "_restart_step", None)
         if not self.enabled:
@@ -200,6 +201,8 @@ class OutputManager:
             if os.path.exists(p):
                 rows = None if committed is None else committed.get(os.path.relpath(p, d), 0)
                 kept = truncate_series(p, n, rows)
+                # carried into the next checkpoint for the files whose writer this segment does not reopen
+                self.retained_rows[os.path.relpath(p, d)] = int(kept)
                 if p.endswith("scalars.h5"):
                     self.scalar_rows = kept
         for sub in ("fields", "particles"):

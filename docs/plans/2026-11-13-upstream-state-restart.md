@@ -386,6 +386,13 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
     cannot tell from an output at step 0. The checkpoint now records the rows of every series and tracks file
     after its flush (`meta.json`, `output.committed`), and a continued run keeps no more than those.
     `test_unwritten_first_row_is_not_kept` (CPU); it fails on the code before.
+- **Review of PR #50, round 11** (Codex, on 631c49c): two findings, fixed with tests that fail on the code
+  before.
+  - **P1:** the rows that a restart kept are carried into the next checkpoint for files whose writer the
+    continued segment does not reopen, so a second restart keeps them (`committed_rows`; CPU test).
+  - **P2:** a paired face refuses a table whose neutraliser normal fluctuation reaches its inward drift plus
+    three thermal speeds: some phases would have no inward velocity to draw. A flux face takes such a table.
+    `test_paired_face_needs_an_inward_velocity_at_every_phase` (CPU).
 - **Cost of the fluctuation face.** The incident field is evaluated about ten times per step on planes and on
   the absorbing layer. Measured on 2 GPUs: the null piston (384 × 128 × 2 cells, 6.3e6 to 1.2e7 particles) takes
   9.6 ms per step, against 7.4 ms on c571302, before the corrections of rounds 3 and 4 (gather, outputs,
