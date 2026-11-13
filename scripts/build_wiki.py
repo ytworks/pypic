@@ -192,9 +192,9 @@ EXAMPLES: dict[str, dict] = {
         "cases": {
             "gate": fresh("gate", gpus=2),
             "piston": recorded("output/alfven_inflow/piston",
-                               "bench/results/2026-11-14-c57130205-example-alfven_inflow-piston-run-9245d02a.json"),
+                               "bench/results/2026-11-14-ef4fc4f08-example-alfven_inflow-piston-run-d6f52e61.json"),
             "piston_null": recorded("output/alfven_inflow/piston_null",
-                                    "bench/results/2026-11-14-c57130205-example-alfven_inflow-piston-run-d6549bc2.json"),
+                                    "bench/results/2026-11-14-ef4fc4f08-example-alfven_inflow-piston-run-b4f6699d.json"),
         },
         "movies": ["gate", "piston"],
     },

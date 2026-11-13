@@ -1,6 +1,30 @@
 {
   "entries": [
     {
+      "file": "2026-11-14-ef4fc4f08-example-alfven_inflow-piston-run-b4f6699d.json",
+      "type": "example",
+      "date": "2026-11-14",
+      "commit": "ef4fc4f08be43eac9c1fdbbc0b618b16a651df7b",
+      "dirty": false,
+      "run_id": "b4f6699d",
+      "gpus": 2,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "alfven_inflow",
+      "config": "piston"
+    },
+    {
+      "file": "2026-11-14-ef4fc4f08-example-alfven_inflow-piston-run-d6f52e61.json",
+      "type": "example",
+      "date": "2026-11-14",
+      "commit": "ef4fc4f08be43eac9c1fdbbc0b618b16a651df7b",
+      "dirty": false,
+      "run_id": "d6f52e61",
+      "gpus": 2,
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "example": "alfven_inflow",
+      "config": "piston"
+    },
+    {
       "file": "2026-11-14-c57130205-example-alfven_inflow-piston-run-d6549bc2.json",
       "type": "example",
       "date": "2026-11-14",

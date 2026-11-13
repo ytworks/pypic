@@ -64,26 +64,26 @@ python -m pypic.launch -n 2 examples/alfven_inflow/run.py --config examples/alfv
 - **A fault found by this gate.** Before d341a49 (merged into this branch) the `compact` run failed with row errors of 72 % (B_x) and 74 % (B_z): with the compact storage the entering particles took the wave's velocity at their index coordinate instead of their physical place. The errors grew from the face inward at the flow speed. FP64 was not affected. The Codex review found the same fault; the fix and its GPU test are on `upstream-state-restart`.
 - **Cost**: 9.1 ms per step on 2 RTX PRO 6000 (4.2e6 particles), 27 s for the run.
 
-## Result of the piston (2 GPUs, FP64, one run each, c571302)
+## Result of the piston (2 GPUs, FP64, one run each, ef4fc4f)
 
-Records: `bench/results/2026-11-14-c57130205-example-alfven_inflow-piston-run-9245d02a.json` (with the wave) and `…-run-d6549bc2.json` (the null run, `wave=false`). Outputs: `/mnt/nvme/pypic/output/agent-alfven/alfven_inflow/piston` and `…/piston_null` (1.5 GB each).
+Records: `bench/results/2026-11-14-ef4fc4f08-example-alfven_inflow-piston-run-d6f52e61.json` (with the wave) and `…-run-b4f6699d.json` (the null run, `wave=false`), on the head that the Codex review left without findings. Outputs: `/mnt/nvme/pypic/output/final3/alfven_inflow/piston` and `…/piston_null` (1.5 GB each). The earlier records of c571302 (`…-run-9245d02a.json`, `…-run-d6549bc2.json`) predate the review fixes of the gather next to the face and agree with these to 1 % or better.
 
 | quantity | with the wave | null run | jump conditions |
 |---|---|---|---|
-| shock speed (fit over t = 650–1300) | 0.0318 c | 0.0366 c | 0.0336 c |
-| M_A in the shock frame from the measured speed | 4.31 | 4.51 | 4.39 |
-| downstream density n₂ (incoming flow: 1; measured far ahead 0.995 / 0.992) | 2.94 | 2.71 | 3.16 |
+| shock speed (fit over t = 650–1300) | 0.0320 c | 0.0367 c | 0.0336 c |
+| M_A in the shock frame from the measured speed | 4.32 | 4.51 | 4.39 |
+| downstream density n₂ (incoming flow: 1; measured far ahead 0.999 / 0.996) | 2.94 | 2.71 | 3.16 |
 | downstream B_y / B₀ | 2.94 | 2.72 | 3.16 |
-| downstream T_e + T_i against the jump conditions (0.0280 m_e c²) | 1.018 | 0.989 | 1 |
-| downstream T_e, T_i [m_e c²] | 4.6e-3, 2.39e-2 | 3.8e-3, 2.39e-2 | |
-| B_x mode: ahead / far ahead / behind (mean of 59 outputs, units of the wave) | 0.98 / 1.03 / 2.40 | 0.014 / 0.012 / 0.62 | frozen-in: behind = ahead |
-| B_z mode: ahead / far ahead / behind | 1.12 / 0.91 / 4.25 | 0.028 / 0.033 / 0.65 | frozen-in: behind = 3.16 × ahead |
-| B_x, B_z behind at the end (t = 1300) | 2.56, 5.28 | 1.13, 2.11 | |
-| Gauss's law, ∇·B | 9.8e-15, 7.5e-14 | 1.0e-14, 8.0e-14 | 1e-10, 1e-12 |
+| downstream T_e + T_i against the jump conditions (0.0280 m_e c²) | 1.015 | 0.988 | 1 |
+| downstream T_e, T_i [m_e c²] | 4.6e-3, 2.38e-2 | 3.8e-3, 2.38e-2 | |
+| B_x mode: ahead / far ahead / behind (mean of 59 outputs, units of the wave) | 0.97 / 1.04 / 2.40 | 0.014 / 0.012 / 0.62 | frozen-in: behind = ahead |
+| B_z mode: ahead / far ahead / behind | 1.13 / 0.92 / 4.25 | 0.028 / 0.032 / 0.64 | frozen-in: behind = 3.16 × ahead |
+| B_x, B_z behind at the end (t = 1300) | 2.55, 5.23 | 1.23, 2.14 | |
+| Gauss's law, ∇·B | 1.2e-14, 7.4e-14 | 9.1e-15, 7.1e-14 | 1e-10, 1e-12 |
 
-- **Shock.** With the wave the shock is 5.4 % slower and the downstream density 7 % lower than the jump conditions; without it the shock is 8.8 % faster and the density 14 % lower. B_y follows the density in both runs (frozen-in), and T_e + T_i is within 2 % of the jump conditions in both. These are single runs measured at one time; the difference between the two runs is not separated from the run-to-run spread of the shock position, which this example did not measure.
-- **The wave ahead of the shock** keeps its amplitude on average (0.98 B_x, 1.12 B_z of the incident wave), but varies with time: B_z is 0.98–1.0 until t = 600, falls to 0.54 at t = 800, when the plasma loaded without the wave at the face (the ramp of h) reaches the shock, and rises to 1.7 at t = 1100–1200 in the wave that the face carried in (B_x: 0.82–1.22 over the same times). The window ahead holds the foot of the reflected ions. The test of PIC-D26 (h) measured 0.78–1.50 ahead of a shock at M_A ≈ 3.
-- **Behind the shock the k-mode is larger than a frozen-in field gives.** Over the run B_x grows by 2.46 and B_z by 3.81 across the shock (frozen-in: 1 and 3.16). The shock alone, in the null run, has a k-mode of 0.62 (B_x) and 0.65 (B_z) of the wave on average and 1.13 and 2.11 at the end, against 2.56 and 5.28 with the wave. So the downstream mode at this k is not only the transmitted wave. One run each; separating the shock's own ripples from the processed wave needs more runs (seeds, amplitudes) or a phase analysis, which this example does not do.
-- **Electron spectrum.** Downstream the electrons follow a Maxwellian of the measured T_e = 4.6e-3 m_e c² (4.6 times the upstream temperature) within 10 % up to 5 T_e. Above that the spectrum lies above it: 2.0 times at 8 T_e, 3.5 at 10 T_e and 47 at 15 T_e. The null run has the same excess (2.0, 3.8 and 70 times its own Maxwellian of T_e = 3.8e-3), so this run does not show a tail that the wave adds. T_e/T_i = 0.19 downstream.
-- **Restart** (PIC-D25). A copy of the run continued from the checkpoint of step 8000 agrees with the uninterrupted run to round-off for the first 200 steps (magnetic energy ≤ 1.2e-16 relative). The difference then grows, as round-off does in a shock run: 1e-13 at step 9000 and 4e-7 at step 13000. The shock speed agrees to 8 digits, the downstream density to 6, and the B_z mode behind the shock to 6.
-- **Cost**: 9.3 ms per step with the wave (7.4 ms without), 121 s for the 13000 steps on 2 GPUs. The particle number doubles to 1.25e7; the arrays reach 78 % of their capacity.
+- **Shock.** With the wave the shock is 4.9 % slower and the downstream density 7 % lower than the jump conditions; without it the shock is 9.0 % faster and the density 14 % lower. B_y follows the density in both runs (frozen-in), and T_e + T_i is within 2 % of the jump conditions in both. These are single runs measured at one time; the difference between the two runs is not separated from the run-to-run spread of the shock position, which this example did not measure.
+- **The wave ahead of the shock** keeps its amplitude on average (0.97 B_x, 1.13 B_z of the incident wave), but varies with time: B_z is 0.97–1.03 until t = 600, falls to 0.55–0.69 at t = 750–850, when the plasma loaded without the wave at the face (the ramp of h) reaches the shock, and rises to 1.74–1.78 at t = 1100–1200 in the wave that the face carried in (B_x: 0.62–1.19 from t = 600 on). The window ahead holds the foot of the reflected ions. The test of PIC-D26 (h) measured 0.78–1.50 ahead of a shock at M_A ≈ 3.
+- **Behind the shock the k-mode is larger than a frozen-in field gives.** Over the run B_x grows by 2.48 and B_z by 3.75 across the shock (frozen-in: 1 and 3.16). The shock alone, in the null run, has a k-mode of 0.62 (B_x) and 0.64 (B_z) of the wave on average and 1.23 and 2.14 at the end, against 2.55 and 5.23 with the wave. So the downstream mode at this k is not only the transmitted wave. One run each; separating the shock's own ripples from the processed wave needs more runs (seeds, amplitudes) or a phase analysis, which this example does not do.
+- **Electron spectrum.** Downstream the electrons follow a Maxwellian of the measured T_e = 4.6e-3 m_e c² (4.6 times the upstream temperature) within 3 % up to 5 T_e. Above that the spectrum lies above it: 2.0 times at 8 T_e, 3.5 at 10 T_e and 50 at 15 T_e. The null run has the same excess (2.0, 3.6 and 81 times its own Maxwellian of T_e = 3.8e-3), so this run does not show a tail that the wave adds. T_e/T_i = 0.19 downstream.
+- **Restart** (PIC-D25), on ef4fc4f. A copy of the run continued from the checkpoint of step 8000 agrees with the uninterrupted run to round-off for the first 200 steps (magnetic energy ≤ 1.2e-16 relative). The difference then grows, as round-off does in a shock run: 8.8e-14 at step 9000 and 1.2e-5 at step 13000. The shock speed agrees to 8 digits, and the downstream density and the B_z mode behind the shock to 5 digits.
+- **Cost**: 10.1 ms per step with the wave (9.0 ms without), 131 s for the 13000 steps on 2 GPUs (ef4fc4f). On c571302 the same runs took 9.3 and 7.4 ms: the corrections of the review (gather and outputs across the face, the conductor) evaluate the incident field about ten times per step, about 2 ms whatever the number of particles (plan, Results). The particle number doubles to 1.25e7; the arrays reach 78 % of their capacity.
