@@ -3,6 +3,20 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Correction: "Fermi" and "DSA" were used against their definitions
+
+- **Owner:** what is DSA; is it really Fermi; does the definition agree with the prior work? It did not.
+- **DSA** (first-order Fermi at a shock): scattering on both sides and repeated crossings from upstream to
+  downstream and back; Δp/p ≈ (4/3)(U₁ − U₂)/v per cycle; it needs a diffusion length κ cos²θ / U_s longer than
+  the shock thickness (`amano2022theory`; the founding papers have no note yet). **SSDA**: confinement in the
+  transition layer by pitch-angle scattering with gradient drift along the motional field (`katou2019theory`,
+  `matsumoto2017electron`).
+- **Withdrawn:** (1) the label "Fermi at the polar cap (DSA-type)" for repeated reflections (`global-plan.md`
+  R3, first version): the repeated returns seen in P5 are repeated SDA reflections, with no downstream
+  scattering; R3 is now split into R3a (repeated SDA), R3b (SSDA), R3c (DSA). (2) The criterion "constant
+  relative gain = Fermi-like" (entries "several heating sites" and "the P5 shock reflects electrons upstream"):
+  for v < c the DSA gain per cycle falls as 1/v, so a relative gain that falls with γ does not exclude it.
+
 ## 2026-11-13 — Global plan: the whole sphere first (owner: the forest is missing)
 
 - **Owner:** the parts are important, but there is no hypothesis for the acceleration over the whole spherical

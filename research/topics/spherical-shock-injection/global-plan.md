@@ -60,9 +60,21 @@ thermal electrons ≈ 0.01):
 - **R2, heating then drift:** heated once at a quasi-perpendicular latitude → drift along the motional E_φ in
   the gradient of the downstream wall, on the closed azimuthal path. *Signature:* a small gain in the layer, then
   a large gain on the wall done by E_φ, with a long azimuthal path.
-- **R3, Fermi at the polar cap:** reflection → returned by upstream waves → many cycles at one latitude with a
-  fixed relative gain. *Signature:* many reflections at one latitude, constant Δγ/γ. P5 is against it so far
-  (the relative gain falls with γ).
+- **R3, repeated encounters with the front.** Three processes with their names and definitions in the
+  literature, kept apart:
+  - *R3a, repeated reflections (repeated SDA):* reflected, brought back by upstream waves or by the front
+    catching up, reflected again; no scattering downstream, no crossing into the downstream and back. What P5
+    shows at the polar cap. *Signature:* successive returns from the layer, each gain at about the SDA bound of
+    its V_HT.
+  - *R3b, stochastic shock drift acceleration (SSDA; `katou2019theory`, `matsumoto2017electron`,
+    `amano2022theory`):* pitch-angle scattering keeps the electron inside the transition layer of a
+    quasi-perpendicular shock, where the gradient drift along the motional field energises it continuously.
+    *Signature:* a long stay in the layer, μ not conserved, many small gains done by E_φ.
+  - *R3c, diffusive shock acceleration (DSA, first-order Fermi):* scattering on both sides; repeated crossings
+    from upstream to downstream and back; each cycle gives Δp/p ≈ (4/3)(U₁ − U₂)/v, which falls with v until
+    v ≈ c. It needs a diffusion length κ cos²θ / U_s longer than the shock thickness (`amano2022theory`).
+    *Signature:* alternating crossings of the front in both directions, the gain per cycle against (4/3)ΔU/v.
+  - The founding papers of DSA have no note yet (to be added by abstract).
 - **R4, stochastic in the downstream:** after heating, gains and losses between downstream structures (wall,
   ramp, fluctuations) with a positive net (the owner's earlier picture of several heating sites). *Signature:*
   gains of both signs at alternating sites; the spread grows with the number of site changes.
@@ -73,8 +85,8 @@ thermal electrons ≈ 0.01):
 **M6, the order of the steps (fixed now, before the histories of campaign A are read):** for the top 1 % of the
 electrons born outside the shell by γ_max in each run, the ordered list of steps that carry their gain (block
 work ≥ 0.05 in γ, with its site, polar band and dominant component, and the reflections of the entry table).
-Each electron is assigned the pattern R1–R5 whose signature it meets (rules as above; an electron meeting none is
-"other"); the share of each pattern is reported per run and per temperature. A pattern is called the route to
+Each electron is assigned the pattern R1–R5 whose signature it meets (rules as above, R3 split into R3a–R3c; an electron meeting none
+is "other"); the share of each pattern is reported per run and per temperature. A pattern is called the route to
 high energy in a set when it holds for more than half of the top 1 % in both seeds.
 
 ## 3. Evidence so far (P5; notebook 2026-11-13)
