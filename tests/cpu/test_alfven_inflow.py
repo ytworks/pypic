@@ -172,3 +172,16 @@ def test_planner_configurations_are_accepted_and_the_wall_needs_the_envelope():
         else:
             with pytest.raises(ValueError, match="piston"):
                 P.plan_alfven_inflow(P.params_from_dict({**d, "load": "envelope"}))
+
+
+def test_stats_of_a_segment_without_steps():
+    """A run continued from a checkpoint at its last step executes no step: its analysis reports the
+    timing as unavailable instead of dividing by zero (review of PR #50)."""
+    from types import SimpleNamespace
+
+    analyze = _module("analyze")
+    s = {"gauss": np.array([1e-15]), "divB": np.array([1e-15]), "n_particles": np.array([10.0]),
+         "fill": np.array([0.5])}
+    run = SimpleNamespace(scalars=s, meta={"run": {"wall_time_s": 0.1, "steps": 0, "ns_per_particle_step": 0.0}})
+    out = analyze._stats(run)
+    assert math.isnan(out["ms_per_step"]) and out["gauss_max"] == 1e-15

@@ -210,3 +210,13 @@ def test_tracks_next_to_the_face_report_the_total_field(tmp_path):
     sim.close()
     tr = open_run(str(tmp_path)).tracks("tr", "t")
     assert abs(float(np.asarray(tr["By"])[0, 0]) / M.B - 1.0) < 1e-9
+
+
+def test_a_fluctuation_without_an_injecting_face_is_refused():
+    """A fluctuation table that no face carries in is refused, not dropped (review of PR #50)."""
+    from pypic.config import Injection
+
+    cfg = M.config(steps=1)
+    cfg.injection = Injection(faces={}, fluctuation=M.fluctuation())
+    with pytest.raises(ValueError, match="injecting faces"):
+        Simulation(cfg, comm=SelfComm(), verbose=False)

@@ -121,7 +121,7 @@ def _stats(run) -> dict:
            "fill_max": float(np.max(s["fill"]))}
     stats = run.meta.get("run")
     if stats:
-        out.update(ms_per_step=1e3 * stats["wall_time_s"] / stats["steps"],
+        out.update(ms_per_step=1e3 * stats["wall_time_s"] / stats["steps"] if stats["steps"] else float("nan"),
                    ns_per_particle_step=stats["ns_per_particle_step"])
     return out
 

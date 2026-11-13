@@ -86,7 +86,8 @@ class Simulation:
         if self.mixed and cfg.solver == "implicit":
             raise ValueError(f"precision='{cfg.precision}' is for the explicit solver only (PIC-D11, PIC-D19)")
         self.injection = injection.check_config(cfg)
-        self.fluct = injection.check_fluctuation(cfg) if self.injection else None  # PIC-D26
+        # PIC-D26; checked even without an injecting face, which refuses a table that nothing carries in
+        self.fluct = injection.check_fluctuation(cfg)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
             self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body,
             window=next(_WINDOW_MODULES) if self.window else 0, x_low=self.decomp.x_low(ghost),

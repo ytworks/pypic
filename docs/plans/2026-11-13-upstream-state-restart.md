@@ -349,6 +349,12 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
     `test_tracks_next_to_the_face_report_the_total_field`: B_y = B0 (0.75 B0 before).
   - **P3:** the run record divided the wall time of a continued segment by the total steps. `run_stats` records
     the steps of the segment and the step it ended on (CPU test).
+- **Review of PR #50, round 5** (Codex, on cf44047): two findings, fixed with tests that fail on the code
+  before.
+  - **P2:** a fluctuation table is checked even without an injecting face, and refused, not dropped
+    (`test_a_fluctuation_without_an_injecting_face_is_refused`).
+  - **P2:** a segment of zero steps reports its timing as unavailable, in `alfven_inflow` and `blast_wave`
+    (CPU test).
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 
