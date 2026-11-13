@@ -3,6 +3,20 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — M6 routes: rules fixed on P5 (pilot), before any campaign run is classified
+
+- `routes.py` (`analyze.py routes`), rules in its docstring. Revised three times on P5 only (P5 is the base run,
+  not a campaign verdict run): select by the drift-frame level, not the lab γ_max (gyration phase in the moving
+  downstream); R2 and R3b conditioned on where the gain is, E_φ only a diagnostic; step gains from the change of
+  the smoothed γ, because the work recorded every 2 steps closes on only part of the energetic orbits (block work
+  over Δγ, median 0.66); "unplaced" for gains where the sites are not defined (no magnetic wall, near the
+  poles). Frozen after these.
+- **P5, top 1 % of the electrons born outside the shell** (783; drift-frame level ≥ 1.41): R2 (heated, then the
+  gain on the wall: foot, steep wall, cavity) 59 %; R3b (long stay in the layer) 15 %; unplaced 21 %; R3a 0.8 %;
+  R5 0.1 %; R4 0.8 %; R1 and R3c 0; other 3.6 %. In P5 the electrons that come through the shock reach their
+  energy mostly in the downstream wall after the shock heated them, not by reflections. 21 % gain where the sites
+  do not reach (high latitude): the site definition has to be extended to the polar caps (global plan, open).
+
 ## 2026-11-13 — Correction: "Fermi" and "DSA" were used against their definitions
 
 - **Owner:** what is DSA; is it really Fermi; does the definition agree with the prior work? It did not.

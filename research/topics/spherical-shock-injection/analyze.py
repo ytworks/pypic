@@ -30,6 +30,7 @@ import orbits  # noqa: E402
 import potential  # noqa: E402
 import r2checks  # noqa: E402
 import record  # noqa: E402
+import routes  # noqa: E402
 import shockkin as sk  # noqa: E402
 import sites  # noqa: E402
 import upstream  # noqa: E402
@@ -312,6 +313,7 @@ def selftest() -> int:
     drive.selfcheck(check)
     sites.selfcheck(check)
     campaign.selfcheck(check)
+    routes.selfcheck(check)
     print(f"{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
@@ -1057,6 +1059,8 @@ def main(argv=None) -> int:
     p.add_argument("--chunk", type=int, default=60000)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--summary-only", action="store_true", help="rewrite campaign.json from the saved tables")
+    p = sub.add_parser("routes", help="M6 of global-plan.md: routes of the top 1 % electrons (after campaign)")
+    p.add_argument("run", type=Path)
     p = sub.add_parser("prune", help="delete tracks and particle dumps of an analysed run (campaign A)")
     p.add_argument("run", type=Path)
     p.add_argument("--null", action="store_true", help="a null run: counts.json is not required")
@@ -1116,6 +1120,8 @@ def main(argv=None) -> int:
         return census.cmd_census(args)
     if args.cmd == "campaign":
         return campaign.write_summary(args.run) if args.summary_only else campaign.cmd_campaign(args)
+    if args.cmd == "routes":
+        return routes.cmd_routes(args)
     if args.cmd == "prune":
         return campaign.cmd_prune(args)
     if args.cmd == "sites":
