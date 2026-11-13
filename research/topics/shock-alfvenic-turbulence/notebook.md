@@ -3,6 +3,30 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Minimal model; amendment of the falsification criteria
+
+- **`design/model.py`** (output `design/model.md`): an encounter chain on a multiply connected field line.
+  - Adiabatic reflection in the HTF of each intersection, with the loss cone 1/r.
+  - Arrival speed raised by 2 U1/cos θ at the next intersection.
+  - Energies counted in the downstream frame, with the magnetic moment conserved.
+  - Neglected: the cross-shock potential, scattering, ripples, and the time of each encounter.
+- **First version wrong:** it counted HTF energies. Those contain the frame speed U1/cos θ, so 70 % of the null was
+  above 10 T_e. It was corrected before any use.
+- **Results** (M_A = 4.5, β = 1, r = 2.78):
+  - At δB_x/B0 = 0.6, m_i/m_e = 100: reflected at the first encounter 0.355; N = 2 0.325; above 10 T_e 1.0e-2 (null)
+    against 7.7e-2 (multi); above 30 T_e 1e-5 against 1.5e-3.
+  - The chain ends after a few encounters (loss cone). No power law without scattering.
+- **New fact for the plan:** in the periodic slab, every field line that touches the front returns to it
+  (A_z = −B0 x + a(y), a periodic).
+  - The model then has no Ξ dependence above the threshold Ξ ≳ 1, where the arc leaves the shock layer.
+  - So the accepted criterion "the excess does not grow with Ξ → claim wrong" would reject a correct claim.
+- **Amendment of the Approach (README):**
+  - criteria: excess at Ξ > 1, none at Ξ < 1, gain carried by multiply-encountering electrons;
+  - model numbers to compare;
+  - a set of Ξ < 1 runs (δB_x/B0 = 0.15, L_y = 50 d_i, Ξ ≈ 0.85; 4 × 5 h);
+  - limitation: the runs test what multiple connection does, not how often field lines return in nature.
+  - Reported to the owner.
+
 ## 2026-11-13 — Question fixed by the owner
 
 - The owner accepted the question and the Approach of the revision (b793c45): "これでok".

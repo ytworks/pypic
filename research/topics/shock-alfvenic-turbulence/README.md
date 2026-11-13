@@ -103,7 +103,8 @@ The review found it was two questions; the draft is kept in the history of this 
 - **What the difficulty is:**
   - engine work: E1–E3 (Approach);
   - computing time, about a month of the node (Approach);
-  - a minimal analytic model that gives the number to be tested. It is not written yet (open; review, Major 4).
+  - a minimal analytic model that gives the number to be tested: `design/model.py` (encounter chain with adiabatic
+    reflection; no potential, no scattering).
 
 ## Related work and novelty
 - **Search:** 2026-11-13, `survey-shock-alfvenic-turbulence.md`, plus the works the review asked for
@@ -125,6 +126,8 @@ The review found it was two questions; the draft is kept in the history of this 
     Giacalone had Ξ ≈ 38.
   - m_i/m_e = 100 suppresses access (above). The step to 400 shows the trend only.
   - 2-D restricts cross-field transport (`jokipii1993perpendicular`). A slab of waves is not turbulence.
+  - In a periodic slab a field line that touches the front always returns to it (A_z = −B0 x + a(y), a periodic).
+    The runs test what multiple connection does, not how often field lines return in nature (`design/model.py`).
   - Turbulence alone accelerates electrons (`comisso2022ion`). Null N2 covers that.
   - Typical interplanetary shocks have M_A ≲ 3 (`trotta2025overview`). M_A = 4.5 is above the ripple threshold
     (3.5, `trotta2019electron`), so ripples are part of the baseline.
@@ -169,6 +172,7 @@ trunk and this topic. Runs that need a change start after its merge (owner, 2026
 |---|---|---|
 | Laminar null | θ_Bn = 90, 80, 70, 60, 45° × 2 seeds, 200 × 50 d_i | 10 × 5 h |
 | Ξ scan | L_y = 50, 100, 200, 400 d_i × 4 realizations, L_x = 200 d_i | 4 × (5 + 10 + 20 + 40) h |
+| Ξ < 1 | δB_x/B0 = 0.15, L_y = 50 d_i (Ξ ≈ 0.85) × 4 realizations (amendment 2026-11-13) | 4 × 5 h |
 | N2, no shock | the same fluctuations in a periodic box, one per L_y | about 20 h |
 | Mass ratio | m_i/m_e = 400 at L_y = 100 d_i, turbulent and laminar 90°, 1 each | 2 × 160 h |
 | Total | | about 700 h, about 29 days of the node |
@@ -189,12 +193,20 @@ trunk and this topic. Runs that need a change start after its merge (owner, 2026
 - The downstream region measured from the local, corrugated front.
 - A second definition, to show that the conclusion does not depend on it.
 
-**The claim would be shown wrong if:**
-- the excess of the turbulent runs over the local-θ_Bn null does not exceed the spread of the 4 realizations at the
-  largest Ξ;
-- or the excess does not grow with Ξ;
-- or electrons with one front encounter carry the same gain as those with several.
-- The size of the effect expected from the minimal model (open) sets whether 4 realizations can see it.
+**The claim would be shown wrong if** (amended 2026-11-13 by the minimal model, `design/model.md`; the first wording
+asked the excess to grow with Ξ, which the model does not predict):
+- the excess of the turbulent runs over the local-θ_Bn null does not exceed the spread of the 4 realizations at Ξ > 1;
+- or the excess is also present at Ξ < 1;
+- or electrons with one front encounter (counted on their A_z contour) carry the same gain as those with several.
+
+**Model predictions to compare** (`design/model.md`; M_A = 4.5, β = 1, r = 2.78, no potential, no scattering):
+- At δB_x/B0 = 0.6 and m_i/m_e = 100:
+  - share of incoming electrons with N = 2 encounters: 0.33; with N = 3: 0.03;
+  - downstream share above 10 T_e: 1.0e-2 (null) and 7.7e-2 (multiple connection);
+  - above 30 T_e: 1e-5 and 1.5e-3.
+- At m_i/m_e = 400: N = 2 0.36, above 10 T_e 5.1e-3 and 5.4e-2.
+- Above Ξ ≳ 1 the excess should not depend on L_y.
+- A tail beyond the model's values is the share of scattering (SSDA, whistlers), which the model leaves out.
 
 **3-D:** reframed as a check of one 2-D result at matched Ξ (review, Major 9). Its box in d_i, L_c and Ξ is open.
 
@@ -212,12 +224,14 @@ Open. Intended: a peer-reviewed journal paper (ApJ or JGR).
   - survey with 56 literature notes;
   - first draft;
   - review (`reviews/2026-11-13-plan.md`);
-  - design estimates (`design/estimates.py` and `estimates.md`);
+  - design estimates (`design/estimates.py` and `estimates.md`); minimal model (`design/model.py` and `model.md`);
   - notes on the works the review asked for;
   - this revision, which proposes one question and a new Approach.
 - **The question is fixed** (owner, 2026-11-13).
+- **Minimal model done** (`design/model.md`). It amended the falsification criteria and added the Ξ < 1 runs
+  (Approach).
 - **Missing before the production runs:**
-  - the minimal model and the expected size of the effect (review, Major 4);
+  - the realization spread, to compare with the predicted excess (pilot);
   - an expert check (the authors of `fulat2026pic`);
   - full texts of `jokipii1993perpendicular`, `giacalone2005*`, `jokipii2007adiabatic` and `barnes1974large`, not
     reachable from here (IOP, Wiley and ADS refuse).
