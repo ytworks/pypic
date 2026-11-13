@@ -188,11 +188,13 @@ def _pair(d, what):
 def check_fluctuation(cfg):
     """The inflow fluctuation of PIC-D26, checked; None without one. Returns ``{"face": f, "modes":
     [...], "rows": {species index: [[kx, ky, kz, omega, phase, ucx, ucy, ucz, usx, usy, usz], ...]},
-    "du_n": {species index: bound of the normal velocity}}``.
+    "du_n": {species index: a bound of the change of the normal velocity, sum over the modes of
+    sqrt(|u_cos|^2 + |u_sin|^2) (|dv/du| <= 1)}}``.
 
     Every mode must satisfy Maxwell's equations with the current of the particles' velocities:
     k . B = 0 and omega B = k x E, and the current curl B - dE/dt equal to sum_s q_s n_s du_s / gamma_s
-    (both for the cos and the sin part), within ``tolerance`` (default 1e-2) of the largest term. The
+    (both for the cos and the sin part; the velocity response of each beam of proper drift u_b is
+    (du - v_b (v_b . du)) / gamma_b), within ``tolerance`` (default 1e-2) of the largest term. The
     entering particles carry no density fluctuation, so the charge density k . E that the mode needs
     must be below ``tolerance`` times sum_s |q_s n_s|: a wave in a drifting plasma has the charge
     -v_drift . J_rest (a relativistic effect of order v_drift dv / c^2), which is left out. The modes
@@ -239,13 +241,17 @@ def check_fluctuation(cfg):
         for n in names:
             sc = cfg.species[index[n]]
             uc, usn = _pair(us.get(n), f"u[{n}]")
-            dens = sum(b.density for b in sc.beams)
-            gam = sum(b.density * math.sqrt(1.0 + _dot(b.drift, b.drift)) for b in sc.beams) / max(dens, 1e-300)
-            for part, v in ((0, uc), (1, usn)):
-                for a in range(3):
-                    J[part][a] += sc.charge * dens * v[a] / gam
+            for b in sc.beams:
+                # velocity response of a beam of proper drift u_b to du: (du - v_b (v_b . du)) / gamma_b
+                gam = math.sqrt(1.0 + _dot(b.drift, b.drift))
+                vb = [x / gam for x in b.drift]
+                for part, v in ((0, uc), (1, usn)):
+                    vd = _dot(vb, v)
+                    for a in range(3):
+                        J[part][a] += sc.charge * b.density * (v[a] - vb[a] * vd) / gam
             rows[index[n]].append([*k, w, ph, *uc, *usn])
-            du_n[index[n]] += math.hypot(uc[axis], usn[axis])
+            # |c cos + s sin| <= sqrt(|c|^2 + |s|^2), and |dv/du| <= 1: a bound of the change of the normal velocity
+            du_n[index[n]] += math.sqrt(_dot(uc, uc) + _dot(usn, usn))
         kk = _norm(k)
         scale = max(kk * max(_norm(Bc), _norm(Bs)), abs(w) * max(_norm(Ec), _norm(Es)),
                     _norm(J[0]), _norm(J[1]), 1e-300)

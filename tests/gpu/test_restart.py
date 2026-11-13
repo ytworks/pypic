@@ -242,3 +242,59 @@ def test_restart_without_particles_onto_another_layout(tmp_path):
     worst = _compare(ref, o, dirs[2], dirs[1])
     print(f"[restart without particles 2 -> 1 GPU] largest relative difference {worst:.2e}")  # diagnostic
     assert worst <= TOL
+
+
+class _PeakHook(cp.cuda.MemoryHook):
+    """Largest growth of the bytes in use in the default memory pool while active."""
+    name = "peak"
+
+    def __init__(self):
+        self.pool = cp.get_default_memory_pool()
+        self.start = self.peak = self.pool.used_bytes()
+
+    def malloc_postprocess(self, **kw):
+        self.peak = max(self.peak, self.pool.used_bytes())
+
+
+def test_restore_needs_no_second_particle_store(tmp_path):
+    """Restoring a checkpoint on the same layout reuses the species' arrays and copies the host rows
+    into them (review of PR #50): the peak device memory of the set-up from the checkpoint stays
+    within a quarter of one particle store of the fresh set-up (before: two stores more)."""
+    from pypic import Beam, SimConfig, SpeciesConfig
+    from pypic.config import Checkpoint, OutputConfig
+    from pypic.parallel.comm import SelfComm
+    from pypic.simulation import Simulation
+
+    beams = [Beam(1.0, (0.2, 0, 0), 1e-3), Beam(1.0, (-0.2, 0, 0), 1e-3)]
+
+    def cfg(n_steps=4, **kw):
+        return SimConfig(n_cells=(64, 32, 32), dx=(0.2,) * 3, dt=0.08, ppc=16, n_steps=n_steps, diag_interval=2,
+                         gauss_interval=0, species=[SpeciesConfig("e", -1, 1, beams)],
+                         checkpoint=Checkpoint(every=4, keep=1), output=OutputConfig(dir=str(tmp_path / "run")), **kw)
+
+    def peak(c):
+        pool = cp.get_default_memory_pool()
+        pool.free_all_blocks()
+        with _PeakHook() as h:
+            sim = Simulation(c, comm=SelfComm(), verbose=False)
+            p = h.peak - h.start
+        store = sim.species[0].P.nbytes
+        return sim, p, store
+
+    sim, fresh, store = peak(cfg())
+    sim.run()
+    sim.close()
+    del sim
+    sim, restored, _ = peak(cfg(restart=str(tmp_path / "run" / "checkpoint"), n_steps=8))
+    assert sim.step_count == 4
+    sim.close()
+    assert restored - fresh < 0.25 * store, (restored - fresh) / store
+
+
+def test_nine_digit_dump_steps_are_recognised():
+    """Dumps are named with {step:08d}, which has nine digits from step 100,000,000 on; the append
+    mode must recognise them to cut the dumps of later steps (review of PR #50)."""
+    from pypic.output.manager import OutputManager
+
+    assert OutputManager.DUMP.search("fields_123456789.h5").group(1) == "123456789"
+    assert OutputManager.DUMP.search("fields_00000042.h5").group(1) == "00000042"

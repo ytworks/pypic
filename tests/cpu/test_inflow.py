@@ -1,6 +1,7 @@
 """Inflow fluctuation tables (PIC-D26): the Maxwell checks of injection.check_fluctuation. Pure
 Python: no CuPy needed."""
 import copy
+import math
 
 import pytest
 
@@ -59,3 +60,33 @@ def test_unsupported_combinations_are_refused():
     cfg.injection.fluctuation["face"] = "y+"
     with pytest.raises(ValueError, match="injecting faces"):
         check_fluctuation(cfg)
+
+
+def _beam_cfg(drift, mode):
+    bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    return SimConfig(n_cells=(16, 8, 2), boundaries=bc, species=[SpeciesConfig("e", -1, 1, [Beam(1.0, drift, 0.0)])],
+                     injection=Injection(faces={"x+": "flux"}, fluctuation={"face": "x+", "modes": [mode]}))
+
+
+def test_relativistic_velocity_response_in_the_current():
+    """A cold beam of proper drift u = -3 along x responds to a longitudinal du with dv = du / gamma^3,
+    not du / gamma (review of PR #50): the table built with the right response is accepted, the
+    one built with du / gamma is refused."""
+    gam = math.sqrt(10.0)
+    E = 0.01
+    Js = E * (K * K - W * W) / W  # J_sin along x for E_cos = E x, B_cos = k x E / omega
+    mode = lambda A: {"k": [0.0, K, 0.0], "omega": W, "B": {"cos": [0.0, 0.0, -K * E / W]},  # noqa: E731
+                      "E": {"cos": [E, 0.0, 0.0]}, "u": {"e": {"sin": [A, 0.0, 0.0]}}}
+    check_fluctuation(_beam_cfg((-3.0, 0, 0), mode(-Js * gam ** 3)))
+    with pytest.raises(ValueError, match="Ampere"):
+        check_fluctuation(_beam_cfg((-3.0, 0, 0), mode(-Js * gam)))
+
+
+def test_rejection_bound_takes_the_whole_perturbation():
+    """A transverse perturbation can raise the normal velocity of a relativistic beam (review of PR #50):
+    the bound is the size of the whole du, sqrt(|u_cos|^2 + |u_sin|^2), not its normal part."""
+    cfg = _cfg(_mode())
+    cfg.injection.fluctuation["tolerance"] = 1e6  # the bound alone, not the Maxwell checks
+    cfg.injection.fluctuation["modes"][0]["u"]["i"]["cos"] = [0.0, 0.3, 0.0]
+    du = abs(_mode()["u"]["i"]["sin"][0])
+    assert check_fluctuation(cfg)["du_n"][1] == pytest.approx(math.hypot(du, 0.3))

@@ -314,6 +314,19 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
   2 %, and the ions' z velocity within 20 % of the incident (measured 8 %); it fails on the code before.
   - Seen, not explained: the x velocity of the entering ions is 0.86 of the incident with a phase of −0.27 rad,
     the same in both storages.
+- **Review of PR #50, round 2** (Codex, on 3f002b8): four findings, each fixed with a test that fails on the
+  code before.
+  - **P1:** a same-layout restore allocated a second and third particle store (the new array while the old one
+    was alive, and a device copy of the host data). The arrays of matching shape are now reused, and the rows
+    are copied from the host one by one. `test_restore_needs_no_second_particle_store`: growth of the peak over
+    the fresh set-up below 0.25 store (0.86 before).
+  - **P2:** the Ampère check now uses each beam's relativistic response (du − v (v · du)) / γ.
+    `test_relativistic_velocity_response_in_the_current`: u = −3, longitudinal du; the table with du / γ³ is
+    accepted and the one with du / γ refused.
+  - **P2:** the rejection bound is the size of the whole du, not its normal part.
+    `test_rejection_bound_takes_the_whole_perturbation`.
+  - **P3:** dump names of nine digits and more are recognised by the append mode.
+    `test_nine_digit_dump_steps_are_recognised`.
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 

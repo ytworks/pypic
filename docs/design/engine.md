@@ -454,7 +454,7 @@ Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 3, amended 2026-1
 - **Table:** `injection.fluctuation`: one injecting face and a list of modes, each uniform along its normal
   (k_n = 0).
   - Each mode has B, E and per species δu, as c cos θ + s sin θ with θ = k · r − ω t + φ.
-  - `injection.check_fluctuation` checks k · B = 0, ω B = k × E, Ampère's law with Σ q n δu / γ, and the charge
+  - `injection.check_fluctuation` checks k · B = 0, ω B = k × E, Ampère's law with the beams' velocity response Σ q n (δu − v (v · δu)) / γ, and the charge
     k · E against Σ |q n|.
 - **Particles:**
   - Carriers (`layer_sample`), paired partners (`inject_partners`) and neutralisers returned at the face

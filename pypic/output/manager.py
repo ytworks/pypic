@@ -167,7 +167,7 @@ class OutputManager:
 
         return [e for e in present if not holds_src(e)], f" (run_id {have}; the checkpoint is of run_id {want})"
 
-    DUMP = re.compile(r"_(\d{8})\.h5$")
+    DUMP = re.compile(r"_(\d{8,})\.h5$")  # {step:08d}: eight digits or more
     CHECKPOINT = re.compile(r"^step-(\d+)(\.tmp)?$")
 
     def _open_append(self, foreign):

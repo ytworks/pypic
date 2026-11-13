@@ -457,17 +457,36 @@ def _set_species(sim, sp, i, z, cap):
 
     n = int(z[f"s{i}.nc"][0])
     sp.cap = cap
+
+    def store(name, shape, dtype, host):
+        """The array ``name`` of the species with ``shape``, the first n slots of each row from the
+        host array: an existing array of that shape and type is reused, any other one is released
+        before the new one is allocated, and the rows are copied from the host one by one, so no
+        device temporary of the size of the store is needed (review of PR #50)."""
+        old = getattr(sp, name, None)
+        if old is None or old.shape != shape or old.dtype != dtype:
+            setattr(sp, name, None)
+            del old
+            cp.get_default_memory_pool().free_all_blocks()
+            arr = cp.empty(shape, dtype=dtype)
+            setattr(sp, name, arr)
+        arr = getattr(sp, name)
+        host = np.ascontiguousarray(host).reshape(-1 if len(shape) == 1 else shape[0], n)
+        rows = [arr] if len(shape) == 1 else [arr[r] for r in range(shape[0])]
+        for r, row in enumerate(rows):
+            row[n:].fill(0)
+            if n:
+                row[:n].set(host[r] if len(shape) > 1 else host.reshape(-1))
+
     if sim.compact:
-        sp.W = cp.zeros((2, cap), dtype=cp.float64)
-        sp.C = cp.zeros(cap, dtype=cp.int32)
-        sp.F = cp.zeros((3, cap), dtype=cp.uint32)
-        sp.U = cp.zeros((3, cap), dtype=cp.float64)
         sp.Dsp = None
-        sp.W[:, :n], sp.C[:n], sp.F[:, :n], sp.U[:, :n] = (cp.asarray(z[f"s{i}.{k}"]) for k in "WCFU")
+        for name, shape, dtype in (("W", (2, cap), cp.float64), ("C", (cap,), cp.int32),
+                                   ("F", (3, cap), cp.uint32), ("U", (3, cap), cp.float64)):
+            store(name, shape, np.dtype(dtype), z[f"s{i}.{name}"])
     else:
-        sp.P = cp.zeros((8, cap), dtype=cp.float64)
-        sp.P[:, :n] = cp.asarray(z[f"s{i}.P"])
+        store("P", (8, cap), np.dtype(np.float64), z[f"s{i}.P"])
     if sp.Pn is not None:
+        sp.Pn = None
         sp.Pn = cp.zeros((6, cap), dtype=cp.float64)
     sp._list = None  # the flag list has the size of the capacity, as in the run
     sp.n = n
