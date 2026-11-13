@@ -180,7 +180,27 @@ def cmd_campaign(args) -> int:
     dest = run_dir / "analysis"
     np.save(dest / "campaign_entries.npy", ent)
     np.savez_compressed(dest / "campaign_tracks.npz", ids=np.asarray(tr.ids), gmax=gmax, t_gmax=t[kmax],
-                        birth_r=birth_r, birth_polar=birth_pol, level_drift_frame=level)
+                        birth_r=birth_r, birth_polar=birth_pol, level_drift_frame=level,
+                        net=np.stack([net[k] for k in ("random", "inside", "outside")]),
+                        tim=np.stack([tim[k] for k in ("random", "inside", "outside")]))
+    return write_summary(run_dir)
+
+
+def write_summary(run_dir) -> int:
+    """campaign.json from campaign_entries.npy and campaign_tracks.npz (no access to the tracks)."""
+    from census import _open
+    run_dir = Path(run_dir)
+    dest = run_dir / "analysis"
+    pl = _open(run_dir).meta["planner"]
+    d_i = float(pl["d_i"])
+    fz = np.load(dest / "front.npz")
+    theta, rd0 = fz["theta"], fz["r_debris"][0]
+    ent = np.load(dest / "campaign_entries.npy")
+    tk = np.load(dest / "campaign_tracks.npz")
+    gmax, birth_r, birth_pol, level = tk["gmax"], tk["birth_r"], tk["birth_polar"], tk["level_drift_frame"]
+    n = len(gmax)
+    net = dict(zip(("random", "inside", "outside"), tk["net"])) if "net" in tk.files else {}
+    tim = dict(zip(("random", "inside", "outside"), tk["tim"])) if "tim" in tk.files else {}
     out = {"run": str(run_dir), "n_tracked": int(n),
            "entry_columns": ["electron", "t", "polar_deg", "local_tbn_deg", "V_HT", "v", "v_par", "return",
                              "gamma_in", "gamma_out", "born_inside", "u_par (frame direction)", "u_perp",
@@ -188,7 +208,7 @@ def cmd_campaign(args) -> int:
                              "reflect_H_A", "gamma_out_H_A"],
            "smooth": SMOOTH, "after_samples": AFTER}
     if len(ent):
-        _, tin, pol_, tbn, vht, v, vpar, ret, gin, gout, ins = ent.T
+        ins = ent[:, 10]
         outside = ins == 0
         out["entries"] = int(len(ent))
         out["entries_born_outside"] = int(outside.sum())

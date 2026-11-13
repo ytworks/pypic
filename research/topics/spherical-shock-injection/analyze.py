@@ -1056,6 +1056,7 @@ def main(argv=None) -> int:
     p.add_argument("run", type=Path)
     p.add_argument("--chunk", type=int, default=60000)
     p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--summary-only", action="store_true", help="rewrite campaign.json from the saved tables")
     p = sub.add_parser("prune", help="delete tracks and particle dumps of an analysed run (campaign A)")
     p.add_argument("run", type=Path)
     p.add_argument("--null", action="store_true", help="a null run: counts.json is not required")
@@ -1114,7 +1115,7 @@ def main(argv=None) -> int:
     if args.cmd == "census":
         return census.cmd_census(args)
     if args.cmd == "campaign":
-        return campaign.cmd_campaign(args)
+        return campaign.write_summary(args.run) if args.summary_only else campaign.cmd_campaign(args)
     if args.cmd == "prune":
         return campaign.cmd_prune(args)
     if args.cmd == "sites":
