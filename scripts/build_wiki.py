@@ -185,6 +185,19 @@ EXAMPLES: dict[str, dict] = {
         "movies": ["laser_linear", "beam_linear", "laser_bubble"],
         "gif": {"fps": 3},  # a gate run writes nine outputs, the production run twenty
     },
+    "alfven_inflow": {
+        "page": "Alfven-Inflow",
+        "title": {"en": "Alfvénic wave carried by a flow into a shock",
+                  "ja": "流れに運ばれて衝撃波へ入るアルヴェン的な波"},
+        "cases": {
+            "gate": fresh("gate", gpus=2),
+            "piston": recorded("output/alfven_inflow/piston",
+                               "bench/results/2026-11-14-c57130205-example-alfven_inflow-piston-run-9245d02a.json"),
+            "piston_null": recorded("output/alfven_inflow/piston_null",
+                                    "bench/results/2026-11-14-c57130205-example-alfven_inflow-piston-run-d6549bc2.json"),
+        },
+        "movies": ["gate", "piston"],
+    },
 }
 
 
