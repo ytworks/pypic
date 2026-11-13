@@ -39,6 +39,23 @@ def entries_of(site_row):
     return out
 
 
+def adiabatic_reflection(u_par, u_perp, gamma, v_ht, b_c):
+    """Adiabatic mirror in the de Hoffmann-Teller frame, no potential (prediction H_A of campaign-a.md).
+    u_par: momentum along the field, oriented so that the frame moves at +v_ht; u_perp >= 0; b_c the compression
+    B_max / B_1. Returns (reflected, gamma after reflection in the lab frame). No frame for v_ht >= 1."""
+    u_par, u_perp, gamma, v_ht, b_c = np.broadcast_arrays(*(np.asarray(q, float) for q in (u_par, u_perp, gamma,
+                                                                                       v_ht, b_c)))
+    ok = v_ht < 1.0
+    vh = np.where(ok, v_ht, 0.0)
+    g_h = 1.0 / np.sqrt(1.0 - vh ** 2)
+    up = g_h * (u_par - vh * gamma)          # momentum along B in the frame
+    gp = g_h * (gamma - vh * u_par)          # energy in the frame
+    sin2 = u_perp ** 2 / np.maximum(u_perp ** 2 + up ** 2, 1e-30)
+    refl = ok & (up < 0.0) & (sin2 > 1.0 / np.maximum(b_c, 1.0 + 1e-9))
+    g_out = g_h * (gp - vh * up)             # u_par -> -u_par in the frame, back to the lab
+    return refl, np.where(refl, g_out, gamma)
+
+
 def _smooth(a, w):
     k = np.ones(w) / w
     ok = np.isfinite(a)
@@ -116,14 +133,31 @@ def cmd_campaign(args) -> int:
         # entries into the layer
         for j in range(len(cols)):
             for k, ko, outc in entries_of(s[:, j]):
-                tb = sites.local_tbn(x[k - 1:k, j], y[k - 1:k, j], z[k - 1:k, j], B[0, k - 1:k, j], B[1, k - 1:k, j],
-                                     B[2, k - 1:k, j], theta, st["r_f"][i_out[k]])[0]
-                vn = np.interp(pol[k, j], theta, np.nan_to_num(fz["v_n"][i_front[k]], nan=0.0))
-                gi = g[k - 1, j]
-                vpar = abs(np.sum(u[:, k - 1, j] * B[:, k - 1, j]) / Bm[k - 1, j]) / gi
+                q = k - 1
+                nrm = sites.local_normal(x[q:k, j], y[q:k, j], z[q:k, j], theta, st["r_f"][i_out[k]])[:, 0]
+                bh = B[:, q, j] / Bm[q, j]
+                cos_bn = float(np.dot(bh, nrm))
+                if cos_bn < 0:
+                    bh, cos_bn = -bh, -cos_bn
+                tb = float(np.degrees(np.arccos(min(1.0, cos_bn))))
+                vn = float(np.interp(pol[k, j], theta, np.nan_to_num(fz["v_n"][i_front[k]], nan=0.0)))
+                vht = vn / max(cos_bn, 1e-3)
+                gi = g[q, j]
+                upar = float(np.dot(u[:, q, j], bh))
+                uperp = float(np.sqrt(max(np.sum(u[:, q, j] ** 2) - upar ** 2, 0.0)))
+                bc = float(np.interp(pol[k, j], theta, np.nan_to_num(fz["b_mean"][i_front[k]], nan=1.0)))
                 ka = min(len(t) - 1, ko + AFTER) if outc == 1 else ko
-                ent.append((cols[j], t[k], np.degrees(pol[k, j]), tb, vn / max(np.cos(np.radians(tb)), 1e-3),
-                            np.sqrt(1.0 - 1.0 / gi ** 2), vpar, outc, gi, g[ka, j], float(inside[j])))
+                t_up, ahead = 0.0, np.nan
+                if outc == 1:
+                    e2 = ko
+                    while e2 + 1 < len(t) and s[e2 + 1, j] == 4:
+                        e2 += 1
+                    t_up = (e2 - ko + 1) * dt
+                    ahead = float(np.nanmax(r[ko:e2 + 1, j] - st["r_f"][i_out[ko:e2 + 1], ith[ko:e2 + 1, j]]))
+                refl_a, g_a = adiabatic_reflection(upar, uperp, gi, vht, bc)
+                ent.append((cols[j], t[k], np.degrees(pol[k, j]), tb, vht, np.sqrt(1.0 - 1.0 / gi ** 2),
+                            abs(upar) / gi, outc, gi, g[ka, j], float(inside[j]), upar, uperp, bc, t_up, ahead, vn,
+                            float(refl_a), float(g_a)))
         # net change of gamma per site: a random 10 % of the chunk, and inside / outside born electrons with
         # gamma_max >= 1.5 (whole run, no window)
         dg = np.full(g.shape, np.nan)
@@ -142,14 +176,16 @@ def cmd_campaign(args) -> int:
             lv = drift_frame_level(g[:, sel], u[:, :, sel], E, B[:, :, sel], w)
             level[cols[sel]] = np.nanmax(np.where(np.isfinite(lv), lv, -1.0), axis=0)
         print(f"campaign: {min(n, a + args.chunk)}/{n} tracked electrons; entries {len(ent)}", flush=True)
-    ent = np.array(ent, float).reshape(-1, 11)
+    ent = np.array(ent, float).reshape(-1, 19)
     dest = run_dir / "analysis"
     np.save(dest / "campaign_entries.npy", ent)
     np.savez_compressed(dest / "campaign_tracks.npz", ids=np.asarray(tr.ids), gmax=gmax, t_gmax=t[kmax],
                         birth_r=birth_r, birth_polar=birth_pol, level_drift_frame=level)
     out = {"run": str(run_dir), "n_tracked": int(n),
            "entry_columns": ["electron", "t", "polar_deg", "local_tbn_deg", "V_HT", "v", "v_par", "return",
-                             "gamma_in", "gamma_out", "born_inside"],
+                             "gamma_in", "gamma_out", "born_inside", "u_par (frame direction)", "u_perp",
+                             "compression", "t_upstream_after_return", "max_ahead_of_front", "V_n",
+                             "reflect_H_A", "gamma_out_H_A"],
            "smooth": SMOOTH, "after_samples": AFTER}
     if len(ent):
         _, tin, pol_, tbn, vht, v, vpar, ret, gin, gout, ins = ent.T
@@ -164,6 +200,33 @@ def cmd_campaign(args) -> int:
         out["P_return_by_VHT_over_v"], out["n_by_VHT_over_v"] = _binned_mean(vht_o / v_o, ret_o, X_EDGES)
         out["polar_edges"] = POLAR_EDGES.tolist()
         out["P_return_by_polar"], out["n_by_polar"] = _binned_mean(pol_o, ret_o, POLAR_EDGES)
+        b0 = float(pl["b0"])
+        ref2 = (ret_o == 1) & (gout_o > 1.02 * gin_o)
+        persist = (e_o[:, 14] >= 2 * np.pi * gin_o / b0) | (e_o[:, 15] >= d_i + 2 * np.sqrt(gin_o ** 2 - 1) / b0)
+        pa = (e_o[:, 17] == 1) & (e_o[:, 18] > 1.02 * gin_o)
+        out["P_ref_by_VHT"], _ = _binned_mean(vht_o, ref2.astype(float), VHT_EDGES)
+        out["P_ref_persistent_by_VHT"], _ = _binned_mean(vht_o, (ref2 & persist).astype(float), VHT_EDGES)
+        out["P_ref_H_A_by_VHT"], _ = _binned_mean(vht_o, pa.astype(float), VHT_EDGES)
+        out["P_ref_by_VHT_over_v"], _ = _binned_mean(vht_o / v_o, ref2.astype(float), X_EDGES)
+        out["P_ref_persistent_by_VHT_over_v"], _ = _binned_mean(vht_o / v_o, (ref2 & persist).astype(float),
+                                                                X_EDGES)
+        out["P_ref_by_polar"], _ = _binned_mean(pol_o, ref2.astype(float), POLAR_EDGES)
+        out["P_ref_persistent_by_polar"], _ = _binned_mean(pol_o, (ref2 & persist).astype(float), POLAR_EDGES)
+        out["P_ref_H_A_by_polar"], _ = _binned_mean(pol_o, pa.astype(float), POLAR_EDGES)
+        iv = np.clip(np.digitize(vht_o, VHT_EDGES) - 1, -1, len(VHT_EDGES) - 2)
+        ip = np.clip(np.digitize(pol_o, POLAR_EDGES) - 1, 0, len(POLAR_EDGES) - 2)
+        tab = np.zeros((len(VHT_EDGES) - 1, len(POLAR_EDGES) - 1), int)
+        np.add.at(tab, (iv[iv >= 0], ip[iv >= 0]), 1)
+        out["n_by_VHT_and_polar"] = tab.tolist()
+        rr = ref2 & persist
+        if rr.any():
+            out["persistent returns: gamma_out/gamma_in p50 p90 p99"] = \
+                np.percentile(gout_o[rr] / gin_o[rr], (50, 90, 99)).tolist()
+            okb = rr & (vht_o < 0.99)
+            if okb.any():
+                bnd = (1 + vht_o[okb] ** 2) / (1 - vht_o[okb] ** 2)
+                out["persistent returns: gamma_out over the bound from rest p10 p50 p90"] = \
+                    np.percentile(gout_o[okb] / bnd, (10, 50, 90)).tolist()
         hi = (ret_o == 1) & (gout_o >= 1.25)
         out["share_return_gamma_ge_1p25_by_polar"], _ = _binned_mean(pol_o, hi.astype(float), POLAR_EDGES)
         g_hi_ratio = (ret_o == 1) & (gout_o >= 1.25 * gin_o)
@@ -217,6 +280,18 @@ def cmd_prune(args) -> int:
 
 
 def selfcheck(check):
+    vh = 0.4
+    gh = 1.0 / np.sqrt(1.0 - vh ** 2)
+    refl, g_out = adiabatic_reflection([0.0, 0.0, 0.0], [1e-3, 0.5, 0.05], [1.0, np.sqrt(1.25), np.sqrt(1.0025)],
+                                       [vh, vh, 1.2], [3.0, 3.0, 3.0])
+    want = gh ** 2 * (1 + vh ** 2)
+    ok = (not refl[0]) and refl[1] and (not refl[2]) and np.isclose(g_out[0], 1.0)
+    # an electron at rest is in the loss cone (sin^2 = 0); one with u_perp = 0.5 at rest along B reflects to
+    # gamma_HT^2 (gamma + v^2 gamma) since u_par' = -gamma_HT v gamma
+    ok = ok and np.isclose(g_out[1], want * np.sqrt(1.25))
+    check("campaign, adiabatic reflection in the de Hoffmann-Teller frame", ok,
+          f"reflected {refl.tolist()} (False, True, False: rest in the loss cone, u_perp 0.5 out of it, no frame "
+          f"above c); gamma_out {g_out[1]:.6f} against gamma_HT^2 (1 + V^2) gamma = {want * np.sqrt(1.25):.6f}")
     s = [4, 4, 3, 3, 4, 4, 3, 2, 2, 4, 3, 3, -1, 4, 3]
     got = entries_of(s)
     check("campaign, entries into the layer", got == [(2, 4, 1), (6, 7, 0)],

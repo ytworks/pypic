@@ -147,6 +147,22 @@ def local_tbn(x, y, z, bx, by, bz, theta, r_f_row):
     return np.degrees(np.arccos(np.clip(cos, 0.0, 1.0)))
 
 
+def local_normal(x, y, z, theta, r_f_row):
+    """Outward unit normal of the surface r_f(theta) at the electron's polar angle, as a 3-vector (both
+    hemispheres: the z component carries the sign of z)."""
+    rho = np.hypot(x, y)
+    pol = np.arctan2(rho, np.abs(z))
+    ok = np.isfinite(r_f_row)
+    drdth = np.interp(pol, theta[ok], np.gradient(r_f_row[ok], theta[ok]))
+    rf = np.interp(pol, theta[ok], r_f_row[ok])
+    s, c = np.sin(pol), np.cos(pol)
+    k = drdth / np.maximum(rf, 1e-9)
+    n_rho, n_z = s - k * c, c + k * s
+    norm = np.hypot(n_rho, n_z)
+    n_rho, n_z = n_rho / norm, n_z / norm
+    return np.stack([n_rho * x / np.maximum(rho, 1e-9), n_rho * y / np.maximum(rho, 1e-9), n_z * np.sign(z)])
+
+
 def cmd_sitegain(args) -> int:
     """Net change of gamma of the tracked electrons per site and per local theta_Bn band, up to the time of the
     largest gamma of each electron; groups by gamma_max."""
