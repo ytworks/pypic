@@ -3,6 +3,19 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Global plan: the whole sphere first (owner: the forest is missing)
+
+- **Owner:** the parts are important, but there is no hypothesis for the acceleration over the whole spherical
+  shock; plan the whole. Written: `global-plan.md` with `figures/global-map.svg`.
+- **Question:** where on a spherical shock in a uniform field are electrons injected and accelerated, by which
+  processes, and is the whole the area-sum of plane shocks at the local θ_Bn (the assumption of remnant models)
+  or does the sphere couple its latitudes? Hypotheses G0 (local), G1 (coupling along field lines), G2 (closed
+  azimuthal drift), G3 (focusing); D (the driver's wall) kept apart.
+- **Campaign A** is a building block (the local reflection law) and, with the histories now saved, the first data
+  for M1–M4 over the sphere. The baseline G0 needs plane oblique electron–ion shocks: an example on main (PR).
+- **Changed on the way:** the campaign pass now saves compact histories of electrons with γ_max ≥ 1.25 and a
+  2 % sample; the post-processing was stopped before A5-T20 and A5-T28 were pruned and restarted with it.
+
 ## 2026-11-13 — Item 2 begins: the P5 shock reflects electrons upstream at high latitude (SDA level)
 
 - **Literature against P5** (notes; shock M_A ≈ V_sh / v_A ≈ 3.8, β_e ≈ 0.25, m_i/m_e = 16): unlimited SSA

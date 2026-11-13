@@ -230,3 +230,6 @@ Next (order of `exploratory-results.md`, Sect. 8):
 - only then a design. A 2.5-D design comes first for the baseline and the numerical floor; a 3-D run is for
   what only 3-D can show. A test-particle baseline in the stored slices is not planned as it stands (the slices
   are one gyro-period apart).
+
+Planned 2026-11-13 (owner: the whole sphere first): `global-plan.md`. Campaign A (`campaign-a.md`) is running as
+its first building block.
