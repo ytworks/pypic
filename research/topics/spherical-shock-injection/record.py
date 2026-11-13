@@ -43,6 +43,7 @@ METRICS = {
     "drive": ("R_m", "rho_d", "R_m / rho_d", "R_B", "omega_ci_inv", "O1 first valid front", "O2 valid",
               "O2 valid and driven", "O2 debris-edge speed over front speed, valid bins", "O3 fast Mach, valid bins",
               "O3 fast Mach, driven bins", "O3 valid and strong", "O3 valid, driven and strong",
+              "O3 valid and high", "O3 valid, driven and high", "O3 fast Mach, valid bins, by polar angle",
               "O4 exponent m of R ~ t^m per polar angle", "history"),
 }
 

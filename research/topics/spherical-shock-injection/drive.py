@@ -4,8 +4,8 @@
 
 The front and its valid domain are those of protocol Sect. 4, unchanged. A bin is *driven* while the debris edge
 (0.1 n0) still moves outwards at DRIVEN times the radial speed of the front or faster; both speeds are slopes
-over the same five outputs. A bin is *strong* at a fast Mach number of MACH_STRONG or more. The duration of
-k outputs in a row is (k - 1) output intervals.
+over the same five outputs. A bin is *strong* at a fast Mach number of MACH_STRONG or more, and *high* at
+MACH_HIGH or more (strong-shock-run.md, Sect. 6). The duration of k outputs in a row is (k - 1) output intervals.
 """
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from r2checks import _pct, _write
 
 DRIVEN = 0.5
 MACH_STRONG = 2.0
+MACH_HIGH = 3.0
 
 
 def longest_run(mask, t):
@@ -56,8 +57,10 @@ def drive(z, pl: dict) -> dict:
         ratio = sk.front_kinematics(theta, t, r_deb)["r_t"] / z["r_t"]
         driven = valid & (ratio >= DRIVEN)
         strong = valid & (mach >= MACH_STRONG)
+        high = valid & (mach >= MACH_HIGH)
     out = {"R_m": r_m, "rho_d": rho_d, "R_m / rho_d": r_m / rho_d, "R_B": r_b, "omega_ci_inv": 1.0 / omega_ci,
-           "driven: debris-edge speed over front speed at least": DRIVEN, "strong: fast Mach at least": MACH_STRONG}
+           "driven: debris-edge speed over front speed at least": DRIVEN, "strong: fast Mach at least": MACH_STRONG,
+           "high: fast Mach at least": MACH_HIGH}
     if not valid.any():
         out["O1 first valid front"] = None
         return out
@@ -76,6 +79,12 @@ def drive(z, pl: dict) -> dict:
     out["O3 fast Mach, driven bins"] = _pct(mach[driven])
     out["O3 valid and strong"] = _span(strong, t, theta, omega_ci)
     out["O3 valid, driven and strong"] = _span(driven & strong, t, theta, omega_ci)
+    out["O3 valid and high"] = _span(high, t, theta, omega_ci)
+    out["O3 valid, driven and high"] = _span(driven & high, t, theta, omega_ci)
+    out["O3 fast Mach, valid bins, by polar angle"] = [
+        {"polar angle [deg]": float(np.degrees(theta[j])), "bins": int(valid[:, j].sum()),
+         **{k: v for k, v in _pct(mach[valid[:, j], j], (10, 50, 90)).items() if k != "n"}}
+        for j in range(valid.shape[1]) if valid[:, j].any()]
     expo = []
     for j in range(valid.shape[1]):  # R ~ t^m over the valid outputs of a polar angle (1 free, 2/5 Sedov)
         s = valid[:, j] & (t > 0)
@@ -88,7 +97,8 @@ def drive(z, pl: dict) -> dict:
         with np.errstate(invalid="ignore"):
             rows.append({"t": float(t[i]), "t Omega_ci": float(t[i] * omega_ci), "front": int(a.sum()),
                          "valid": int(valid[i].sum()), "driven": int(driven[i].sum()),
-                         "strong": int(strong[i].sum()), "R / R_m": float(np.median(r[i, a])) / r_m,
+                         "strong": int(strong[i].sum()), "high": int(high[i].sum()),
+                         "R / R_m": float(np.median(r[i, a])) / r_m,
                          "debris edge / R_m": float(np.nanmedian(r_deb[i, a])) / r_m,
                          "speed ratio": _pct(ratio[i, a], (50,)).get("p50"),
                          "fast Mach": _pct(mach[i, a], (50,)).get("p50")})
@@ -109,7 +119,8 @@ def report(out: dict) -> None:
           f"{first['R / R_B']:.2f} R_B; debris edge at {first['debris edge / R_m']:.2f} R_m, moving at "
           f"{first['debris-edge speed over front speed']:.2f} of the front speed; fast Mach "
           f"{first['fast Mach, median']:.2f}")
-    for key in ("O2 valid", "O2 valid and driven", "O3 valid and strong", "O3 valid, driven and strong"):
+    for key in ("O2 valid", "O2 valid and driven", "O3 valid and strong", "O3 valid, driven and strong",
+                "O3 valid and high", "O3 valid, driven and high"):
         s = out[key]
         if s["bins"]:
             print(f"{key}: {s['bins']} bins at {s['polar angles']} polar angles; longest "
@@ -120,15 +131,15 @@ def report(out: dict) -> None:
     for key in ("O2 debris-edge speed over front speed, valid bins", "O3 fast Mach, valid bins",
                 "O3 fast Mach, driven bins", "O4 exponent m of R ~ t^m per polar angle"):
         print(f"{key}: {out[key]}")
-    print("history: t, t Omega_ci, bins with a front / valid / driven / strong, R / R_m, debris edge / R_m, "
-          "speed ratio, fast Mach (medians over the bins with a front)")
+    print("history: t, t Omega_ci, bins with a front / valid / driven / strong / high, R / R_m, "
+          "debris edge / R_m, speed ratio, fast Mach (medians over the bins with a front)")
 
     def show(x):
         return "    -" if x is None else f"{x:5.2f}"
 
     for row in out["history"]:
         print(f"  {row['t']:6.1f} {row['t Omega_ci']:5.2f}  {row['front']:2d} {row['valid']:2d} {row['driven']:2d} "
-              f"{row['strong']:2d}  {row['R / R_m']:5.2f} {show(row['debris edge / R_m'])} "
+              f"{row['strong']:2d} {row['high']:2d}  {row['R / R_m']:5.2f} {show(row['debris edge / R_m'])} "
               f"{show(row['speed ratio'])} {show(row['fast Mach'])}")
 
 
@@ -146,22 +157,24 @@ def cmd_drive(args) -> int:
 # ------------------------------------------------------------------ check on synthetic data
 def selfcheck(check) -> None:
     # a front at 0.2 c; the debris edge follows at 0.15 c and stops at t = 200; valid from t = 100;
-    # fast Mach 2.5 before t = 300 and 1.8 after it. With slopes over five outputs the edge keeps half the
-    # front speed up to t = 190: 10 driven outputs (90 time units), 20 strong ones (190), 31 valid (300).
+    # fast Mach 3.2 before t = 200, 2.5 before t = 300 and 1.8 after it. With slopes over five outputs the edge
+    # keeps half the front speed up to t = 190: 10 driven outputs (90 time units), 20 strong ones (190),
+    # 10 high ones (90), 31 valid (300).
     t = np.arange(41) * 10.0
     theta = np.radians(np.arange(4) * 22.5 + 11.25)
     r = np.repeat((50.0 + 0.2 * t)[:, None], 4, axis=1)
     edge = np.repeat(np.minimum(45.0 + 0.15 * t, 75.0)[:, None], 4, axis=1)
     kin = sk.front_kinematics(theta, t, r)
-    v_f = np.repeat(np.where(t < 300, 0.08, 0.2 / 1.8)[:, None], 4, axis=1)
+    v_f = np.repeat(np.where(t < 200, 0.0625, np.where(t < 300, 0.08, 0.2 / 1.8))[:, None], 4, axis=1)
     z = {"t": t, "theta": theta, "r": r, "r_debris": edge, "valid": np.repeat((t >= 100)[:, None], 4, axis=1),
          "v_n": np.full(r.shape, 0.2), "v_f": v_f, "r_t": kin["r_t"]}
     pl = {"d_i": 4.0, "b0": 0.4, "v_a": 0.1, "r_m": 80.0, "r_b": 147.0, "debris_gyroradius": 10.0}
     out = drive(z, pl)  # 1 / Omega_ci = 40
-    got = [out[k].get("longest [1/Omega_ci]") for k in ("O2 valid", "O2 valid and driven", "O3 valid and strong")]
+    got = [out[k].get("longest [1/Omega_ci]")
+           for k in ("O2 valid", "O2 valid and driven", "O3 valid and strong", "O3 valid and high")]
     first = out["O1 first valid front"]
-    check("drive, driven and strong durations", np.allclose(got, [7.5, 2.25, 4.75])
+    check("drive, driven and strong durations", np.allclose(got, [7.5, 2.25, 4.75, 2.25])
           and out["O2 valid and driven"]["bins"] == 40 and first["t"] == 100.0
           and abs(first["R / R_m"] - 70.0 / 80.0) < 1e-12
           and abs(first["debris-edge speed over front speed"] - 0.75) < 1e-9,
-          f"valid, driven, strong: {got} / Omega_ci (7.5, 2.25, 4.75); first valid at t = {first['t']:.0f}")
+          f"valid, driven, strong, high: {got} / Omega_ci (7.5, 2.25, 4.75, 2.25); first valid at t = {first['t']:.0f}")
