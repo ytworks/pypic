@@ -127,3 +127,14 @@ Predictions, persistent definition (P5 measured for H_0; P5's P(x) applied to re
 | H_T, v_te 0.14 | 0.038 | 0.037 | 0.028 | 0.021 | 0.015 | 0.010 | 0.0060 | 0.0035 |
 | H_T, v_te 0.20 | 0.034 | 0.041 | 0.039 | 0.034 | 0.026 | 0.018 | 0.011 | 0.0066 |
 | H_T, v_te 0.28 | 0.025 | 0.037 | 0.045 | 0.045 | 0.039 | 0.028 | 0.018 | 0.011 |
+
+## 9. Seed check and absolute scale (2026-11-13, from P5 and A5-T10-s2, before any other run is read)
+
+- P_ref of A5-T10-s2 over P5, bins 0.20–1.0 c: 2 % definition 0.93 / 0.92 / 1.04 / 0.99 / 1.22 / 1.25 / 1.04 /
+  0.31; persistent 0.86 / 0.80 / 1.05 / 0.98 / 1.04 / 1.05 / 0.98 / (0 against 0.0001). Every bin has ≥ 2000
+  entries, but the last one holds 16 against 6 reflections (2 %) and 0 against 2 (persistent).
+- **Amendment of the seed check (Sect. 6):** the factor 1.5 applies to bins with at least 50 reflections in both
+  runs; the rule as first written failed on a bin of a few events only. With it the check passes under both
+  definitions. Recorded before any other run is read.
+- **Misfit of the seeds** (Sect. 6 formula, all eight bins): 0.016 (2 %), 0.0087 (persistent). "Neither fits"
+  therefore means both misfits above 0.065 (2 %) or 0.035 (persistent). Numbers in `P5/analysis/seed_misfit.json`.
