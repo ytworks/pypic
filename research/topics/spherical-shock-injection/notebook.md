@@ -3,6 +3,33 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Path (b) followed along its history: shock heating, and in the plasma frame no more
+
+Owner: find the mechanism of path (b) (heated at the shock, then more) from the place on the sphere and the
+fields along the particle history. Scripts in `P5/analysis/figures/`: `pathb.py`, `pathb2.py`,
+`pathb_orbits.py` (figure `p5_pathb_orbits.png`), `frame.py`. Sites of `sites.md`.
+
+- **Selection.** All tracked electrons whose first entry from upstream into the transition layer leads into
+  the steep wall and which later reach γ_max ≥ 1.5 (lab frame): 751. Control: 5000 of the 161,826 that did the
+  same and stayed below 1.3.
+- **Place on the sphere.** Polar angle at entry: median 50° (control 65°); 10–30° is 4–5 times more frequent
+  than in the control, 40–90° 0.6–0.7 times. Local θ_Bn at entry: median 50° (control 65°).
+- **History.** One entry each (no repeated encounters; 13 % of the control enter twice). γ before entry 1.044
+  (control 1.011), gained 4–30 d_e ahead of the front (+0.022, median). First passage of the layer: Δγ = +0.19
+  (control +0.05). The largest 20-unit gain lies 83 % in the transition layer, 17 % on the steep wall; the work
+  is done by E perpendicular to B (E_φ the largest part; E_par under 3 %); p⊥²/B grows 3.4 times while |B|
+  grows 1.4 times (not adiabatic over that window); pitch nearly perpendicular. After entry the electrons ride
+  5–10 d_e behind the front for about 1.6 / Ω_ci; γ swings over each gyration from about 1.15 to 1.8.
+- **Frame.** In the local E × B frame (fields smoothed over 12.5 along the orbit; drift 0.22 c at γ_max), path
+  (b) has γ' 1.34 at most (median; 3 % reach 1.5) and 1.27 on average around γ_max (p90 1.35). The lab-frame
+  γ ≥ 1.5 of path (b) is mostly gyration in the outflowing downstream seen from the lab: heating, not
+  acceleration beyond it. The γ_max ≥ 2 electrons born inside the shell keep γ' 1.74 on average (p90 2.11).
+  The maxima γ'_max are not reliable where B is weak (the random sample shows γ'_max above its lab γ_max).
+- **Reading.** In P5 the shock heats the electrons that cross it once, more at high latitude (polar 10–30°,
+  where they also arrive slightly preheated), and does not accelerate them beyond the heated distribution in the
+  plasma frame. The energetic electrons in the plasma frame are those born inside the debris shell (path a).
+  Limits: drift frame from smoothed fields; tracks every 2 steps; one run.
+
 ## 2026-11-13 — Unselected electrons and crossings of the transition layer (sites of sites.md)
 
 - **Owner:** "the transition layer gives a net loss" has the wrong premise: to lose, an electron must have
