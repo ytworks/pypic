@@ -178,6 +178,18 @@ def prune(root: str, keep: int, current: int) -> None:
             shutil.rmtree(os.path.join(root, e))
 
 
+def pending_matches(r, n: int, last: int, count: int) -> bool:
+    """Whether the ``count`` pending samples of an averaged diagnostic, the steps (last - count, last]
+    (one per step), are the samples that the schedule ``r`` (output.schedule.Resolved) takes for its
+    next output in a run that continues at step ``n``: the steps after the output before it (or after
+    first - every, from step 0 on, for the first output), up to n - 1 and to r.last."""
+    nxt = -(-max(n, r.first) // r.every) * r.every
+    if nxt > r.last:
+        return False
+    lo = nxt - r.every if nxt - r.every >= r.first else max(r.first - r.every, -1)
+    return last == min(n - 1, r.last) and last - count == lo
+
+
 # ------------------------------------------------------------------------------- GPU side
 def _counters(sim):
     """Per-rank cumulative sums (cupy arrays), in the order of meta['reduced']: sdiag per species,
@@ -279,14 +291,15 @@ def save(sim) -> str:
     h = sim.history
     meta = {
         "format": FORMAT, "commit": out.git_commit if out.enabled else None,
+        "run_id": out.run_id,  # the run that wrote it: a continued run appends only to that run's output (OUT-D6)
         "written": _dt.datetime.now().astimezone().isoformat(timespec="seconds"),
         "config": jsonable(cfg.to_dict()),
         "layout": {"world": comm.size, "dims": list(sim.decomp.dims), "ghost": sim.grid.g},
         "step": n, "time": sim.time, "history": h, "kinetic_species": sim.kinetic_species,
         "flux_out": sim.flux_out, "dissipated": sim.dissipated, "picard_its": getattr(sim, "_picard_its", None),
         "nonconverged": getattr(sim, "nonconverged", None), "window_shift": sim.window_shift,
-        "counter_sizes": [int(c.size) for c in counters], "reduced": reduced[:-S].tolist(),
-        "particles": [int(round(v)) for v in reduced[-S:]] if S else [],
+        "counter_sizes": [int(c.size) for c in counters], "reduced": reduced[: reduced.size - S].tolist(),
+        "particles": [int(round(v)) for v in reduced[reduced.size - S:]],
         "output": {"last": out.last, "acc_step": out.acc_step,
                    "acc": {str(k): {"n": out.diags[k].n_acc, "t": out.diags[k].t_acc,
                                     "list": isinstance(out.diags[k].accum, list)} for k, _ in _accumulators(sim)}},
@@ -414,6 +427,10 @@ def restore(sim, path: str, meta: dict) -> None:
     for k, a in om["acc"].items():
         dg = out.diags[int(k)]
         dg.n_acc, dg.t_acc = int(a["n"]), float(a["t"])
+        # the schedule may have changed (t_start, t_end, every, n_steps): the pending samples are kept
+        # only if they are those that the new schedule takes for its next output
+        if not pending_matches(dg.r, sim.step_count, int(om["acc_step"][dg.d.name]), dg.n_acc):
+            dg.accum, dg.n_acc, dg.t_acc = None, 0, 0.0
     out.history_seen = len(sim.history["step"])
     out.after_restore()
     # every particle kept exactly once (collective)

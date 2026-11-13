@@ -419,13 +419,16 @@ Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2). Code: `pypic/
 - **Writing:** `checkpoint: {every: N, keep: 2}` (needs `output.dir`). At the end of every N-th step (state at
   the start of step n) the output is flushed, then every rank writes `rank-<r>.npz` into
   `<output.dir>/checkpoint/step-<n>.tmp/`; after a reduction of the per-rank error flags rank 0 writes
-  `meta.json` and renames the directory to `step-<n>`. The last `keep` complete checkpoints stay.
+  `meta.json` and renames the directory to `step-<n>`. The last `keep` complete checkpoints stay. Pruning
+  takes the highest steps for the newest, so the directory holds only checkpoints of this run's history: a
+  fresh run refuses (or with `output.overwrite` removes) the `checkpoint/` of an earlier run (OUT-D1), and a
+  continued run removes the checkpoints after its step (OUT-D6).
 - **State:**
   - `rank-<r>.npz`: E, B and J with ghosts, the CPML memory, the implicit `Eprev`; the particle store of each
     species as built (FP64 rows, or the compact W, C, F, U) with n and the capacity; the injection bank and its
     `binfo`; the per-rank cumulative counters (`sdiag`, window sums, antenna work); the running sums of the
     averaged diagnostics; the layout of the rank; the ids of the tracks (rank 0).
-  - `meta.json`: format, commit, configuration, layout, step and time, history, per-species kinetic energy,
+  - `meta.json`: format, commit, run id (OUT-D6), configuration, layout, step and time, history, per-species kinetic energy,
     boundary flux, dissipated energy, Picard count, window shift, the counters reduced over the ranks, the
     particle numbers, the output manager's state.
   - Not saved: what a step rebuilds (the float32 gather copies, the implicit iterates `E1`, `Eh`, `Bh`, `Pn`, the
@@ -440,6 +443,8 @@ Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2). Code: `pypic/
     migration, so each particle is kept once. Fields: the owned block from the overlapping owned blocks of the
     files (global index ranges), then wall conditions and the ghost exchange. The bank by global face column.
     The reduced counters on rank 0, zero elsewhere. The averaged sums by their global axis.
+  - The pending samples of an averaged diagnostic are kept only if they are those that the (possibly changed)
+    schedule takes for its next output; otherwise they are dropped (OUT-D6).
   - The particle numbers summed over the ranks must equal the stored ones; every rank raises together.
 
 Why: roadmap R2; research runs of 20–160 h on GPUs shared with other jobs.

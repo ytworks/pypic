@@ -136,3 +136,55 @@ def test_series_is_cut_at_the_checkpoint_and_continued(tmp_path):
     with h5py.File(tp, "r") as f:
         assert f["id"][...].tolist() == [3, 5] and f["step"][...].tolist() == [0, 1, 2]
         assert f["x"][2].tolist() == [7.0, 8.0]
+
+
+_KILLED_WRITER = """
+import os, signal, sys
+import numpy as np
+from pypic.output.h5 import SeriesWriter
+w = SeriesWriter(sys.argv[1], {}, "deflate", 1, max_rows=4)
+for s in range(10):
+    w.append(s, 0.5 * s, {"v": np.full(3, float(s))})
+w.flush()
+os.kill(os.getpid(), signal.SIGKILL)
+"""
+
+
+def test_series_of_a_killed_writer_is_cut_and_continued(tmp_path):
+    """OUT-D6: a writer killed after a flush leaves the file flagged as open for SWMR writing, which
+    HDF5 refuses to open; the cut clears the flags and keeps the flushed rows."""
+    import subprocess
+    import sys
+
+    import h5py
+
+    from pypic.output.h5 import SeriesWriter, truncate_series
+
+    path = str(tmp_path / "s.h5")
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    r = subprocess.run([sys.executable, "-c", _KILLED_WRITER, path], env=dict(os.environ, PYTHONPATH=root))
+    assert r.returncode == -9
+    with pytest.raises(OSError, match="already open for write"):
+        h5py.File(path, "r")
+    assert truncate_series(path, 6) == 6
+    w = SeriesWriter(path, {}, "deflate", 1, max_rows=4, append=True)
+    w.append(6, 3.0, {"v": np.full(3, 6.0)})
+    w.close()
+    with h5py.File(path, "r") as f:
+        assert f["step"][...].tolist() == list(range(7)) and f["v"][:, 0].tolist() == [float(s) for s in range(7)]
+
+
+@pytest.mark.parametrize("first,every,last,n,acc_last,count,kept", [
+    (0, 6, 40, 20, 19, 1, True),  # the schedule of the run: samples 19 for the output at 24
+    (30, 6, 40, 20, 19, 1, False),  # t_start moved to step 30: its first output averages 25..30
+    (0, 4, 40, 20, 19, 1, False),  # every changed to 4: the output at 20 averages 17..20
+    (0, 6, 15, 20, 15, 3, False),  # t_end before the restart: no further output
+    (5, 6, 40, 4, 3, 4, True),  # first output at 6 of first 5: the samples from step 0 on
+])
+def test_pending_average_samples_against_the_schedule(first, every, last, n, acc_last, count, kept):
+    """PIC-D25: the pending samples of an averaged diagnostic are restored only if the (possibly
+    changed) schedule takes exactly those samples for its next output."""
+    from pypic.output.schedule import Resolved
+
+    r = Resolved("a", "lineout", every, False, "", first, last, 0, True)
+    assert ck.pending_matches(r, n, acc_last, count) is kept

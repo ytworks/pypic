@@ -95,45 +95,89 @@ class OutputManager:
         self.run_id = secrets.token_hex(4)
         self._claim_directory()
 
-    # entries a run writes into its directory (removed by output.overwrite; nothing else is touched)
-    RUN_ENTRIES = ("run.json", "scalars.h5", "reduced", "fields", "particles", "tracks")
+    # entries a run writes into its directory (removed by output.overwrite; nothing else is touched);
+    # the checkpoints too: left from an earlier run, they would count as newer than the new run's own
+    # (higher steps) when it prunes, and a restart would take them (PIC-D25)
+    RUN_ENTRIES = ("run.json", "scalars.h5", "reduced", "fields", "particles", "tracks", "checkpoint")
+
+    def _present(self) -> list[str]:
+        return [e for e in self.RUN_ENTRIES if os.path.lexists(os.path.join(self.cfg.dir, e))]
 
     def _claim_directory(self):
         """Refuse a directory that already holds run output: files the new run does not rewrite
         (other dump iterations, other diagnostics) would be read as part of it. Decided on rank 0
         and reduced, so every rank raises together. output.overwrite removes those entries first.
-        A run continued from a checkpoint opens its directory in append mode instead (OUT-D6)."""
+        A run continued from a checkpoint opens its directory in append mode instead (OUT-D6), if the
+        directory is empty or holds the run that wrote the checkpoint (the same run id); the output
+        of another run is refused, or removed with output.overwrite, before any file is changed."""
         d = self.cfg.dir
-        if self.append_step is not None:
-            self._root_io(f"opening the output directory {d} in append mode", self._open_append)
-            return
-        present = [e for e in self.RUN_ENTRIES if os.path.lexists(os.path.join(d, e))] if self.root else []
+        cont = self.append_step is not None
+        present, note = ([], "")
+        if self.root:
+            present, note = self._foreign_output() if cont else (self._present(), "")
         refuse = float(bool(present) and not self.cfg.overwrite)
         if self.sim.comm.allreduce_scalar(refuse, "max") > 0:
+            if cont:
+                raise FileExistsError(
+                    f"{d} holds the output of another run{note}, not of the run that wrote the checkpoint "
+                    f"{self.sim.cfg.restart}: a continued run appends only to its own run directory or an empty "
+                    "one (OUT-D6); choose another output.dir, or set output.overwrite (--overwrite) to replace it")
             found = f" ({', '.join(present)})" if present else ""
             raise FileExistsError(f"{d} already holds run output{found}: choose another output.dir, or set "
                                   "output.overwrite (--overwrite) to replace it")
+        if cont:
+            self._root_io(f"opening the output directory {d} in append mode", self._open_append, present)
+            return
 
         def prepare():
             os.makedirs(d, exist_ok=True)
-            for e in present:
-                p = os.path.join(d, e)
-                if os.path.isdir(p) and not os.path.islink(p):
-                    shutil.rmtree(p)
-                else:
-                    os.remove(p)
+            self._remove(present)
             self.write_run_json()
 
         self._root_io(f"preparing the output directory {d}", prepare)
 
-    DUMP = re.compile(r"_(\d{8})\.h5$")
+    def _remove(self, entries):
+        for e in entries:
+            p = os.path.join(self.cfg.dir, e)
+            if os.path.isdir(p) and not os.path.islink(p):
+                shutil.rmtree(p)
+            else:
+                os.remove(p)
 
-    def _open_append(self):
-        """Append mode (OUT-D6, rank 0): keep the identity and metadata of the run; cut what the
-        interrupted run wrote at the checkpoint step and later (rows of the series and tracks, dump
-        files), which this run writes again; note the restart in run.json."""
+    def _foreign_output(self):
+        """(entries, note) of the output directory of a continued run when they belong to another run
+        than the one that wrote the checkpoint (rank 0): run.json missing, unreadable, or with another
+        run id than the checkpoint's. The checkpoint the run continues from is never among them."""
+        present = self._present()
+        if not present:
+            return [], ""
+        want = self.sim._restart[1].get("run_id")
+        try:
+            with open(os.path.join(self.cfg.dir, "run.json")) as f:
+                have = json.load(f).get("run_id")
+        except (OSError, ValueError, AttributeError):
+            have = None
+        if want is not None and have == want:
+            return [], ""
+        src = os.path.abspath(self.sim._restart[0])
+
+        def holds_src(e):
+            p = os.path.abspath(os.path.join(self.cfg.dir, e))
+            return os.path.commonpath([src, p]) == p
+
+        return [e for e in present if not holds_src(e)], f" (run_id {have}; the checkpoint is of run_id {want})"
+
+    DUMP = re.compile(r"_(\d{8})\.h5$")
+    CHECKPOINT = re.compile(r"^step-(\d+)(\.tmp)?$")
+
+    def _open_append(self, foreign):
+        """Append mode (OUT-D6, rank 0): remove the output of another run (output.overwrite, checked
+        by _claim_directory); keep the identity and metadata of the run; cut what the interrupted run
+        wrote at the checkpoint step and later (rows of the series and tracks, dump files, and the
+        checkpoints of later steps), which this run writes again; note the restart in run.json."""
         d, n = self.cfg.dir, self.append_step
         os.makedirs(d, exist_ok=True)
+        self._remove(foreign)
         path = os.path.join(d, "run.json")
         if os.path.exists(path):
             with open(path) as f:
@@ -162,6 +206,13 @@ class OutputManager:
                     m = self.DUMP.search(e)
                     if m and int(m.group(1)) >= n:
                         os.remove(os.path.join(root, e))
+        # the checkpoints of later steps hold the continuation that is cut: left in place, they would
+        # count as newer than this run's own when it prunes, and a later restart would take them
+        top = os.path.join(d, "checkpoint")
+        for e in sorted(os.listdir(top)) if os.path.isdir(top) else []:
+            m = self.CHECKPOINT.match(e)
+            if m and int(m.group(1)) > n:
+                shutil.rmtree(os.path.join(top, e))
         self.write_run_json()
 
     def after_restore(self):
