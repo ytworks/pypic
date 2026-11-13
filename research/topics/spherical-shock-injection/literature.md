@@ -41,26 +41,25 @@ Section numbers below refer to the survey.
 - **Second-order Fermi acceleration in islands**, for reconnection: `hoshino2012stochastic`.
 
 ## Still to read
-- **Curved shocks: full texts not obtained** (publisher hosts refused the requests; no open copy found). Known by
-  abstract only, so every statement about them here is provisional:
-  - `kraussvarban1991electron` (the first treatment of electrons at a curved shock) and
-    `giacalone2017acceleration` (protons at a spherical blast wave): the two that matter most for novelty;
+Updated 2026-11-13 after the owner's instruction to read at least the abstract of every work that cannot be read
+in full. Every work named below the survey now has a note in `research/literature/`, most by abstract only;
+statements resting on an abstract are provisional.
+
+- **Curved shocks, known by abstract only** (publisher hosts refused the requests; no open copy found):
+  - `kraussvarban1991electron` and `giacalone2017acceleration`: the two that matter most for novelty;
   - `kraussvarban1989electron`, `kraussvarban1994electron`, `vandas1995acceleration`, `vandas1995accelerationb`,
     `vandas2001shock`, `anderson1979thin`, `wu1984fast`, `holman1983solar`, `knock2001theory`,
     `vandas2004acceleration`, `zhou2026crossscale`;
-  - not obtained at all: Leroy & Mangeney 1984 (Ann. Geophys. 2, 449); Savoini & Lembège 1999 (Adv. Space Res.
-    24, 13); the time-of-flight papers (Filbert & Kellogg 1979; Cairns 1986, 1987), known through citations.
-- **Wakefield acceleration in relativistic shocks:** arXiv:0709.1783 (Hoshino 2008), arXiv:1909.03337. The
-  survey did not cover relativistic shocks.
-- **Spherical or expanding shocks (the driver)**, prior work of `examples/blast_wave`:
-  - Le et al. 2021 (arXiv:2109.00583), hybrid;
-  - Keenan et al. 2022 (arXiv:2112.12114), hybrid;
-  - Dieckmann et al. 2018, 2-D PIC;
-  - Lezhnin et al. 2020 (arXiv:2001.04945), electron pre-energization in expanding laboratory plasmas.
-
-  To check: what these show about electrons.
-- **Found by the search and not read:** the list in the survey, Sect. 10.3.
-- **Not on arXiv:** Matsumoto et al. 2015 (Science), Rothenflug et al. 2004, Fulbright & Reynolds 1990.
+  - time-of-flight and foreshock edge: `filbert1979electrostatic`, `cairns1986source`, `cairns1987electron`,
+    `cairns1987theory`; `leroy1984theory` (from an indexer's summary).
+- **No abstract found, not read:** Savoini & Lembège 1999 (Adv. Space Res. 24, 13; DOI
+  10.1016/S0273-1177(99)00417-2), "Full curvature effects of a collisionless shock"; Bashurin et al. 1983
+  (J. Appl. Mech. Tech. Phys. 24, 614), the early magnetic-piston criterion.
+- **The found-and-not-read list of the survey (Sect. 10.3)** is covered: 29 abstract notes; `keenan2022hybrid`,
+  `le2021astrophysical`, `orusa2026role`, `shimada2010structure` skimmed; Lezhnin et al. 2020 is
+  `lezhnin2021kinetic` (the journal version).
+- **Relativistic shocks:** `hoshino2008wakefield`, `iwamoto2019precursor` (abstract; background only).
+- **Not on arXiv:** `matsumoto2015stochastic`, `rothenflug2004geometry`, `fulbright1990bipolar` (abstract).
 
 ## Open
 From the survey, Sects. 8.2 and 8.3:
@@ -115,6 +114,33 @@ listed under "Still to read".
   non-zero thickness); "Vandas 2001" in JGR is `vandas2001shock`, and a second paper of 2001 is
   `vandas2001shockb`; `vandas1994acceleration` is an earlier, open paper; Schmidt & Cairns 2014 (JGR 119, 69) is
   marked retracted in OpenAlex and is not to be cited without a check.
+
+## Piston-driven shock formation (read 2026-11-13, for run P5)
+How a debris or piston drives a magnetised shock, and how strong it gets. Read in full or skimmed:
+`schaeffer2015experimental`, `schaeffer2017generation`, `schaeffer2019direct`, `schaeffer2020kinetic`,
+`fox2018kinetic`, `matsukiyo2024mechanism`, `umeda2019full`, `yao2021laboratory`, `yao2022detailed`; by abstract:
+`winske2007hybrid`, `hewett2011physics`, `clark2013hybrid`, `clark2014enhanced`, `niemann2014observation`,
+`schaeffer2012generation`, `schaeffer2014laserdriven`, `schaeffer2017highmach`, `bondarenko2017collisionless`,
+`fiuza2020electron`.
+
+- **Coupling and room.** A super-Alfvénic piston, the coupling ε = R_M² / (ρ_d ρ_a) ≳ 0.5 (the value from
+  `clark2013hybrid`, known here second-hand) and room μ = D₀ / ρ_a > 1; room was the hardest to meet in the
+  laboratory (`schaeffer2015experimental`). P5 has ε = (R_m / ρ_d)² = 49 for debris and ambient ions of equal
+  mass and charge, and room of 3.8 ρ_d from the initial debris edge to the usable box.
+- **Formation.** Onset about 1 / Ω_ci at about 1 ρ, separation from the piston about 2.5 / Ω_ci at 2.5 ρ,
+  developed downstream about 5 / Ω_ci at 5–6 ρ, nearly independent of M_A from 3 to 57 (`schaeffer2020kinetic`;
+  ρ from the piston speed). P5 became valid at 3.86 / Ω_ci, 2.2 ρ_d beyond the debris edge of the design
+  (0.65 R_m, at 0.1 n₀): between separation and a developed downstream.
+- **Strength.** The shock speed tends to 4/3 of the piston speed at large M_A (`schaeffer2020kinetic`). Strong
+  shocks in these works have a source that stays on; finite debris clouds in the laboratory gave M_A ≈ 2
+  (`schaeffer2015experimental`, `niemann2014observation`), and a laser-driven shock decayed to subcritical within
+  about 1.5 gyro-periods (`yao2021laboratory`). P5, a finite shell with R_m / ρ_d = 7, kept fast Mach 3.0–3.6
+  while driven, for about 2 / Ω_ci, until the box ended it.
+- **Geometry and electrons.** All kinetic studies found are 1-D or 2-D, at mass ratio 50 or above; none is 3-D
+  and spherical, and none analyses electron acceleration at such a shock. `yao2022detailed` calls its 1-D run the
+  tip of a semi-spherical front whose oblique parts are weaker, and does not simulate them.
+- **How firm this is:** a targeted search on 2026-11-13, not a systematic survey of the field; ten of the
+  nineteen works by abstract only.
 
 ## This topic
 To be written once the research question is decided (the owner's decision, open since the review of
