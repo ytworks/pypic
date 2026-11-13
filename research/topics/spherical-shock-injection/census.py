@@ -48,6 +48,7 @@ class FrontModel:
         self.t_range, self.t_range_b = t_range, t_range_b
         self.t, self.theta = np.asarray(t, float), np.asarray(theta, float)
         self.dt, self.dtheta = self.t[1] - self.t[0], self.theta[1] - self.theta[0]
+        self.dt_dump = self.dt  # spacing of the particle dumps; set by cmd_census when it is a multiple of dt
         self.flag_map = (np.asarray(detected, int) + np.asarray(valid, int) + np.asarray(usable, int)).astype(np.int8)
         self.b_mean, self.b_cell, self.has_b = (np.asarray(a) for a in (b_mean, b_cell, has_b))
         det = np.asarray(detected, bool)
@@ -313,6 +314,22 @@ def classify_only(model, part, t):
         model.tab_b = tab_b
 
 
+def dump_spacing(times, slice_t, rtol=1e-6):
+    """The spacing of the particle dumps. They must be evenly spaced and fall on the times of the slices (so the
+    spacing is a whole multiple of that of the slices); otherwise SystemExit."""
+    times, slice_t = np.asarray(times, float), np.asarray(slice_t, float)
+    dt = slice_t[1] - slice_t[0]
+    if len(times) < 2:
+        raise SystemExit("fewer than two particle dumps")
+    step = times[1] - times[0]
+    k = np.rint((times - slice_t[0]) / dt)
+    on_slices = np.allclose(times, slice_t[0] + k * dt, rtol=0, atol=rtol * dt) and k.max() < len(slice_t)
+    even = np.allclose(np.diff(times), step, rtol=0, atol=rtol * dt) and step > 0
+    if not (on_slices and even):
+        raise SystemExit("the particle dumps are not evenly spaced on the times of the slices")
+    return float(step)
+
+
 def scatter_rates(acc, dt_dump, nu_fallback, n_min=100):
     """Pool the N3b sums over the dumps. Returns (rows per energy bin, nu used per energy bin)."""
     tot = acc.sum(axis=0) if len(acc) else np.zeros((len(E_EDGES) - 1, len(N3B_KEYS)))
@@ -334,7 +351,7 @@ def assign(rec, model, nu_use, p999_of=None):
     """The result of every electron (RESULTS) and the K1 flags; adds result, flight, k1, beyond_debris."""
     up = rec["cls"] <= 1
     period = 2.0 * np.pi / model.b0
-    n_s2, n_und = int(np.ceil(10 * period / model.dt)), int(np.ceil(3 * period / model.dt))
+    n_s2, n_und = int(np.ceil(10 * period / model.dt_dump)), int(np.ceil(3 * period / model.dt_dump))
     flight = rec["t"] - rec["t_r"]
     limit = 0.1 / np.asarray(nu_use)[np.clip(e_bin(rec["gamma"]), 0, len(nu_use) - 1)]
     und = rec["und"].copy()
@@ -634,6 +651,20 @@ def selfcheck(check):
           f"bulk fit {got.round(4).tolist()} for {temps.tolist()}; tail above {edges[k_cut]:.2f} measured / expected "
           f"{ratio.round(3).tolist()} at T = 0.05, 0.1")
 
+    # (8) the dump spacing: equal to the slices (L, S25) or a multiple of it (P5); refused off the slices
+    sl = 9.0 * np.arange(41)
+
+    def refused(times):
+        try:
+            dump_spacing(times, sl)
+        except SystemExit:
+            return True
+        return False
+    ok = (dump_spacing(sl, sl) == 9.0 and dump_spacing(18.0 * np.arange(21), sl) == 18.0
+          and refused(4.5 + 18.0 * np.arange(20)) and refused(np.array([0.0, 18.0, 27.0])) and refused(sl[:1]))
+    check("census, dump spacing", ok, "dumps on every slice: 9; on every second: 18; off the slices, uneven or "
+          "single: refused")
+
 
 # ------------------------------------------------------------------ the command
 def _open(run_dir):
@@ -739,11 +770,10 @@ def cmd_census(args) -> int:
     down_rows, temp_down = downstream_reference(run, model, r_debris)
     p = run.particles("hot_e")
     times = np.asarray(p.times, float)
-    if not np.allclose(times, model.t[:len(times)]):
-        raise SystemExit("the particle dumps and the slices are not at the same times")
+    model.dt_dump = dump_spacing(times, model.t)
     rec, acc = run_census(model, ((float(t), p.get(it, "e")) for it, t in zip(p.iterations, times)), temp_down)
     nu_null = float(null["tracks"]["nu_local"][-1][1]) if null else np.nan  # v > 0.3, lag 16
-    nu_rows, nu_use = scatter_rates(acc, model.dt, nu_null)
+    nu_rows, nu_use = scatter_rates(acc, model.dt_dump, nu_null)
     p999 = None
     if null:
         rows = null["tracks"]["delta_rho"]
@@ -760,8 +790,9 @@ def cmd_census(args) -> int:
                 "null": str(args.null) if args.null else None,
                 "b_max": model.b_max, "b_cell_max": model.b_cell_max, "tau_dwell": model.tau_dwell,
                 "tau_dwell_protocol": tau_protocol,
-                "layer_dumps_S2": int(np.ceil(10 * 2 * np.pi / model.b0 / model.dt)),
-                "layer_dumps_undetermined": int(np.ceil(3 * 2 * np.pi / model.b0 / model.dt)),
+                "dump_spacing": model.dt_dump,
+                "layer_dumps_S2": int(np.ceil(10 * 2 * np.pi / model.b0 / model.dt_dump)),
+                "layer_dumps_undetermined": int(np.ceil(3 * 2 * np.pi / model.b0 / model.dt_dump)),
                 "E_th": [float(sk.thermal_bound(model.temp_upstream(t), model.n_total)) for t in times[::8]],
                 "T_down": [{"t": float(t), "T": temp_down(float(t))} for t in times[::4]],
                 "N3b": nu_rows, "downstream": down_rows,
@@ -791,7 +822,7 @@ def report(out):
         print(f"  t {row['t']:6.1f}  n {row['n>=1.5']:8d}  null {row['null_run']}  {cells}")
     print("\nupstream electrons with gamma >= 1.5 by result " + str(out["result_names"]))
     for e in out["upstream"]:
-        if e["domain"] != "no front" and round(e["t"] / 18.5) % 4 == 0:
+        if e["domain"] != "no front" and round(e["t"] / out.get("dump_spacing", 18.5)) % 4 == 0:
             print(f"  t {e['t']:6.1f} {e['domain']:15s} {list(e['results'].values())}  residual by hemisphere "
                   f"{e['residual by hemisphere']} quadrant {e['residual by quadrant']}")
     last = [e for e in out["upstream"] if e["t"] == out["per_dump"][-1]["t"]]
