@@ -11,7 +11,7 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 
 | Topic | Branch | Question | Status | Latest record |
 |---|---|---|---|---|
-| spherical-shock-injection | `research/spherical-shock-injection` | Which mechanisms, known or unknown, inject electrons at a spherical shock, where on the front (θ_Bn, curvature), and which exist only because the front is curved? (draft) | **Stopped 2026-11-13 by the owner**; branch kept (research history) | none kept |
+| spherical-shock-injection | `research/spherical-shock-injection` | Which mechanisms, known or unknown, inject electrons at a spherical shock, where on the front (θ_Bn, curvature), and which exist only because the front is curved? (draft) | Purpose stated 2026-11-12; survey open | none |
 
 ## Engine baseline
 
@@ -19,15 +19,6 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 - Its `pypic/` tree is that of 300c1a4. Gates all passed there: `bench/results/2026-11-12-300c1a498-gpu-gates.json`, `-mixed.json` and `-compact.json`.
 
 ## Change Log
-
-### 2026-11-13 — [progress] Topic spherical-shock-injection stopped
-- What: the owner stopped the theme. The session branch `claude/spherical-shock-exploratory-runs` (PR #49, runs in a
-  uniform field and in a dipole) was closed and deleted on the owner's instruction; its commits stay reachable as
-  `refs/pull/49/head`. The topic branch stays: the guard does not delete research branches. All run outputs of the
-  topic were deleted.
-- Why: owner's decision. The questions and set-ups of the topic mixed parts that match no real system
-  (parameters, initial plasma between body and ejecta, several astrophysical analogues at once).
-- Refs: PR #49 (closed); `research/spherical-shock-injection` (unchanged).
 
 ### 2026-11-12 — [amendment] Pull requests are allowed between research branches
 - What: a pull request may be opened when its base is `research/*` (a work or session branch into its topic, a topic into trunk). It is merged with a merge commit, never by squash or rebase. A pull request into main or any other non-research branch stays forbidden.
