@@ -28,7 +28,7 @@ acceleration, with animations; one example per classic problem with an analytic 
   Rows are buffered and written a whole chunk at a time: rewriting a partly filled compressed chunk
   leaks its old file space (measured: 11 MB instead of 1.3 MB for frequent track rows).
 - One run per directory: a directory that already holds run output (`run.json`, `scalars.h5`,
-  `reduced/`, `fields/`, `particles/`, `tracks/`) is refused on every rank. `output.overwrite`
+  `reduced/`, `fields/`, `particles/`, `tracks/`, `checkpoint/`) is refused on every rank. `output.overwrite`
   (`--overwrite`) removes exactly those entries first. Otherwise dumps a re-run does not rewrite
   would be read as part of it (review amendment, PR #2).
 - `run.json`: configuration, resolved schedule, layout of every diagnostic, time centering, units,
@@ -94,11 +94,21 @@ Measured (2026-11-12, RTX PRO 6000; diagnostic only): the laser run of W2 with a
 Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2).
 - A run continued from a checkpoint (PIC-D25) opens its run directory in append mode
   (`OutputManager._open_append`). This amends the refusal of OUT-D1.
+- The directory must be empty or hold the run that wrote the checkpoint: its `run.json` has the run id stored
+  in the checkpoint's `meta.json`. The output of another run (or output without `run.json`) is refused before
+  any file changes; `output.overwrite` removes it first (the run entries of OUT-D1, never the checkpoint the
+  run continues from).
 - Rows written at the checkpoint step and after it by the interrupted run are cut (`h5.truncate_series`):
-  `scalars.h5`, `reduced/*.h5`, `tracks/*.h5`; field and particle dumps of those steps are removed.
+  `scalars.h5`, `reduced/*.h5`, `tracks/*.h5`; field and particle dumps of those steps and the checkpoints of
+  later steps (they hold the continuation that is cut) are removed. A writer that was killed leaves its series
+  files flagged as open for (SWMR) writing, which HDF5 refuses to open: the cut clears those flags first
+  (`h5.clear_open_flags`, as `h5clear -s`; the superblock checksum is verified, then rewritten). The continued
+  run is assumed to be the only writer of its directory.
 - What is restored:
   - the reduced series continue from the stored step (writers reopened in append mode);
-  - averaged diagnostics restore their running sums, counts and times;
+  - averaged diagnostics restore their running sums, counts and times, if those samples are the ones the
+    (possibly changed) schedule takes for its next output; otherwise they are dropped and that output averages
+    the samples from the restart on (`checkpoint.pending_matches`);
   - tracks keep their ids;
   - run.json keeps the run id, creation time and metadata, and lists the restart under `meta.restarts`.
 - A checkpoint flushes the output first, so every row before its step is on disk.

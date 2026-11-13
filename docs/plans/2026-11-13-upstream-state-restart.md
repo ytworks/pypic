@@ -337,3 +337,18 @@ layout-dependent `fill` excluded); particle numbers, id sums, injected and absor
   absorbing layer and one without (hang), and the rank bounds taken before the window shift was restored.
 - CPU: `tests/cpu/test_checkpoint.py` (schema and refusals, allow-list, `.tmp` and incomplete directories, prune,
   meta.json round trip, cut and append of a series and of tracks); all fail on the code before (no module).
+- Review fixes (Codex, 2026-11-14), each test failing on 2f706de:
+  - Killed writer: `truncate_series` clears the open-for-SWMR-write flags of the superblock first
+    (`h5.clear_open_flags`, `h5clear -s`, checksum verified). `test_series_of_a_killed_writer_is_cut_and_continued`
+    (CPU), `test_restart_after_the_writer_was_killed` (GPU, SIGKILL after the checkpoint, 6.9e-15).
+  - Stale checkpoints: `checkpoint/` is a run entry (refused, removed by `output.overwrite`); a continued run
+    removes the checkpoints after its step. `test_stale_checkpoints_are_removed`.
+  - Destination run: `meta.json` stores the run id; a continued run appends only to an empty directory or to the
+    run with that id, else refuses before any change (`output.overwrite` replaces it).
+    `test_restart_refuses_the_output_of_another_run`.
+  - Changed average schedule: pending samples kept only if the new schedule takes exactly them next
+    (`checkpoint.pending_matches`). `test_pending_average_samples_against_the_schedule` (CPU),
+    `test_changed_average_schedule_drops_pending_samples` (GPU, t_start moved to step 30: equal to a run with that
+    schedule from the start).
+  - No particle species: the reduced counters are no longer cut to an empty list.
+    `test_restart_without_particles_onto_another_layout` (2 → 1 GPU, antenna work, 2.8e-15).

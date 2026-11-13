@@ -135,3 +135,110 @@ def test_partial_checkpoint_is_ignored_and_changed_configuration_refused(tmp_pat
     worst = _compare(ref, o, ref_dir, a)
     print(f"[restart past a .tmp checkpoint] largest relative difference {worst:.2e}")  # diagnostic
     assert worst <= TOL
+
+
+def test_restart_after_the_writer_was_killed(tmp_path):
+    """A run killed (SIGKILL) after its checkpoint leaves its series files open for SWMR writing; the
+    restart clears those flags (OUT-D6) and continues like the uninterrupted run."""
+    a, b = str(tmp_path / "a"), str(tmp_path / "b")
+    ref = _run(1, "1,1,1", "two_stream", "full", a)
+    r = _run(1, "1,1,1", "two_stream", "part", b, "kill", check=False)
+    assert r.returncode != 0
+    with pytest.raises(OSError, match="already open for write"):
+        h5py.File(os.path.join(b, "scalars.h5"), "r")
+    o = _run(1, "1,1,1", "two_stream", "resume", b)
+    assert o["start"] == ref["end"] // 2
+    worst = _compare(ref, o, a, b)
+    print(f"[restart after SIGKILL] largest relative difference {worst:.2e}")  # diagnostic
+    assert worst <= TOL
+
+
+def _checkpoints(d):
+    return sorted(os.listdir(os.path.join(d, "checkpoint")))
+
+
+def test_stale_checkpoints_are_removed(tmp_path):
+    """The checkpoints of an earlier run in the directory are refused with its output and removed by
+    output.overwrite; a restart from an earlier checkpoint removes the later ones (they belong to the
+    continuation that it cuts). Left in place, they would count as newer when pruning, and a restart
+    would take them (PIC-D25)."""
+    b = str(tmp_path / "b")
+    for step in (90, 100):  # the checkpoints of a longer earlier run
+        p = os.path.join(b, "checkpoint", f"step-{step:08d}")
+        os.makedirs(p)
+        with open(os.path.join(p, "meta.json"), "w") as f:
+            json.dump({"format": "pypic-checkpoint-1", "layout": {"world": 1}, "step": step}, f)
+        open(os.path.join(p, "rank-0.npz"), "wb").close()
+    r = _run(1, "1,1,1", "two_stream", "part", b, check=False)
+    assert r.returncode != 0 and "checkpoint" in r.stderr and "overwrite" in r.stderr
+    _run(1, "1,1,1", "two_stream", "part", b, "overwrite")
+    assert _checkpoints(b) == ["step-00000020"]
+    assert _run(1, "1,1,1", "two_stream", "resume", b)["start"] == 20
+    a = str(tmp_path / "a")
+    _run(1, "1,1,1", "two_stream", "full", a)
+    assert _checkpoints(a) == ["step-00000020", "step-00000040"]
+    o = _run(1, "1,1,1", "two_stream", "part", a, "from=" + os.path.join(a, "checkpoint", "step-00000020"))
+    assert o["start"] == 20 and _checkpoints(a) == ["step-00000020"]
+
+
+def _snapshot(d):
+    out = {}
+    for r, _, fs in os.walk(d):
+        for f in fs:
+            with open(os.path.join(r, f), "rb") as fh:
+                out[os.path.relpath(os.path.join(r, f), d)] = fh.read()
+    return out
+
+
+def test_restart_refuses_the_output_of_another_run(tmp_path):
+    """A continued run appends only to the run that wrote its checkpoint (the run id) or to an empty
+    directory: the output of another run is refused before any file changes, and replaced with
+    output.overwrite (OUT-D6)."""
+    a, b = str(tmp_path / "a"), str(tmp_path / "b")
+    _run(1, "1,1,1", "two_stream", "part", a)
+    _run(1, "1,1,1", "two_stream", "part", b)
+    before = _snapshot(b)
+    src = "from=" + os.path.join(a, "checkpoint")
+    r = _run(1, "1,1,1", "two_stream", "resume", b, src, check=False)
+    assert r.returncode != 0 and "another run" in r.stderr
+    assert _snapshot(b) == before
+    o = _run(1, "1,1,1", "two_stream", "resume", b, src, "overwrite")
+    assert o["start"] == 20
+    with h5py.File(os.path.join(b, "reduced", "slice.h5"), "r") as f:
+        assert f["step"][0] == 20  # only the continuation: the rows of the other run are gone
+    assert _checkpoints(b) == ["step-00000040"]
+
+
+def test_changed_average_schedule_drops_pending_samples(tmp_path):
+    """The averaged lineout has the sample of step 19 pending at the checkpoint of step 20; the
+    continued run starts the lineout at step 30. Its output at 30 averages the samples 25..30, as a
+    run with that schedule from the start does, without step 19."""
+    r, b = str(tmp_path / "r"), str(tmp_path / "b")
+    _run(1, "1,1,1", "two_stream", "full", r, "tstart")
+    _run(1, "1,1,1", "two_stream", "part", b)
+    _run(1, "1,1,1", "two_stream", "resume", b, "tstart")
+    name = os.path.join("reduced", "lineout.h5")
+    with h5py.File(os.path.join(r, name), "r") as f, h5py.File(os.path.join(b, name), "r") as g:
+        assert f["step"][...].tolist() == [30, 36]
+        keep = g["step"][...] >= 30
+        assert g["step"][keep].tolist() == [30, 36]
+        worst = max(_rel(f[k][...], g[k][...][keep]) for k in f if k != "step")
+    print(f"[restart with a later t_start] largest relative difference {worst:.2e}")  # diagnostic
+    assert worst <= TOL
+
+
+@pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 2, reason="needs >= 2 GPUs")
+def test_restart_without_particles_onto_another_layout(tmp_path):
+    """No particle species, a laser antenna: the reduced counters (the antenna work) survive a
+    checkpoint written on 2 GPUs and restored on 1 GPU (PIC-D25)."""
+    base = str(tmp_path / "b")
+    _run(2, "2,1,1", "vacuum", "part", base)
+    dirs = {n: str(tmp_path / f"b{n}") for n in (2, 1)}
+    for d in dirs.values():
+        shutil.copytree(base, d)
+    ref = _run(2, "2,1,1", "vacuum", "resume", dirs[2])
+    o = _run(1, "1,1,1", "vacuum", "resume", dirs[1])
+    assert o["start"] == ref["start"] == 20 and ref["antenna"][-1] > 0.0
+    worst = _compare(ref, o, dirs[2], dirs[1])
+    print(f"[restart without particles 2 -> 1 GPU] largest relative difference {worst:.2e}")  # diagnostic
+    assert worst <= TOL

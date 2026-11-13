@@ -189,9 +189,85 @@ class TrackWriter(SeriesWriter):
         self.f.create_dataset("id", data=self.ids)
 
 
+_M32 = 0xFFFFFFFF
+
+
+def _rot(x, k):
+    return ((x << k) | (x >> (32 - k))) & _M32
+
+
+def _lookup3(data: bytes) -> int:
+    """Jenkins' lookup3 hash (hashlittle, initial value 0): the checksum of HDF5 metadata."""
+    a = b = c = (0xDEADBEEF + len(data)) & _M32
+    n, k = len(data), 0
+    while n > 12:
+        a = (a + int.from_bytes(data[k: k + 4], "little")) & _M32
+        b = (b + int.from_bytes(data[k + 4: k + 8], "little")) & _M32
+        c = (c + int.from_bytes(data[k + 8: k + 12], "little")) & _M32
+        for x, y, z, r in ((0, 2, 1, 4), (1, 0, 2, 6), (2, 1, 0, 8), (0, 2, 1, 16), (1, 0, 2, 19), (2, 1, 0, 4)):
+            v = [a, b, c]
+            v[x] = (v[x] - v[y]) & _M32
+            v[x] ^= _rot(v[y], r)
+            v[y] = (v[y] + v[z]) & _M32
+            a, b, c = v
+        n, k = n - 12, k + 12
+    if n == 0:
+        return c
+    tail = data[k:] + bytes(12 - n)
+    a = (a + int.from_bytes(tail[0:4], "little")) & _M32
+    b = (b + int.from_bytes(tail[4:8], "little")) & _M32
+    c = (c + int.from_bytes(tail[8:12], "little")) & _M32
+    for x, y, r in ((2, 1, 14), (0, 2, 11), (1, 0, 25), (2, 1, 16), (0, 2, 4), (1, 0, 14), (2, 1, 24)):
+        v = [a, b, c]
+        v[x] ^= v[y]
+        v[x] = (v[x] - _rot(v[y], r)) & _M32
+        a, b, c = v
+    return c
+
+
+_SIGNATURE = b"\x89HDF\r\n\x1a\n"
+
+
+def clear_open_flags(path: str) -> bool:
+    """Clear the file consistency flags that a writer left in the superblock (``h5clear -s``).
+
+    A file opened for (SWMR) writing carries these flags until it is closed; a writer that was
+    killed leaves them set, and HDF5 then refuses to open the file ("file is already open for
+    write"). A run continued from a checkpoint (OUT-D6) is the only writer of its directory, so the
+    flags of its series files are those of the interrupted run. Only a version 2/3 superblock has
+    them (the files of this module, ``libver="latest"``); its checksum is verified before the
+    rewrite. Returns whether the flags were set."""
+    with open(path, "r+b") as f:
+        size = os.fstat(f.fileno()).st_size
+        base = 0
+        while True:  # the superblock is at 0 or after a user block of 512, 1024, 2048, ... bytes
+            f.seek(base)
+            if f.read(8) == _SIGNATURE:
+                break
+            base = 512 if base == 0 else 2 * base
+            if base >= size:
+                raise OSError(f"{path}: no HDF5 superblock")
+        head = f.read(4)
+        version, offsets, flags = head[0], head[1], head[3]
+        if version < 2 or flags == 0:
+            return False
+        n = 12 + 4 * offsets  # signature .. root object header address, then the checksum
+        f.seek(base)
+        sb = bytearray(f.read(n + 4))
+        if _lookup3(bytes(sb[:n])) != int.from_bytes(sb[n:], "little"):
+            raise OSError(f"{path}: the superblock checksum does not match; not changing the file")
+        sb[11] = 0
+        sb[n:] = _lookup3(bytes(sb[:n])).to_bytes(4, "little")
+        f.seek(base)
+        f.write(sb)
+    return True
+
+
 def truncate_series(path: str, step: int) -> int:
     """Cut the rows of a series (or tracks) file at ``step`` and later (a run continued from the
-    checkpoint of that step writes them again, OUT-D6). Returns the rows kept."""
+    checkpoint of that step writes them again, OUT-D6). Returns the rows kept. The open-for-write
+    flags of a writer that was killed are cleared first (:func:`clear_open_flags`)."""
+    clear_open_flags(path)
     with h5py.File(path, "a", libver="latest") as f:
         if "step" not in f:
             return 0
