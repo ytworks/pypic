@@ -237,3 +237,25 @@ def test_run_record_counts_the_steps_of_the_segment():
     sim = SimpleNamespace(wall_time=2.0, push_rate=lambda: 0.5, step_count=100, _run_steps=20)
     st = run_stats(sim, 2)
     assert st["steps"] == 20 and st["step_end"] == 100 and 1e3 * st["wall_time_s"] / st["steps"] == 100.0
+
+
+def test_series_cut_keeps_only_the_committed_prefix(tmp_path):
+    """A writer killed between extending the datasets and filling them leaves rows of fill zeros after
+    its last steps: the cut keeps the strictly increasing rows before the checkpoint step (review of
+    PR #50; searchsorted on the unsorted steps kept them all)."""
+    import h5py
+
+    from pypic.output.h5 import SeriesWriter, truncate_series
+
+    path = str(tmp_path / "s.h5")
+    w = SeriesWriter(path, {}, "deflate", 1, max_rows=4)
+    for s in range(10):
+        w.append(s, 0.5 * s, {"v": np.full(3, float(s))})
+    w.close()
+    with h5py.File(path, "a") as f:  # the extension that reached the disk before its values
+        for k, ds in f.items():
+            if k not in SeriesWriter.FIXED:
+                ds.resize(ds.shape[0] + 100, axis=0)
+    assert truncate_series(path, 6) == 6
+    with h5py.File(path, "r") as f:
+        assert f["step"][...].tolist() == list(range(6))

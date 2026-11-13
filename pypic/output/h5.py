@@ -284,7 +284,13 @@ def truncate_series(path: str, step: int) -> int:
         if "step" not in f:
             return 0
         steps = f["step"][...]
-        keep = int(np.searchsorted(steps, step, side="left"))
+        # The rows kept are the committed prefix: strictly increasing steps before ``step``. A writer
+        # killed between extending the datasets and filling them leaves rows of fill zeros, so the
+        # array need not be sorted (review of PR #50); the rows before the checkpoint step were flushed
+        # at the checkpoint and are complete.
+        keep = 0
+        while keep < steps.size and steps[keep] < step and (keep == 0 or steps[keep] > steps[keep - 1]):
+            keep += 1
         if keep < steps.size:
             for k, ds in f.items():
                 if k not in SeriesWriter.FIXED:

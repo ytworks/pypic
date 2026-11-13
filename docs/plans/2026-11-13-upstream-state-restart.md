@@ -364,6 +364,10 @@ Probes (scratch scripts, not kept) and then `tests/gpu/test_inflow.py`, `tests/c
     `test_marder_zone_leaves_no_incident_field_on_the_outer_conductor`.
   - **P2:** Faraday's law is checked against its own terms (|ω B|, |k × E|). `test_faraday_is_checked_against_its_own_terms`.
   - **P2:** the new two-GPU restore test is skipped on hosts with one device.
+- **Review of PR #50, round 7** (Codex, on 134fa83): one finding.
+  - **P2:** a series cut keeps the committed prefix only: the strictly increasing steps before the checkpoint
+    step. Before, it searched steps that a writer killed between extending and filling the datasets had left
+    unsorted. `test_series_cut_keeps_only_the_committed_prefix` (CPU); it fails on the code before.
 - **Without a table** the kernels take the old paths. The injection and open-flow GPU tests pass unchanged, and
   all 48 kernel cases compile.
 
