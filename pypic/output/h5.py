@@ -71,17 +71,28 @@ class SeriesWriter:
     (``h5py.File(path, 'r', swmr=True)``); readers see complete chunks."""
 
     def __init__(self, path: str, attrs: dict, codec: str, level: int, chunk_bytes: int = 256 << 10,
-                 max_rows: int = 256):
+                 max_rows: int = 256, append: bool = False):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         self.path = path
-        self.f = h5py.File(path, "w", libver="latest")
-        for k, v in attrs.items():
-            self.f.attrs[k] = _attr(v)
         self.comp = compression(codec, level)
         self.chunk_bytes, self.max_rows = chunk_bytes, max_rows
         self.ds = None
         self.n = 0  # rows on disk
         self.buf = []  # pending rows: (step, t, data)
+        if append and os.path.exists(path):  # a run continued from a checkpoint (OUT-D6)
+            self.f = h5py.File(path, "a", libver="latest")
+            if "step" in self.f:
+                self.ds = {k: v for k, v in self.f.items() if k not in self.FIXED}
+                self.n = int(self.ds["step"].shape[0])
+                rows = [v.chunks[0] for k, v in self.ds.items() if k not in ("t", "step")]
+                self.rows = int(rows[0]) if rows else 1
+                self.f.swmr_mode = True
+            return
+        self.f = h5py.File(path, "w", libver="latest")
+        for k, v in attrs.items():
+            self.f.attrs[k] = _attr(v)
+
+    FIXED = ("id",)  # datasets written once, not along time
 
     def _create(self, data: dict):
         row = max([np.asarray(v).nbytes for v in data.values()] + [8])
@@ -170,12 +181,27 @@ class TrackWriter(SeriesWriter):
     stored once in ``id`` (written before SWMR starts); a particle that has left the domain is
     NaN from then on."""
 
-    def __init__(self, path: str, attrs: dict, codec: str, level: int, ids: np.ndarray):
-        super().__init__(path, attrs, codec, level, chunk_bytes=1 << 20, max_rows=64)
+    def __init__(self, path: str, attrs: dict, codec: str, level: int, ids: np.ndarray, append: bool = False):
         self.ids = np.asarray(ids, dtype=np.uint64)
+        super().__init__(path, attrs, codec, level, chunk_bytes=1 << 20, max_rows=64, append=append)
 
     def _before_swmr(self):
         self.f.create_dataset("id", data=self.ids)
+
+
+def truncate_series(path: str, step: int) -> int:
+    """Cut the rows of a series (or tracks) file at ``step`` and later (a run continued from the
+    checkpoint of that step writes them again, OUT-D6). Returns the rows kept."""
+    with h5py.File(path, "a", libver="latest") as f:
+        if "step" not in f:
+            return 0
+        steps = f["step"][...]
+        keep = int(np.searchsorted(steps, step, side="left"))
+        if keep < steps.size:
+            for k, ds in f.items():
+                if k not in SeriesWriter.FIXED:
+                    ds.resize(keep, axis=0)
+        return keep
 
 
 def _attr(v):

@@ -2,7 +2,7 @@
 
 Status: **Accepted** (2026-11-09, PR #2). Plan: `docs/plans/2026-11-09-output-analysis-examples.md`.
 OUT-D5 **Accepted** (2026-11-12, wakefield plan).
-Decisions: OUT-D1..D5, ANA-D1..D3.
+Decisions: OUT-D1..D6, ANA-D1..D3.
 Applies to: `pypic/output/` (schedule, writers, GPU diagnostics, manager), `pypic/analysis/`,
 `pypic/setup/runner.py`, every `examples/<name>/`.
 
@@ -92,13 +92,17 @@ Measured (2026-11-12, RTX PRO 6000; diagnostic only): the laser run of W2 with a
 
 ### OUT-D6 — Restart appends to its run directory (2026-11-13) — Status: Proposed
 Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2).
-- A run continued from a checkpoint (PIC-D25) opens its existing run directory in append mode. This amends the
-  refusal of OUT-D1.
+- A run continued from a checkpoint (PIC-D25) opens its run directory in append mode
+  (`OutputManager._open_append`). This amends the refusal of OUT-D1.
+- Rows written at the checkpoint step and after it by the interrupted run are cut (`h5.truncate_series`):
+  `scalars.h5`, `reduced/*.h5`, `tracks/*.h5`; field and particle dumps of those steps are removed.
 - What is restored:
-  - the reduced series continue from the stored step;
-  - averaged diagnostics restore their accumulators;
-  - tracks keep their ids.
-- Rows written after the checkpoint by the interrupted run are cut back to the checkpoint step.
+  - the reduced series continue from the stored step (writers reopened in append mode);
+  - averaged diagnostics restore their running sums, counts and times;
+  - tracks keep their ids;
+  - run.json keeps the run id, creation time and metadata, and lists the restart under `meta.restarts`.
+- A checkpoint flushes the output first, so every row before its step is on disk.
+
 ### PIC-D8 — Persistent particle ids (see `docs/design/engine.md`)
 
 ### ANA-D1 — Analysis package on CPU only
