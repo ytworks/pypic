@@ -3,6 +3,37 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — Revision after the review: one question, design estimates
+
+- **Paper work** (review, "Shortest path"): `design/estimates.py` (output `design/estimates.md`).
+  - Assumptions are in its docstring. L_sh is taken as the foot width 0.68 M_A d_i (Woods / Livesey, not read).
+  - **Polarization rotation (kinetic, parallel Maxwellian):** about 1.5 × the Hall-MHD rate. The x-polarized share
+    of a linear slab falls to 0.75 after 6.9 Ω_ci⁻¹ at L_y = 50 d_i, after 87 at L_y = 200, and after 307 at L_y = 400.
+  - **Ξ at δB_x/B0 = 0.6, M_A = 4.5:** 3.4 / 6.9 / 13.6 / 27 for L_y = 50 / 100 / 200 / 400 d_i. The set-up of
+    `guo2010effect` gives 38.
+  - **t_conn / t_along** does not depend on L_y: about 0.66 at m_i/m_e = 100 and about 2.8 at 1836.
+  - **Thermal electrons able to stream upstream along the local field:** 7 % at m_i/m_e = 100, 18 % at 400, 29 % at
+    1836 (δB_x/B0 = 0.6, M_A = 4.5).
+  - **Grid heating:** λ_De / dx = 0.35 at ω_pe/Ω_ce = 10, β_e = 1, 5 cells per d_e. This is a new risk, to be settled
+    by the pilot.
+- **Notes the review asked for:**
+  - `jokipii2007adiabatic` (abstract), `qin2018effects` (full), `xu2025electron` (abstract), `zank2015diffusive`
+    (skimmed);
+  - `xu2020electron`, copied verbatim from `research/spherical-shock-injection` and checked against a full read.
+  - The full texts of the abstract-only design notes were not reachable (IOP bot check, Wiley 403, ADS 403/504).
+- **Corrections:**
+  - `barnes1974large`: the abstract, found through OpenAlex, describes a transverse mode with constant pressure,
+    density and |B|. It names a linearly polarized finite-amplitude wave for a small range of directions only. It
+    does not mention arc polarization, which the first README draft and the note cite.
+  - `fulat2026pic`: the published reference is ApJ 1005(1), 107 (2026-06-29), DOI 10.3847/1538-4357/ae71b6 (Crossref).
+    The note is kept verbatim (shared with another branch), so this entry is the record.
+- **README revised:**
+  - One proposed question: multiple connection against the local-θ_Bn null, scaled by Ξ and by the mass ratio.
+  - The Approach is rebuilt on the review's controls.
+  - E4 is dropped.
+  - About 700 h of the node.
+- **Not done:** the minimal model, the expert check, and the owner's decision on the question.
+
 ## 2026-11-13 — Review of the plan
 
 - The `research-reviewer` agent reviewed README, survey, literature map and notebook. Its report is kept in

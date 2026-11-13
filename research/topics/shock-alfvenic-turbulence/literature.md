@@ -16,6 +16,10 @@ they are related to the question. The search behind it: `survey-shock-alfvenic-t
     shock; per-particle work split. This is the design template.
   - `demidem2023relativistic`: density waves corrugate the front.
 - **Field-line meandering, test electrons or test particles** (the picture to be tested):
+  - The mechanism: `jokipii2007adiabatic` (abstract).
+  - A conflicting result: `qin2018effects`. Efficiency falls as turbulence rises at a perpendicular shock; static,
+    not frozen-in fluctuations.
+  - A competing channel without meandering: `xu2025electron` (electrons trapped between large-scale ripples; abstract).
   - Test electrons in fields from a hybrid code: `guo2010effect`, `guo2012particle`.
   - Test electrons in kinematic fields: `guo2015acceleration`.
   - Protons: `giacalone2005particle` (test particles in prescribed fields) and `giacalone2005efficient` (self-consistent).
@@ -30,6 +34,9 @@ they are related to the question. The search behind it: `survey-shock-alfvenic-t
   - Whistlers: `riquelme2011electron`, `oka2006whistler`.
   - Surfing and Weibel: `matsumoto2017electron`, `bohdan2017electron` (2-D in-plane vs out-of-plane B0).
   - Low-Mach ICM shocks: `guo2014nonthermal`.
+  - Laminar kinetic baseline: `xu2020electron` (1-D PIC, repeated SDA cycles; copied verbatim from
+    `research/spherical-shock-injection`).
+  - Island contraction downstream (analytic): `zank2015diffusive`.
 - **Front corrugation by turbulence (theory):** `jebaraj2025turbulence`.
 - **Relativistic shocks in clumps (MHD plus test particles):** `morikawa2024particle`.
 - **Turbulence in PIC without a shock** (null test and set-up):
@@ -59,8 +66,11 @@ they are related to the question. The search behind it: `survey-shock-alfvenic-t
 - Behar 2022; Behar & Henri 2023 (the method behind `behar2024impact`).
 - Abstract-only notes to be read in full when the text is reachable: `giacalone2005particle`,
   `giacalone2005efficient`, `jokipii1993perpendicular`, `matteini2010kinetics`, `kilpua2015properties`, `oka2006whistler`,
-  `nakanotani2021interaction`, `lo2026effect`, `morikawa2024particle`, `jebaraj2025turbulence`, `shankar2026particle`.
-  `barnes1974large` rests on citing works only.
+  `nakanotani2021interaction`, `lo2026effect`, `morikawa2024particle`, `jebaraj2025turbulence`, `shankar2026particle`,
+  `jokipii2007adiabatic`, `xu2025electron`. IOP, Wiley and ADS refused the full texts on 2026-11-13.
+- `barnes1974large` rests on citing works only. Its abstract was found later (notebook, 2026-11-13, "Revision"): a
+  transverse mode with constant pressure, density and |B|, and a linearly polarized finite-amplitude wave for a
+  small range of directions only. The note's statement on arc polarization is not supported by the abstract.
 
 ## Open
 - Whether a fully kinetic (kinetic-electron) run of a nonrelativistic shock in pre-existing magnetic or Alfvénic
