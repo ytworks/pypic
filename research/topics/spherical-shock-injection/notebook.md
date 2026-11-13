@@ -3,6 +3,24 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — P5: were electrons accelerated at the shock and then moved away? Not in the tracks
+
+- **Owner:** the snapshot test cannot tell an electron accelerated at the shock that then moved inward or
+  escaped. Tested on the tracked electrons (956,674 ambient, every 2 steps; script
+  `P5/analysis/figures/where.py`): where each one first crosses a γ threshold, where its energy changes (sum of
+  dγ per region of the step), and where it ends (or whether it leaves the box). Regions: upstream (beyond the
+  front + d_i), front layer (± d_i), shock downstream (debris edge to front − d_i), debris interior.
+- **γ ≥ 2 (350 electrons):** 349 cross inside the debris edge (t ≈ 150, polar angle ≈ 75°), one in the shock
+  downstream. Gains: +3221 inside the debris, +2.8 in the shock downstream, +0.6 in the front layer, 0 upstream.
+  None leaves the box; 347 end inside the debris. Born at r = 52–71 d_e (inside the initial debris shell).
+- **γ ≥ 3 (11):** all cross, gain and end inside the debris.
+- **γ ≥ 1.5 (5741):** first crossing inside the debris 5037, shock downstream 577, front layer 124, upstream 3.
+  Net change of γ by region: debris +1504, front layer −285, shock downstream −56, upstream +12. 13 leave the
+  box, at γ ≈ 1.3.
+- **Reading.** No tracked electron gains its energy at the front and then leaves it: the energetic electrons
+  are energised in the debris interior, and the front layer takes energy from electrons on balance. Limits:
+  tracks sample 1 in 947 of the initial ambient electrons; electrons that enter at the faces are not tracked.
+
 ## 2026-11-13 — P5: is there a nonthermal component at all? Not at the shock; yes inside the debris
 
 - **Owner:** without a nonthermal component the question does not arise. So the first test is an excess over
