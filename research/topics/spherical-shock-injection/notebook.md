@@ -3,6 +3,34 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — P5: the fields where the electrons gain energy (owner: observe the acceleration itself)
+
+Scripts and figures: `P5/analysis/figures/fields.py`, `work.py`, `orbitfield.py` (NVMe output, not in git).
+
+- **Fields** (slices y and z = centre, t = 108–180). The debris interior is a magnetic cavity (|B| = 0–0.5 B₀)
+  bounded by a pile-up of 3.5–4 B₀ between the debris edge and the front. A smooth, positive E_φ of 0.1–0.3
+  (motional, V_r B_z) lies on the pile-up. Inside the cavity E fluctuates at the grid scale with ±0.3 (rms at
+  the electrons 0.12–0.16, against 0.09–0.10 for the smooth part). The mean electron energy (0.1–0.2 m_e c²)
+  is highest in the band just inside the debris edge, where the debris ions are dense.
+- **Work on the tracked electrons up to their γ_max** (E and v averaged over 60 for the smooth part):
+  - γ_max ≥ 2 (350): Δγ summed 430; work of all fields 295 (the rest not closed: tracks every 2 steps miss
+    part of the fast fields). E_φ: +195, of which smooth +589 and fast −394; E_r +78 (fast); E_θ +22.
+  - Gains by |B| at the electron: net +520 at 0.5–1.5 B₀ (73 % of the time), +56 below 0.5, −136 at
+    1.5–3 and −146 above 3. Smoothed v_φ: median −0.09 c (10 %: −0.29 c), against E_φ = 0.04–0.12; the
+    product −E_φ v_φ is positive 87 % of the time.
+  - γ_max 1.5–2 (5391): the same pattern (smooth E_φ +3405, fast E_φ −1419; smooth E_r −811).
+- **Orbits.** The γ ≥ 3 electrons move on large loops (Larmor radius about 10 d_e at γ ≈ 3 in B₀) across the
+  inner edge of the pile-up: half a turn in the cavity, half in the pile-up. The loops drift in −φ along the
+  ring. γ rises and falls within each loop. Over many loops the net gain comes from the smooth E_φ.
+- **Reading (an observation, not a claim).** The electrons gain energy by drifting in −φ along the motional
+  E_φ at the inner edge of the magnetic piston, where |B| grows outward. There the ∇B (and meandering) drift
+  of an electron points in −φ. On the outer side of the pile-up (the shock ramp) the gradient is reversed and
+  electrons lose energy in this frame: this fits the negative net work in the front layer. The grid-scale
+  fluctuations take energy on balance; they are not the source.
+- **Limits.** Work closure 69 % for γ_max ≥ 2. One run, mass ratio 16. The cavity and its edge are a property
+  of the debris model (a dense shell expanding at 0.357 c). No literature checked yet for electron
+  energisation at the edge of a diamagnetic cavity.
+
 ## 2026-11-13 — P5: were electrons accelerated at the shock and then moved away? Not in the tracks
 
 - **Owner:** the snapshot test cannot tell an electron accelerated at the shock that then moved inward or
