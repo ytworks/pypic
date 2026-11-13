@@ -89,3 +89,41 @@ up to the luminal angle). Energy: under H_T the hotter runs return electrons whe
 - Electrons placed inside the debris shell at t = 0 are excluded by their birth radius; an engine option to keep
   ambient plasma out of the shell is planned on main (B-1), not used here.
 - Outputs are pruned after the analyses; a re-analysis needing the tracks needs a re-run.
+
+## 8. Amendment after the design review (2026-11-13, before the runs that need it)
+
+Review: `research-reviewer` on this document (advice, not approval). Taken: the return floor from boundary
+flicker, the missing mirror ratio, the confounded M_A comparison, the energy measure, an absolute fit scale.
+The configs do not change; only the measures and verdicts below replace those of Sects. 4–6 where they differ.
+
+- **Two definitions of a reflection**, both scored; a verdict must hold under both:
+  - *2 %*: the entry returns upstream with γ_out > 1.02 γ_in (Sect. 4);
+  - *persistent*: the same, and after the return the electron stays upstream for one upstream gyro-period
+    2π γ_in / Ω_ce0 or gets ahead of the front by d_i + 2 ρ_e (ρ_e = γ v / Ω_ce0).
+- **Bins:** the verdicts use the V_HT bins below 1.0 c only. Returns beyond the luminal angle are reported apart.
+- **H_A, an adiabatic mirror in the de Hoffmann–Teller frame without potential**, per entry from the run's own
+  u_par, u_perp, V_HT and the compression B_max / B_1 of `front.npz` (`campaign.adiabatic_reflection`); no
+  fitted constant. In P5 (persistent reflections against H_A): 0.066 / 0.25 at V_HT 0.20–0.25, 0.0052 / 0.066 at
+  0.40–0.50, 0.0015 / 0.014 at 0.50–0.60, 0 / 0 above 0.8 c: the same cut-off, a level 4–12 times lower, and a
+  ratio that falls with V_HT. By polar angle H_A extends to 60° where the measurement stops near 40°.
+  **Verdict on H_A:** in each run and seed, the ratio measured / H_A per bin (bins with ≥ 2000 entries and
+  H_A ≥ 0.005) against the ratio of P5 in that bin: "H_A carries the temperature trend" if within a factor 2 in at
+  least two thirds of those bins in both seeds; "H_A misses a temperature-dependent factor" if outside in at
+  least two thirds; else undecided.
+- **Absolute scale:** "neither H_T nor H_0 fits" when both misfits exceed 4 times the misfit of P5 against
+  A5-T10-s2 under the same definition (computed from those two runs before any other run is read).
+- **Energy:** γ_out / γ_in of the persistent returns (p50, p90) and γ_out over the bound γ_HT²(1 + V_HT²) γ_in;
+  against H_A's own γ_out for the same entries. Not γ_out alone.
+- **A7 against A5:** reported as a comparison of two sets (β, ω_pe / Ω_ce, cell size and R_m differ too), not as
+  an effect of M_A. Partial control at similar β: A7-T14 (β 1.63) against A5-T28 (β 2.17).
+- **Counts:** entries per V_HT bin and per polar angle (`n_by_VHT_and_polar`) are reported with every result.
+
+Predictions, persistent definition (P5 measured for H_0; P5's P(x) applied to rescaled momenta for H_T;
+`P5/analysis/campaign_predictions.json` holds both definitions):
+
+| V_HT bin [c] | 0.20–0.25 | 0.25–0.30 | 0.30–0.35 | 0.35–0.40 | 0.40–0.50 | 0.50–0.60 | 0.60–0.80 | 0.80–1.0 |
+|---|---|---|---|---|---|---|---|---|
+| H_0 | 0.066 | 0.054 | 0.027 | 0.014 | 0.0052 | 0.0015 | 0.0003 | 0 |
+| H_T, v_te 0.14 | 0.038 | 0.037 | 0.028 | 0.021 | 0.015 | 0.010 | 0.0060 | 0.0035 |
+| H_T, v_te 0.20 | 0.034 | 0.041 | 0.039 | 0.034 | 0.026 | 0.018 | 0.011 | 0.0066 |
+| H_T, v_te 0.28 | 0.025 | 0.037 | 0.045 | 0.045 | 0.039 | 0.028 | 0.018 | 0.011 |
