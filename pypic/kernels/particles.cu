@@ -323,7 +323,20 @@ __device__ __forceinline__ void deposit_cut(const double* p0, const double* p1, 
 
 // Injection at open faces (PIC-D13); defined with inject_face below.
 __device__ void sample_inflow(const double* rb, const int nb, const int axis, const double sgn,
-                              unsigned long long& s, double* u);
+                              unsigned long long& s, double* u, const double* dd);
+// Fluctuation of the inflow (PIC-D26): du = sum over the nfl modes of fl (11 doubles each:
+// kx, ky, kz, omega, phase, cos part ux, uy, uz, sin part ux, uy, uz) of
+// c cos(th) + s sin(th), th = k . r - omega t + phase; added to the drift of an entering particle.
+__device__ __forceinline__ void fluct_du(const double* fl, const int nfl, const double* r, const double t,
+                                         double* du) {
+    du[0] = du[1] = du[2] = 0.0;
+    for (int m = 0; m < nfl; m++) {
+        const double* q = fl + 11 * m;
+        const double th = q[0] * r[0] + q[1] * r[1] + q[2] * r[2] - q[3] * t + q[4];
+        const double c = cos(th), s = sin(th);
+        for (int a = 0; a < 3; a++) du[a] += q[5 + a] * c + q[8 + a] * s;
+    }
+}
 __device__ __forceinline__ int bank_slot(const int* binfo, const int face, const int* gc);
 // salt of the random keys of the particles returned at a paired face: (seed, step, id, wall hit)
 static const unsigned long long RET_SALT = 0x14057B7EF767814FULL;
@@ -346,7 +359,8 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
                                         const double h, const double m, const double qdep, double* diag, int* flag,
                                         int* list, const int listcap, const int do_diag,
                                         const unsigned long long seed, const long long step, const int fmask,
-                                        const double* rb, const int nrb, double* bank, const int* binfo) {
+                                        const double* rb, const int nrb, double* bank, const int* binfo,
+                                        const double* flu, const int nflu, const int flface, const double tnow) {
     int p = blockIdx.x * blockDim.x + threadIdx.x;
     double ke = 0.0, mx = 0.0, my = 0.0, mz = 0.0, lke = 0.0, lq = 0.0;
 #ifdef BODY_SPHERE
@@ -526,7 +540,13 @@ extern "C" __global__ void push_deposit(PSTORE, const int n, const long long cap
                 unsigned long long sr = hash_key(hash_key(seed ^ RET_SALT, (unsigned long long)step, 0ULL),
                                                  (unsigned long long)PID(p), (unsigned long long)it);
                 lke += w * m * (g1 - 1.0);
-                sample_inflow(rb + (long long)face * nrb * 6, nrb, amin, wall > 0.0 ? -1.0 : 1.0, sr, u);
+                if (nflu > 0 && face == flface) {  // returned with the fluctuation at the wall point (PIC-D26)
+                    double dd[3];
+                    fluct_du(flu, nflu, pw, tnow, dd);
+                    sample_inflow(rb + (long long)face * nrb * 6, nrb, amin, wall > 0.0 ? -1.0 : 1.0, sr, u, dd);
+                } else {
+                    sample_inflow(rb + (long long)face * nrb * 6, nrb, amin, wall > 0.0 ? -1.0 : 1.0, sr, u, nullptr);
+                }
                 g1 = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
                 lke -= w * m * (g1 - 1.0);
                 for (int a = 0; a < 3; a++) pos1[a] = WSNAP(pw[a] + (trem * WDT(a) / g1) * u[a]);
@@ -1120,7 +1140,7 @@ extern "C" __global__ void load_particles(PSTORE, const long long cap, const lon
 // vcap], vcap an upper bound of v_n for the beam (pypic.injection.inflow_table). A beam is picked
 // with probability density * vcap and its sample accepted with probability v_n / vcap.
 __device__ void sample_inflow(const double* rb, const int nb, const int axis, const double sgn,
-                              unsigned long long& s, double* u) {
+                              unsigned long long& s, double* u, const double* dd) {
     const double tot = rb[6 * (nb - 1)];
     for (int it = 0; it < 4096; it++) {
         const double r = urand(s) * tot;
@@ -1128,7 +1148,8 @@ __device__ void sample_inflow(const double* rb, const int nb, const int axis, co
         while (b < nb - 1 && r >= rb[6 * b]) b++;
         const double* q = rb + 6 * b;
         sample_mj(q[1], s, u);
-        boost_drift(u, q[2], q[3], q[4], s);
+        if (dd) boost_drift(u, q[2] + dd[0], q[3] + dd[1], q[4] + dd[2], s);
+        else boost_drift(u, q[2], q[3], q[4], s);
         const double vn = sgn * u[axis] / sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
         if (vn > 0.0 && urand(s) * q[5] <= vn) return;
     }
@@ -1155,14 +1176,21 @@ static const unsigned long long INJ_SALT = 0x5851F42D4C957F2DULL;
 // stream as in load_particles, and the end point r1 of its first step. True if the particle ends
 // that step inside the box. sm: the random stream of the momentum, left after the sample.
 __device__ bool layer_sample(const unsigned long long ks, const unsigned long long gcell, const int* gc, const int slot,
-                             const double* tb, double* r0, double* u, double* r1, double& g, unsigned long long& sm) {
+                             const double* tb, double* r0, double* u, double* r1, double& g, unsigned long long& sm,
+                             const double* flu, const int nflu, const double tnow) {
     unsigned long long sp = hash_key(ks, gcell, (unsigned long long)slot);
     r0[0] = WRAND(gc[0], sp, DX);
     r0[1] = WRAND(gc[1], sp, DY);
     r0[2] = WRAND(gc[2], sp, DZ);
     sm = hash_key(ks ^ ((unsigned long long)tb[5] * 0x2545F4914F6CDD1DULL + 77ULL), gcell, (unsigned long long)slot);
     sample_mj(tb[1], sm, u);
-    boost_drift(u, tb[2], tb[3], tb[4], sm);
+    if (nflu > 0) {  // the inflow fluctuation at the birth point (PIC-D26)
+        double dd[3];
+        fluct_du(flu, nflu, r0, tnow, dd);
+        boost_drift(u, tb[2] + dd[0], tb[3] + dd[1], tb[4] + dd[2], sm);
+    } else {
+        boost_drift(u, tb[2], tb[3], tb[4], sm);
+    }
     g = sqrt(1.0 + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
     const double Lg[3] = WBOX;
     const int b0[3] = {BCX0, BCY0, BCZ0};
@@ -1204,7 +1232,8 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
                                        const long long cape, const int ne0, int* ninje, double* diage, int* flage,
                                        int* liste, const int listcape, const double qe,
                                        unsigned long long* pstate, int* pface, double* bank,
-                                       const double* bank0, const int* binfo, const int do_diag) {
+                                       const double* bank0, const int* binfo, const int do_diag,
+                                       const double* flu, const int nflu, const double tnow) {
     const long long t = (long long)blockIdx.x * blockDim.x + threadIdx.x;
     const long long per = (long long)ppc * nbeam;
     if (t >= (long long)nlx * nly * nlz * per) return;
@@ -1219,7 +1248,7 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
     const double* tb = bt + 8 * (turn % nbeam);
     double r0[3], u[3], r1[3], g;
     unsigned long long sm;
-    if (!layer_sample(ks, gcell, gc, slot, tb, r0, u, r1, g, sm)) return;
+    if (!layer_sample(ks, gcell, gc, slot, tb, r0, u, r1, g, sm, flu, nflu, tnow)) return;
     const double w = tb[0], qw = q * w;
     bool pair = paired != 0;
     const int column = pair ? bank_slot(binfo, face, gc) : -1;
@@ -1230,7 +1259,8 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
             const double co = fabs(q * to[0]);
             double a0[3], au[3], a1[3], ag;
             unsigned long long as;
-            if (rem >= co * (1.0 - 1e-9) && layer_sample(ks, gcell, gc, o / nbeam, to, a0, au, a1, ag, as))
+            if (rem >= co * (1.0 - 1e-9) && layer_sample(ks, gcell, gc, o / nbeam, to, a0, au, a1, ag, as, flu, nflu,
+                                                         tnow))
                 rem = fmax(rem - co, 0.0);
         }
         if (rem >= fabs(qw) * (1.0 - 1e-9)) {
@@ -1293,15 +1323,23 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
 extern "C" __global__ void inject_partners(PSTORE_AS(Pe), const long long cape, const int ne0, const int* ninje,
                                            double* diage, const double qe, const double me, const double* rb,
                                            const int nrb, const unsigned long long* pstate, int* pface,
-                                           const int do_diag) {
+                                           const int do_diag, const double* fle, const int nfle, const int flface,
+                                           const double tnow) {
     const int ie = blockIdx.x * blockDim.x + threadIdx.x;
     if (ie >= ninje[0] || pface[ie] == 0) return;
     const int face = pface[ie] - 1;
     pface[ie] = 0;
     unsigned long long sm = pstate[ie];
     double ue[3];
-    sample_inflow(rb + (long long)face * nrb * 6, nrb, face >> 1, (face & 1) ? -1.0 : 1.0, sm, ue);
     const long long p = ne0 + ie;
+    if (nfle > 0 && face == flface) {  // the partner takes the neutraliser's fluctuation at its point (PIC-D26)
+        const double r[3] = {S_X(Pe, cape, p), S_Y(Pe, cape, p), S_Z(Pe, cape, p)};
+        double dd[3];
+        fluct_du(fle, nfle, r, tnow, dd);
+        sample_inflow(rb + (long long)face * nrb * 6, nrb, face >> 1, (face & 1) ? -1.0 : 1.0, sm, ue, dd);
+    } else {
+        sample_inflow(rb + (long long)face * nrb * 6, nrb, face >> 1, (face & 1) ? -1.0 : 1.0, sm, ue, nullptr);
+    }
     S_SET_MOM(Pe, cape, p, ue[0], ue[1], ue[2]);
     const double we = S_W(Pe, cape, p);
     const double eke = we * me * (sqrt(1.0 + ue[0] * ue[0] + ue[1] * ue[1] + ue[2] * ue[2]) - 1.0);

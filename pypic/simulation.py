@@ -15,6 +15,7 @@ from .config import FACES, ID_LIMIT, SLOT_BYTES, SimConfig
 from .external import check_config, dipoles_B
 from .grid import FIELD_NAMES, YeeGrid
 from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
+from .output.names import stagger_of
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
 from .particles import MIGRATE_KERNELS, CompactSpecies, Species, migrate
@@ -81,6 +82,7 @@ class Simulation:
         if self.mixed and cfg.solver == "implicit":
             raise ValueError(f"precision='{cfg.precision}' is for the explicit solver only (PIC-D11, PIC-D19)")
         self.injection = injection.check_config(cfg)
+        self.fluct = injection.check_fluctuation(cfg) if self.injection else None  # PIC-D26
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
             self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body,
             window=next(_WINDOW_MODULES) if self.window else 0, x_low=self.decomp.x_low(ghost),
@@ -161,6 +163,8 @@ class Simulation:
             g = self.grid
             edges = body.relax_edges(cp, [g.global_positions(a, 0.0) * g.dx[a] for a in range(3)], cfg.body, g.dx)
             self._relax = ([cp.flatnonzero(m) for m in edges], math.exp(-cfg.body.relax * cfg.dt))
+        if self.fluct is not None:
+            self._tfsf_start()
         if not self.implicit and (moved or fields_set or any(self.B0) or self.external):
             self._initial_half_kick()
         if self.implicit:
@@ -387,6 +391,14 @@ class Simulation:
         cfg, S = self.cfg, len(self.species)
         self.inj_launch, self.inj_room, self.inj_fmask = [], [0] * S, [0] * S
         self.inj_rb, self.inj_nrb = cp.zeros(6), 1
+        # inflow fluctuation (PIC-D26): per species the mode rows, the face (-1: none)
+        self.fl_face = -1 if self.fluct is None else self.fluct["face"]
+        self.fl_rows = [cp.zeros(11) for _ in range(S)]
+        self.fl_n = [0] * S
+        if self.fluct is not None:
+            for si, rows in self.fluct["rows"].items():
+                self.fl_rows[si] = cp.asarray(rows, dtype=cp.float64)
+                self.fl_n[si] = len(rows)
         self.bank, self.binfo = cp.zeros(1), cp.full(12, -1, dtype=cp.int32)
         self.bank0 = self.bank.copy()
         self.inj_neutral = None
@@ -421,7 +433,8 @@ class Simulation:
             binfo[9:12] = [ax.n_phys for ax in axes]
             n_bank = 0
             for f in paired:
-                rb[f] = injection.inflow_table(beams, f)
+                extra = self.fluct["du_n"].get(ne, 0.0) if self.fluct is not None and f == self.fl_face else 0.0
+                rb[f] = injection.inflow_table(beams, f, extra)
                 if (axes[f >> 1].hi if f & 1 else axes[f >> 1].lo) is None:
                     binfo[f] = n_bank
                     n_bank += math.prod(ax.n_phys for a, ax in enumerate(axes) if a != f >> 1)
@@ -463,14 +476,16 @@ class Simulation:
                 np.int32(face), np.int32(pair), *pt.store, np.int64(pt.cap), np.int32(pt.n),
                 self.flag[S + pi:S + pi + 1], self.sdiag[pi], self.flag[pi:pi + 1], lstp, np.int32(lstp.size),
                 np.float64(pt.q), self.inj_pstate, self.inj_pface, self.bank, self.bank0, self.binfo,
-                np.int32(do_diag)))
+                np.int32(do_diag), self.fl_rows[si], np.int32(self.fl_n[si] if face == self.fl_face else 0),
+                np.float64(self.time + 0.5 * cfg.dt)))
         ne = self.inj_neutral
         if ne is not None:
             pt = self.species[ne]
             launch(self.k_partners, self.inj_room[ne], (
                 *pt.store, np.int64(pt.cap), np.int32(pt.n), self.flag[S + ne:S + ne + 1], self.sdiag[ne],
                 np.float64(pt.q), np.float64(pt.m), self.inj_rb, np.int32(self.inj_nrb), self.inj_pstate,
-                self.inj_pface, np.int32(do_diag)))
+                self.inj_pface, np.int32(do_diag), self.fl_rows[ne], np.int32(self.fl_n[ne]),
+                np.int32(self.fl_face), np.float64(self.time + 0.5 * cfg.dt)))
 
     def _init_external(self):
         """External static fields (PIC-D12): per component Ex..Bz the uniform value and, for B with
@@ -534,7 +549,11 @@ class Simulation:
             if e != 0.0:
                 for a in range(3):
                     kinds = set(cfg.boundaries[a]) - {"periodic"}
-                    if a != c and kinds and (kinds != {"reflecting"} or cfg.solver != "explicit"):
+                    # PIC-D26: a reflecting face opposite the open face that carries the inflow fluctuation,
+                    # whose incident field holds E0 there
+                    carried = self.fluct is not None and self.fluct["face"] >> 1 == a and \
+                        cfg.boundaries[a][self.fluct["face"] & 1] == "open" and kinds <= {"reflecting", "open"}
+                    if a != c and kinds and ((kinds != {"reflecting"} and not carried) or cfg.solver != "explicit"):
                         raise ValueError(f"E0 component {'xyz'[c]} is tangential to the faces of axis {'xyz'[a]}: "
                                          "allowed at reflecting faces with the explicit solver only (PIC-D18)")
                 getattr(g, "E" + "xyz"[c])[...] += e
@@ -699,7 +718,8 @@ class Simulation:
                 g.Jx, g.Jy, g.Jz, np.float64(sp.q * self.cfg.dt / (2.0 * sp.m)), np.float64(sp.m),
                 np.float64(sp.qdep), d, self.flag[i:i + 1],
                 lst, np.int32(lst.size), np.int32(do_diag), seed, step, np.int32(self.inj_fmask[i]),
-                self.inj_rb, np.int32(self.inj_nrb), self.bank, self.binfo))
+                self.inj_rb, np.int32(self.inj_nrb), self.bank, self.binfo, self.fl_rows[i], np.int32(self.fl_n[i]),
+                np.int32(self.fl_face), np.float64(self.time + 0.5 * self.cfg.dt)))
         if self.inj_launch:
             self._inject(do_diag)
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
@@ -713,8 +733,13 @@ class Simulation:
         # first lets the host prepare it while the push kernels run, as the migration starts with
         # a host synchronisation.
         dt = self.cfg.dt
+        t0 = self.time
         g.push_B(0.5 * dt)
+        if self.fluct is not None:
+            self._tfsf_B(0.5 * dt, t0)
         g.push_E(dt)
+        if self.fluct is not None:
+            self._tfsf_E(dt, t0 + 0.5 * dt)
         if self.antennas:
             self._antenna_work_done(driven)
         if self._relax:
@@ -723,11 +748,135 @@ class Simulation:
                     flat = e.reshape(-1)
                     flat[idx] = flat[idx] * self._relax[1]
         g.push_B(0.5 * dt)
+        if self.fluct is not None:
+            self._tfsf_B(0.5 * dt, t0 + dt)
         self._migrate()
         if self.marder:
+            if self.fluct is not None:  # the zone acts on the total field: add the incident one beyond the face
+                self._tfsf_total(t0 + dt, +1.0)
             g.marder_zone(self._charge_density(zone=True), self.zone_depth, self.marder)
+            if self.fluct is not None:
+                self._tfsf_total(t0 + dt, -1.0)
         if self._has_open:
             self.flux_out += dt * g.poynting_out()
+
+    # ------------------------------------------- inflow fluctuation: total-field / scattered-field face (PIC-D26)
+    def _incident(self, comp: str, coords, t: float):
+        """Incident field component ``comp`` (Ex..Bz) at the physical points ``coords`` (three
+        broadcastable CuPy arrays) and time t: the uniform E0 / B0 and the modes of the fluctuation."""
+        c, kind = "xyz".index(comp[1]), comp[0]
+        bg = float((self.cfg.E0 if kind == "E" else self.cfg.B0)[c])
+        out = cp.full(cp.broadcast(*coords).shape, bg)
+        for m in self.fluct["modes"]:
+            C, S = m[kind]
+            if C[c] == 0.0 and S[c] == 0.0:
+                continue
+            k = m["k"]
+            th = k[0] * coords[0] + k[1] * coords[1] + k[2] * coords[2] - m["omega"] * t + m["phase"]
+            out += C[c] * cp.cos(th) + S[c] * cp.sin(th)
+        return out
+
+    def _plane(self, target: str, at: float):
+        """Local slice of field ``target`` on the plane of global position ``at`` (cells) along the
+        normal of the fluctuation face (ghost copies included: every rank that holds the plane
+        corrects it the same way, without an exchange), and the physical coordinates of its points;
+        None if this rank has no such plane."""
+        g, a = self.grid, self.fl_face >> 1
+        st = stagger_of(target)
+        pos = g.global_positions(a, st[a])
+        hit = np.nonzero(np.abs(pos - at) < 1e-9)[0]
+        if hit.size == 0:
+            return None
+        sl = [slice(None)] * 3
+        sl[a] = slice(int(hit[0]), int(hit[0]) + 1)
+        coords = []
+        for b in range(3):
+            shape = [1, 1, 1]
+            x = (np.full(1, at) if b == a else g.global_positions(b, st[b])) * g.dx[b]
+            shape[b] = -1
+            coords.append(cp.asarray(x.reshape(shape)))
+        return tuple(sl), coords
+
+    def _tfsf_axes(self):
+        a = self.fl_face >> 1
+        side = self.fl_face & 1
+        b, c = (a + 1) % 3, (a + 2) % 3
+        N = float(self.cfg.n_cells[a])
+        node, half = (N, N + 0.5) if side else (0.0, -0.5)
+        sgn = -1.0 if side else 1.0
+        return a, b, c, node, half, sgn
+
+    def _tfsf_B(self, dtb: float, tE: float):
+        """B on the first half plane outside the face (scattered) was updated with the total E of the
+        face plane: subtract the incident part. Hi face: B_c -= dtb E_b,inc / d, B_b += dtb E_c,inc / d;
+        lo face: the opposite signs."""
+        a, b, c, node, half, sgn = self._tfsf_axes()
+        g = self.grid
+        d = g.dx[a]
+        for tgt, src, fac in (("B" + "xyz"[c], "E" + "xyz"[b], sgn), ("B" + "xyz"[b], "E" + "xyz"[c], -sgn)):
+            pl = self._plane(tgt, half)
+            if pl is None:
+                continue
+            sl, xyz = pl
+            xyz[a] = cp.full((1, 1, 1), node * g.dx[a])
+            getattr(g, tgt)[sl] += (fac * dtb / d) * self._incident(src, xyz, tE)
+
+    def _tfsf_E(self, dte: float, tB: float):
+        """E on the face plane (total) was updated with the scattered B of the half plane outside: add
+        the incident part. Hi face: E_b -= dte B_c,inc / d, E_c += dte B_b,inc / d; lo face: the
+        opposite signs."""
+        a, b, c, node, half, sgn = self._tfsf_axes()
+        g = self.grid
+        d = g.dx[a]
+        for tgt, src, fac in (("E" + "xyz"[b], "B" + "xyz"[c], sgn), ("E" + "xyz"[c], "B" + "xyz"[b], -sgn)):
+            pl = self._plane(tgt, node)
+            if pl is None:
+                continue
+            sl, xyz = pl
+            xyz[a] = cp.full((1, 1, 1), half * g.dx[a])
+            getattr(g, tgt)[sl] += (fac * dte / d) * self._incident(src, xyz, tB)
+
+    def _tfsf_total(self, t: float, sign: float):
+        """Add (sign = +1) or take away (-1) the incident E at time t on the points beyond the
+        fluctuation face, where the stored E is the scattered field: the Marder zone (PIC-D16) then
+        sees the divergence of the total field. Its change of E is linear, so the round trip is exact."""
+        g = self.grid
+        a = self.fl_face >> 1
+        side = self.fl_face & 1
+        N = float(self.cfg.n_cells[a])
+        for comp in ("Ex", "Ey", "Ez"):
+            st = stagger_of(comp)
+            pos = g.global_positions(a, st[a])
+            beyond = np.nonzero(pos > N + 1e-9)[0] if side else np.nonzero(pos < -1e-9)[0]
+            if beyond.size == 0:
+                continue
+            i0, i1 = int(beyond[0]), int(beyond[-1]) + 1
+            sl = [slice(None)] * 3
+            sl[a] = slice(i0, i1)
+            coords = []
+            for b in range(3):
+                x = g.global_positions(b, st[b])
+                if b == a:
+                    x = x[i0:i1]
+                shape = [1, 1, 1]
+                shape[b] = -1
+                coords.append(cp.asarray((x * g.dx[b]).reshape(shape)))
+            getattr(g, comp)[tuple(sl)] += sign * self._incident(comp, coords, t)
+
+    def _tfsf_start(self):
+        """The fields outside the fluctuation face hold the scattered field (total - incident). The
+        initial state is taken to be the incident one out there, so they start at zero."""
+        g = self.grid
+        a = self.fl_face >> 1
+        side = self.fl_face & 1
+        N = float(self.cfg.n_cells[a])
+        for comp in FIELD_NAMES:
+            pos = g.global_positions(a, stagger_of(comp)[a])
+            beyond = np.nonzero(pos > N + 1e-9)[0] if side else np.nonzero(pos < -1e-9)[0]
+            if beyond.size:
+                sl = [slice(None)] * 3
+                sl[a] = slice(int(beyond[0]), int(beyond[-1]) + 1)
+                getattr(g, comp)[tuple(sl)] = 0.0
 
     def _antenna_add(self, do_diag: bool):
         """Add the antenna currents at t^(n+1/2) to J (PIC-D20): after the filter, the wall

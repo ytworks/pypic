@@ -352,6 +352,10 @@ class Injection:
     faces: dict = field(default_factory=dict)  # {"x-": "paired", "y-": "flux", ...}
     species: tuple | None = None  # injected species names; None: every plasma species with beams
     neutralizer: str | None = None  # needed by a paired face
+    # a prescribed fluctuation carried in through one injecting face (PIC-D26; pypic.injection.check_fluctuation):
+    # {"face": "x+", "modes": [{"k": [0, ky, kz], "omega": w, "phase": p, "B": {"cos": [..], "sin": [..]},
+    #   "E": {...}, "u": {species: {"cos": [..], "sin": [..]}}}], "tolerance": 1e-3}
+    fluctuation: dict | None = None
 
     def __post_init__(self):
         if not isinstance(self.faces, dict):
