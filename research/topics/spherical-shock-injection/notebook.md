@@ -3,6 +3,28 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-13 — P5: several heating sites? By the fixed rule "one process"; the fixed sites split one structure
+
+Scripts and figure: `P5/analysis/figures/sites.py`, `sitedef.py`, `p5_sites.png`.
+
+- **Result by the rule fixed in the entry below.** γ_max ≥ 2 (350): net gain S1 cavity +395, S2 inner edge
+  −76, S3 −1, S4 0. Criterion 1 not met; S1 gives 100 % of the positive net gain: **"one process"**.
+  Criterion 2 not met (median γ_max 1.57–1.62 whatever the number of site changes). Criterion 3 not met (S1:
+  mean Δγ/γ per visit 0.18 at γ 1–1.5, 0.076 at 1.5–3, ratio 0.41). γ_max 1.5–2 (5391): S1 +1774, S2 +801,
+  S3 −68, S4 +18. Reference (20,000 with γ_max < 1.25): 84 % of the time upstream.
+- **What the figure shows.** At the equator (t = 144) |B| is 0.5 B₀ in the cavity, rises over about 10 d_e
+  to 4.5 B₀ at r_Bmax = 109 d_e, and the front is at 114 d_e; the debris edge (107 d_e) is just inside r_Bmax.
+  The γ_max ≥ 2 electrons gain at r − r_Bmax = −27 to −9 d_e (|B| 0.5–0.9 B₀ at the electron: the foot of
+  the wall, inside the dense debris shell) and lose at −8 to 0 (the steep wall, |B| 1–3 B₀). They spend their
+  time at −25 to −3. The fixed boundary at r_Bmax − 10 cut this one wall into a gain part (S1) and a loss part
+  (S2): the fixed sites were not two heating mechanisms.
+- **Correction to the entry "the fields where the electrons gain energy":** its "net +520 at 0.5–1.5 B₀" was
+  binned by |B| at the electron, not by place; the gain is at 0.5–0.9 B₀, 10–27 d_e inside r_Bmax, in the foot
+  of the wall, not on its steep part.
+- **Reading.** With a Larmor radius of about 10 d_e the electrons sample the foot and the steep part of the
+  wall within one gyration; the net is a gain. Sites drawn from the structure (foot, steep wall, front layer,
+  upstream) would be a definition made after seeing the data: any test with them is post hoc.
+
 ## 2026-11-13 — P5: several heating sites visited in turn? Criteria fixed before the analysis
 
 - **Owner:** do not hold on to one process. If two heating mechanisms sit at different places and some
