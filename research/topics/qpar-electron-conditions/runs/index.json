@@ -23,6 +23,13 @@
    "commit": "53cd3a902844617a6b136f77f6dedbf64dcfda40",
    "kind": "null test N7 (method, synthetic fields)",
    "gpus": 0
+  },
+  {
+   "file": "2026-11-15-n12-n6-synthetic.json",
+   "record": "2026-11-15-n12-n6-synthetic.md",
+   "commit": "90256a3f83cb3759d74064760570bff3b264248a",
+   "kind": "code check (N12 and N6 (a) estimators, synthetic particles)",
+   "gpus": 0
   }
  ]
 }
