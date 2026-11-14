@@ -1,0 +1,14 @@
+# Step-4 pilot (d), null test N1: the uniform flow of V1's plasma without a shock (periodic box).
+# Variants by --set: filter_passes, filter_compensate, precision, ppc, cells_per_de.
+mass_ratio: 100
+v0: 0.1
+mach_alfven: 20
+mach_convention: r4
+theta_bn: 30
+beta_e: 0.5
+beta_i: 0.5
+wall: false
+lx: 20
+t_end: 5
+ppc: 250
+filter_passes: 32

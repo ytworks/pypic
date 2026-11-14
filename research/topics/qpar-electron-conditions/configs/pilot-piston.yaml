@@ -1,0 +1,15 @@
+# Step-4 pilot (c): the oblique piston of V1's plasma in a short box, with one seed species entering through
+# the face. Checks: Gauss, div B, the upstream state next to the face, the number of seeds that entered.
+mass_ratio: 100
+v0: 0.1
+mach_alfven: 20
+mach_convention: r4
+theta_bn: 30
+beta_e: 0.5
+beta_i: 0.5
+seeds:
+  - {name: seed, theta: 0.02}
+lx: 40
+t_end: 2
+ppc: 125
+filter_passes: 32
