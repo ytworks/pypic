@@ -30,6 +30,24 @@
    "commit": "90256a3f83cb3759d74064760570bff3b264248a",
    "kind": "code check (N12 and N6 (a) estimators, synthetic particles)",
    "gpus": 0
+  },
+  {
+   "file": "2026-11-15-pilot-piston-t10.json",
+   "record": "2026-11-15-pilot-piston-t10.md",
+   "commit": "d7b01dd50a8ae5c97921503de58083986b5a89cc",
+   "analysis_commit": "07b3bfd5b48f675f4cfcb3fd0008386702339440",
+   "kind": "pilot (plan step 4)",
+   "config": "configs/pilot-piston.yaml",
+   "gpus": 1
+  },
+  {
+   "file": "2026-11-15-pilot-piston-t10-spectra.json",
+   "record": "2026-11-15-pilot-piston-t10.md",
+   "commit": "d7b01dd50a8ae5c97921503de58083986b5a89cc",
+   "analysis_commit": "07b3bfd5b48f675f4cfcb3fd0008386702339440",
+   "kind": "pilot (plan step 4), spectra analysis",
+   "config": "configs/pilot-piston.yaml",
+   "gpus": 1
   }
  ]
 }
