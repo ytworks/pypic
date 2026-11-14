@@ -172,11 +172,28 @@ class Species:
         """All particles as rows of doubles, the first three in the coordinate of ``frame``."""
         return self.P[:, : self.n]
 
-    def _set_records(self, Q):
-        n = Q.shape[1]
-        self.ensure_capacity(n)
-        self.P[:, :n] = Q
-        self.n = n
+    def _set_records(self, Q, start: int = 0):
+        """Records 0..7 (and the displacement) of the particles start.. from Q; n = start + Q.shape[1]."""
+        k = Q.shape[1]
+        self.ensure_capacity(start + k)
+        self.P[: Q.shape[0], start: start + k] = Q
+        self.n = start + k
+
+    def reserve_empty(self, need: int):
+        """Room for ``need`` particles in an emptied species, the old arrays released before the new
+        ones are allocated (no second store on the device at any time)."""
+        self.n = 0
+        if need <= self.cap:
+            return
+        check_capacity(need)
+        rows = self.P.shape[0]
+        self.P = None
+        cp.get_default_memory_pool().free_all_blocks()
+        self.cap = min(int(need * 1.25) + 1024, MAX_CAPACITY)
+        self.P = cp.zeros((rows, self.cap), dtype=cp.float64)
+        if self.Pn is not None:
+            self.Pn = None
+            self.Pn = cp.zeros((6, self.cap), dtype=cp.float64)
 
     # ---------------------------------------------------------------- loading
     def load(self, grid, kernel, beam: Beam, ppc: int, seed: int, stream: int, block=None, id_base=None):
@@ -452,16 +469,32 @@ class CompactSpecies(Species):
             R += [self.Dsp[a, : self.n] for a in range(3)]
         return cp.stack(R)
 
-    def _set_records(self, Q):
-        n = Q.shape[1]
-        self.ensure_capacity(n)
-        r = slice(0, n)
+    def _set_records(self, Q, start: int = 0):
+        """Records (index coordinates) of the particles start.. from Q; n = start + Q.shape[1]."""
+        k = Q.shape[1]
+        self.ensure_capacity(start + k)
+        r = slice(start, start + k)
         self._set_index_pos(r, Q[:3])
         self.U[:, r] = Q[3:6]
         self.W[:, r] = Q[6:8]
         if self.displacing:
             self.Dsp[:, r] = Q[8:11]
-        self.n = n
+        self.n = start + k
+
+    def reserve_empty(self, need: int):
+        """Room for ``need`` particles in an emptied species, the old arrays released before the new
+        ones are allocated (no second store on the device at any time)."""
+        self.n = 0
+        if need <= self.cap:
+            return
+        check_capacity(need)
+        shapes = [(k, A.shape[:-1], A.dtype) for k, A in self._arrays()]
+        for k, _, _ in shapes:
+            setattr(self, k, None)
+        cp.get_default_memory_pool().free_all_blocks()
+        self.cap = min(int(need * 1.25) + 1024, MAX_CAPACITY)
+        for k, lead, dt in shapes:
+            setattr(self, k, cp.zeros(lead + (self.cap,), dtype=dt))
 
     def sort(self, kernel=None):
         """Order the particles by cell: the key is the stored cell, the rows are gathered one at a

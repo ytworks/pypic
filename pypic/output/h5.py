@@ -71,17 +71,36 @@ class SeriesWriter:
     (``h5py.File(path, 'r', swmr=True)``); readers see complete chunks."""
 
     def __init__(self, path: str, attrs: dict, codec: str, level: int, chunk_bytes: int = 256 << 10,
-                 max_rows: int = 256):
+                 max_rows: int = 256, append: bool = False):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         self.path = path
-        self.f = h5py.File(path, "w", libver="latest")
-        for k, v in attrs.items():
-            self.f.attrs[k] = _attr(v)
         self.comp = compression(codec, level)
         self.chunk_bytes, self.max_rows = chunk_bytes, max_rows
         self.ds = None
         self.n = 0  # rows on disk
         self.buf = []  # pending rows: (step, t, data)
+        if append and os.path.exists(path):  # a run continued from a checkpoint (OUT-D6)
+            with h5py.File(path, "r") as f:
+                committed = int(f["step"].shape[0]) if "step" in f else 0
+            if committed == 0:
+                # no committed row: the file may hold a schema that a killed writer left half made
+                # (only ``t``, or ``t`` and ``step``); it is made anew (review of PR #50)
+                os.remove(path)
+                append = False
+        if append and os.path.exists(path):
+            self.f = h5py.File(path, "a", libver="latest")
+            if "step" in self.f:
+                self.ds = {k: v for k, v in self.f.items() if k not in self.FIXED}
+                self.n = int(self.ds["step"].shape[0])
+                rows = [v.chunks[0] for k, v in self.ds.items() if k not in ("t", "step")]
+                self.rows = int(rows[0]) if rows else 1
+                self.f.swmr_mode = True
+            return
+        self.f = h5py.File(path, "w", libver="latest")
+        for k, v in attrs.items():
+            self.f.attrs[k] = _attr(v)
+
+    FIXED = ("id",)  # datasets written once, not along time
 
     def _create(self, data: dict):
         row = max([np.asarray(v).nbytes for v in data.values()] + [8])
@@ -170,12 +189,126 @@ class TrackWriter(SeriesWriter):
     stored once in ``id`` (written before SWMR starts); a particle that has left the domain is
     NaN from then on."""
 
-    def __init__(self, path: str, attrs: dict, codec: str, level: int, ids: np.ndarray):
-        super().__init__(path, attrs, codec, level, chunk_bytes=1 << 20, max_rows=64)
+    def __init__(self, path: str, attrs: dict, codec: str, level: int, ids: np.ndarray, append: bool = False):
         self.ids = np.asarray(ids, dtype=np.uint64)
+        if append and os.path.exists(path):
+            # A continued run appends to tracks of the same particles. A file whose rows were all cut back
+            # (the checkpoint came before its first output) belongs to no output of this run: it is made
+            # anew for the ids of this run (review of PR #50). Rows of other particles are refused.
+            with h5py.File(path, "r") as f:
+                old = f["id"][...] if "id" in f else None
+                n_rows = int(f["step"].shape[0]) if "step" in f else 0
+            if old is None or not np.array_equal(old, self.ids):
+                if n_rows:
+                    raise ValueError(f"{path}: the tracked ids differ from those of the run being continued")
+                os.remove(path)
+                append = False
+        super().__init__(path, attrs, codec, level, chunk_bytes=1 << 20, max_rows=64, append=append)
 
     def _before_swmr(self):
         self.f.create_dataset("id", data=self.ids)
+
+
+_M32 = 0xFFFFFFFF
+
+
+def _rot(x, k):
+    return ((x << k) | (x >> (32 - k))) & _M32
+
+
+def _lookup3(data: bytes) -> int:
+    """Jenkins' lookup3 hash (hashlittle, initial value 0): the checksum of HDF5 metadata."""
+    a = b = c = (0xDEADBEEF + len(data)) & _M32
+    n, k = len(data), 0
+    while n > 12:
+        a = (a + int.from_bytes(data[k: k + 4], "little")) & _M32
+        b = (b + int.from_bytes(data[k + 4: k + 8], "little")) & _M32
+        c = (c + int.from_bytes(data[k + 8: k + 12], "little")) & _M32
+        for x, y, z, r in ((0, 2, 1, 4), (1, 0, 2, 6), (2, 1, 0, 8), (0, 2, 1, 16), (1, 0, 2, 19), (2, 1, 0, 4)):
+            v = [a, b, c]
+            v[x] = (v[x] - v[y]) & _M32
+            v[x] ^= _rot(v[y], r)
+            v[y] = (v[y] + v[z]) & _M32
+            a, b, c = v
+        n, k = n - 12, k + 12
+    if n == 0:
+        return c
+    tail = data[k:] + bytes(12 - n)
+    a = (a + int.from_bytes(tail[0:4], "little")) & _M32
+    b = (b + int.from_bytes(tail[4:8], "little")) & _M32
+    c = (c + int.from_bytes(tail[8:12], "little")) & _M32
+    for x, y, r in ((2, 1, 14), (0, 2, 11), (1, 0, 25), (2, 1, 16), (0, 2, 4), (1, 0, 14), (2, 1, 24)):
+        v = [a, b, c]
+        v[x] ^= v[y]
+        v[x] = (v[x] - _rot(v[y], r)) & _M32
+        a, b, c = v
+    return c
+
+
+_SIGNATURE = b"\x89HDF\r\n\x1a\n"
+
+
+def clear_open_flags(path: str) -> bool:
+    """Clear the file consistency flags that a writer left in the superblock (``h5clear -s``).
+
+    A file opened for (SWMR) writing carries these flags until it is closed; a writer that was
+    killed leaves them set, and HDF5 then refuses to open the file ("file is already open for
+    write"). A run continued from a checkpoint (OUT-D6) is the only writer of its directory, so the
+    flags of its series files are those of the interrupted run. Only a version 2/3 superblock has
+    them (the files of this module, ``libver="latest"``); its checksum is verified before the
+    rewrite. Returns whether the flags were set."""
+    with open(path, "r+b") as f:
+        size = os.fstat(f.fileno()).st_size
+        base = 0
+        while True:  # the superblock is at 0 or after a user block of 512, 1024, 2048, ... bytes
+            f.seek(base)
+            if f.read(8) == _SIGNATURE:
+                break
+            base = 512 if base == 0 else 2 * base
+            if base >= size:
+                raise OSError(f"{path}: no HDF5 superblock")
+        head = f.read(4)
+        version, offsets, flags = head[0], head[1], head[3]
+        if version < 2 or flags == 0:
+            return False
+        n = 12 + 4 * offsets  # signature .. root object header address, then the checksum
+        f.seek(base)
+        sb = bytearray(f.read(n + 4))
+        if _lookup3(bytes(sb[:n])) != int.from_bytes(sb[n:], "little"):
+            raise OSError(f"{path}: the superblock checksum does not match; not changing the file")
+        sb[11] = 0
+        sb[n:] = _lookup3(bytes(sb[:n])).to_bytes(4, "little")
+        f.seek(base)
+        f.write(sb)
+    return True
+
+
+def truncate_series(path: str, step: int, committed: int | None = None) -> int:
+    """Cut the rows of a series (or tracks) file at ``step`` and later (a run continued from the
+    checkpoint of that step writes them again, OUT-D6). Returns the rows kept. The open-for-write
+    flags of a writer that was killed are cleared first (:func:`clear_open_flags`). ``committed``:
+    the rows the file had at the checkpoint (its meta.json); no more are kept, so an unwritten first
+    row of fill zeros (step 0) is not taken for output (review of PR #50)."""
+    clear_open_flags(path)
+    with h5py.File(path, "a", libver="latest") as f:
+        if "step" not in f:
+            return 0
+        steps = f["step"][...]
+        # The rows kept are the committed prefix: strictly increasing steps before ``step``. A writer
+        # killed between extending the datasets and filling them leaves rows of fill zeros, so the
+        # array need not be sorted (review of PR #50); the rows before the checkpoint step were flushed
+        # at the checkpoint and are complete.
+        keep = 0
+        while keep < steps.size and steps[keep] < step and (keep == 0 or steps[keep] > steps[keep - 1]):
+            keep += 1
+        if committed is not None:
+            keep = min(keep, int(committed))
+        # every time-dependent dataset to the same length: a writer killed between resizing ``t`` and
+        # ``step`` leaves them of different lengths (review of PR #50)
+        for k, ds in f.items():
+            if k not in SeriesWriter.FIXED and ds.shape[0] != keep:
+                ds.resize(keep, axis=0)
+        return keep
 
 
 def _attr(v):
