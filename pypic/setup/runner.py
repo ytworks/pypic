@@ -3,7 +3,9 @@
     python examples/<name>/run.py --config examples/<name>/configs/<cfg>.yaml
     python -m pypic.launch -n 8 examples/<name>/run.py --config ...
     options: --set key=value (parameters) / --set overrides.key=value (any SimConfig field)
-             --set output.key=value (OutputConfig field), --out DIR, --overwrite, --plan-only, --progress N
+             --set output.key=value (OutputConfig field), --set checkpoint.every=N (restart checkpoints,
+             PIC-D25), --restart DIR (continue from a checkpoint step-<n>, or the latest in DIR), --out DIR,
+             --overwrite, --plan-only, --progress N
 
 A planner is ``plan(params, n_gpus) -> (SimConfig, report: str, info: dict)``; ``info`` (theory
 predictions and chosen numbers) goes to run.json -> meta.planner for the analysis.
@@ -17,7 +19,7 @@ import sys
 
 import yaml
 
-from ..config import OutputConfig
+from ..config import Checkpoint, OutputConfig
 
 
 def parse_value(v: str):
@@ -32,12 +34,20 @@ def load_params(path: str, sets: list[str]) -> dict:
         d = yaml.safe_load(f) or {}
     for kv in sets:
         k, v = kv.split("=", 1)
-        if k.startswith("overrides.") or k.startswith("output."):
+        if k.startswith(("overrides.", "output.", "checkpoint.")):
             group, key = k.split(".", 1)
             d.setdefault(group, {})[key] = parse_value(v)
         else:
             d[k] = parse_value(v)
     return d
+
+
+def run_stats(sim, world: int) -> dict:
+    """The record of a run: the wall time and the steps of this run() (a run continued from a
+    checkpoint executes only its own segment; review of PR #50), and the step it ended on."""
+    steps = int(getattr(sim, "_run_steps", sim.step_count))
+    return {"wall_time_s": sim.wall_time, "ns_per_particle_step": sim.push_rate(), "gpus": world,
+            "steps": steps, "step_end": int(sim.step_count)}
 
 
 def run_example(example: str, plan, params_from_dict, argv=None, doc: str | None = None) -> int:
@@ -48,6 +58,8 @@ def run_example(example: str, plan, params_from_dict, argv=None, doc: str | None
     ap.add_argument("--out", default=None, help="output directory (default output/<example>/<config name>)")
     ap.add_argument("--overwrite", action="store_true",
                     help="replace the run already in the output directory (its output files are removed)")
+    ap.add_argument("--restart", default=None,
+                    help="continue from a checkpoint: a directory step-<n>, or a checkpoint directory (its latest)")
     ap.add_argument("--plan-only", action="store_true")
     ap.add_argument("--progress", type=int, default=100)
     a = ap.parse_args(argv)
@@ -56,6 +68,9 @@ def run_example(example: str, plan, params_from_dict, argv=None, doc: str | None
     world = int(os.environ.get("PYPIC_WORLD_SIZE", "1"))
     rank = int(os.environ.get("PYPIC_RANK", "0"))
     out_over = d.pop("output", {})
+    ck = d.pop("checkpoint", None)
+    restart = a.restart or d.pop("restart", None)
+    d.pop("restart", None)
     params = params_from_dict(d)
     cfg, report, info = plan(params, n_gpus=world)
     name = os.path.splitext(os.path.basename(a.config))[0]
@@ -67,6 +82,9 @@ def run_example(example: str, plan, params_from_dict, argv=None, doc: str | None
     if a.overwrite:
         out["overwrite"] = True
     cfg.output = OutputConfig.from_dict(out)
+    if ck:
+        cfg.checkpoint = Checkpoint(**ck)
+    cfg.restart = restart
     from ..output.schedule import report as output_report
 
     full_report = report + "\n" + output_report(cfg)
@@ -81,8 +99,7 @@ def run_example(example: str, plan, params_from_dict, argv=None, doc: str | None
     sim.output.update_meta({"example": example, "config_file": a.config, "params": d, "planner": info,
                             "report": full_report})
     sim.run(progress=a.progress)
-    stats = {"wall_time_s": sim.wall_time, "ns_per_particle_step": sim.push_rate(), "gpus": world,
-             "steps": sim.step_count}
+    stats = run_stats(sim, world)
     sim.output.update_meta({"run": stats})
     sim.close()
     if rank == 0:

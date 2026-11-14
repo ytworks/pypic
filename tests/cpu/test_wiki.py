@@ -221,6 +221,27 @@ def test_conditions_of_a_run_with_a_laser_a_bunch_and_a_moving_window(tmp_path):
     assert c["boundaries"][-1] == "moving window: speed c from t = 20.7" and c["window"]["window_shift_end"] == 3
 
 
+def test_conditions_name_shaped_perturbations_potentials_and_an_inflow_fluctuation(tmp_path):
+    """PIC-D24 / PIC-D26 runs: the table names the shapes instead of printing their dicts (a table of
+    an envelope h(x) holds a hundred numbers)."""
+    B = _builder()
+    h = {"shape": "table", "x": [0.0, 1.0], "values": [0.0, 1.0]}
+    cos = {"shape": "cos", "mode": 1, "length": 32.0}
+    beam = {"density": 1.0, "drift": [0.0, 0.0, 0.0], "theta": 0.0,
+            "perturbation": [{"shape": {"y": cos, "x": h}, "velocity": 0.005, "velocity_component": "x"},
+                             {"shape": {"y": cos}, "displacement": 0.0005, "displacement_component": "z"}]}
+    cfg = {"ppc": 8, "boundaries": [["reflecting", "open"], ["periodic", "periodic"], ["periodic", "periodic"]],
+           "species": [{"name": "e", "charge": -1.0, "mass": 1.0, "beams": [beam]}],
+           "initial_fields": [{"kind": "potential", "component": "Az", "shape": {"y": cos, "x": h}, "scale": 0.1}],
+           "injection": {"faces": {"x+": "flux"}, "fluctuation": {"face": "x+", "modes": [{}]}}}
+    run = {"solver": "explicit", "n_cells": [8, 4, 4], "L": [8.0, 4.0, 4.0], "dx": [1.0, 1.0, 1.0], "dt": 0.5,
+           "n_steps": 10, "config": cfg, "meta": {}}
+    (tmp_path / "run.json").write_text(json.dumps(run))
+    c = B.conditions(tmp_path)
+    assert c["species"] == ["e (q=-1, m=1): n=1, θ=0, perturbation: u_x 0.005 cos(y) × table(x), ξ_z 0.0005 cos(y)"]
+    assert c["fields"] == ["Az potential cos(y) × table(x)", "inflow fluctuation at x+: 1 mode(s)"]
+
+
 def test_analysis_figures_are_written_into_the_collects_own_directory(tmp_path, monkeypatch):
     import sys
     import types

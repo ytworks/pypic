@@ -3,7 +3,8 @@
 Status: **Accepted** (2026-11-09, PR #1; PIC-D8..D10 PR #2; PIC-D12..D16 2026-11-11, bow-shock plan;
 PIC-D17 2026-11-11, blast-wave plan; PIC-D18 2026-11-12, more-examples plan; PIC-D11 and PIC-D19 2026-11-12,
 compact-storage plan, as options: the default precision stays `fp64`; PIC-D20..D22 2026-11-12, wakefield
-plan); PIC-D23 **Proposed** (2026-11-12, wakefield plan).
+plan); PIC-D23 **Proposed** (2026-11-12, wakefield plan); PIC-D24..D26 **Proposed** (2026-11-13,
+upstream-state-restart plan).
 Applies to: `pypic/` (engine), `pypic/setup/` (set-up layer), `examples/two_stream/`.
 
 ## Requirements (owner, 2026-11-09)
@@ -395,6 +396,94 @@ Plan: `docs/plans/2026-11-11-wakefield.md` (Stage 3, amendment of 2026-11-12). B
 Why: the linear wakefield gates lost 6.9 % (bunch) and 8.3 % (laser) of the amplitude with 8 random places per cell, and 2.8 % with 32: the loss follows the noise of the load, not the driver. With a 2 × 2 × 2 lattice, the same 8 particles per cell and the same cost, the bunch gate measures +0.51 % and the run without a driver has no field at all. The alternative, 32 random particles per cell, needs four times the memory and time and still loses 2.8 %.
 
 Not established: the wake still loses amplitude far behind the bunch with the lattice (3.6 to 4.2 % in the wavelengths 6 to 8, 8 to 16 % in 9 to 12, outside the window of the gate); the cause is not identified. A cold lattice is not a thermal equilibrium: a warm plasma on a lattice has the density of the lattice and the velocities of the draw, and the known instabilities of a cold beam on a grid are not removed. No run with the implicit solver.
+
+### PIC-D24 — Frozen-in initial states: a vector potential and shaped perturbations (2026-11-13) — Status: Proposed
+Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 1).
+- **Vector potential:** the `initial_fields` kind `potential` adds B = discrete curl A.
+  - A_c is a product of 1-D shapes on the c-edges, so div B = 0 bitwise.
+  - It is refused where A is tangential to a non-periodic face and not zero on it. The wall would zero the normal
+    B there and leave div B.
+- **Shaped perturbations:** a `shape` (a product of 1-D shapes along any axes, periodic or not) times a velocity or
+  a displacement amplitude.
+  - Displacements use the virtual move of PIC-D9, so div E = ρ holds.
+  - They are refused near a non-periodic face, within one cell plus the largest displacement.
+- **E from a charge displacement:** displacing one species by ξ = −E / (q n) loads a target E with div E = ρ exact.
+  The uniform part stays in `E0`.
+
+Why: a perpendicular shock driven into Alfvénic fluctuations frozen into the flow needs B_x(x, y) that vanishes at
+the wall (`apply_bc_B` zeroes the normal B) and the motional E = −v × B, which is neither uniform nor allowed as a
+tangential profile at a wall (PIC-D18).
+
+### PIC-D25 — Restart checkpoints, onto the same or another layout (2026-11-13) — Status: Proposed
+Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 2). Code: `pypic/checkpoint.py`.
+- **Writing:** `checkpoint: {every: N, keep: 2}` (needs `output.dir`). At the end of every N-th step (state at
+  the start of step n) the output is flushed, then every rank writes `rank-<r>.npz` into
+  `<output.dir>/checkpoint/step-<n>.tmp/`; after a reduction of the per-rank error flags rank 0 writes
+  `meta.json` and renames the directory to `step-<n>`. The last `keep` complete checkpoints stay. Pruning
+  takes the highest steps for the newest, so the directory holds only checkpoints of this run's history: a
+  fresh run refuses (or with `output.overwrite` removes) the `checkpoint/` of an earlier run (OUT-D1), and a
+  continued run removes the checkpoints after its step (OUT-D6).
+- **State:**
+  - `rank-<r>.npz`: E, B and J with ghosts, the CPML memory, the implicit `Eprev`; the particle store of each
+    species as built (FP64 rows, or the compact W, C, F, U) with n and the capacity; the injection bank and its
+    `binfo`; the per-rank cumulative counters (`sdiag`, window sums, antenna work); the running sums of the
+    averaged diagnostics; the layout of the rank; the ids of the tracks (rank 0).
+  - `meta.json`: format, commit, run id (OUT-D6), configuration, layout, step and time, history, per-species kinetic energy,
+    boundary flux, dissipated energy, Picard count, window shift, the counters reduced over the ranks, the
+    particle numbers, the output manager's state.
+  - Not saved: what a step rebuilds (the float32 gather copies, the implicit iterates `E1`, `Eh`, `Bh`, `Pn`, the
+    flag lists, the partners of an injection). The random numbers depend on (seed, step, cell, slot) only.
+- **Restore:** `restart: <step-<n> dir or checkpoint dir>` in the configuration or `run.py --restart`. A
+  `.tmp` directory is never read. The checkpoint is read and its configuration compared before the set-up;
+  only `pypic.checkpoint.ALLOWED` may differ (run length, dims, output directory and cadences, the
+  checkpoint block, `restart`). The simulation is built as usual, then its state is replaced.
+  - **Same layout:** the arrays are copied back, the capacity included (the state is the run's, bit for bit).
+  - **Another layout:** the particles of every file in global form (FP64 positions; compact cells expanded with
+    the stored rank layout to exact index coordinates); each rank keeps those inside the bounds of the
+    migration, so each particle is kept once. Fields: the owned block from the overlapping owned blocks of the
+    files (global index ranges), then wall conditions and the ghost exchange. The bank by global face column.
+    The reduced counters on rank 0, zero elsewhere. The averaged sums by their global axis.
+  - The pending samples of an averaged diagnostic are kept only if they are those that the (possibly changed)
+    schedule takes for its next output; otherwise they are dropped (OUT-D6).
+  - The particle numbers summed over the ranks must equal the stored ones; every rank raises together.
+
+Why: roadmap R2; research runs of 20–160 h on GPUs shared with other jobs.
+
+### PIC-D26 — A turbulent inflow face: a prescribed fluctuation carried in by the injected plasma (2026-11-13) — Status: Proposed
+Plan: `docs/plans/2026-11-13-upstream-state-restart.md` (Stage 3, amended 2026-11-14).
+- **Table:** `injection.fluctuation`: one injecting face and a list of modes, each uniform along its normal
+  (k_n = 0).
+  - Each mode has B, E and per species δu, as c cos θ + s sin θ with θ = k · r − ω t + φ.
+  - `injection.check_fluctuation` checks k · B = 0, ω B = k × E, Ampère's law with the beams' velocity response Σ q n (δu − v (v · δu)) / γ, and the charge
+    k · E against Σ |q n|.
+- **Particles:**
+  - Carriers (`layer_sample`), paired partners (`inject_partners`) and neutralisers returned at the face
+    (`push_deposit`) take δu at their birth point, at t + Δt/2.
+  - The rejection bound of the inflow table includes |δu_n|.
+  - Without a table the kernels take the old paths.
+- **Fields:** a total-field / scattered-field surface on the face plane.
+  - After each half push of B and after the push of E, the incident E (resp. B) of the face plane (resp. the
+    half plane outside) corrects the half plane outside (resp. the face plane).
+  - The incident field is the uniform E0, B0 plus the modes, evaluated from global coordinates on every local
+    copy.
+  - The region beyond the face starts at zero.
+  - The Marder zone (PIC-D16) acts on the total field: the incident E is added beyond the face before it and
+    taken away after.
+- **Motional background:** E0 tangential to a reflecting face is allowed when the open face of that axis carries
+  the fluctuation.
+- **Gather:** the push and the initial half kick gather the total field across the face. The incident E_a, B_b,
+  B_c are on the half plane outside while they gather.
+- **Energy record:** the Poynting flux through the face is that of the total field. The incident B is added on
+  the half plane outside the face for `poynting_out`.
+- **Refused:** a window; a face that does not inject.
+- **Recommended:** a `flux` face with the Marder zone. A paired face ties the electrons' birth rate to the ions'
+  flux, which differs from theirs in a wave by the wave current (plan, Results).
+
+Why: fluctuations that meet the shock at a fixed age, for spectra that age or rotate in a loaded upstream.
+
+Not established:
+- the errors next to the face (5–15 % of the mode in the last 2 c/ω_pe) at other parameters;
+- several modes at once (the table takes them; the test has one).
 
 ## Review amendments
 
