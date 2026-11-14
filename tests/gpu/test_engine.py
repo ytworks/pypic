@@ -757,6 +757,38 @@ def test_injected_flux_is_the_inflow_of_the_drifting_maxwell_juttner_beams():
     assert np.nanmax(sim.history["gauss"]) < 1e-10
 
 
+def test_a_listed_test_species_enters_and_does_not_change_the_plasma():
+    """A test species with beams that ``injection.species`` lists (PIC-D9, PIC-D13) enters through the
+    injecting face with the inflow of its own beams, deposits nothing and is outside the budget: the
+    plasma's histories are those of the run without it."""
+    bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    drift, theta, steps = 0.3, 0.02, 50
+    plasma = [SpeciesConfig("e", -1, 1, [Beam(1.0, (drift, 0, 0), 0.01)]),
+              SpeciesConfig("i", 1, 16, [Beam(1.0, (drift, 0, 0), 0.001)])]
+    seeds = SpeciesConfig("s", -1, 1, [Beam(0.5, (drift, 0, 0), theta)], test=True)
+    sims = []
+    for species, listed in ((plasma, None), (plasma + [seeds], ("e", "i", "s"))):
+        cfg = SimConfig(n_cells=(16, 12, 12), dx=(0.5,) * 3, dt=0.2, boundaries=bc, ppc=8, npml=6, species=species,
+                        injection=Injection(faces={"x-": "flux"}, species=listed), diag_interval=10, gauss_interval=10)
+        sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+        sim.run(steps)
+        sims.append(sim)
+    ref, sim = sims
+    entered = float(sim.sdiag[2][8])
+    trials = 12 * 12 * 8 * steps
+    p = inflow_moments(drift, theta)[0] * 0.2 / 0.5
+    assert abs(entered - trials * p) < 5 * math.sqrt(trials * p * (1 - p))
+    # the plasma species entered as without it (the history counts every species)
+    assert [float(d[8]) for d in sim.sdiag[:2]] == [float(d[8]) for d in ref.sdiag] and float(ref.sdiag[0][8]) > 0
+    assert sim.history["n_injected"][-1] > ref.history["n_injected"][-1]
+    for k in ("kinetic", "electric", "injected_kinetic", "injected_charge", "budget"):
+        a, b = np.asarray(ref.history[k]), np.asarray(sim.history[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-12, k
+    assert np.nanmax(sim.history["gauss"]) < 1e-10
+    ids = cp.concatenate([sp.ids() for sp in sim.species])
+    assert int(cp.unique(ids).size) == int(ids.size)
+
+
 def test_cold_diagonal_inflow_through_two_faces_fills_the_edge_once():
     """A cold electron-ion beam along the x-y diagonal enters through x- and y-: the entering
     number is the volume swept into the box, the cells outside both faces are sampled once, the
@@ -1124,14 +1156,15 @@ def test_external_dipole_is_decomposition_independent():
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
-@pytest.mark.parametrize("variant", ["inject", "inject_filter", "body", "mixed", "compact"])
+@pytest.mark.parametrize("variant", ["inject", "inject_filter", "body", "mixed", "compact", "seeds"])
 def test_open_flow_is_decomposition_independent(variant):
     """A magnetised oblique flow through six open faces, one paired and four flux (PIC-D13): what
     enters depends on (seed, step, global cell, slot) only, so 1 GPU and a 2x2 rank grid give the
     same run, the same particles and the same charge in the bank, and Gauss's law holds. With the
     current filter and the Marder zone too (``inject_filter``, PIC-D15 and PIC-D16), with an absorbing
     sphere on the edge shared by the ranks (``body``, PIC-D14), with all of them, a dipole in the
-    sphere and the float32 gather (``mixed``), and with the compact storage too (``compact``, PIC-D19)."""
+    sphere and the float32 gather (``mixed``), and with the compact storage too (``compact``, PIC-D19).
+    ``seeds`` is ``inject`` with a listed test species that enters through the five injecting faces."""
     script = os.path.join(HERE, "mgpu_open_flow.py")
     outs = {}
     for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
