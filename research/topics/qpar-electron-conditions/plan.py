@@ -97,13 +97,15 @@ class TopicParams:
     filter_passes: int = 32
     filter_compensate: bool = False
     marder_zone: float = 0.125
-    npml: int = 192  # cells of the absorbing layer of the x+ face (see the docstring)
+    npml: int = 192  # cells of the absorbing layer of every open face (see the docstring)
     precision: str = "compact"
     capacity: float | None = None  # capacity_factor; default 1.2 times the expected compression
     seed: int = 12345
     profiles: int = 200  # lineouts along x
     spectra: int = 50  # histograms (x, u) per species
     spectrum_cells: int = 500  # cells of x per bin of the histograms
+    velocity_slab: list = field(default_factory=list)  # [x0, x1] in d_i: electrons (u_x, u_y, u_z) there
+    velocity_outputs: int = 40
     track_stride: int = 0  # electrons tracked: every n-th (0: none)
     track_every: int = 20  # steps between track samples
     checkpoint_every: int = 0  # steps (0: none)
@@ -113,6 +115,7 @@ class TopicParams:
 def params_from_dict(d: dict) -> TopicParams:
     d = dict(d)
     d["seeds"] = [dict(s) for s in d.get("seeds", [])]
+    d["velocity_slab"] = list(d.get("velocity_slab", []))
     return TopicParams(**d)
 
 
@@ -214,6 +217,13 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         diags.append({"name": f"spectrum_{n}", "kind": "histogram", "species": [n], "quantities": ["x", "u"],
                       "bins": [max(1, nx // p.spectrum_cells), 240], "ranges": [[0.0, lx], [lo, hi]],
                       "log": [False, True], "every": {"count": p.spectra}})
+    if p.velocity_slab:
+        # 64 bins of 0.2 sqrt(theta_e) per axis around the loaded drift (notebook, 2026-11-15, third review)
+        x0, x1 = (float(v) * d_i for v in p.velocity_slab)
+        w = 6.4 * math.sqrt(theta_e)
+        diags.append({"name": "velocity_e", "kind": "histogram", "species": ["e"], "quantities": ["ux", "uy", "uz"],
+                      "bins": [64, 64, 64], "ranges": [[-u0 - w, -u0 + w], [-w, w], [-w, w]],
+                      "region": [[x0, x1], None, None], "every": {"count": p.velocity_outputs}})
     if p.track_stride > 0:
         diags.append({"name": "tracks", "kind": "tracks", "species": electrons, "stride": p.track_stride,
                       "every": p.track_every, "with_fields": True})

@@ -1,0 +1,17 @@
+# Companion of pilot-through.yaml (notebook 2026-11-15, third review): the same flow-through control with another
+# seed and the electrons' (u_x, u_y, u_z) histogram in the slab 20-30 d_i, 10 d_i from the face x+.
+mass_ratio: 100
+v0: 0.1
+mach_alfven: 20
+mach_convention: r4
+theta_bn: 30
+beta_e: 0.5
+beta_i: 0.5
+through: true
+lx: 40
+t_end: 40
+ppc: 125
+filter_passes: 32
+seed: 23456
+velocity_slab: [20, 30]
+velocity_outputs: 40
