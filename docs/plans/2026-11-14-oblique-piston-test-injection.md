@@ -1,6 +1,6 @@
 # An oblique piston shock and injected test species
 
-Status: In progress
+Status: Implemented and gated (fef8bde, 2026-11-15); not merged
 Refs: PIC-D12, PIC-D18 (amended: `external_fields` together with `B0` / `E0`); PIC-D13, PIC-D9 (amended: test
 species enter through an injecting face); PIC-D26 (used unchanged)
 
@@ -109,8 +109,7 @@ work; one run of `pytest tests/gpu` and `python scripts/gpu_gates.py --gpus 8` o
 
 ## Results
 
-Targeted runs during the work (1 GPU, 4 GPUs for the decomposition test; diagnostic). The record of the full gate
-on the final head is added below when it has run.
+Targeted runs during the work (1 GPU, 4 GPUs for the decomposition test; diagnostic), then the full gate.
 
 **G1a, G1b** (f539f2e):
 - Split fields: the orbits of `test_external_uniform_fields_give_the_orbits_of_grid_fields` hold the same bits
@@ -135,3 +134,14 @@ on the final head is added below when it has run.
 - Decomposition (`seeds`): the same ids and counts on 1 GPU and a 2×2 rank grid (10873 entered; 5834 in `inject`),
   the same bank as `inject` (0.21875), histories within 1.1e-15, Gauss 2.8e-15. All six variants pass. Raises
   before G2.
+
+**Full gate on the head fef8bde** (2026-11-15, 8 GPUs; `pytest tests/gpu` and `scripts/gpu_gates.py --gpus 8` in
+`fp64`, then the gates in `mixed` and `compact`): ALL PASSED in the three precisions.
+- Records: `bench/results/2026-11-15-fef8bde19-gpu-gates.json` (32 gates), `-mixed.json` (30), `-compact.json` (28).
+- GPU tests: 164 passed, 0 failed, 0 skipped (161 on 9666c49; the three new ones are the oblique piston, the
+  injected test species and the `seeds` variant of the decomposition test).
+- Two-stream growth error: ei +3.0 %, ep −1.7 %, eip −2.3 %, ei_implicit +3.5 %, buneman −4.7 %, ei_b0 +2.2 %
+  (`mixed`: buneman −4.2 %; `compact`: buneman −4.7 %, on 9666c49 −5.1 %; the rest equal).
+- Gauss max over all gates 7.6e-12 (`two-stream:buneman`; `compact` 2.1e-13, `filamentation:pair`); implicit
+  energy error 1.9e-10.
+- Codex review of fef8bde (round 1): no findings.
