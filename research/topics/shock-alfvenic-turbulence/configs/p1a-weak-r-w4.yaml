@@ -1,0 +1,11 @@
+# Pilot P1a: one forward circular wave at rms dB_x/B0 = 0.1 (Xi = 0.74), the state of the Xi < 1 set: amplitude dependence.
+wpe_wce: 4
+db: 0.1
+helicity: R
+wall: false
+lx: 10
+ly: 50
+t_end: 40
+frames: 80
+profiles: 5
+spectra: 40

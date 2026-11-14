@@ -1,0 +1,11 @@
+# Pilot P1a: laminar periodic box at omega_pe/Omega_ce = 10 (Debye length 0.35 dx), 10 / Omega_ci: the heating rate
+# that the option omega_pe/Omega_ce = 4 is compared with.
+wpe_wce: 10
+db: 0.0
+wall: false
+lx: 10
+ly: 50
+t_end: 10
+frames: 20
+profiles: 5
+spectra: 10

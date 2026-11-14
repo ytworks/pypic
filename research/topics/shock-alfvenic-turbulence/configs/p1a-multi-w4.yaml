@@ -1,0 +1,14 @@
+# Pilot P1a: constant-|B| state of 5 modes (1 zero, radius 0.3). Measured |B|^2 spread against the linear table.
+wpe_wce: 4
+db: 0.6
+helicity: R
+zeros: 1
+zero_radius: 0.3
+kdi_max: 1.0
+wall: false
+lx: 10
+ly: 50
+t_end: 40
+frames: 80
+profiles: 5
+spectra: 40

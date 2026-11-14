@@ -1,0 +1,13 @@
+# Pilot P1a: comparison state, 3 modes of the slab spectrum with random phases (|B| not uniform), helicity R.
+wpe_wce: 4
+db: 0.6
+state: random
+helicity: R
+kdi_max: 0.5
+wall: false
+lx: 10
+ly: 50
+t_end: 40
+frames: 80
+profiles: 5
+spectra: 40
