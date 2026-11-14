@@ -1,0 +1,134 @@
+"""Inflow fluctuation tables (PIC-D26): the Maxwell checks of injection.check_fluctuation. Pure
+Python: no CuPy needed."""
+import copy
+import math
+
+import pytest
+
+from pypic import Beam, SimConfig, SpeciesConfig
+from pypic.config import Injection, Window
+from pypic.injection import check_fluctuation
+
+K, W, B0 = 0.5, 0.2, 1.0
+LY = 2 * math.pi / K  # one wavelength across the periodic y axis
+
+
+def _mode():
+    """A transverse mode along y in a plasma at rest: B = b z cos, E from omega B = k x E, the
+    current of Ampere carried by the ions (q n = 1)."""
+    b = 0.1
+    E = [-W * b / K, 0.0, 0.0]  # k x E = (0, K, 0) x (Ex, 0, 0) = (0, 0, -K Ex) = omega B
+    Bc = [0.0, 0.0, b]
+    # J_sin = -k x B_cos - omega E_cos = -(K b, 0, 0) - omega E
+    Js = [-K * b - W * E[0], 0.0, 0.0]
+    return {"k": [0.0, K, 0.0], "omega": W, "phase": 0.0, "B": {"cos": Bc}, "E": {"cos": E},
+            "u": {"i": {"sin": Js}}}
+
+
+def _cfg(mode, **kw):
+    bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    sp = [SpeciesConfig("e", -1, 1, [Beam(1.0, (-0.05, 0, 0), 1e-3)]),
+          SpeciesConfig("i", 1, 16, [Beam(1.0, (-0.05, 0, 0), 1e-4)])]
+    return SimConfig(n_cells=(16, 8, 2), dx=(0.1, LY / 8, 0.1), boundaries=bc, species=sp, B0=(0, B0, 0),
+                     injection=Injection(faces={"x+": "flux"}, fluctuation={"face": "x+", "modes": [mode]}), **kw)
+
+
+def test_a_consistent_mode_is_accepted():
+    out = check_fluctuation(_cfg(_mode()))
+    assert out["face"] == 1 and len(out["rows"][1]) == 1
+    assert out["du_n"][1] == pytest.approx(abs(_mode()["u"]["i"]["sin"][0]))
+
+
+@pytest.mark.parametrize("change, error", [
+    (lambda m: m.update(k=[0.1, K, 0.0]), "normal of the face"),
+    (lambda m: m["B"]["cos"].__setitem__(1, 0.05), "k . B"),
+    (lambda m: m.update(omega=2 * W), "omega B - k x E"),
+    (lambda m: m["u"]["i"]["sin"].__setitem__(0, 0.0), "Ampere"),
+    (lambda m: m["E"].update(cos=[m["E"]["cos"][0], 0.5, 0.0]), "charge density"),
+    (lambda m: m["u"].update(p={"cos": [0, 0, 0]}), "injected species"),
+])
+def test_inconsistent_modes_are_refused(change, error):
+    m = copy.deepcopy(_mode())
+    change(m)
+    with pytest.raises(ValueError, match=error):
+        check_fluctuation(_cfg(m))
+
+
+def test_unsupported_combinations_are_refused():
+    with pytest.raises(ValueError, match="moving window"):
+        check_fluctuation(_cfg(_mode(), window=Window()))
+    cfg = _cfg(_mode())
+    cfg.injection.fluctuation["face"] = "y+"
+    with pytest.raises(ValueError, match="injecting faces"):
+        check_fluctuation(cfg)
+
+
+def _beam_cfg(drift, mode):
+    bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    return SimConfig(n_cells=(16, 8, 2), dx=(0.1, LY / 8, 0.1), boundaries=bc,
+                     species=[SpeciesConfig("e", -1, 1, [Beam(1.0, drift, 0.0)])],
+                     injection=Injection(faces={"x+": "flux"}, fluctuation={"face": "x+", "modes": [mode]}))
+
+
+def test_relativistic_velocity_response_in_the_current():
+    """A cold beam of proper drift u = -3 along x responds to a longitudinal du with dv = du / gamma^3,
+    not du / gamma (review of PR #50): the table built with the right response is accepted, the
+    one built with du / gamma is refused."""
+    gam = math.sqrt(10.0)
+    E = 0.01
+    Js = E * (K * K - W * W) / W  # J_sin along x for E_cos = E x, B_cos = k x E / omega
+    mode = lambda A: {"k": [0.0, K, 0.0], "omega": W, "B": {"cos": [0.0, 0.0, -K * E / W]},  # noqa: E731
+                      "E": {"cos": [E, 0.0, 0.0]}, "u": {"e": {"sin": [A, 0.0, 0.0]}}}
+    check_fluctuation(_beam_cfg((-3.0, 0, 0), mode(-Js * gam ** 3)))
+    with pytest.raises(ValueError, match="Ampere"):
+        check_fluctuation(_beam_cfg((-3.0, 0, 0), mode(-Js * gam)))
+
+
+def test_rejection_bound_takes_the_whole_perturbation():
+    """A transverse perturbation can raise the normal velocity of a relativistic beam (review of PR #50):
+    the bound is the size of the whole du, sqrt(|u_cos|^2 + |u_sin|^2), not its normal part."""
+    cfg = _cfg(_mode())
+    cfg.injection.fluctuation["tolerance"] = 1e6  # the bound alone, not the Maxwell checks
+    cfg.injection.fluctuation["modes"][0]["u"]["i"]["cos"] = [0.0, 0.3, 0.0]
+    du = abs(_mode()["u"]["i"]["sin"][0])
+    assert check_fluctuation(cfg)["du_n"][1] == pytest.approx(math.hypot(du, 0.3))
+
+
+def test_faraday_is_checked_against_its_own_terms():
+    """A slow mode (omega / k = 0.001) with a time-dependent B, no E and the current of Ampere's law
+    violates Faraday's law by 100 %; it is refused although the Ampere scale k|B| is much larger
+    (review of PR #50)."""
+    w, b = 0.001 * K, 0.1
+    Js = -K * b  # J_sin = -k x B_cos with B_cos = b z, E = 0
+    mode = {"k": [0.0, K, 0.0], "omega": w, "B": {"cos": [0.0, 0.0, b]}, "u": {"i": {"sin": [Js, 0.0, 0.0]}}}
+    with pytest.raises(ValueError, match="omega B - k x E"):
+        check_fluctuation(_cfg(mode))
+
+
+def test_modes_must_fit_a_periodic_axis():
+    """A wave number that does not fit the periodic y axis (k L / 2 pi not an integer) gives different
+    incident corrections at the periodic copies of a point; refused (review of PR #50)."""
+    m = copy.deepcopy(_mode())
+    cfg = _cfg(m)
+    cfg.dx = (0.1, 0.2, 0.1)  # L_y = 1.6, k L_y / 2 pi = 0.127
+    with pytest.raises(ValueError, match="must be an integer on a periodic axis"):
+        check_fluctuation(cfg)
+
+
+def test_paired_face_needs_an_inward_velocity_at_every_phase():
+    """A cold neutraliser whose normal fluctuation exceeds its inward drift has phases without an inward
+    velocity; a paired face refuses such a table (review of PR #50), a flux face takes it."""
+    bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    sp = [SpeciesConfig("e", -1, 1, [Beam(1.0, (-0.05, 0, 0), 0.0)]),
+          SpeciesConfig("i", 1, 16, [Beam(1.0, (-0.05, 0, 0), 0.0)])]
+    mode = copy.deepcopy(_mode())
+    mode["u"]["e"] = {"cos": [0.08, 0.0, 0.0]}  # normal fluctuation 0.08 > inward drift 0.05, cold
+
+    def cfg(kind):
+        return SimConfig(n_cells=(16, 8, 2), dx=(0.1, LY / 8, 0.1), boundaries=bc, species=sp,
+                         injection=Injection(faces={"x+": kind}, neutralizer="e" if kind == "paired" else None,
+                                             fluctuation={"face": "x+", "modes": [mode], "tolerance": 1e9}))
+
+    with pytest.raises(ValueError, match="no inward"):
+        check_fluctuation(cfg("paired"))
+    check_fluctuation(cfg("flux"))

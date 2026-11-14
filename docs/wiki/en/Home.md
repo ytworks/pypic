@@ -26,6 +26,7 @@ copied by hand.
 | [Bow shock of a magnetised planet](Bow-Shock) | magnetopause and bow shock of a dipole in a magnetised wind (open 3-D box, absorbing sphere) | pressure balance; perpendicular MHD shock with the stand-off of Spreiter et al. (1966) | magnetopause {{ bow_shock:r.gate.magnetopause | .2f }} R_mp; shock {{ bow_shock:r.gate.shock | .2f }} vs {{ bow_shock:r.gate.shock_spreiter | .2f }} R_mp |
 | [Blast wave around a magnetised body](Blast-Wave) | debris shell expanding into a magnetised plasma around an absorbing sphere with a dipole (open 3-D box) | fast magnetosonic speed; debris extent scaling of Le et al. (2021) | front at {{ blast_wave:r.gate.front_mach_fast | .2f }} fast speeds; debris extent {{ blast_wave:r.gate.debris_extent_ratio | .2f }} × the scaling |
 | [Plasma wakefield](Plasma-Wakefield) | wake of a laser pulse and of an electron bunch in a cold plasma (laser antenna, moving window); cavity of a strong pulse | linear theory of the wake (amplitude, wavenumber, radial structure); scalings of Lu et al. (2007) | amplitude {{ wakefield:r.laser_linear.amplitude_ratio | .3f }} (pulse) and {{ wakefield:r.beam_linear.amplitude_ratio | .3f }} (bunch) of the theory |
+| [Alfvénic wave carried by a flow into a shock](Alfven-Inflow) | cold two-fluid R wave carried into an open box through a turbulent inflow face; the same wave meets a perpendicular piston shock (M_A ≈ 4.4) | cold two-fluid dispersion relation; perpendicular MHD jump conditions | k-mode within {{ alfven_inflow:r.gate.Bz_mean | .1% }} of the incident wave (mean); shock speed {{ alfven_inflow:r.piston.shock_speed_ratio | .2f }} × the jump conditions |
 
 ## Gallery
 
@@ -34,6 +35,7 @@ copied by hand.
 | <img src="images/two_stream/ei.gif" width="280"><br>two-stream: phase-space vortices | <img src="images/filamentation/pair.gif" width="280"><br>filamentation: current filaments | <img src="images/reconnection/pair_sigma10_large_run2.gif" width="280"><br>reconnection: plasmoids |
 | <img src="images/landau_damping/wavebreaking.gif" width="280"><br>wave breaking: sheets cross | <img src="images/relativistic_shock/pair_2d.gif" width="280"><br>relativistic shock | <img src="images/particle_orbits/orbits.gif" width="280"><br>test-particle orbits |
 | <img src="images/bow_shock/gate.gif" width="280"><br>bow shock: ion density | <img src="images/blast_wave/gate.gif" width="280"><br>blast wave: field, ambient and debris ions | <img src="images/wakefield/laser_bubble.gif" width="280"><br>wakefield: cavity of a strong laser pulse |
+| <img src="images/alfven_inflow/piston.gif" width="280"><br>Alfvénic wave: a shock runs into it | | |
 
 ## How the pages are made
 

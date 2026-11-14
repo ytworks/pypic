@@ -174,7 +174,7 @@ def null_test(run_dir: str) -> dict:
            "particles_end": float(s["n_particles"][-1])}
     stats = run.meta.get("run")
     if stats:
-        res.update(ms_per_step=1e3 * stats["wall_time_s"] / stats["steps"],
+        res.update(ms_per_step=1e3 * stats["wall_time_s"] / stats["steps"] if stats["steps"] else float("nan"),
                    ns_per_particle_step=stats["ns_per_particle_step"])
     checks = {
         "gauss": bool(res["gauss_max"] <= GAUSS_MAX),  # False for nan: no measurement, no pass
@@ -399,7 +399,7 @@ def analyze(run_dir: str, show_plot: bool = True, fig_dir: str | None = None) ->
                    n_absorbed=int(s["n_absorbed"][-1]))
     stats = run.meta.get("run")
     if stats:
-        res.update(ms_per_step=1e3 * stats["wall_time_s"] / stats["steps"],
+        res.update(ms_per_step=1e3 * stats["wall_time_s"] / stats["steps"] if stats["steps"] else float("nan"),
                    ns_per_particle_step=stats["ns_per_particle_step"])
     checks = gate_checks(res)
     res.update(checks=checks, passed=all(checks.values()))
