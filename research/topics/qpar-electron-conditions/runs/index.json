@@ -16,6 +16,13 @@
    "kind": "pilot (plan step 4)",
    "config": "configs/pilot-piston.yaml",
    "gpus": 1
+  },
+  {
+   "file": "2026-11-15-n7-synthetic.json",
+   "record": "2026-11-15-n7-synthetic.md",
+   "commit": "53cd3a902844617a6b136f77f6dedbf64dcfda40",
+   "kind": "null test N7 (method, synthetic fields)",
+   "gpus": 0
   }
  ]
 }
