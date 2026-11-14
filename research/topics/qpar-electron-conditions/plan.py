@@ -15,9 +15,14 @@ E0 = (0, 0, v0 b sin theta_Bn).
   field have one place each (docs/plans/2026-11-14-oblique-piston-test-injection.md):
   - the normal component is an external field (the wall zeroes a normal Yee B);
   - the tangential component and E0 are Yee fields (a wall does not short an external E);
-  - the face x+ injects the flow (``flux`` face, PIC-D13) and carries the uniform B0 / E0 in through a
-    PIC-D26 table of zero amplitude. The absorbing layer there is ``npml`` = 24 cells deep: with the default
-    12 the upstream state drifts next to the face (notebook, 2026-11-14).
+  - the face x+ injects the flow (PIC-D13) and carries the uniform B0 / E0 in through a PIC-D26 table of zero
+    amplitude. The absorbing layer there is ``npml`` = 24 cells deep: with the default 12 the upstream state
+    drifts next to the face (notebook, 2026-11-14).
+  - ``face`` is the injection rule of that face. ``paired`` (default): the inflow face of a flow, the
+    electrons are the neutraliser. ``flux``: every species is launched on its own. With ``flux`` the tangential
+    field at the face decayed from 0.4-0.6 / Omega_ci on in the step-4 pilots (flow at 3 electron thermal
+    speeds, 30 and 8 degrees); with ``paired`` B_y at the face stayed within 6 % and B_z within 0.1 B0y to
+    2 / Omega_ci (notebook, 2026-11-15). Seeds enter as at a flux face with either rule.
 - ``wall: false``: every axis periodic, the whole field in the Yee arrays, no shock: the uniform flow of the
   null test N1 (numerical heating).
 
@@ -58,6 +63,7 @@ from pypic.setup.planner import apply_overrides
 ROOT = os.path.dirname(os.path.abspath(__file__))
 GAMMA = 5.0 / 3.0
 CONVENTIONS = ("r4", "mhd")
+FACES = ("paired", "flux")
 BYTES_PER_SLOT = {"compact": 56}  # PIC-D19; the other precisions are not estimated here
 
 
@@ -72,6 +78,7 @@ class TopicParams:
     beta_i: float = 0.5
     seeds: list = field(default_factory=list)  # [{"name": str, "theta": float}], passive test electrons
     wall: bool = True
+    face: str = "paired"  # injection rule of the x+ face with a wall (PIC-D13): "paired" or "flux"
     lx: float = 100.0  # d_i
     t_end: float = 10.0  # 1 / Omega_ci
     ny: int = 2
@@ -160,6 +167,8 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         raise ValueError(f"mach_convention must be one of {CONVENTIONS}")
     if not 0.0 <= p.theta_bn < 90.0:
         raise ValueError("theta_bn must be in [0, 90) degrees")
+    if p.face not in FACES:
+        raise ValueError(f"face must be one of {FACES}")
     sh = shock_state(p)
     b, v_a = sh["b"], sh["v_a"]
     th = math.radians(p.theta_bn)
@@ -208,7 +217,8 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         table = {"face": "x+", "modes": [{"k": [0.0, 0.0, 0.0], "omega": 0.0, "phase": 0.0, "B": zero, "E": zero,
                                           "u": {n: zero for n in names}}]}
         fields = dict(B0=(0.0, by, 0.0), E0=(0.0, 0.0, p.v0 * by), external_fields=ExternalFields(B=(bx, 0.0, 0.0)),
-                      injection=Injection(faces={"x+": "flux"}, species=tuple(names), fluctuation=table),
+                      injection=Injection(faces={"x+": p.face}, species=tuple(names), fluctuation=table,
+                                          neutralizer="e" if p.face == "paired" else None),
                       marder_zone=p.marder_zone)
         capacity = p.capacity if p.capacity is not None else 1.2 * r_cap
     else:
@@ -245,7 +255,8 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         "b": b, "bx": bx, "by": by, "v_a": v_a, "v0": p.v0, "u0": u0, "d_i": d_i, "omega_ci": omega_ci,
         "theta_e": theta_e, "theta_i": theta_i, "beta": p.beta_e + p.beta_i, "shock": sh,
         "mach_sonic_i": sh["v_sh"] / math.sqrt(theta_i), "mach_sonic_e": sh["v_sh"] / math.sqrt(theta_e),
-        "debye_cells": debye, "wall": p.wall, "lx": lx, "omega_ci_t_end": omega_ci * t_run,
+        "debye_cells": debye, "wall": p.wall, "face": p.face if p.wall else None, "lx": lx,
+        "omega_ci_t_end": omega_ci * t_run,
         "x_shock_end": x_shock, "particles": particles, "per_column": 2 * p.ny * p.nz * p.ppc,
         "capacity_bytes": None if slot is None else slot * particles * cfg.capacity_factor,
         "dims": cfg.dims, "notes": notes, "params": asdict(p)}
@@ -258,7 +269,7 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         f"shock at {v_box:.5f} c in the box",
         f"Mach numbers on v_sh={sh['v_sh']:.5f} c: sonic (ions, sqrt(T/m_i)) {info['mach_sonic_i']:.1f}, "
         f"electron sonic {info['mach_sonic_e']:.2f}",
-        (f"wall at x-, flux face at x+ (npml {cfg.npml}); shock at {x_shock:.0f} d_i at t_end (MHD reading)"
+        (f"wall at x-, {p.face} face at x+ (npml {cfg.npml}); shock at {x_shock:.0f} d_i at t_end (MHD reading)"
          if p.wall else "periodic box, no shock (N1)"),
         f"grid {cfg.n_cells} ({p.lx:g} d_i), dx={dx:g}, dt={dt:g}, {n_steps} steps to "
         f"{info['omega_ci_t_end']:.1f} / Omega_ci; filter {cfg.current_filter.passes} passes"
