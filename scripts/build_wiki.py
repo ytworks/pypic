@@ -185,6 +185,19 @@ EXAMPLES: dict[str, dict] = {
         "movies": ["laser_linear", "beam_linear", "laser_bubble"],
         "gif": {"fps": 3},  # a gate run writes nine outputs, the production run twenty
     },
+    "alfven_inflow": {
+        "page": "Alfven-Inflow",
+        "title": {"en": "Alfvénic wave carried by a flow into a shock",
+                  "ja": "流れに運ばれて衝撃波へ入るアルヴェン的な波"},
+        "cases": {
+            "gate": fresh("gate", gpus=2),
+            "piston": recorded("output/alfven_inflow/piston",
+                               "bench/results/2026-11-14-ef4fc4f08-example-alfven_inflow-piston-run-d6f52e61.json"),
+            "piston_null": recorded("output/alfven_inflow/piston_null",
+                                    "bench/results/2026-11-14-ef4fc4f08-example-alfven_inflow-piston-run-b4f6699d.json"),
+        },
+        "movies": ["gate", "piston"],
+    },
 }
 
 
@@ -244,7 +257,16 @@ def _clean(v):
     return v
 
 
+def _shape(shape: dict) -> str:
+    """A product of 1-D shapes along axes (PIC-D24), named only: "cos(y) × table(x)"."""
+    return " × ".join(f"{s.get('shape')}({ax})" for ax, s in shape.items())
+
+
 def _perturbation(p: dict) -> str:
+    if "shape" in p:  # shaped perturbation (PIC-D24)
+        if "velocity" in p:
+            return f"u_{p.get('velocity_component')} {p['velocity']:.3g} {_shape(p['shape'])}"
+        return f"ξ_{p.get('displacement_component')} {p['displacement']:.3g} {_shape(p['shape'])}"
     amp = " ".join(f"{k}={v:g}" if isinstance(v, (int, float)) else f"{k}={v}"
                    for k, v in p.items() if k not in ("axis", "mode"))
     return f"{amp} (mode {p.get('mode')} along {p.get('axis')})"
@@ -317,7 +339,13 @@ def conditions(d: Path) -> dict:
     for dip in ext.get("dipoles") or []:
         fields.append(f"external dipole m={_vec(dip['moment'])} at {_vec(dip['center'])}")
     for f in cfg.get("initial_fields") or []:
-        fields.append(f"{f.get('component', '')} {f.get('kind', '')} {f.get('shape', '')}".strip())
+        shape = f.get("shape", "")
+        if isinstance(shape, dict):  # a vector potential: a product of shapes along axes (PIC-D24)
+            shape = _shape(shape)
+        fields.append(f"{f.get('component', '')} {f.get('kind', '')} {shape}".strip())
+    fl = (cfg.get("injection") or {}).get("fluctuation")
+    if fl:
+        fields.append(f"inflow fluctuation at {fl.get('face')}: {len(fl.get('modes', []))} mode(s)")
     meta_run = r["meta"].get("run", {})
     return {
         "solver": r["solver"], "n_cells": r["n_cells"], "L": r["L"], "dx": r["dx"], "dt": r["dt"],

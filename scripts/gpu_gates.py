@@ -57,7 +57,7 @@ EXAMPLES = [
     ("plasma_expansion", "isothermal_hydrogen"), ("relativistic_shock", "pair_2d"),
     ("relativistic_shock", "pair_2d_sigma"), ("reconnection", "pair_sigma10"),
     ("bow_shock", "gate"), ("bow_shock", "south"), ("bow_shock", "oblique"), ("blast_wave", "gate"),
-    ("wakefield", "laser_linear"), ("wakefield", "beam_linear"),
+    ("wakefield", "laser_linear"), ("wakefield", "beam_linear"), ("alfven_inflow", "gate"),
 ]
 EXAMPLE_NAMES = [f"{e}:{c}" for e, c in EXAMPLES]
 # gates whose configuration has a moving window: not part of the `compact` gates (the compact storage has no

@@ -15,10 +15,15 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 
 ## Engine baseline
 
-- main 15e5c2c (2026-11-12, merge of PR #42), taken at the creation of `research/trunk`.
-- Its `pypic/` tree is that of 300c1a4. Gates all passed there: `bench/results/2026-11-12-300c1a498-gpu-gates.json`, `-mixed.json` and `-compact.json`.
+- main fa0972664 (2026-11-14, merge of PR #50), taken by `abc1099`.
+- Its `pypic/` tree is that of 9666c49. Gates all passed there: `bench/results/2026-11-14-9666c4972-gpu-gates.json`, `-mixed.json` and `-compact.json`.
 
 ## Change Log
+
+### 2026-11-14 — [progress] main fa0972664 taken
+- What: main merged into research/trunk (`--no-ff`). Engine additions: frozen-in initial states (`potential` initial fields, shaped velocity/displacement perturbations; PIC-D24), a turbulent inflow face (`injection.fluctuation`, TF/SF on the face plane; PIC-D26), restart checkpoints (`checkpoint:`/`restart:`, run.py `--restart`; PIC-D25, OUT-D6); example `examples/alfven_inflow`.
+- Why: engine prerequisites E1–E3 of topic shock-alfvenic-turbulence.
+- Refs: PR #50; `bench/results/2026-11-14-9666c4972-gpu-gates*.json`.
 
 ### 2026-11-12 — [amendment] Pull requests are allowed between research branches
 - What: a pull request may be opened when its base is `research/*` (a work or session branch into its topic, a topic into trunk). It is merged with a merge commit, never by squash or rebase. A pull request into main or any other non-research branch stays forbidden.

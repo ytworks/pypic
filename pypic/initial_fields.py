@@ -9,6 +9,11 @@ plane_wave: {"kind": "plane_wave", "axis": "x", "mode": m, "polarization": "y", 
       implicit (Crank-Nicolson): (2/dt) tan(omega dt / 2) = (2/dx) sin(k dx / 2); amplitude A
 profile:    {"kind": "profile", "component": "Bx", "axis": "y", "shape": ..., ...} (pypic.profiles):
     the component varies only along an axis other than its own, so div E / div B stay zero.
+potential:  {"kind": "potential", "component": "Az", "shape": {"x": {...}, "y": {...}}, "scale": s}
+    (PIC-D24): A_c = s x product of 1-D shapes on the c-edges (the places of E_c), from global
+    coordinates on every local index; B += the discrete curl of A with the stencil of the Yee update,
+    so div B = 0 bitwise. A tangential to a non-periodic face must be zero on its plane: the wall
+    zeroes the normal B there, which would leave div B.
 """
 from __future__ import annotations
 
@@ -90,6 +95,50 @@ def profile(sim, spec: dict):
     _add(sim, comp, b, evaluate(shape, _line(sim, comp, b)))
 
 
+def potential(sim, spec: dict):
+    from .config import validate_potential
+
+    spec = validate_potential(spec)
+    cfg, g = sim.cfg, sim.grid
+    c = AXES.index(spec["component"][1])
+    comp = "E" + AXES[c]  # A_c lives where E_c lives
+    vals = cp.full(g.Ex.shape, spec["scale"], dtype=cp.float64)
+    for ax_name, shp in spec["shape"].items():
+        a = AXES.index(ax_name)
+        line = evaluate(shp, _line(sim, comp, a))
+        shape = [1, 1, 1]
+        shape[a] = -1
+        vals *= cp.asarray(line.reshape(shape))
+    # A on a non-periodic face that it is tangential to must vanish (the wall zeroes the normal B)
+    amax = sim.comm.allreduce_scalar(float(cp.max(cp.abs(vals))), "max")
+    on_face = 0.0
+    for a in range(3):
+        if a == c or all(kind == "periodic" for kind in cfg.boundaries[a]):
+            continue
+        pos = g.global_positions(a, stagger_of(comp)[a])
+        for side, kind in enumerate(cfg.boundaries[a]):
+            if kind == "periodic":
+                continue
+            target = 0.0 if side == 0 else float(g.d.n_cells[a])
+            idx = np.nonzero(np.abs(pos - target) < 1e-9)[0]
+            if idx.size:
+                sl = [slice(None)] * 3
+                sl[a] = slice(int(idx[0]), int(idx[0]) + 1)
+                on_face = max(on_face, float(cp.max(cp.abs(vals[tuple(sl)]))))
+    on_face = sim.comm.allreduce_scalar(on_face, "max")
+    if on_face > 1e-14 * amax:
+        raise ValueError(f"initial field potential: {spec['component']} is tangential to a non-periodic face and "
+                         f"not zero on it (max {on_face:.3g} of {amax:.3g}); the wall would zero the normal B "
+                         "and leave div B (PIC-D24)")
+    A = [cp.zeros_like(g.Ex), cp.zeros_like(g.Ey), cp.zeros_like(g.Ez)]
+    A[c] = vals
+    g.fill_ghosts(A)
+    out = [cp.zeros_like(g.Bx), cp.zeros_like(g.By), cp.zeros_like(g.Bz)]
+    g.curl_E(A, out, 1.0)
+    for B, d in zip((g.Bx, g.By, g.Bz), out):
+        B += d
+
+
 def apply_initial_fields(sim, specs) -> list:
     info = []
     for spec in specs:
@@ -99,6 +148,9 @@ def apply_initial_fields(sim, specs) -> list:
         elif kind == "profile":
             profile(sim, spec)
             info.append({})
+        elif kind == "potential":
+            potential(sim, spec)
+            info.append({})
         else:
-            raise ValueError(f"initial field kind must be plane_wave or profile (got {kind!r})")
+            raise ValueError(f"initial field kind must be plane_wave, profile or potential (got {kind!r})")
     return info

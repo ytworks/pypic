@@ -1,0 +1,16 @@
+# Gate: an open flow (x- open, x+ flux inflow face with the wave) at V0 = 2 v_A; the cold R wave at
+# k d_i = 0.785 with |dB| / B0 = 0.2 loaded over the whole box at t = 0 and carried in through x+.
+# 256 x 128 x 2 cells, 4.2e6 particles, 3000 steps (t = 300 = 1.9 / Omega_ci); the set-up of
+# tests/gpu/test_inflow.py. A few minutes on 1-2 GPUs.
+mass_ratio: 16
+wpe_wce: 10
+theta_e: 1.0e-3
+flow_mach: 2
+branch: R
+amplitude: 0.2
+ly: 32
+lx: 64
+load: uniform
+wall: false
+ppc: 32
+t_end: 300

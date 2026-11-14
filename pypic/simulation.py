@@ -9,12 +9,13 @@ import time
 import cupy as cp
 import numpy as np
 
-from . import antenna, body, injection, window
+from . import antenna, body, checkpoint, injection, window
 from .backend import compile_module, launch
 from .config import FACES, ID_LIMIT, SLOT_BYTES, SimConfig
 from .external import check_config, dipoles_B
 from .grid import FIELD_NAMES, YeeGrid
 from .kernelsrc import CG_BLOCK, PARTICLE_SOURCES, particle_defines
+from .output.names import stagger_of
 from .parallel.comm import init_from_env
 from .parallel.decomp import Decomposition, auto_dims
 from .particles import MIGRATE_KERNELS, CompactSpecies, Species, migrate
@@ -36,6 +37,10 @@ class Simulation:
         self.comm = comm if comm is not None else init_from_env()
         self.rank = self.comm.rank
         self.verbose = verbose and self.rank == 0
+        checkpoint.check_config(cfg)
+        # restart (PIC-D25): the checkpoint is read and its configuration checked before the set-up
+        self._restart = checkpoint.open_restart(self) if cfg.restart else None
+        self._restart_step = self._restart[1]["step"] if self._restart else None
         dims = cfg.dims or auto_dims(self.comm.size, cfg.n_cells)
         if int(np.prod(dims)) != self.comm.size:
             raise ValueError(f"dims {dims} do not match {self.comm.size} ranks")
@@ -81,6 +86,9 @@ class Simulation:
         if self.mixed and cfg.solver == "implicit":
             raise ValueError(f"precision='{cfg.precision}' is for the explicit solver only (PIC-D11, PIC-D19)")
         self.injection = injection.check_config(cfg)
+        # PIC-D26; checked even without an injecting face, which refuses a table that nothing carries in
+        self.fluct = injection.check_fluctuation(cfg)
+        self._inc_cache = {}  # spatial parts of the incident field on the TF/SF planes (_incident_cached)
         self.pmod = compile_module(PARTICLE_SOURCES, particle_defines(
             self.grid.defines, mixed=self.mixed, paired_faces=injection.paired_faces(cfg), body=cfg.body,
             window=next(_WINDOW_MODULES) if self.window else 0, x_low=self.decomp.x_low(ghost),
@@ -161,8 +169,15 @@ class Simulation:
             g = self.grid
             edges = body.relax_edges(cp, [g.global_positions(a, 0.0) * g.dx[a] for a in range(3)], cfg.body, g.dx)
             self._relax = ([cp.flatnonzero(m) for m in edges], math.exp(-cfg.body.relax * cfg.dt))
-        if not self.implicit and (moved or fields_set or any(self.B0) or self.external):
+        if self.fluct is not None:
+            self._tfsf_start()
+        # an inflow fluctuation (PIC-D26) acts on the particles next to its face from t = 0 on
+        if not self.implicit and (moved or fields_set or any(self.B0) or self.external or self.fluct is not None):
+            if self.fluct is not None:
+                self._tfsf_gather(0.0, +1.0)
             self._initial_half_kick()
+            if self.fluct is not None:
+                self._tfsf_gather(0.0, -1.0)
         if self.implicit:
             self._init_implicit()
         self.step_count = 0
@@ -189,6 +204,10 @@ class Simulation:
         from .output.manager import OutputManager
 
         self.output = OutputManager(self)
+        if self._restart:
+            checkpoint.restore(self, *self._restart)
+            if self.verbose:
+                print(f"[pypic] continued from {self._restart[0]} (step {self.step_count})", flush=True)
 
     # ----------------------------------------------------------------- set-up
     def _beam_block(self, b):
@@ -387,6 +406,14 @@ class Simulation:
         cfg, S = self.cfg, len(self.species)
         self.inj_launch, self.inj_room, self.inj_fmask = [], [0] * S, [0] * S
         self.inj_rb, self.inj_nrb = cp.zeros(6), 1
+        # inflow fluctuation (PIC-D26): per species the mode rows, the face (-1: none)
+        self.fl_face = -1 if self.fluct is None else self.fluct["face"]
+        self.fl_rows = [cp.zeros(11) for _ in range(S)]
+        self.fl_n = [0] * S
+        if self.fluct is not None:
+            for si, rows in self.fluct["rows"].items():
+                self.fl_rows[si] = cp.asarray(rows, dtype=cp.float64)
+                self.fl_n[si] = len(rows)
         self.bank, self.binfo = cp.zeros(1), cp.full(12, -1, dtype=cp.int32)
         self.bank0 = self.bank.copy()
         self.inj_neutral = None
@@ -421,7 +448,8 @@ class Simulation:
             binfo[9:12] = [ax.n_phys for ax in axes]
             n_bank = 0
             for f in paired:
-                rb[f] = injection.inflow_table(beams, f)
+                extra = self.fluct["du_n"].get(ne, 0.0) if self.fluct is not None and f == self.fl_face else 0.0
+                rb[f] = injection.inflow_table(beams, f, extra)
                 if (axes[f >> 1].hi if f & 1 else axes[f >> 1].lo) is None:
                     binfo[f] = n_bank
                     n_bank += math.prod(ax.n_phys for a, ax in enumerate(axes) if a != f >> 1)
@@ -463,14 +491,16 @@ class Simulation:
                 np.int32(face), np.int32(pair), *pt.store, np.int64(pt.cap), np.int32(pt.n),
                 self.flag[S + pi:S + pi + 1], self.sdiag[pi], self.flag[pi:pi + 1], lstp, np.int32(lstp.size),
                 np.float64(pt.q), self.inj_pstate, self.inj_pface, self.bank, self.bank0, self.binfo,
-                np.int32(do_diag)))
+                np.int32(do_diag), self.fl_rows[si], np.int32(self.fl_n[si] if face == self.fl_face else 0),
+                np.float64(self.time + 0.5 * cfg.dt)))
         ne = self.inj_neutral
         if ne is not None:
             pt = self.species[ne]
             launch(self.k_partners, self.inj_room[ne], (
                 *pt.store, np.int64(pt.cap), np.int32(pt.n), self.flag[S + ne:S + ne + 1], self.sdiag[ne],
                 np.float64(pt.q), np.float64(pt.m), self.inj_rb, np.int32(self.inj_nrb), self.inj_pstate,
-                self.inj_pface, np.int32(do_diag)))
+                self.inj_pface, np.int32(do_diag), self.fl_rows[ne], np.int32(self.fl_n[ne]),
+                np.int32(self.fl_face), np.float64(self.time + 0.5 * cfg.dt)))
 
     def _init_external(self):
         """External static fields (PIC-D12): per component Ex..Bz the uniform value and, for B with
@@ -534,7 +564,11 @@ class Simulation:
             if e != 0.0:
                 for a in range(3):
                     kinds = set(cfg.boundaries[a]) - {"periodic"}
-                    if a != c and kinds and (kinds != {"reflecting"} or cfg.solver != "explicit"):
+                    # PIC-D26: a reflecting face opposite the open face that carries the inflow fluctuation,
+                    # whose incident field holds E0 there
+                    carried = self.fluct is not None and self.fluct["face"] >> 1 == a and \
+                        cfg.boundaries[a][self.fluct["face"] & 1] == "open" and kinds <= {"reflecting", "open"}
+                    if a != c and kinds and ((kinds != {"reflecting"} and not carried) or cfg.solver != "explicit"):
                         raise ValueError(f"E0 component {'xyz'[c]} is tangential to the faces of axis {'xyz'[a]}: "
                                          "allowed at reflecting faces with the explicit solver only (PIC-D18)")
                 getattr(g, "E" + "xyz"[c])[...] += e
@@ -562,11 +596,24 @@ class Simulation:
         cfg, g = self.cfg, self.grid
         moving = False
         residual = 0.0  # largest |F(x) - x0| / L of the density inverses on this rank
+        too_close = 0.0  # 1 if a shaped displacement moves a particle near a non-periodic face
         for si, (sc, sp) in enumerate(zip(cfg.species, self.species)):
             disp = None
             for bi, b in enumerate(sc.beams):
                 lo, hi = self._beam_ranges[(si, bi)]
                 for pt in b.perturbation:
+                    if "shape" in pt:  # PIC-D24: amplitude x product of 1-D shapes at the loaded place
+                        f = None
+                        for ax_name, spec in pt["shape"].items():
+                            v = evaluate(spec, sp.pos("xyz".index(ax_name), lo, hi), cp)
+                            f = v if f is None else f * v
+                        if "velocity" in pt:
+                            sp.add_mom("xyz".index(pt["velocity_component"]), pt["velocity"] * f, lo, hi)
+                        if "displacement" in pt:
+                            if disp is None:
+                                disp = cp.zeros((3, sp.cap))
+                            disp["xyz".index(pt["displacement_component"]), lo:hi] += pt["displacement"] * f
+                        continue
                     a = "xyz".index(pt.get("axis", "x"))
                     if cfg.boundaries[a][0] != "periodic":
                         raise ValueError("perturbations need a periodic axis")
@@ -586,6 +633,7 @@ class Simulation:
                             residual = max(residual, res / g.L[a])
                             disp[a, lo:hi] += x - x0
             if disp is not None:
+                too_close = max(too_close, self._displacement_near_face(sp, disp))
                 sp.set_displacement(disp)
                 moving = True
         if not any(b.perturbation and any(("density" in p or "displacement" in p) for p in b.perturbation)
@@ -593,6 +641,11 @@ class Simulation:
             return False  # decided from the configuration: identical on every rank
         # every rank reaches this reduction (the branch above depends on the configuration only)
         residual = self.comm.allreduce_scalar(residual, "max")
+        too_close = self.comm.allreduce_scalar(too_close, "max")
+        if too_close > 0.0:
+            raise ValueError("shaped displacement (PIC-D24): particles closer than one cell plus the largest "
+                             "displacement to a non-periodic face of the displaced axis must not move; give the "
+                             "shape exact zeros there (e.g. ramp or step)")
         if residual > 1e-12:
             raise RuntimeError(f"density perturbation: the inverse of the cumulative density did not converge "
                                f"(max residual {residual:.3g} L)")
@@ -626,6 +679,25 @@ class Simulation:
             sp.end_displacement()
         return moving or rounds > 0
 
+    def _displacement_near_face(self, sp, disp) -> float:
+        """1.0 if a particle of this rank with a displacement along a non-periodic axis c lies closer
+        than one cell plus the largest such displacement (over all ranks) to a face of axis c."""
+        cfg, g = self.cfg, self.grid
+        flag = 0.0
+        for c in range(3):
+            if cfg.boundaries[c][0] == "periodic" and cfg.boundaries[c][1] == "periodic":
+                continue
+            d = cp.abs(disp[c, : sp.n])
+            dmax = self.comm.allreduce_scalar(float(cp.max(d)) if sp.n else 0.0, "max")
+            if dmax == 0.0 or not sp.n:
+                continue
+            x = sp.pos(c)
+            margin = g.dx[c] + dmax
+            near = (x < margin) | (x > g.L[c] - margin)
+            if bool(cp.any(near & (d > 0.0))):
+                flag = 1.0
+        return flag
+
     def _initial_half_kick(self):
         """Explicit leapfrog: loaded momenta are at t = 0; with non-zero initial E or B push them
         back to t = -dt/2 by a Boris step of -dt/2 (positions unchanged)."""
@@ -646,6 +718,8 @@ class Simulation:
             for d in self.sdiag:
                 d[:4] = 0
             self._fe = g.field_energy_local()  # fields at t^n; reduced over the ranks in _record
+        if self.fluct is not None:  # the push gathers the total field across the TF/SF face (PIC-D26)
+            self._tfsf_gather(self.time, +1.0)
         fields = self._gather_fields()
         if self.injection:
             # decided from the configuration and the step: every rank raises together
@@ -661,7 +735,10 @@ class Simulation:
                 g.Jx, g.Jy, g.Jz, np.float64(sp.q * self.cfg.dt / (2.0 * sp.m)), np.float64(sp.m),
                 np.float64(sp.qdep), d, self.flag[i:i + 1],
                 lst, np.int32(lst.size), np.int32(do_diag), seed, step, np.int32(self.inj_fmask[i]),
-                self.inj_rb, np.int32(self.inj_nrb), self.bank, self.binfo))
+                self.inj_rb, np.int32(self.inj_nrb), self.bank, self.binfo, self.fl_rows[i], np.int32(self.fl_n[i]),
+                np.int32(self.fl_face), np.float64(self.time + 0.5 * self.cfg.dt)))
+        if self.fluct is not None:
+            self._tfsf_gather(self.time, -1.0)
         if self.inj_launch:
             self._inject(do_diag)
         g.reduce_ghosts((g.Jx, g.Jy, g.Jz))
@@ -675,8 +752,13 @@ class Simulation:
         # first lets the host prepare it while the push kernels run, as the migration starts with
         # a host synchronisation.
         dt = self.cfg.dt
+        t0 = self.time
         g.push_B(0.5 * dt)
+        if self.fluct is not None:
+            self._tfsf_B(0.5 * dt, t0)
         g.push_E(dt)
+        if self.fluct is not None:
+            self._tfsf_E(dt, t0 + 0.5 * dt)
         if self.antennas:
             self._antenna_work_done(driven)
         if self._relax:
@@ -685,11 +767,193 @@ class Simulation:
                     flat = e.reshape(-1)
                     flat[idx] = flat[idx] * self._relax[1]
         g.push_B(0.5 * dt)
+        if self.fluct is not None:
+            self._tfsf_B(0.5 * dt, t0 + dt)
         self._migrate()
         if self.marder:
+            if self.fluct is not None:  # the zone acts on the total field: add the incident one beyond the face
+                self._tfsf_total(t0 + dt, +1.0)
             g.marder_zone(self._charge_density(zone=True), self.zone_depth, self.marder)
+            if self.fluct is not None:
+                self._tfsf_total(t0 + dt, -1.0)
+                # the conductor behind the absorbing layer holds no scattered field: the subtraction must
+                # not leave -E_inc on it (review of PR #50; a restore onto another layout rebuilds it as 0)
+                g.apply_bc_E()
         if self._has_open:
+            if self.fluct is not None:  # the flux of the total field through the fluctuation face (PIC-D26)
+                self._tfsf_half_B(t0 + dt, +1.0)
             self.flux_out += dt * g.poynting_out()
+            if self.fluct is not None:
+                self._tfsf_half_B(t0 + dt, -1.0)
+
+    # ------------------------------------------- inflow fluctuation: total-field / scattered-field face (PIC-D26)
+    def _incident(self, comp: str, coords, t: float):
+        """Incident field component ``comp`` (Ex..Bz) at the physical points ``coords`` (three
+        broadcastable CuPy arrays) and time t: the uniform E0 / B0 and the modes of the fluctuation."""
+        c, kind = "xyz".index(comp[1]), comp[0]
+        bg = float((self.cfg.E0 if kind == "E" else self.cfg.B0)[c])
+        out = cp.full(cp.broadcast(*coords).shape, bg)
+        for m in self.fluct["modes"]:
+            C, S = m[kind]
+            if C[c] == 0.0 and S[c] == 0.0:
+                continue
+            k = m["k"]
+            th = k[0] * coords[0] + k[1] * coords[1] + k[2] * coords[2] - m["omega"] * t + m["phase"]
+            out += C[c] * cp.cos(th) + S[c] * cp.sin(th)
+        return out
+
+    def _incident_cached(self, key, comp: str, coords, t: float):
+        """``_incident`` on a fixed set of points named by ``key``: the spatial parts are computed
+        once, cos(th) = cos(k.r + phase) cos(w t) + sin(k.r + phase) sin(w t), so a step costs a few
+        multiply-adds per mode instead of the trigonometric functions on every point."""
+        ent = self._inc_cache.get(key)
+        if ent is None:
+            c, kind = "xyz".index(comp[1]), comp[0]
+            bg = float((self.cfg.E0 if kind == "E" else self.cfg.B0)[c])
+            shape = cp.broadcast(*coords).shape
+            terms = []
+            for m in self.fluct["modes"]:
+                C, S = m[kind]
+                if C[c] == 0.0 and S[c] == 0.0:
+                    continue
+                k = m["k"]
+                th = k[0] * coords[0] + k[1] * coords[1] + k[2] * coords[2] + m["phase"]
+                ca, sa = cp.cos(th), cp.sin(th)
+                terms.append((m["omega"], cp.broadcast_to(C[c] * ca + S[c] * sa, shape).copy(),
+                              cp.broadcast_to(C[c] * sa - S[c] * ca, shape).copy()))
+            ent = self._inc_cache[key] = (bg, shape, terms)
+        bg, shape, terms = ent
+        out = cp.full(shape, bg)
+        for w, P, Q in terms:
+            out += math.cos(w * t) * P + math.sin(w * t) * Q
+        return out
+
+    def _plane(self, target: str, at: float):
+        """Local slice of field ``target`` on the plane of global position ``at`` (cells) along the
+        normal of the fluctuation face (ghost copies included: every rank that holds the plane
+        corrects it the same way, without an exchange), and the physical coordinates of its points;
+        None if this rank has no such plane."""
+        g, a = self.grid, self.fl_face >> 1
+        st = stagger_of(target)
+        pos = g.global_positions(a, st[a])
+        hit = np.nonzero(np.abs(pos - at) < 1e-9)[0]
+        if hit.size == 0:
+            return None
+        sl = [slice(None)] * 3
+        sl[a] = slice(int(hit[0]), int(hit[0]) + 1)
+        coords = []
+        for b in range(3):
+            shape = [1, 1, 1]
+            x = (np.full(1, at) if b == a else g.global_positions(b, st[b])) * g.dx[b]
+            shape[b] = -1
+            coords.append(cp.asarray(x.reshape(shape)))
+        return tuple(sl), coords
+
+    def _tfsf_axes(self):
+        a = self.fl_face >> 1
+        side = self.fl_face & 1
+        b, c = (a + 1) % 3, (a + 2) % 3
+        N = float(self.cfg.n_cells[a])
+        node, half = (N, N + 0.5) if side else (0.0, -0.5)
+        sgn = -1.0 if side else 1.0
+        return a, b, c, node, half, sgn
+
+    def _tfsf_B(self, dtb: float, tE: float):
+        """B on the first half plane outside the face (scattered) was updated with the total E of the
+        face plane: subtract the incident part. Hi face: B_c -= dtb E_b,inc / d, B_b += dtb E_c,inc / d;
+        lo face: the opposite signs."""
+        a, b, c, node, half, sgn = self._tfsf_axes()
+        g = self.grid
+        d = g.dx[a]
+        for tgt, src, fac in (("B" + "xyz"[c], "E" + "xyz"[b], sgn), ("B" + "xyz"[b], "E" + "xyz"[c], -sgn)):
+            pl = self._plane(tgt, half)
+            if pl is None:
+                continue
+            sl, xyz = pl
+            xyz[a] = cp.full((1, 1, 1), node * g.dx[a])
+            getattr(g, tgt)[sl] += (fac * dtb / d) * self._incident_cached(("B", tgt), src, xyz, tE)
+
+    def _tfsf_E(self, dte: float, tB: float):
+        """E on the face plane (total) was updated with the scattered B of the half plane outside: add
+        the incident part. Hi face: E_b -= dte B_c,inc / d, E_c += dte B_b,inc / d; lo face: the
+        opposite signs."""
+        a, b, c, node, half, sgn = self._tfsf_axes()
+        g = self.grid
+        d = g.dx[a]
+        for tgt, src, fac in (("E" + "xyz"[b], "B" + "xyz"[c], sgn), ("E" + "xyz"[c], "B" + "xyz"[b], -sgn)):
+            pl = self._plane(tgt, node)
+            if pl is None:
+                continue
+            sl, xyz = pl
+            xyz[a] = cp.full((1, 1, 1), half * g.dx[a])
+            getattr(g, tgt)[sl] += (fac * dte / d) * self._incident_cached(("E", tgt), src, xyz, tB)
+
+    def _tfsf_gather(self, t: float, sign: float):
+        """Add (sign = +1) or take away (-1) the incident field at time t on the half plane outside the
+        fluctuation face for the components staggered across it (E_a, B_b, B_c): a particle within
+        half a cell of the face interpolates between the face's two sides, and must see the total
+        field on both (review of PR #50)."""
+        a, b, c, node, half, sgn = self._tfsf_axes()
+        for comp in ("E" + "xyz"[a], "B" + "xyz"[b], "B" + "xyz"[c]):
+            pl = self._plane(comp, half)
+            if pl is None:
+                continue
+            sl, xyz = pl
+            getattr(self.grid, comp)[sl] += sign * self._incident_cached(("gather", comp), comp, xyz, t)
+
+    def _tfsf_half_B(self, t: float, sign: float):
+        """Add (sign = +1) or take away (-1) the incident B_b, B_c at time t on the half plane outside
+        the fluctuation face, so that the Poynting flux through the face (which averages B across it)
+        is that of the total field: the energy that the incident wave brings in enters the record."""
+        a, b, c, node, half, sgn = self._tfsf_axes()
+        for comp in ("B" + "xyz"[b], "B" + "xyz"[c]):
+            pl = self._plane(comp, half)
+            if pl is None:
+                continue
+            sl, xyz = pl
+            getattr(self.grid, comp)[sl] += sign * self._incident_cached(("half", comp), comp, xyz, t)
+
+    def _tfsf_total(self, t: float, sign: float):
+        """Add (sign = +1) or take away (-1) the incident E at time t on the points beyond the
+        fluctuation face, where the stored E is the scattered field: the Marder zone (PIC-D16) then
+        sees the divergence of the total field. Its change of E is linear, so the round trip is exact."""
+        g = self.grid
+        a = self.fl_face >> 1
+        side = self.fl_face & 1
+        N = float(self.cfg.n_cells[a])
+        for comp in ("Ex", "Ey", "Ez"):
+            st = stagger_of(comp)
+            pos = g.global_positions(a, st[a])
+            beyond = np.nonzero(pos > N + 1e-9)[0] if side else np.nonzero(pos < -1e-9)[0]
+            if beyond.size == 0:
+                continue
+            i0, i1 = int(beyond[0]), int(beyond[-1]) + 1
+            sl = [slice(None)] * 3
+            sl[a] = slice(i0, i1)
+            coords = []
+            for b in range(3):
+                x = g.global_positions(b, st[b])
+                if b == a:
+                    x = x[i0:i1]
+                shape = [1, 1, 1]
+                shape[b] = -1
+                coords.append(cp.asarray((x * g.dx[b]).reshape(shape)))
+            getattr(g, comp)[tuple(sl)] += sign * self._incident_cached(("total", comp), comp, coords, t)
+
+    def _tfsf_start(self):
+        """The fields outside the fluctuation face hold the scattered field (total - incident). The
+        initial state is taken to be the incident one out there, so they start at zero."""
+        g = self.grid
+        a = self.fl_face >> 1
+        side = self.fl_face & 1
+        N = float(self.cfg.n_cells[a])
+        for comp in FIELD_NAMES:
+            pos = g.global_positions(a, stagger_of(comp)[a])
+            beyond = np.nonzero(pos > N + 1e-9)[0] if side else np.nonzero(pos < -1e-9)[0]
+            if beyond.size:
+                sl = [slice(None)] * 3
+                sl[a] = slice(int(beyond[0]), int(beyond[-1]) + 1)
+                getattr(g, comp)[tuple(sl)] = 0.0
 
     def _antenna_add(self, do_diag: bool):
         """Add the antenna currents at t^(n+1/2) to J (PIC-D20): after the filter, the wall
@@ -1219,11 +1483,24 @@ class Simulation:
         if float(np.sum(wd[:, 3])) > 0.0:  # the reduced count: every rank raises
             raise RuntimeError(self._WALL_ERROR)
 
+    def _output_step(self):
+        """The outputs due at this time level. With a fluctuation face (PIC-D26) the gathers of the
+        outputs (tracks with fields) see the total field across the face, as the push does; the
+        incident field sits only on the half plane outside the physical domain meanwhile (review of
+        PR #50)."""
+        if self.fluct is not None:
+            self._tfsf_gather(self.time, +1.0)
+        try:
+            self.output.on_step()
+        finally:
+            if self.fluct is not None:
+                self._tfsf_gather(self.time, -1.0)
+
     # ------------------------------------------------------------------ run
     def step(self):
         cfg = self.cfg
         # file output of the state at time level n (collective; rank 0 writes)
-        self.output.on_step()
+        self._output_step()
         do_diag = cfg.diag_interval > 0 and self.step_count % cfg.diag_interval == 0
         if cfg.sort_interval and self.step_count % cfg.sort_interval == 0:
             for sp in self.species:
@@ -1246,9 +1523,14 @@ class Simulation:
                     self._window_advance(s)
         self.step_count += 1
         self.time += cfg.dt
+        every = cfg.checkpoint.every
+        if every and self.step_count % every == 0:
+            checkpoint.save(self)
 
     def run(self, n_steps: int | None = None, progress: int = 0):
-        n = self.cfg.n_steps if n_steps is None else n_steps
+        """Run ``n_steps`` steps; by default cfg.n_steps, less the steps before the checkpoint that a
+        continued run starts from (PIC-D25)."""
+        n = max(self.cfg.n_steps - (self._restart_step or 0), 0) if n_steps is None else n_steps
         t0 = time.perf_counter()
         for i in range(n):
             self.step()
@@ -1264,7 +1546,7 @@ class Simulation:
                     # a run that starts without energy (cold plasma at rest, no field) has no E0
                     msg += f" dE/E0={de / e0:+.3e}" if e0 else f" dE={de:+.3e}"
                 print(msg, flush=True)
-        self.output.on_step()  # outputs due at the final time level
+        self._output_step()  # outputs due at the final time level
         self.output.flush()
         cp.cuda.Device().synchronize()
         self.wall_time = time.perf_counter() - t0
