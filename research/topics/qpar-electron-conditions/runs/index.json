@@ -48,6 +48,24 @@
    "kind": "pilot (plan step 4), spectra analysis",
    "config": "configs/pilot-piston.yaml",
    "gpus": 1
+  },
+  {
+   "file": "2026-11-15-pilot-dumps.json",
+   "record": "2026-11-15-pilot-dumps.md",
+   "commit": "d74ba7c03cc320ca372c15220bd1fedc48e16f65",
+   "analysis_commit": "0c62c11d08ff99f9241414afe5ab20ab3d108cb0",
+   "kind": "pilot (plan step 4)",
+   "config": "configs/pilot-dumps.yaml",
+   "gpus": 1
+  },
+  {
+   "file": "2026-11-15-pilot-dumps-n12n6.json",
+   "record": "2026-11-15-pilot-dumps.md",
+   "commit": "d74ba7c03cc320ca372c15220bd1fedc48e16f65",
+   "analysis_commit": "0c62c11d08ff99f9241414afe5ab20ab3d108cb0",
+   "kind": "pilot (plan step 4), N12 and N6 (a) analysis",
+   "config": "configs/pilot-dumps.yaml",
+   "gpus": 1
   }
  ]
 }
