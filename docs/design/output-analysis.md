@@ -42,6 +42,8 @@ acceleration, with animations; one example per classic problem with an analytic 
   `injected_kinetic`, `injected_charge` and `n_injected` are cumulative sums over the run;
   `fill` is the largest particles / capacity ratio over ranks and species at the record. It
   describes the ranks' arrays, so it is the one history quantity that depends on the decomposition.
+  `n_injected` counts every species; an injected test species (PIC-D13 as amended) carries no charge
+  and no energy into the other two.
 - Scalar history, particles absorbed by the body (PIC-D14): `absorbed_kinetic`, `absorbed_charge`
   and `n_absorbed` are cumulative sums over the run. `n_absorbed` counts every species; test
   species carry no charge and no energy into the other two. Particles left out at load are not counted.
