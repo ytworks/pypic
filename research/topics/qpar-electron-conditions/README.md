@@ -1,6 +1,7 @@
 # What decides whether a quasi-parallel shock accelerates electrons to relativistic energy
 
 Branch: `research/qpar-electron-conditions`. Started: 2026-11-14. Notebook: `notebook.md`. Survey: `literature.md`.
+Inputs: `inputs.md`.
 Sections follow `.claude/rules/research/stance.md`. Mark a section as open rather than guessing.
 
 Theme and question were fixed by the owner on 2026-11-14. The plan was approved by the owner on the same day and
@@ -52,14 +53,14 @@ Operational form, the part a simulation can decide:
 The reviewer's judgement, which this form makes explicit: the plan can answer the narrow question "do the limits of
 time and size, with the measured D_e, suffice".
 
-The cases (values from the notes; the inputs are fixed from primary sources before the runs, see Status):
+The cases. Every value, its source and its kind (measured, model, assumed, own) are in `inputs.md`:
 
 | Case | M_A | Speed against the upstream | Relativistic electrons | Remarks |
 |---|---|---|---|---|
-| Earth, no transient | ~8 | ~400 km/s | no (noise above 12 keV) | instrument limit, not a zero |
+| Earth, no transient | 5-15 (most crossings); ~8 as representative | 400-600 km/s | no (noise above 12 keV) | instrument limit, not a zero; no published connection time found |
 | PSP 2023-03-13 | 7-7.5 (other estimates ~4, 9.1) | ~2400 km/s (other estimate 1350) | yes (≥ 6.7 MeV) | shock ~4 h old; flank crossing |
-| Saturn 2007-02-03 | ~100 | ~450 km/s | yes (≥ ~1 MeV) | 3 of 508 crossings; seeds to ~100 keV upstream |
-| 1 au quasi-parallel | ~1.5-3 | a few 100 km/s | 40 keV increase at ~7 % of 15 | MeV cases at 1 au are oblique |
+| Saturn 2007-02-03 | ~100 (solar wind model) | ~450 km/s (typical value, not measured) | yes (≥ ~1 MeV) | 3 of 508 crossings; seeds to ~100 keV upstream; density and shock motion not measured |
+| 1 au quasi-parallel | not published for the subset; M_A 3.3 ± 0.3 and M_ms 1.3-2.9 in samples of all geometries | ~500 km/s (spacecraft frame, all geometries) | 40 keV increase at ~7 % of 15 | MeV cases at 1 au are oblique |
 
 The outcomes do not follow the order of M_A.
 
@@ -118,13 +119,16 @@ candidate for electrons, or is covered by measuring D̃_e in a growing precursor
 
 ## Idea
 1. **Scaling leaves one quantity unmatched.** With M_A, β_e, β_i, θ_Bn and the mass ratio 1836 set to the event, the
-   electron sonic Mach number is matched as well. Only v_sh/c is not.
+   electron sonic Mach number is matched as well. Only v_sh/c is not. Where the event has no measurement (T_e at
+   PSP; density, β_e and the speed at Saturn) the run takes a stated value from `inputs.md`.
 2. **Measure the dependence on v_sh/c, then transfer.** D̃_e(x, p̃) and the injection rate are measured at three
    values of v_sh/c; the exponent and its error carry the result to the real v_sh/c through a transport model.
-3. **The age of the short cases is within reach.** The connection times at Earth and Saturn (our estimate:
-   ω_ci t 120-240 and 30-70) can be run. What a run covers directly is the turbulence at that age, not the momentum
-   the electrons reach: at equal ω_ci t and D̃ the formula of `gupta2025speed` (S) keeps p̃·u/v_pt, and simulated
-   electrons have a smaller u/v_sh than real ones. Every case is therefore confronted through the transport model.
+3. **The age of the short cases is within reach.** The connection times at Earth and Saturn can be run. Our
+   estimates are ω_ci t 76-305 for Earth (size over speed; no published value found) and 46-112 for Saturn, where the
+   spacecraft saw the quasi-parallel connection for ≥ 60 min before the crossing (ω_ci t ≥ 34) (`inputs.md`). What a
+   run covers directly is the turbulence at that age, not the momentum the electrons reach: at equal ω_ci t and D̃ the
+   formula of `gupta2025speed` (S) keeps p̃·u/v_pt, and simulated electrons have a smaller u/v_sh than real ones.
+   Every case is therefore confronted through the transport model.
 4. **PSP offers a measured precursor.** The proton κ_eff and the wave amplitudes are known (`jebaraj2026wave`); the
    precursor of the run can be compared with them directly.
 5. Said plainly: most of the difficulty is computing time. The idea is in 1-4: bring the runs into reach and carry
@@ -158,6 +162,8 @@ candidate for electrons, or is covered by measuring D̃_e in a growing precursor
   - A quasi-1-D run cannot hold the oblique whistlers seen at the PSP shock, nor reconnection in the transition
     (`bessho2023electron`).
   - The parameters of the PSP crossing are disputed by a factor of two (M_A ~4 to 9.1).
+  - At Saturn, M_A (a propagated solar wind model), θ_Bn (a model normal) and the speed (a typical value) are not
+    measured at the event; density and β_e are not given.
   - Mass ratio 100, needed at M_A 100, changes electron acceleration with a sign that depends on M_A
     (`shalaby2024energy`).
   - The long-term state may not depend on injection details (`galishnikova2026self`, a preprint).
@@ -259,13 +265,15 @@ Snapshot of 2026-11-14.
 - Result of the survey: no work was found that measures the electron injection rate or D̃_e at event conditions from
   self-consistent kinetics, or that confronts an event with a transport model built on such a measurement. Points
   where the survey changed a statement of the plan are listed in `notebook.md`, each with its fact.
-- Missing: the input table from primary sources (Earth: M_A, the limit without transients, connection time; Saturn:
-  shock speed, β_e, connection time; PSP: T_e and the disputed M_A and speed; 1 au: compression); the fixed criteria
-  and thresholds; Publication.
+- Step 3, first part: the inputs of the four cases are collected in `inputs.md` with source and kind; five further
+  notes (`dresing2022role`, `lalti2022database`, `masters2011electron`, `achilleos2006orientation`, `went2011new`).
+- Missing: the inputs listed as open in `inputs.md` (instrument backgrounds as intensities; a published connection
+  time at Earth; Saturn's density, β_e and speed; T_e at PSP; Mach numbers of the quasi-parallel shocks at 1 au); the
+  fixed criteria and thresholds; Publication.
 - Full texts not obtained (read as abstracts): `qin2026electron`, `bai2023electron`, `yang2019electron`,
   `giacalone2025source`, `wilson2025large`, `hemler2025shock`, `mitchell2021energetic`, `bessho2023electron`,
   `gupta2023regulates`, `galishnikova2026self`, `tsurutani1985acceleration`; `bebesi2019observations` only through a
   conference abstract.
-- Next (plan step 3): the input table; re-review of this README and the plan by `research-reviewer`; the owner's
-  decision on the criteria. Then the engine pilot (step 4), which shares the GPUs with the pilot of
-  `shock-alfvenic-turbulence`.
+- Next (plan step 3, second part): re-review of this README, `inputs.md` and the plan by `research-reviewer`; the
+  owner's decision on the criteria and thresholds. Then the engine pilot (step 4), which shares the GPUs with the
+  pilot of `shock-alfvenic-turbulence`.

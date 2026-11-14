@@ -13,6 +13,9 @@ they are not copied, to keep one file per work.
   - Saturn (Cassini): `masters2013electron` (2007-02-03, M_A ~100, to ~1 MeV), `masters2016suprathermal` (31 of 508
     crossings, 3 to ~1 MeV), `masters2017situ` (a quasi-perpendicular crossing with the same index above 100 keV).
     `bebesi2019observations`: SLAMS at Saturn's bow shock (conference abstract only).
+    Where the shock parameters of the Saturn event come from: `masters2011electron` (M_A from a propagated solar wind
+    model), `went2011new` (the model normal behind θ_Bn), `achilleos2006orientation` (typical temperatures; shock
+    speeds up to ~400 km/s). All three read as abstracts.
   - PSP 2023-03-13: `jebaraj2024acceleration` (A) (θ_Bn 8°, electrons to 6.7 MeV), `jebaraj2024direct` (compared with
     the quasi-perpendicular 2022-09-05 shock), `dresing2025reason` (flank crossing, saturated instrument).
   - Jupiter (Juno): `raptis2026relativistic` (≥ 1 MeV inside a foreshock transient).
@@ -21,7 +24,8 @@ they are not copied, to keep one file per work.
     outside), `liu2019relativistic` (100-400 keV inside a foreshock bubble), `raptis2025revealing` (S) (> 500 keV only
     with 1-5 keV seeds), `raptis2025multi` (electrons confined in transmitted hot flow anomalies),
     `shi2025compound`, `liu2026efficient` (A), `qin2026electron` (abstract), `bai2023electron` (betatron gain inside
-    a SLAMS; abstract).
+    a SLAMS; abstract). The parameter range of the bow shock itself: `lalti2022database` (2797 MMS crossings, most
+    at M_A 5-15).
   - Interplanetary shocks, statistics: `tsurutani1985acceleration`, `dresing2016efficiency`, `yang2019electron`,
     `talebpoursheshvan2023role`, `kartavykh2025statistical`. Electron effects are rare, of low energy, and mostly at
     oblique or quasi-perpendicular shocks.
@@ -46,6 +50,8 @@ they are not copied, to keep one file per work.
   snapshots, `gupta2025speed` (S); test electrons in hybrid fields, `hanusch2020electron`.
 - **Models that reproduce an event with prescribed fields:** `guo2015acceleration` (S) (Saturn), `shi2025compound`
   (Earth, quasi-perpendicular with transients).
+- **Remote evidence for the shock near the Sun:** `dresing2022role` (peak intensities of ~1 MeV electrons against the
+  Mach number of the connected coronal shock; abstract).
 - **Limits by size:** `oka2025maximum` (Hillas limit over heliospheric shocks), `raptis2026relativistic` (Bohm
   scaling over three planets).
 - **Remote:** `zhou2023magnetic` (S) (SN 1006, the field behind the shock is nearly radial).
@@ -88,5 +94,12 @@ they are not copied, to keep one file per work.
     transients (`shi2025compound`).
   - 1 au: ~7 % of 15 quasi-parallel shocks at 40 keV (`yang2019electron`); 5 of 475 at 65-75 keV
     (`dresing2016efficiency`); effects at 2-10 keV (`tsurutani1985acceleration`).
-- Conflicts to settle before the runs (input table): the M_A and speed of the PSP crossing; the connection times at
-  Earth and Saturn; conventions for D_Bohm.
+- All of these, with source and kind (measured, model, assumed, own), are in `inputs.md`.
+- Conflicts to settle before the runs, as `inputs.md` now states them:
+  - PSP: M_A 7-7.5, 9.1 ± 1.35, 4.68 ± 3.45 or ~4, and speeds of 2400-2800 or ~1350 km/s, depending on the work;
+    T_e is not measured.
+  - Saturn: M_A, θ_Bn and the speed are model or typical values; density and β_e are not given; the connection is
+    bounded from below by the 60 min seen at the spacecraft.
+  - Earth: no published connection time was found; M_A 5-15 against "~4" in `raptis2026relativistic`.
+  - 1 au: no Mach numbers or compressions for the quasi-parallel shocks alone.
+  - Conventions for D_Bohm and the acceleration-time integral (`gupta2025speed` (S), `jebaraj2026diffusive`).
