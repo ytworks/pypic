@@ -45,8 +45,8 @@ The box is the downstream frame, and the histograms ``spectrum_<species>`` hold 
   Beside it the rms within windows of the N1 box length (the mean square over the windows), which leaves out the
   wavelengths that the N1 box cannot hold.
 
-Not in this file: p_max (its definition is not yet fixed), N12 and the escape record of N6 (a), which need tracked
-particles and a diagnostic at the face.
+Not in this file: p_max (its definition is not yet fixed). N12 and the escape record of N6 (a) are in n12_n6.py,
+which reads the particle dumps and uses the definitions of this file.
 """
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ DEX = 0.1  # half width of the band of phi
 
 class Spectrum:
     """Histogram (x, u) of one species as particles per bin: ``cnt`` (n_t, n_x, n_u), ``t`` in 1 / Omega_ci,
-    ``xe`` in d_i, ``p`` and ``pe`` (bin centres and edges) in m_i v_pt."""
+    ``step`` the step of each output, ``xe`` in d_i, ``p`` and ``pe`` (bin centres and edges) in m_i v_pt."""
 
     def __init__(self, run, name: str):
         info = run.meta["planner"]
@@ -78,16 +78,40 @@ class Spectrum:
         mass = next(s["mass"] for s in run.info["species"] if s["name"] == name)
         self.cnt = np.asarray(h[name], dtype=np.float64) * per_weight
         self.t = np.asarray(h.t) * info["omega_ci"]
+        self.step = np.asarray(h.step)
         self.xe = np.asarray(h.edges[0]) / info["d_i"]
         mi = next(s["mass"] for s in run.info["species"] if s["name"] == "i")
         self.pe = np.asarray(h.edges[1]) * mass / (mi * info["v0"])
         self.p = np.sqrt(self.pe[1:] * self.pe[:-1])
         self.dlnp = float(np.log(self.pe[1] / self.pe[0]))
 
+    def weights(self, a: float, b: float):
+        """The part of each bin of x that lies in a <= x <= b (d_i)."""
+        return np.clip((np.minimum(self.xe[1:], b) - np.maximum(self.xe[:-1], a)) / np.diff(self.xe), 0.0, 1.0)
+
     def region(self, j: int, a: float, b: float):
         """Particles per bin of p in a <= x <= b (d_i) at the output j."""
-        w = np.clip((np.minimum(self.xe[1:], b) - np.maximum(self.xe[:-1], a)) / np.diff(self.xe), 0.0, 1.0)
-        return w @ self.cnt[j]
+        return self.weights(a, b) @ self.cnt[j]
+
+
+def ion_density(run):
+    """(lineout series, x in d_i, t in 1 / Omega_ci, ion density in units of the loaded one as (n_t, n_x))."""
+    info = run.meta["planner"]
+    prof = run.series("profile")
+    x, t = prof.x("n:i") / info["d_i"], prof.t * info["omega_ci"]
+    n0 = float(prof["n:i"][0][(x > 0.1 * x[-1]) & (x < 0.9 * x[-1])].mean())
+    return prof, x, t, prof["n:i"] / n0
+
+
+def block_outputs(t, edges, ok):
+    """Per block of ``edges``: (the outputs of ``t`` in it for which ``ok`` holds, the number of the others).
+    A block holds its left edge; the last block also holds its right edge."""
+    out = []
+    for k in range(len(edges) - 1):
+        hi_in = k == len(edges) - 2
+        inb = (t >= edges[k] - 1e-6) & ((t <= edges[k + 1] + 1e-6) if hi_in else (t < edges[k + 1] - 1e-6))
+        out.append((np.nonzero(inb & ok)[0], int((inb & ~ok).sum())))
+    return out
 
 
 def above(c, pe, p: float) -> float:
@@ -121,13 +145,20 @@ def slope(c, p, lo: float, hi: float):
             "min_count": float(c[sel].min())}
 
 
-def numbers(c, sp: Spectrum, electron: bool, root: float, fit, floor=None) -> dict:
-    """The numbers of one spectrum ``c`` (particles per bin of p). ``root`` = sqrt(m_e / m_i)."""
-    n = float(c.sum())
+def regions(far: float, near: float) -> dict:
+    """D_fix and its sensitivity regions as (distance behind the shock of the far edge, of the near edge), d_i."""
+    return {"D_fix": (far, near), "to_shock": (far, 0.0), "far_half": (far, 0.5 * (far + near)),
+            "near_half": (0.5 * (far + near), near)}
+
+
+def numbers(c, sp: Spectrum, electron: bool, root: float, fit, floor=None, ref=None) -> dict:
+    """The numbers of one spectrum ``c`` (particles per bin of p). ``root`` = sqrt(m_e / m_i).
+    With ``ref`` (the numbers of another spectrum) the particle number and p_th are taken from it (N12)."""
+    n = float(c.sum()) if ref is None else ref["particles"]
     out = {"particles": n}
     if n <= 0:
         return out
-    p_th = peak_p4f(c, sp.p) / np.sqrt(2.0)
+    p_th = peak_p4f(c, sp.p) / np.sqrt(2.0) if ref is None else ref["p_th"]
     n_nt = above(c, sp.pe, 5.0 * p_th)
     out |= {"p_th": p_th, "p_0": 5.0 * p_th, "eta_nt": n_nt / n, "particles_above_p_0": n_nt}
     if not electron:
@@ -200,11 +231,8 @@ def main():
            "M_A_d_i_in_d_i": m_a}
 
     # shock position and the early-stop numbers
-    prof = run.series("profile")
-    x, t = prof.x("n:i") / d_i, prof.t * w_ci
+    prof, x, t, n_i = ion_density(run)
     dx = x[1] - x[0]
-    n0 = float(prof["n:i"][0][(x > 0.1 * x[-1]) & (x < 0.9 * x[-1])].mean())
-    n_i = prof["n:i"] / n0
     xs = shock_position(x, n_i, max(1, int(round(a.smooth / dx))), a.level)
     xs_fine = shock_position(x, n_i, max(1, int(round(0.1 * a.smooth / dx))), a.level)
     xs_high = shock_position(x, n_i, max(1, int(round(a.smooth / dx))), 1.5 * a.level)
@@ -235,8 +263,7 @@ def main():
     t0, t1, length = a.blocks
     edges = np.arange(t0, t1 + 1e-9, length)
     far, near = a.region[0] * m_a, a.region[1] * m_a
-    regions = {"D_fix": (far, near), "to_shock": (far, 0.0), "far_half": (far, 0.5 * (far + near)),
-               "near_half": (0.5 * (far + near), near)}
+    regs = regions(far, near)
     floor_run = open_run(a.floor) if a.floor else None
     blocks, series, last = {}, {}, {}
     for name in ("e", "i"):
@@ -247,18 +274,15 @@ def main():
         x_h = np.interp(sp.t, t, xs)
         ok = x_h - far >= a.clear * m_a - 1e-9
         rows, per_output = [], []
-        for k in range(len(edges) - 1):
-            hi_in = k == len(edges) - 2
-            inb = (sp.t >= edges[k] - 1e-6) & ((sp.t <= edges[k + 1] + 1e-6) if hi_in else (sp.t < edges[k + 1] - 1e-6))
-            use = np.nonzero(inb & ok)[0]
+        for k, (use, close) in enumerate(block_outputs(sp.t, edges, ok)):
             row = {"t": [float(edges[k]), float(edges[k + 1])], "outputs": int(len(use)),
-                   "outputs_too_close_to_wall": int((inb & ~ok).sum())}
+                   "outputs_too_close_to_wall": close}
             if len(use):
                 floor = None
                 if fl is not None:
                     fb = (fl.t >= edges[k] - 1e-6) & (fl.t <= edges[k + 1] + 1e-6)
                     floor = fl.cnt[fb].sum(axis=(0, 1)) if fb.any() else None
-                reg = {r: sum(sp.region(j, x_h[j] - lo, x_h[j] - hi) for j in use) for r, (lo, hi) in regions.items()}
+                reg = {r: sum(sp.region(j, x_h[j] - lo, x_h[j] - hi) for j in use) for r, (lo, hi) in regs.items()}
                 row |= numbers(reg["D_fix"], sp, name == "e", root, a.fit, floor)
                 row["x_shock_di"] = [float(x_h[use[0]]), float(x_h[use[-1]])]
                 row["d_lnp"] = (reg["D_fix"] / reg["D_fix"].sum()).tolist()
