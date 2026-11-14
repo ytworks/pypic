@@ -9,18 +9,22 @@ import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
 from pypic.config import FACES, Injection
-from pypic.injection import check_config, face_slabs
+from pypic.injection import check_config, face_slabs, injected_species
 from pypic.parallel.decomp import Decomposition
 
 OPEN = (("open", "open"),) * 3
 
 
-def config(faces, boundaries=OPEN, electrons=None, ions=None, solver="explicit", **kw):
+def config(faces, boundaries=OPEN, electrons=None, ions=None, solver="explicit", seeds=None, **kw):
+    """Electrons ``e``, ions ``i``, a test species ``t`` without beams and one, ``s``, with the
+    beams ``seeds`` (default: a fast electron beam along the flow)."""
     electrons = electrons or [Beam(1.0, (0.2, 0.0, 0.0), 0.01)]
     ions = ions or [Beam(1.0, (0.2, 0.0, 0.0), 0.001)]
+    seeds = seeds or [Beam(0.1, (0.2, 0.0, 0.0), 0.1)]
     return SimConfig(n_cells=(8, 8, 8), boundaries=boundaries, solver=solver, dt=0.05,
                      species=[SpeciesConfig("e", -1, 1, electrons), SpeciesConfig("i", 1, 16, ions),
-                              SpeciesConfig("t", -1, 1, test=True, particles=[[1.0, 1.0, 1.0, 0.0, 0.0, 0.0]])],
+                              SpeciesConfig("t", -1, 1, test=True, particles=[[1.0, 1.0, 1.0, 0.0, 0.0, 0.0]]),
+                              SpeciesConfig("s", -1, 1, seeds, test=True)],
                      injection=Injection(faces=faces, **kw))
 
 
@@ -38,7 +42,7 @@ def test_supported_and_rejected_combinations():
         config({"y-": "flux"}, boundaries=side),  # not an open face
         config({"x-": "flux"}, boundaries=side),  # meets a reflecting face
         config({"x-": "flux"}, species=("e", "nobody")),
-        config({"x-": "flux"}, species=("e", "t")),  # a test species
+        config({"x-": "flux"}, species=("e", "t")),  # a test species without beams
         config({"x-": "flux"}, ions=[Beam(1.0, profile={"axis": "x", "shape": "step", "x0": 0.0, "x1": 1.0})]),
         config({"x-": "flux"}, ions=[Beam(1.0, origin=(1.0, 1.0, 1.0), drift_radial=0.1)]),  # a radial beam
         config({"x-": "flux"}, neutralizer="e"),  # no paired face uses it
@@ -56,6 +60,24 @@ def test_supported_and_rejected_combinations():
         Injection(faces={"w-": "flux"})
     with pytest.raises(ValueError):
         Injection(faces={"x-": "inflow"})
+
+
+def test_a_test_species_with_beams_enters_only_when_listed_and_is_no_carrier():
+    """A listed test species (PIC-D9) with beams enters through flux and paired faces. It carries no
+    charge: it is neither the neutraliser nor the carrier that a paired face needs, and it may drift
+    out of a paired face (it leaves there as through an open face)."""
+    assert injected_species(config({"x-": "flux"})) == ["e", "i"]  # the default: the plasma species
+    assert check_config(config({"x-": "flux"}, species=("e", "i", "s")))
+    assert check_config(config({"x-": "paired", "y-": "flux"}, species=("e", "i", "s"), neutralizer="e"))
+    out = [Beam(0.1, (-0.2, 0.0, 0.0), 0.1)]
+    assert check_config(config({"x-": "paired"}, species=("e", "i", "s"), neutralizer="e", seeds=out))
+    positrons = [SpeciesConfig("e", -1, 1, [Beam(1.0, (0.2, 0.0, 0.0), 0.01)]),
+                 SpeciesConfig("s", 1, 1, [Beam(0.1, (0.2, 0.0, 0.0), 0.1)], test=True)]
+    for bad in (config({"x-": "paired"}, species=("e", "i", "s"), neutralizer="s"),
+                SimConfig(n_cells=(8, 8, 8), boundaries=OPEN, dt=0.05, species=positrons,
+                          injection=Injection(faces={"x-": "paired"}, species=("e", "s"), neutralizer="e"))):
+        with pytest.raises(ValueError, match="paired"):
+            check_config(bad)
 
 
 @pytest.mark.parametrize("dims", [(1, 1, 1), (2, 2, 1), (1, 3, 4)])
