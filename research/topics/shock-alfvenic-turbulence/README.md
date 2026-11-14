@@ -155,6 +155,18 @@ trunk and this topic. Runs that need a change start after its merge (owner, 2026
 | E3 | Restart checkpoints (roadmap R2) | runs of 20–160 h |
 | Analysis | A_z labelling, encounter counting, offline pusher in stored filtered fields (topic code; output cadence to be planned) | Idea (a)–(c) and test electrons (ii) |
 
+- **Delivered (2026-11-14):** E1–E3 were merged into main by PR #50 (fa0972664; gates all passed on 9666c49,
+  `bench/results/2026-11-14-9666c4972-gpu-gates*.json`) and taken into this topic (c70c322).
+  - E1 as PIC-D24: δB from a vector potential (`initial_fields` kind `potential`, div B = 0 bitwise) and the
+    motional E from a displacement of one species, ξ = −E / (q n). Displacements are refused within one cell plus
+    the largest displacement of a non-periodic face, so the loaded wave needs an envelope h(x) that vanishes at the
+    wall and at the inflow face (`examples/alfven_inflow`, `load: envelope`).
+  - E2 as PIC-D26: `injection.fluctuation` (modes with k_n = 0, checked against Maxwell's equations and the beams'
+    current), a total-field / scattered-field surface on the face plane, δu on the injected particles.
+    Measured in `examples/alfven_inflow`: about 2 ms per step of overhead; a field error of 5–15 % next to the face
+    whose cause is not established (`docs/plans/2026-11-13-upstream-state-restart.md`, Results).
+  - E3 as PIC-D25 / OUT-D6: `checkpoint: {every, keep}`, `restart:`, onto the same or another GPU layout; the
+    output is appended.
 - E4 of the first draft (a relaxed turbulence slab) is not needed for this question and is dropped.
 - Alternative to E2, to be weighed in the plan of the engine work: a reflecting wall moving through a periodic
   plasma (`behar2024impact`).
@@ -236,3 +248,9 @@ Open. Intended: a peer-reviewed journal paper (ApJ or JGR).
   - full texts of `jokipii1993perpendicular`, `giacalone2005*`, `jokipii2007adiabatic` and `barnes1974large`, not
     reachable from here (IOP, Wiley and ADS refuse).
 - **Then:** the plan of E1 on main.
+
+2026-11-14:
+- **Engine prerequisites E1–E3 merged** (PR #50, main fa0972664) and taken into trunk (244a05f) and this topic
+  (c70c322). Approach lists what each one provides.
+- **Next:** the pilot runs. They fix the resolution option, the box, the realization spread and the tolerance of
+  N6, and they measure the face error of E2 in the topic's parameters before the criteria are fixed.

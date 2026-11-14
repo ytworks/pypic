@@ -3,6 +3,21 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-14 — Engine prerequisites merged
+
+- PR #50 merged into main (fa0972664): E1 (PIC-D24), E2 (PIC-D26), E3 (PIC-D25, OUT-D6). The Codex review (sol 6.1
+  ultra) reported no findings in its 13th round; gates all passed on 9666c49 in fp64, mixed and compact.
+- Taken: main → `research/trunk` (abc1099, baseline recorded in 244a05f) → this branch (c70c322).
+- What the example `examples/alfven_inflow` measured on ef4fc4f (records
+  `bench/results/2026-11-14-ef4fc4f08-example-alfven_inflow-piston-run-*.json`):
+  - piston shock speed 0.0320 c, against 0.0336 c from the jump conditions; B_z behind the shock 4.25 B0;
+  - a restart continued to step 8200 agreed with the run without restart to 1.2e-16;
+  - TF/SF face: about 2 ms per step of overhead, and a field error of 5–15 % next to the face; its cause is not
+    established.
+- Differences from the plan of the README (first draft of E1): the motional E is loaded by a charge displacement,
+  not as an E profile, and only away from non-periodic faces: the pilot loads the wave under an envelope h(x).
+- Wiki page of the example published (Alfven-Inflow, EN and JA).
+
 ## 2026-11-13 — Expert check skipped
 
 - The owner decided that the expert check (asking the authors of `fulat2026pic`) is skipped, because it cannot be
