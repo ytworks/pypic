@@ -3,6 +3,63 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-15 — `spectra.py`: the analysis of the shock, the downstream spectra and the upstream monitors; its details fixed before V1 exists
+
+Written while the two flow-through controls and a piston pilot to 10 / Ω_ci (`piston-t10`) are running. None of
+their fields or histograms has been read. V1 has not been started. `spectra.py` applies the definitions of the
+README ("Approach", as of the entry below); this entry names what the README leaves open and what the code does
+there. These choices are fixed now. A change needs a new fact, named in a later entry.
+
+### Choices that the README leaves open
+1. **Shock position.** x_sh(t) = the largest x where the ion density, averaged over 5 d_i, is above 2 n_0. Judged
+   with this one. Shown beside it: the same with 0.5 d_i, and with the level 3 n_0.
+2. **Early stop (t = 20).** Speed = the slope of a straight line through x_sh at the lineout outputs of t = 10–20
+   (V1: every 0.75 Ω_ci⁻¹). Compression = the ion density averaged over 0.2–0.8 x_sh and over those outputs.
+3. **Region.** The histograms have bins of 5 d_i along x. A bin enters with the fraction of its width inside the
+   region. The region moves with x_sh of each output (interpolated from the lineouts). A block is the sum of its
+   outputs; V1 has an output every 3 Ω_ci⁻¹, so the blocks of 10 Ω_ci⁻¹ hold 3 or 4 (t = 150 belongs to the last).
+4. **Clear of the wall.** An output is used only if x_sh − 15 M_A d_i ≥ 10 M_A d_i. At the speed v_pt/3 this is
+   met from t = 100 exactly (x_sh = 500 d_i); V1's first output of the window is t = 102 (510 d_i). A shock that
+   is 2 % slower loses that output, one that is 10 % slower loses the outputs up to t = 111. The code counts the
+   outputs left out per block.
+5. **p_th.** The peak of p⁴f = the vertex of a parabola in ln p through the highest bin of p × counts and its two
+   neighbours; p_th = peak / √2; p_0 = 5 p_th (`gupta2024electron`, Eqs. 2–3, read again today: the thermal
+   distribution is ∝ exp(−p²/p_th²), so p⁴f peaks at √2 p_th).
+6. **Shares above a momentum** (η_nt,e, η_e(p ≥ 3 √(m_e/m_i) m_i v_pt)): the bin that holds the threshold enters
+   by the part of its width in ln p above it. Both are shares of the particles of the region (number fractions,
+   as Eq. 6 of `gupta2024electron`).
+7. **φ_e.** (Share of the particles within ±0.1 dex of p_ref) / ln(10^0.2): p³f averaged over ln p. Valid if every
+   bin of the band holds ≥ 100 particles and φ_e ≥ 5 × the same number from the N1 run (whole box, the outputs of
+   the same block; an empty band of the N1 run counts as one particle).
+8. **Slope q.** Straight line through ln(counts / p³) against ln p over the bins with centres in
+   [0.6, 2.4] m_i v_pt, weighted by the counting error. Its standard error is that of the counting error alone;
+   the scatter between blocks (σ_pt) is given beside it.
+9. **σ_pt.** Standard deviation (n − 2 degrees of freedom) of the five block values about a straight line.
+10. **Sensitivity.** Spread = the largest |value / value in D_fix − 1| over [x_sh − 15, x_sh] M_A d_i and the two
+    halves of D_fix, in the last block.
+11. **Q.** Density = ions. ⟨B_y⟩ and ⟨n⟩ are means over the zone and over the lineout outputs of a block of
+    5 Ω_ci⁻¹; Q is the ratio of the two means.
+12. **δB_⊥ at the edge (N6 b).** Judged: the rms over the whole zone of 200 d_i (B_y about its mean over the zone,
+    B_z about zero), against the same over the whole box of the N1 run (20 d_i) at the nearest output. The zone
+    holds wavelengths that the N1 box cannot, so this reading is the stricter one. Shown beside it: the rms within
+    windows of 20 d_i.
+
+### Check of the estimators (`spectra_synthetic.py`; a check of the code, not a null test)
+A Maxwellian plus a tail ∝ p^−q (q = 3.8, 4.0, 4.3), put into V1's electron bins as Poisson counts of 3 × 10⁸
+particles. Deviation from the value of the distribution itself: p_th ≤ 0.22 %, the two shares ≤ 0.28 %,
+q ≤ 0.13 % (0.005), φ_e +0.2 to +1.8 %. The offset of φ_e is that of a mean over ±0.1 dex (for f ∝ p⁻⁴: +0.9 %).
+
+### Run on a finished pilot (code path only)
+`piston-pml192` (40 d_i, to 2 Ω_ci⁻¹) with windows scaled down. All sections ran. No shock has formed there by
+t = 2 (front speed 1.43 × v_pt/3 over t = 1–2, compression 2.3), so its numbers say nothing about a shock.
+
+### Not in `spectra.py`
+- p_max: no operational definition yet (before V2).
+- N12 (electrons that touched the piston region) and the escape record of N6 (a): a histogram of (x, u) cannot
+  tag particles. Both need tracked particles or a diagnostic at the face; they belong to the entry on V1's
+  diagnostics, before V1 starts.
+- The reading of a run's lineout into the D̃_e measurement (`diffusion.py`).
+
 ## 2026-11-15 — Third review applied: V1's open values fixed; pass criteria of the 40 / Ω_ci control fixed before it is read
 
 Third review by `research-reviewer` (the step-4 entry below, the README's "not yet fixed" items, the design of
