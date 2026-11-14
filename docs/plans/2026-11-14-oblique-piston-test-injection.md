@@ -106,3 +106,32 @@ GPU (`tests/gpu`, 1 GPU unless noted):
 Change gate: `ruff check .`, `python scripts/check_kernels.py`, `pytest tests/cpu`; targeted GPU tests during the
 work; one run of `pytest tests/gpu` and `python scripts/gpu_gates.py --gpus 8` on the final head, recorded in
 `bench/results/`; then the Codex review until it reports no findings.
+
+## Results
+
+Targeted runs during the work (1 GPU, 4 GPUs for the decomposition test; diagnostic). The record of the full gate
+on the final head is added below when it has run.
+
+**G1a, G1b** (f539f2e):
+- Split fields: the orbits of `test_external_uniform_fields_give_the_orbits_of_grid_fields` hold the same bits
+  with part of each field external and the rest in `B0` / `E0`, in FP64 and `mixed`. Raises before G1a.
+- `B0` normal to a reflecting face: refused; the CPU test did not raise before G1b (checked once).
+- Oblique piston, as fixed above, with one addition: **the absorbing layer of the face is 24 cells deep
+  (`npml = 24`).** With the default 12 the test did not meet the momentum and E_z criteria next to the face:
+  momentum 2.2e-4 u (limit 1e-4), B_y 7.4e-4, E_z 1.1e-3 (limit 5e-4). The same amounts appear with an open x−
+  instead of the wall, and with the whole field in `B0` (90°, no external field) the momentum is off by 5.1e-4 u:
+  the deviation belongs to the PIC-D26 face at that depth, not to G1a. The criteria were not changed. With
+  `npml = 24`: momentum 1.4e-5 u, B_y 4.9e-5, E_z 5.7e-5, Gauss 7.8e-15, div B 6.8e-15, wall density 2.15 times
+  the loaded one. Raises before G1a.
+
+**G2** (c329350, tests 1d5367e):
+- CPU: the two tests failed before the change (the refusal of a test species; the Ampère check counted the test
+  species' current: 1.49 against 0.01 of 1.45).
+- Injected test species: 6615 entered against 6639 ± 77; the plasma species entered with the same counts as
+  without it (6654, 6607); `kinetic`, `electric`, `injected_kinetic`, `injected_charge`, `budget` within 6.3e-16;
+  Gauss 1.7e-15; ids unique. The criterion "`n_injected` minus the test species' count" is checked on the
+  per-species counts at the end of the run (`sdiag`), because the history holds the total only at its records.
+  Raises before G2.
+- Decomposition (`seeds`): the same ids and counts on 1 GPU and a 2×2 rank grid (10873 entered; 5834 in `inject`),
+  the same bank as `inject` (0.21875), histories within 1.1e-15, Gauss 2.8e-15. All six variants pass. Raises
+  before G2.
