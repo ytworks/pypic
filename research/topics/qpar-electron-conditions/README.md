@@ -139,6 +139,11 @@ candidate for electrons, or is covered by measuring D̃_e in a growing precursor
   2016-2026 with 8 queries (84 further works), screening by title, 50 abstracts, and the text of about 22 works in
   part or whole. Record and the list of failed sources: `notebook.md`. Limits: titles only for most of the sweep;
   four full texts could not be obtained and were read as abstracts.
+- **Second search (2026-11-14), on the simulation side:** 26 keyword queries on OpenAlex for the methods next to
+  PIC, for runs confronted with in-situ events, for laboratory shocks and for the border regimes; the abstracts of
+  about 90 works screened, 29 further notes (9 read in the body, 20 as abstracts). It is not exhaustive. What published simulations
+  state, with which limits, how they were tied to observations, and what the planned runs can and cannot state:
+  `simulation-claims.md`.
 - **Novelty claimed, in two parts:**
   1. The injection rate and D̃_e(x, p̃) of electrons, measured in self-consistent kinetic simulations at the
      conditions of observed events, with the dependence on v_sh/c. The range that is certainly new is
@@ -148,7 +153,12 @@ candidate for electrons, or is covered by measuring D̃_e in a growing precursor
      electrons, with errors, stating which of H1-H8 it excludes.
 - **Not new, stated as such:**
   - D_e(p) at M_A 5 and 20, θ_Bn 30° (`gupta2025speed` (S)); the electron mean-square-displacement method in PIC
-    (`grassi2023electron`, unmagnetized shocks); test electrons in hybrid fields (`hanusch2020electron`).
+    (`grassi2023electron`, unmagnetized shocks); test electrons in hybrid fields (`hanusch2020electron`,
+    `liseykina2019electron`).
+  - The electron injection efficiency against shock speed and mass ratio at θ_Bn 30°: `gupta2024electron` (S) covers
+    v_sh ≈ 0.067-0.267 c and mass ratios up to 1836 and reports that it "does not show much dependence on shock
+    speed and m_R", with a drop by a factor ~5 at low Mach number. What remains open is the dependence of D̃_e on
+    v_sh/c, the event values of M_A, θ_Bn and β, and speeds below 0.067 c.
   - Saturn reproduced with prescribed turbulence (`guo2015acceleration` (S)).
   - Proton transport at the PSP event (`jebaraj2026wave`, `kouloumvakos2026wave`, `jebaraj2026diffusive`,
     `giacalone2025source`).
@@ -167,6 +177,15 @@ candidate for electrons, or is covered by measuring D̃_e in a growing precursor
   - Mass ratio 100, needed at M_A 100, changes electron acceleration with a sign that depends on M_A
     (`shalaby2024energy`).
   - The long-term state may not depend on injection details (`galishnikova2026self`, a preprint).
+  - Numerical drag on energetic electrons in 1-D PIC, dE/dt ~ −(1/2N_e) m_e c² ω_pe (`kato2015particle` (S)). Our
+    estimate, unverified, puts it at a few per cent of a Bohm-rate gain for P0 and above the gain for runs P5b,
+    P6, S1 and S2 at the planned particle number (`simulation-claims.md` §5).
+  - The frame: `gupta2024electron` (S) runs in the upstream rest frame to avoid numerical heating and finds an
+    efficiency a factor ≲ 2 above the downstream-frame run of `park2015simultaneous` (S). The set-up below is in the
+    downstream frame.
+  - Passive seed electrons cannot drive waves; in hybrid runs the current of reflected seeds changes the turbulence
+    and the injection (`caprioli2018diffusive`, ions).
+  - "injection is, fundamentally, a 3D process" (`vanmarle2022diffusive`, on ions at oblique shocks).
 
 ## Approach
 Criteria and null tests below are proposals. They are fixed, with thresholds, after the review of step 3 and the
@@ -175,6 +194,9 @@ owner's approval, before any production run.
 - **Set-up:** quasi-1-D (long in x, a few cells across), explicit scheme, a piston against a wall (downstream frame),
   inflow through the open x+ face (PIC-D13), Δx = d_e/10, ~1000 particles per cell column over both species,
   precision `compact` or `mixed`, restart checkpoints (PIC-D25). Outputs under `/mnt/nvme/pypic`.
+- **Open points of the set-up after the second search** (the owner's to decide; nothing above is changed by them):
+  the frame, the particle number, the definition of the injection rate and its region, how H4 is stated with
+  passive seeds, and which border regimes belong to the question (`simulation-claims.md` §8).
 - **Limits of 1-D:** no oblique whistlers; B_x cannot change, which overstates the superluminal cut-off
   (`gupta2024electron` (S)). Run X measures the difference to 2-D; the results name the limit.
 - **Measured quantities:**
@@ -212,7 +234,7 @@ owner's approval, before any production run.
 
   Cost formula (ours, reproduced by the reviewer): particle-steps ≈ 180 N_x (m_i/m_e) M_A² (ω_ci t)² / (v_sh/c),
   at ~1.6 × 10¹⁰ particle-steps/s. Stage 3 may shrink or change after stage 2; each stage ends with a review.
-- **Out of reach, stated:** the real v_sh/c (PSP 0.008; Earth and Saturn 0.0013-0.0015); the real length of the
+- **Out of reach, stated:** the real v_sh/c (PSP 0.008; Earth 0.0013-0.0020; Saturn 0.0015); the real length of the
   electron precursor; Saturn with mass ratio ≥ 400 at a subluminal speed (Saturn claims are limited to mass ratio
   100); the age (ω_ci t ~10⁵) and history of the PSP shock.
 - **Reproduction (V1, V2), proposed:** slope within ±0.3, p_max(t) and D_e within a factor 2 of the published values;
@@ -267,6 +289,12 @@ Snapshot of 2026-11-14.
   where the survey changed a statement of the plan are listed in `notebook.md`, each with its fact.
 - Step 3, first part: the inputs of the four cases are collected in `inputs.md` with source and kind; five further
   notes (`dresing2022role`, `lalti2022database`, `masters2011electron`, `achilleos2006orientation`, `went2011new`).
+- Step 3, second part: the simulation side. `simulation-claims.md` records what published simulations of
+  quasi-parallel shocks state about electrons, the limits that recur, how runs were tied to observations, what each
+  planned statement can and cannot rest on, an own estimate of numerical drag, and the boundary areas (neighbouring
+  methods, laboratory shocks, border regimes, domain boundaries); 29 further notes.
+- Second review by `research-reviewer` (README, `inputs.md`, plan): done. Its corrections to `inputs.md` and its
+  proposed thresholds are not applied; they are proposals until the owner decides.
 - Missing: the inputs listed as open in `inputs.md` (instrument backgrounds as intensities; a published connection
   time at Earth; Saturn's density, β_e and speed; T_e at PSP; Mach numbers of the quasi-parallel shocks at 1 au); the
   fixed criteria and thresholds; Publication.
@@ -274,6 +302,6 @@ Snapshot of 2026-11-14.
   `giacalone2025source`, `wilson2025large`, `hemler2025shock`, `mitchell2021energetic`, `bessho2023electron`,
   `gupta2023regulates`, `galishnikova2026self`, `tsurutani1985acceleration`; `bebesi2019observations` only through a
   conference abstract.
-- Next (plan step 3, second part): re-review of this README, `inputs.md` and the plan by `research-reviewer`; the
-  owner's decision on the criteria and thresholds. Then the engine pilot (step 4), which shares the GPUs with the
-  pilot of `shock-alfvenic-turbulence`.
+- Next: the owner's decisions on the open points of `simulation-claims.md` §8 and on the criteria and thresholds;
+  the reviewer's corrections to `inputs.md`, each checked in its source. Then the engine pilot (step 4), which
+  shares the GPUs with the pilot of `shock-alfvenic-turbulence`.

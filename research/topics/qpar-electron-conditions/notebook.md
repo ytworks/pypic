@@ -3,6 +3,132 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-14 — Step 3, second part: what a simulation can state, and the boundary areas
+
+Later on the same day as the entry below. The first part of step 3 collected the observed side only. The research
+is done by simulation, so the question "what can a simulation state here, and what not" has to be surveyed with the
+same care, together with the boundary areas. This entry records that survey. Result file: `simulation-claims.md`.
+
+### What was done
+- **Extraction from what was already read.** The notes and stored texts of the fully kinetic works on quasi-parallel
+  shocks (`gupta2024electron`, `gupta2025speed`, `park2015simultaneous`, `kato2015particle`, `shalaby2022mechanism`,
+  `zekovic2025slams`, `fang2019early`, all on `research/spherical-shock-injection`; `fang2022kinetic`,
+  `yu2024nonthermal`, `bessho2023electron` here) were gone through for four things: what each states, on what basis,
+  which limits its authors name, and how it is tied to an observation.
+- **A second search, 26 keyword queries on OpenAlex** (10-12 results each, with abstracts):
+  - methods and numerics: "particle-in-cell collisionless shock simulation mass ratio dependence electron
+    acceleration"; "numerical heating particle-in-cell shock simulation number of particles per cell electron
+    acceleration"; "shock simulation injection method reflecting wall piston comparison particle-in-cell";
+    "three-dimensional particle-in-cell quasi-parallel shock electron"; "finite grid instability numerical heating
+    drifting cold plasma particle-in-cell"; "simulation box transverse size cosmic ray current filamentation shock
+    convergence"; "semi-implicit particle-in-cell collisionless shock realistic mass ratio";
+  - neighbouring methods: "hybrid simulation test particle electrons quasi-parallel shock acceleration"; "MHD-PIC
+    shock electron acceleration injection"; "magnetohydrodynamic-particle-in-cell method cosmic rays shock Bai";
+    "Vlasiator electron foreshock hybrid-Vlasov electrons"; "eVlasiator electrons hybrid-Vlasov global simulation";
+    "Vlasov-Fokker-Planck shock precursor cosmic ray electron injection simulation"; "continuum Vlasov-Maxwell
+    collisionless shock electrons simulation field-particle correlation"; "dHybridR hybrid relativistic ions shock
+    simulation"; "focused transport electron shock acceleration interplanetary model relativistic electrons"; "free
+    escape boundary diffusive shock acceleration maximum energy time-dependent finite size electrons heliospheric
+    shock"; "minimal model ion injection quasi-parallel shocks reformation";
+  - runs against events: "global hybrid simulation foreshock transient electron acceleration test particle";
+    "comparison particle-in-cell simulation MMS observations quasi-parallel shock electrons"; "interplanetary shock
+    particle-in-cell simulation observed parameters electron acceleration Solar Orbiter Wind"; "Saturn bow shock
+    particle-in-cell simulation Cassini high Mach number";
+  - laboratory and border regimes: "laboratory magnetized collisionless shock electron acceleration experiment";
+    "shock obliquity dependence electron acceleration particle-in-cell quasi-parallel oblique transition"; "weak
+    quasi-parallel shock electron preacceleration intracluster particle-in-cell critical Mach number"; "electron
+    injection shock speed dependence scaling non-relativistic shock simulation extrapolation realistic shock
+    velocity".
+- **Screening and reading.** Abstracts of about 90 works were kept and screened. 29 notes were written:
+  - read in the body (arXiv PDF text; the read range is in each note): `zhou2025planar`, `marcowith2020multi`,
+    `simon2026faux`, `bai2015magnetohydrodynamic`, `vanmarle2022diffusive`, `haggerty2019dhybridr`,
+    `caprioli2018diffusive`, `caprioli2015simulations`, `orusa2025criteria`;
+  - read as abstracts: `swisdak2023comparison`, `kropotina2023weibel`, `zhang2024kinetic`, `tsubouchi2004full`,
+    `johlander2022quasi`, `liu2017fermi`, `nyberg2026electron`, `john2024effects`, `battarbee2021vlasov`,
+    `lezhnin2021kinetic`, `kang2019electron`, `reville2013universal`, `bessho2025electron`,
+    `liseykina2019electron`, `kylivnyk2026hybrid`, `gingell2017mms`, `schaeffer2019direct`,
+    `vanthieghem2024electron`, `lindberg2025fermi`, `fiuza2020electron`.
+- **Sources that did not work:** no open full text for `swisdak2023comparison`, `zhang2024kinetic`,
+  `tsubouchi2004full`; our PDF text extractor gave nothing for arXiv:2310.13779 (`kropotina2023weibel`); the journal
+  page of `nyberg2026electron` could not be read. All were read as abstracts and are marked so.
+- **Passages re-read in the stored texts:** `kato2015particle`, the drag on energetic electrons in 1-D (their Eq. 4
+  and the particle numbers at which acceleration fails); `gupta2024electron`, the definition of M_A, the relation of
+  piston and shock speed, the frame, the dependence of spectra and efficiency on the shock speed; `gupta2025speed`,
+  p_max in time.
+
+### What the survey shows (detail and sources in `simulation-claims.md`)
+- No published simulation in what was read measures D̃_e or an electron injection rate at the conditions of our four
+  cases, or confronts one of the events with numbers from self-consistent electron kinetics. This repeats the
+  result of the first survey with a wider base; it is still not exhaustive.
+- The limits that authors themselves name recur in eight kinds: dimension, mass ratio, v_sh/c, run time, box and
+  boundaries (with the launching method and the frame), particle noise, extrapolation by a formula, and ties to
+  observations that are indirect (a global ratio at a remnant, a slope, a mechanism seen in situ).
+- Published ways of tying a run to an observation: a global ratio at remnants; a synthetic probe through the box;
+  hybrid runs at event parameters; test electrons in prescribed or hybrid fields; a model in prescribed fields
+  fitted to one event; a mechanism compared with in-situ data; transport from data; laboratory shocks; Monte Carlo
+  with prescribed inputs.
+- The methods next to PIC either have no kinetic electrons or take the electron injection (or the fields at
+  electron scales) as an input.
+- Facts that bear on statements of the plan:
+  - `gupta2024electron` already reports the electron injection efficiency for v_sh ≈ 0.067-0.267 c and mass ratios
+    up to 1836: it "does not show much dependence on shock speed and m_R", and drops by a factor ~5 at low Mach
+    number. The energetic electrons become fewer at high speed; the authors state that 1-D exaggerates this.
+  - `gupta2024electron` runs in the upstream rest frame, chosen against numerical heating; its efficiency is a
+    factor ≲ 2 above the downstream-frame run of `park2015simultaneous`. Our set-up is in the downstream frame.
+  - `kato2015particle`: in 1-D, energetic electrons lose energy at a rate set by the number of electrons per
+    electron skin depth; with too few, no acceleration appears.
+  - `caprioli2018diffusive`: seeds drive waves through their current and can switch on the injection of thermal
+    ions. Our seeds are a passive species.
+  - `vanmarle2022diffusive`: "injection is, fundamentally, a 3D process" (ions, oblique shocks).
+
+### Our calculations (own; not results)
+- **Numerical drag against a Bohm-rate gain.** Loss from Kato's Eq. 4, gain from the formula of `gupta2025speed`
+  with compression 4 and D_2 = D_1/10. Table by run in `simulation-claims.md` §5: loss/gain is 0.02-0.11 for W, V2,
+  P0, P2; 0.3-0.5 for P5a, V1, E; above 1 for S1, P5b, P6, S2, at 5000 electrons per d_e and D̃ = 1.
+- **A correction of our own first number.** The first evaluation for Gupta's run B1 used the piston speed (0.1 c) in
+  place of the shock speed. `gupta2024electron` defines M_A with v_sh and sets v_sh = v_pt R/(R−1), so v_sh is
+  0.133 c. With it the formula gives 2.1e-4 m_e c² ω_pe, against a mean rate of 2.0e-4 from the published p_max at
+  300 ω_ci⁻¹. The earlier value (8.9e-5, never written to a file) is void.
+- **A tension that is not resolved.** The same formula gives loss/gain ≈ 0.24 for Gupta's own B1, while that work
+  reports agreement with its p_max formula and no sensitivity to the particle number. Either the 1-D loss formula
+  overstates the drag in a filtered quasi-1-D run, or the effect is inside their agreement. Not checked; a short
+  test run with the particle number varied would decide it.
+
+### Changes of the README, each with its fact
+| Fact | Change |
+|---|---|
+| The second search and its 29 notes | Related work: "Second search" added, with a pointer to `simulation-claims.md` |
+| `gupta2024electron` reports the injection efficiency against shock speed and mass ratio (quotation above) | "Not new": that item added; what remains open is named |
+| `liseykina2019electron`: test electrons in 1-D hybrid quasi-parallel shocks | "Not new": added beside `hanusch2020electron` |
+| `kato2015particle` Eq. 4 and our estimate | "Strongest objections": numerical drag |
+| `gupta2024electron` on the frame, against `park2015simultaneous` | "Strongest objections": the frame |
+| `caprioli2018diffusive` | "Strongest objections": passive seeds cannot drive waves |
+| `vanmarle2022diffusive` | "Strongest objections": injection as a 3-D process |
+| `inputs.md`: v_sh/c is 0.0013-0.0020 at Earth and 0.0015 at Saturn | "Out of reach": the range corrected (it said 0.0013-0.0015 for both) |
+| The points of `simulation-claims.md` §8 | Approach: a line that names them as open, for the owner; set-up, definitions and criteria unchanged |
+| The second review is done; this survey is done | Status: "Done" and "Next" updated |
+
+`literature.md`: five Map bullets for the 29 works and a pointer to `simulation-claims.md`.
+
+### Second review by `research-reviewer`
+Done on README, `inputs.md` and the plan. It lists nine corrections to `inputs.md` (attributions, a crossing time,
+the kind of some values), finds that the published M_A values of the PSP event straddle M_A ≈ 10, that three of the
+four "no" classes are limited by detection according to their own authors, and that part of the dependence on shock
+speed is published; it proposes thresholds for the criteria. None of it is applied in this commit: the corrections
+are to be checked in their sources first, and the thresholds are proposals until the owner decides.
+
+### Not done
+- The search is keyword-based and not exhaustive; no forward-citation pass was made for the 29 new works.
+- 20 of the 29 works were read as abstracts only.
+- The engine's implicit scheme as a route to larger cells was not examined (`zhou2025planar` is the one work read
+  on semi-implicit PIC for shocks).
+- The drag estimate is not tested by a run.
+- The reviewer's corrections to `inputs.md` and the instrument backgrounds as intensities.
+
+### Next
+The owner's decisions on the open points (`simulation-claims.md` §8) and on the criteria; the corrections to
+`inputs.md`; then the engine pilot (step 4).
+
 ## 2026-11-14 — Step 3, first part: the inputs of the four cases from primary sources
 
 Later on the same day as the entry below.

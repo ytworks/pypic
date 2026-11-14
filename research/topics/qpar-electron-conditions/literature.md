@@ -1,7 +1,9 @@
 # Prior work — qpar-electron-conditions
 
 This file places the topic in its field. Each work has its own file in `research/literature/<citekey>.md`; here
-they are related to the question. The search behind it is recorded in `notebook.md` (entry of 2026-11-14).
+they are related to the question. The searches behind it are recorded in `notebook.md` (the two entries of
+2026-11-14). What these works let a simulation state, and what they do not, is drawn together in
+`simulation-claims.md`.
 
 Notes marked (S) are on `research/spherical-shock-injection`, notes marked (A) on
 `research/shock-alfvenic-turbulence`. Neither branch is merged into trunk yet, so those files are not on this branch;
@@ -55,6 +57,32 @@ they are not copied, to keep one file per work.
 - **Limits by size:** `oka2025maximum` (Hillas limit over heliospheric shocks), `raptis2026relativistic` (Bohm
   scaling over three planets).
 - **Remote:** `zhou2023magnetic` (S) (SN 1006, the field behind the shock is nearly radial).
+
+- **What a method can state (reviews and method papers):** `marcowith2020multi` (the ranges of validity of PIC,
+  Vlasov, hybrid, PIC-MHD; PIC as the source of scalings for larger models), `haggerty2019dhybridr` (the argument of
+  scale separation for runs at v_sh ~0.1 c; a synthetic probe flown through the box), `caprioli2015simulations` (what
+  a finished injection result looks like, for ions).
+- **Neighbouring methods (none carries kinetic electrons through injection):**
+  - Hybrid with test electrons: `liseykina2019electron` (1-D quasi-parallel; abstract), `hanusch2020electron`.
+  - Hybrid-Vlasov, global: `johlander2022quasi` (reformation by SLAMS, compared with MMS; abstract),
+    `battarbee2021vlasov` (Vlasov electrons inside hybrid snapshots; abstract).
+  - Fluid plus particles, injection prescribed: `bai2015magnetohydrodynamic` (MHD-PIC), `vanmarle2022diffusive` (PIC
+    for the ion injection rate, then PIC-MHD with it as input), `simon2026faux` (a semi-permeable boundary in place of
+    the shock), `reville2013universal` (precursor with efficient acceleration; abstract).
+  - Monte Carlo with a prescribed mean free path: `nyberg2026electron`, `john2024effects` (coronal shocks; abstracts).
+  - Semi-implicit PIC with cells above the electron skin depth: `zhou2025planar`.
+  - Seeds: `caprioli2018diffusive` (re-acceleration of pre-existing particles; hybrid, ions).
+- **Runs confronted with one in-situ event or with event parameters:** `swisdak2023comparison` (termination shock at
+  Voyager 2 parameters, PIC against hybrid; abstract), `kropotina2023weibel` (one solar-wind shock, hybrid; abstract),
+  `gingell2017mms` (ripples at θ_Bn ~45°, MMS and hybrid; abstract), `bessho2025electron` (Earth's parameters, 2-D
+  PIC, current sheets; abstract), `tsubouchi2004full` (SLAMS in a 1-D full particle run; abstract).
+- **Laboratory shocks:** `fiuza2020electron` (electrons to relativistic energies in a turbulent shock at NIF; abstract),
+  `schaeffer2019direct` (distributions in the precursor of a magnetized shock; abstract), `lezhnin2021kinetic`
+  (what an experiment needs to see electron energization; abstract), `zhang2024kinetic` (planned quasi-parallel
+  experiments; abstract), `orusa2025criteria` (when a lower dimension gives the same answer; ions, perpendicular).
+- **Border regimes:** weak, high-β shocks, `kang2019electron`, `kylivnyk2026hybrid` (abstracts); electron heating at
+  high Mach number, `vanthieghem2024electron` (abstract); transients and current sheets at Earth, `liu2017fermi`,
+  `lindberg2025fermi` (abstracts).
 
 ## Open
 
