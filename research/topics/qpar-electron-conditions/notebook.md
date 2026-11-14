@@ -3,6 +3,60 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-15 — New fact: V1 as configured needs 2.40 times the engine's particle ids and would stop at 62.5 / Ω_ci; the planner now refuses such a run
+
+Found while reading how the engine numbers its particles (PIC-D8, PIC-D13), for the design of the N12 record.
+Nothing of V1 has run. The two flow-through controls and `piston-t10` are still running; none of their outputs has
+been read.
+
+### The fact
+- The engine keeps ids exact in float64: every id is below 2^53 = 9.007 × 10^15 (`pypic.config.ID_LIMIT`). Loaded
+  particles take `beams × cells × ppc` ids. Every step then reserves one block for the particles that enter
+  (`pypic.injection.ids_per_step`): `2 × streams × (nx + 2)(ny + 2)(nz + 2) × ppc`, the whole extended grid per
+  stream and once more for the partners of a paired face. `Simulation.step` raises before a step whose block
+  would reach 2^53.
+- V1 (`configs/v1.yaml`: 270,000 × 2 × 2 cells, ppc 250, 2 streams, 5,000,000 steps), with the engine's own
+  functions on the planned configuration:
+  - loaded ids 5.4 × 10^8; ids per step 4,320,032,000; needed 2.160 × 10^16 = **2.398 × 2^53**;
+  - the engine would stop the run at step 2,084,984 = **62.55 / Ω_ci of 150**.
+- Of the 4.32 × 10^9 ids of a step, V1's injection can use 2,000: the layer outside x+ is ny × nz = 4 cells, with
+  250 slots, for the ions and for their partner electrons.
+- The runs so far are far below the limit (same functions): `piston-t10` 0.004 of 2^53, the flow-through control
+  and its companion 0.005. The recorded pilots (≤ 2 / Ω_ci, ≤ 80 d_i) are smaller still.
+- The engine's example planners (`examples/bow_shock/plan.py`, `examples/blast_wave/plan.py`) refuse a run whose
+  ids reach the limit. The topic's `plan.py` did not: the step times of V1's box (entry of the third review) came
+  from runs of 1–2 / Ω_ci, which never came near it.
+
+### What a change of V1's own numbers would give (factors on the ids needed; 2.40 is required)
+| Change | Factor | What it changes |
+|---|---|---|
+| ny = nz = 1 | 1.78 | the transverse cells of every pilot and control so far |
+| cfl 0.45 → 0.577 (the limit of a cubic 3-D cell) | ≤ 1.28 | the time step of every pilot and control so far |
+| both of the above | ≤ 2.28 | not enough |
+| ppc 250 → 125 | 2.00 | not enough alone; leaves N13 (the particle number of `gupta2024electron`) |
+| Δx = d_e/10 → d_e/5 | 4.00 | the resolution fixed in the README (Approach) |
+| box 2700 → ≤ 1126 d_i | ≥ 2.40 | the README needs ≥ 2360 d_i for the upstream of t = 150 |
+| t_end 150 → ≤ 62.5 | ≥ 2.40 | the blocks of t = 100–150, the slope, σ_pt, D_e at t = 135 |
+
+Every later run is longer in steps (mass ratio 1836) and at least as long in cells, so the same limit binds
+there; their boxes are not fixed yet, so no number is given.
+
+### Decided
+- None of V1's numbers is changed: each of the changes above gives up something that the README or the controls
+  fix, and none of them helps the later runs. What is short is the engine's id block for entering particles. That
+  is engine work: a branch from main, PR, GPU gate, Codex review, merge on the owner's instruction, then
+  `research-sync-main` (step 4 of the approved plan). Its design and evidence are recorded on main, not here.
+- `plan.py` now computes the ids of a run with the engine's functions and refuses a run that reaches the limit,
+  naming the time at which the engine would stop it (`info["id_fraction"]` otherwise). With today's engine
+  `--plan-only` on `v1.yaml` fails with "2.40 times the limit 2^53 … 62.5 / Omega_ci of 150.0".
+- V1's start conditions are now: both controls pass their criteria; the diagnostics of N6 (a) and N12 are fixed
+  in an entry; the planner accepts `v1.yaml` on the engine that the topic has taken.
+
+### Not affected
+The pass criteria of the controls, the definitions of `spectra.py`, the cost estimate of V1 (6.6 d): the id block
+is bookkeeping and does not enter the step time measured so far. Not checked: whether the engine change alters
+the step time (to be measured at its gate).
+
 ## 2026-11-15 — `spectra.py`: the analysis of the shock, the downstream spectra and the upstream monitors; its details fixed before V1 exists
 
 Written while the two flow-through controls and a piston pilot to 10 / Ω_ci (`piston-t10`) are running. None of

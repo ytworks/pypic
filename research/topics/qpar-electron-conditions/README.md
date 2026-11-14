@@ -452,5 +452,8 @@ Snapshot of 2026-11-15.
 - Step 4: the engine change is merged (PR #52) and taken; pilots and N7 are recorded in `runs/`. Open: the
   flow-through control to 40 / Ω_ci and its companion with velocity histograms; V1 starts only if they pass the
   criteria fixed in `notebook.md` (2026-11-15, third review).
-- Next: close step 4 with the control; then stage 1 (V1, V2). The GPUs are shared with the pilot of
-  `shock-alfvenic-turbulence`.
+- Blocker (2026-11-15): V1 as configured needs 2.40 times the engine's particle ids (2^53) and would be stopped
+  at 62.5 / Ω_ci of 150 (`notebook.md`). `plan.py` refuses such a run. None of V1's numbers is changed; the id
+  block of the entering particles is engine work on main (step 4 of the plan), to be merged and taken before V1.
+- Next: the engine change; close step 4 with the control; then stage 1 (V1, V2). The GPUs are shared with the
+  pilot of `shock-alfvenic-turbulence`.

@@ -55,6 +55,7 @@ import os
 from dataclasses import asdict, dataclass, field
 
 from pypic.config import (
+    ID_LIMIT,
     Beam,
     Checkpoint,
     CurrentFilter,
@@ -64,6 +65,7 @@ from pypic.config import (
     SimConfig,
     SpeciesConfig,
 )
+from pypic.injection import ids_per_step
 from pypic.parallel.decomp import auto_dims
 from pypic.setup.planner import apply_overrides
 
@@ -262,6 +264,16 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
     x_shock = v_box * t_run / d_i
     columns = nx * p.ny * p.nz
     particles = len(sp) * columns * p.ppc
+    # particle ids (PIC-D8, PIC-D13): the loaded ones, then one block per step for the entering particles; the
+    # engine stops a run at the step where an id would reach 2^53, so such a run is refused here
+    ids = sum(len(s.beams) for s in cfg.species) * math.prod(cfg.n_cells) * cfg.ppc
+    if p.wall:
+        per_step = ids_per_step(cfg)
+        ids += cfg.n_steps * per_step
+        if ids >= ID_LIMIT:
+            stop = (ID_LIMIT - (ids - cfg.n_steps * per_step)) // per_step * cfg.dt * omega_ci
+            raise ValueError(f"the run needs {ids:.3g} particle ids, {ids / ID_LIMIT:.2f} times the limit 2^53: the "
+                             f"engine would stop it at {stop:.1f} / Omega_ci of {omega_ci * cfg.n_steps * cfg.dt:.1f}")
     notes = []
     shock = p.wall and not p.through
     if shock and x_shock > 0.8 * p.lx:
@@ -279,6 +291,7 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         "omega_ci_t_end": omega_ci * t_run,
         "x_shock_end": x_shock, "particles": particles, "per_column": 2 * p.ny * p.nz * p.ppc,
         "capacity_bytes": None if slot is None else slot * particles * cfg.capacity_factor,
+        "id_fraction": ids / ID_LIMIT,
         "dims": cfg.dims, "notes": notes, "params": asdict(p)}
     lines = [
         "=== qpar-electron-conditions planner ===",
