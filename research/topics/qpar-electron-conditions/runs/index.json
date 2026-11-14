@@ -7,6 +7,15 @@
    "kind": "pilot (plan step 4)",
    "config": "configs/pilot-piston.yaml",
    "gpus": 1
+  },
+  {
+   "file": "2026-11-15-pilot-piston-pml192.json",
+   "record": "2026-11-15-pilot-piston-pml192.md",
+   "commit": "92686fb7f7740a9c2a2ee1fe4c72ad5f21762fe0",
+   "analysis_commit": "5bf6998bfd8ca2d44dfc69f6fea888182defea01",
+   "kind": "pilot (plan step 4)",
+   "config": "configs/pilot-piston.yaml",
+   "gpus": 1
   }
  ]
 }
