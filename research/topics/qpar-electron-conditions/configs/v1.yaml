@@ -12,3 +12,9 @@ lx: 2700
 t_end: 150
 ppc: 250
 filter_passes: 32
+# Particle dumps of N12 and N6 (a) (README; notebook 2026-11-15, "V1's diagnostics"): thresholds
+# p_d,e = 0.1 and p_d,i = 1.5 m_i v_pt (the planner's default).
+dump_origin: [0, 900, 100]  # x = 0-900 d_i at the spectra outputs of t >= 100 (N12, exclusion by origin)
+dump_wall: [50, 0.6]  # x <= L_p = 2.5 M_A d_i every 0.6 / Omega_ci from t = 0 (N12, wall contact)
+dump_edge: [200, 0.75]  # from 200 d_i inside the absorbing layer to x+, every 0.75 / Omega_ci (N6 a)
+dump_sample: [101, 150, 900, 102, 126, 150]  # every 101st electron id in x = 150-900 d_i at t = 102, 126, 150

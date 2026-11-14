@@ -258,7 +258,9 @@ facts, and is fixed before the first run that needs it.
      - Sensitivity, fixed in advance: the same numbers in [x_sh − 15, x_sh] M_A d_i and in the two halves of
        D_fix; a spread above 30 % is stated as the error of the definition.
      - Limit: D_fix is not the region of `gupta2024electron` (S). Its "1000 d_i" does not exist before t = 200 in
-       B1 and never in its M_A 5 runs; the region those runs used is not stated.
+       B1 and never in its M_A 5 runs; the region those runs used is not stated. Where it is stated (spectra "at
+       late times", density profile at t = 275 ω_ci⁻¹ with x_sh ≈ 1400 d_i), the far edge of the region is
+       ≈ 400 d_i = 20 M_A d_i from its piston (own arithmetic).
   3. D̃_e(x, p̃) by the method of `gupta2025speed` (S), appendix B (test electrons in saved fields), as a function of
      the distance from the shock up to the end of the box; independently from the tracked PIC electrons; with and
      without the wave electric field.
@@ -343,9 +345,35 @@ facts, and is fixed before the first run that needs it.
     - Limit: with three points a pure power law is an assumption with one degree of freedom.
   - N5 mass ratio: one set at fixed electron sonic Mach number, one at fixed β_e (`shalaby2024energy`).
   - N6 boundary: twice the box length (short). Change ≤ 2σ_pt. In V1 a box of twice the length cannot be run
-    to the end; in its place (third review, 2026-11-15), at t = 100, 125 and 150: the energy of the particles
-    with p ≥ p_0 that left through x+ is ≤ 5 % of the non-thermal energy in the box, and δB_⊥ in the last
-    200 d_i before the absorbing layer is ≤ 2 times the N1 level.
+    to the end; in its place (third review, 2026-11-15), at t = 100, 125 and 150: (a) the energy of the
+    particles with p ≥ p_0 that left through x+ is ≤ 5 % of the non-thermal energy in the box, in the form
+    below, and (b) δB_⊥ in the last 200 d_i before the absorbing layer is ≤ 2 times the N1 level.
+    - N6 (a) for V1 (form fixed 2026-11-15, before V1; `notebook.md`, "V1's diagnostics"). For each species
+      α = e, i separately, at the spectra outputs nearest to t = 100, 125 and 150:
+      R_α(t) = E_esc,α(t) / E_nt,α(t) ≤ 5 %. Momenta and energies in the box frame.
+      - p_0,i = 5 p_th,i with p_th,i from the peak of p⁴f of the ions in D_fix, as p_0,e.
+      - E_nt,α(t): the kinetic energy of all particles of the species with p ≥ p_0,α in the whole box at t,
+        from the (x, |u|) histogram.
+      - E_esc,α(t): from dumps (x, u, weight, id) of the particles with p ≥ p_d,α in the zone from 200 d_i
+        inside the absorbing layer to the face, every 25,000 steps (0.75 Ω_ci⁻¹), p_d,e = 0.1 m_i v_pt,
+        p_d,i = 1.5 m_i v_pt. Slab S = 5 to 200 d_i inside the layer, length L_S.
+        N⁺(t) = Σ_dumps≤t (Δt/L_S) Σ_{S, p ≥ p_0, u_x > 0} w E_kin v_x; N(t) the same without the condition on
+        u_x (signed); U_far(t) = the kinetic energy with p ≥ p_0 between the inner edge of S and the face at t.
+        Then N − U_far ≤ E_esc ≤ N ≤ N⁺.
+      - Verdict per species and time: pass if N⁺/E_nt ≤ 5 %, or if N/E_nt ≤ 5 %; fail if
+        (N − U_far)/E_nt > 5 %; otherwise "not decided". (a) passes only if both species pass. From the first
+        time that is not a pass, the results are labelled "outside the N6 tolerance" (or "N6 not decided") with
+        that time, the box rule (k) is revisited before P0, and a sharper record (an escape diagnostic of the
+        engine, or a longer box) is decided then; the estimator is not changed after the run.
+      - Reported beside: R_α with p_0 replaced by p_0/2 and by 2 p_0; the escaped number fraction; the momentum
+        spectrum of the outward flux; R against time at every dump; the engine's cumulative energy of removed
+        particles (signed, all species, no criterion).
+      - Limits: 5 % and the stand-in itself are the reviewer's choice without a source; the estimate holds if
+        nothing above p_d enters at x+ and no particle crosses p_0 inside the zone (in the box frame an ion's
+        energy changes by gyration in the motional field, own estimate ≲ 17 % in p at p_0,i); the receding
+        boundary of `gupta2024electron` and its length at t ≤ 150 are not stated, so R_α has no published
+        counterpart; a pass does not show that the turbulence far upstream equals that of a longer box (part
+        (b) and Q monitor the field only at the edge).
   - Upstream field in V1 (third review, 2026-11-15): Q = (⟨B_y⟩/B_0y) / (⟨n⟩/n_0) in the zone 5 to 200 d_i
     inside the absorbing layer, blocks of 5 Ω_ci⁻¹: |Q − 1| ≤ 0.05 up to t = 150 (5 % is 1.2° in θ_Bn and
     −1.3 % in M_A). V1 starts only after the flow-through control passes its criteria (`notebook.md`,
@@ -366,6 +394,41 @@ facts, and is fixed before the first run that needs it.
     - N11 mechanism off: the measurement without the wave electric field is a control. The review gives no
       threshold; the difference is reported with σ_pt.
     - N12 wall: electrons that touched the piston region are left out of the spectra and the injection rate.
+      Form fixed 2026-11-15, before V1 (`notebook.md`, "V1's diagnostics"). Two exclusions, both evaluated in
+      D_fix and its sensitivity regions at every spectra output of t = 100–150, from a dump with ids of the
+      electrons with p ≥ p_d,e = 0.1 m_i v_pt (box frame) in x = 0–900 d_i taken at the steps of the spectra
+      outputs.
+      - (L) origin, the rule: an electron is left out if it was loaded at x_0 ≤ X_c = 20 M_A d_i (V1: 400 d_i),
+        i.e. if its fluid element met the shock before the nominal time t_c = x_0/(M_A d_i) Ω_ci⁻¹ = 20 Ω_ci⁻¹.
+        Decided from the id alone. Injected electrons are never left out. Set reported: X_c = 10, 20,
+        40 M_A d_i.
+      - (E) wall contact, a bound: an electron is tagged if its id appears in any dump of the zone
+        x ≤ L_p = 2.5 M_A d_i (V1: 50 d_i; same threshold p_d,e) taken every 20,000 steps
+        (0.60 Ω_ci⁻¹ ≤ 2 L_p/c) from t = 0. The tagged set contains every electron that was reflected by the
+        wall while above p_d,e; it also contains electrons that entered the zone and turned back. Removing it
+        gives a lower bound of the number without wall-reflected electrons; the number without exclusion is the
+        upper bound.
+      - Numbers: η_nt,e, φ_e, η_e(p ≥ 3 √(m_e/m_i) m_i v_pt) and q are given (1) with (L) at X_c = 20 M_A d_i,
+        the value used in comparisons between our runs and in the V1 slope criterion; (2) without exclusion,
+        the value compared with published numbers of `gupta2024electron`, which states no exclusion; (3) with
+        (L) at 10 and 40 M_A d_i; (4) with (E); (5) with (L) and (E) together. p_th,e, p_0,e and the particle
+        number of the region are taken from the histogram without exclusion in all five.
+      - Verdict, last block before t = 150: "no wall effect" if (1), (4) and (5) each differ from (2) by
+        ≤ 2 σ_pt. Otherwise "wall effect detected": the range of (1)–(5) is reported, and where it exceeds 30 %
+        (0.15 in q) it is stated as the error of the definition. If (1) and (2) fall on different sides of the
+        V1 slope criterion, the slope is "not decided" and counts as a deviation to be explained before the
+        next stage.
+      - Checks: the dump reproduces the histogram counts above p_d,e in D_fix within 1 %; a dump of every 101st
+        electron id without energy threshold in x = 150–900 d_i at t = 102, 126 and 150 gives the share of
+        electrons below p_d,e in D_fix with x_0 ≤ X_c (expected zero) and the change of p_th,e under (L); if
+        p_th,e changes by more than 2 %, that is reported and p_0,e of (1) is recomputed with the exclusion.
+      - If the measured p_0,e is below p_d,e: N12 is evaluated for φ_e, η_e(p ≥ 3 √(m_e/m_i) m_i v_pt) and q
+        only, and η_nt,e is reported without exclusion with that limit.
+      - Limits: (L) and (E) also remove electrons accelerated by the formed shock, so a wide range does not
+        show that the wall caused it; (E) misses an electron that was below p_d,e while in the zone; X_c and
+        L_p have no value in the literature (`gupta2024electron` and `gupta2025speed` state no treatment of
+        their piston) and are our choices; the wall as a reflecting downstream boundary is common to V1 and the
+        source.
     - N13 particle number of the reproduction: V1 at the particle number of `gupta2024electron` (S).
 - **Confrontation, fixed:** all comparisons are between the transport model's intensity and the instrument
   background at a named energy.

@@ -3,6 +3,110 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-15 — V1's diagnostics: N12 and N6 (a) get forms that the engine can record (fourth review); a formula of the third-review entry corrected
+
+Nothing of V1 has run. The two flow-through controls and `piston-t10` are still running; none of their outputs
+has been read.
+
+### New facts (they change the README's N12 and N6 (a), so they are named first)
+1. **The engine cannot record what the two tests name.** A particle output holds x, u, weight and id at its
+   output steps; there is no flag on a particle and no record of a removed particle
+   (`pypic/output/diagnostics.py`, `ParticlesDiag`, `_select`). The scalar `lost_kinetic` is cumulative, signed
+   and summed over all species without a momentum cut. So "electrons that touched the piston region" (N12) and
+   "the energy of the particles with p ≥ p_0 that left through x+" (N6 a) have no direct measurement in V1.
+2. **The source states no treatment of its piston.** `gupta2024electron`, §II: "The shock is launched using the
+   left boundary of the computation domain as a moving reflecting wall (hereafter, the 'piston')";
+   `gupta2025speed`: "We launch the shock using a reflecting wall (piston) moving at a speed v_pt = 0.1c". The
+   text of `gupta2024electron` has no occurrence of exclud-, discard-, omit-, removed, artifact, artefact or
+   transient (own search of the arXiv HTML text). This is "not stated", not "not done".
+3. **Where the source measures.** `gupta2024electron`: "downstream spectra, measured in a region of 1000 d_i
+   behind the shock", "calculated at late times over a region of 1000 d_i immediately downstream of the shock";
+   the density profile "at t = 275 ω_ci⁻¹" has x_sh ≈ 1400 d_i from the piston. The far edge of that region is
+   then ≈ 400 d_i = 20 M_A d_i from the piston (own arithmetic).
+4. **The source's upstream boundary.** `gupta2024electron`: "we use a receding right boundary that enlarges the
+   size of the domain along the x-axis with time to ∼10⁴ d_i for a run time of 300 ω_ci⁻¹"; beyond the precursor
+   "the top-hat distribution primarily represents the escaping populations of both energetic electrons and
+   protons". Its length at t ≤ 150 ω_ci⁻¹ is not stated, and no escaped fraction is given.
+5. **The source on the age t = 100–150.** `gupta2024electron`, main text: "at t = 100–150 ω_ci⁻¹ the nonresonant
+   streaming instability has not yet saturated for the larger m_R"; appendix A (controlled runs of the
+   instability): the plateau "occurs at t > 150 ω_ci⁻¹ for our benchmark run". V1 ends at 150.
+
+### The review (fourth, `research-reviewer`; question: forms of N12 and N6 (a) with the engine as it is)
+- Result: both tests can be evaluated from particle dumps at fixed steps; no engine change before V1.
+  - N12: exclusion by origin (L), decided from the id, as the rule; wall contact (E) from dumps of the zone at
+    the wall, as a bound. Five variants of the numbers and a verdict against 2 σ_pt (README, N12).
+  - N6 (a): a bracket N − U_far ≤ E_esc ≤ N ≤ N⁺ of the escaped energy from dumps of the outer zone, each
+    species on its own (README, N6).
+- What the review says snapshots cannot give: the exact set "touched the wall" for all electrons; wall contact
+  below the dump threshold; the energy that actually crossed the face (only the bracket); whether a wide range
+  of N12 comes from the wall or from early injection by the shock.
+- Open by the review: whether N6 (a) passes. Its "needs rethinking": any claim that separates a wall artefact
+  from early legitimate injection.
+- Questions the review expects from a referee: the change of η_nt,e and q when the electrons of the first
+  20 Ω_ci⁻¹ are removed, and its trend from t = 100 to 150; the share of each species' non-thermal energy that
+  left the box, and at which momenta; whether p_max(t = 150) is limited by time or by the box; which numbers of
+  V1 hold "at that age" only.
+
+### Checked by me
+- Facts 2–5: the quotations, in the arXiv HTML texts of the two papers.
+- (L) is decidable from the id. A loaded particle has id = id_base + (global cell) · ppc + slot with the cell
+  index x-slowest (`pypic/particles.py`), electrons have id_base 0, so x_0 = ((id // ppc) // (n_y n_z)) dx.
+  Injected particles have ids ≥ (streams) · N_cells · ppc (`pypic/simulation.py`, `_n_ids`). Not yet checked on
+  a run: the dump pilot below does that.
+- Arithmetic of the forms: c = 150 d_i Ω_ci; p_d,e = 0.1 m_i v_pt is u = 1.0 m_e c (γ 1.414), p_d,i = 1.5 m_i
+  v_pt is γ 1.0112; 20,000 steps = 0.60 Ω_ci⁻¹ ≤ 2 L_p/c = 0.667; 25,000 steps = 0.75 Ω_ci⁻¹ ≤ L_S/c = 1.3;
+  D_fix holds fluid shocked at t ≈ 41–90 (at t = 100) and 91–140 (at t = 150), so fluid shocked before
+  t_c = 20 lies outside D_fix unless its electrons moved there.
+- The estimator of N6 (a): a particle that crosses the slab S at v_x is seen in L_S/(v_x Δt) dumps on average
+  and adds (Δt/L_S) w E_kin v_x in each, in total w E_kin (unbiased for a random phase of the dumps).
+- The spectra outputs "of t = 100–150" are the steps 3.4 M … 5.0 M (t = 102 … 150, 17 outputs); the nearest
+  to t = 100, 125 and 150 are the steps 3.3 M (t = 99), 4.2 M (t = 126) and 5.0 M.
+
+### Adopted (owner's order: go with the recommendations)
+- The forms of N12 and N6 (a) as the review wrote them; they are in the README.
+- The dumps: electrons above p_d,e in x = 0–900 d_i at the spectra steps of t ≥ 100; electrons above p_d,e in
+  x ≤ 50 d_i every 20,000 steps from t = 0; electrons above p_d,e and ions above p_d,i from 200 d_i inside the
+  absorbing layer to the face every 25,000 steps; every 101st electron id without threshold in
+  x = 150–900 d_i at t = 102, 126, 150 (101 shares no factor with the 250 slots of a cell).
+- The rule for thresholds: in units known before the run, below every momentum a criterion uses, with the
+  fallback stated in advance (README, N12: "If the measured p_0,e is below p_d,e").
+- A check of the two estimators on synthetic particles before V1 is read.
+
+### Kept as planned, with the limit
+- D_fix, N6 (b), Q and σ_pt are unchanged. The README's limit of D_fix now carries fact 3.
+- No tracked particles in V1 (`track_stride` 0, as before). The review notes that tracks could calibrate (E) on
+  a subsample and recommends no number; limit: (E) stays a bound without calibration.
+- X_c = 20 M_A d_i (the end of the early-stop window t = 10–20), L_p = 2.5 M_A d_i and 5 % are choices without
+  a literature value; the README says so.
+
+### Not fixed
+- Whether N6 (a) passes: known after V1.
+- The cause of a wide range in N12: V1 has no control that separates the wall from early injection.
+- The operational definition of p_max (before V2), unchanged.
+
+### Correction of the entry "Third review applied" (below; its fact 7 and its "V1's D_e criterion")
+- That entry writes the domain of the test electrons as "D_B(p)/v_sh = p̃² m_R/(γ M_A) d_i". This is a wrong
+  transcription: it gives 0.5 d_i at p̃ = 1, not the 200 d_i the entry fixes.
+- `gupta2025speed`, appendix B: "2L is comparable to the precursor length ∼ D_B(p)/v_sh ≡ p̃² m_R/γ ℳ_A d_i,
+  which is derived from Eq. (2)", i.e. (p̃² m_R/γ) M_A d_i = 199 d_i at p̃ = 1 (γ = 10.05, m_R 100, M_A 20).
+- Own arithmetic from its Eq. 2 with ṽ_sh = 4/3: D_B/v_sh = (9/16) p̃² m_R M_A/γ d_i = 112 d_i at p̃ = 1.
+- The fixed value 2L = 200 d_i is unchanged; it is the paper's expression as written.
+
+### Implementation
+- `plan.py`: `dump_p`, `dump_origin`, `dump_wall`, `dump_edge`, `dump_sample` (lengths in d_i, times in
+  Ω_ci⁻¹, momenta in m_i v_0; off unless listed). Thresholds are passed as `gamma_min` of each species. A dump
+  at one time is a diagnostic with `every` = its step and a window of one step around it. `configs/v1.yaml`
+  switches the four dumps on with the values above.
+- The planner's output plan counts a dump as if it had no region (V1: "655 GB"). Hand estimates: the dump of
+  every 101st id ≈ 0.03–0.11 GB each (density 1 to 4); the others depend on the share above p_d,e (the
+  review: 0.1–2.6 GB for each of the 17 dumps of x = 0–900 d_i, 6–150 MB for each wall-zone dump). The dump
+  pilot gives a measured share.
+- V1 with the dumps: accepted by the planner on the engine of PR #53; on the engine this branch holds the
+  planner still refuses V1 (ids; entry below).
+- Dump pilot, `configs/pilot-dumps.yaml`: V1's plasma, 60 d_i, 6 Ω_ci⁻¹, ppc 125, the dumps scaled down. It
+  checks the mechanics only: dumps against histogram counts, x_0 from the id (unshocked loaded electrons sit
+  near x_0 − v_0 t at t = 1 and 2), injected ids, sizes. It gives no physical number.
+
 ## 2026-11-15 — New fact: V1 as configured needs 2.40 times the engine's particle ids and would stop at 62.5 / Ω_ci; the planner now refuses such a run
 
 Found while reading how the engine numbers its particles (PIC-D8, PIC-D13), for the design of the N12 record.

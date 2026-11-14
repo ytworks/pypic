@@ -1,0 +1,17 @@
+# Mechanics check of the particle dumps of N12 and N6 (a) (notebook 2026-11-15, "V1's diagnostics"):
+# V1's plasma in a short box with a wall, the lengths and times of the dumps scaled down. Not a physics run.
+mass_ratio: 100
+v0: 0.1
+mach_alfven: 20
+mach_convention: r4
+theta_bn: 30
+beta_e: 0.5
+beta_i: 0.5
+lx: 60
+t_end: 6
+ppc: 125
+filter_passes: 32
+dump_origin: [0, 30, 4]  # at the spectra outputs of t >= 4
+dump_wall: [5, 0.6]
+dump_edge: [10, 0.75]
+dump_sample: [101, 5, 55, 1, 2, 4]  # t = 1, 2: loaded and injected electrons both upstream

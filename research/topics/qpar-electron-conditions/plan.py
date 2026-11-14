@@ -4,7 +4,8 @@
         --config research/topics/qpar-electron-conditions/configs/<name>.yaml --out <dir>
 
 Needs the engine of PR #52 (PIC-D12 / PIC-D18 amended: `external_fields` together with `B0` / `E0`; PIC-D13 /
-PIC-D9 amended: a listed test species enters through an injecting face).
+PIC-D9 amended: a listed test species enters through an injecting face). V1 also needs the engine of PR #53
+(PIC-D13 amended: the ids of a step cover the planes of the injecting faces); without it the planner refuses V1.
 
 Geometry (README, Approach): quasi-1-D, x is the shock normal, y and z are periodic and a few cells wide. The
 field lies in the x-y plane, B = b (cos theta_Bn, sin theta_Bn, 0). Electrons and ions flow at -v0 along x, so
@@ -111,13 +112,23 @@ class TopicParams:
     track_stride: int = 0  # electrons tracked: every n-th (0: none)
     track_every: int = 20  # steps between track samples
     checkpoint_every: int = 0  # steps (0: none)
+    # Particle dumps (x, u, weight, id) for N12 and N6 (a) (README; notebook 2026-11-15, "V1's diagnostics").
+    # Lengths in d_i, times in 1 / Omega_ci, momenta in m_i v0 (box frame). An empty list: no such dump.
+    dump_p: list = field(default_factory=lambda: [0.1, 1.5])  # thresholds p_d,e and p_d,i of the dumps
+    dump_origin: list = field(default_factory=list)  # [x0, x1, t0]: e above p_d,e, spectra outputs of t >= t0
+    dump_wall: list = field(default_factory=list)  # [depth, period]: e above p_d,e within depth of the wall
+    dump_edge: list = field(default_factory=list)  # [depth, period]: e, i above p_d from depth inside the layer to x+
+    dump_sample: list = field(default_factory=list)  # [stride, x0, x1, t, ...]: every stride-th e id, no threshold
     overrides: dict = field(default_factory=dict)
 
 
 def params_from_dict(d: dict) -> TopicParams:
     d = dict(d)
     d["seeds"] = [dict(s) for s in d.get("seeds", [])]
-    d["velocity_slab"] = list(d.get("velocity_slab", []))
+    for k in ("velocity_slab", "dump_origin", "dump_wall", "dump_edge", "dump_sample"):
+        d[k] = list(d.get(k, []))
+    if "dump_p" in d:
+        d["dump_p"] = list(d["dump_p"])
     return TopicParams(**d)
 
 
@@ -229,6 +240,45 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
     if p.track_stride > 0:
         diags.append({"name": "tracks", "kind": "tracks", "species": electrons, "stride": p.track_stride,
                       "every": p.track_every, "with_fields": True})
+    # particle dumps of N12 and N6 (a); the thresholds are box-frame momenta, as gamma of each species
+    p_e, p_i = (float(v) for v in p.dump_p)
+    above = {"e": {"gamma_min": math.hypot(1.0, p_e * p.mass_ratio * p.v0)},
+             "i": {"gamma_min": math.hypot(1.0, p_i * p.v0)}}
+    per_gyration = 1.0 / (omega_ci * dt)  # steps per 1 / Omega_ci
+    layer = lx - p.npml * dx  # inner edge of the absorbing layer of x+
+    dumps = {"p_d": {"e": p_e, "i": p_i}}
+
+    def dump(name, species, x0, x1, every, select=None, **more):
+        diags.append({"name": name, "kind": "particles", "species": [species], "region": [[x0, x1], None, None],
+                      "select": select or {}, "every": every, **more})
+
+    if p.dump_origin:
+        x0, x1, t0 = (float(v) for v in p.dump_origin)
+        every = max(1, n_steps // p.spectra)  # the steps of the histograms
+        dump("origin_e", "e", x0 * d_i, x1 * d_i, every, above["e"], t_start=t0 / omega_ci)
+        dumps["origin"] = {"x_di": [x0, x1], "every": every, "t0": t0}
+    if p.dump_wall:
+        depth, period = (float(v) for v in p.dump_wall)
+        every = max(1, int(round(period * per_gyration)))
+        dump("wall_e", "e", 0.0, depth * d_i, every, above["e"])
+        dumps["wall"] = {"depth_di": depth, "every": every}
+    if p.dump_edge:
+        depth, period = (float(v) for v in p.dump_edge)
+        every = max(1, int(round(period * per_gyration)))
+        for n in ("e", "i"):
+            dump(f"edge_{n}", n, layer - depth * d_i, lx, every, above[n])
+        dumps["edge"] = {"x_di": [layer / d_i - depth, p.lx], "layer_di": layer / d_i, "every": every}
+    if p.dump_sample:
+        stride, x0, x1 = int(p.dump_sample[0]), float(p.dump_sample[1]), float(p.dump_sample[2])
+        if math.gcd(stride, p.ppc) != 1:
+            raise ValueError("the stride of dump_sample must share no factor with ppc (ids are cell * ppc + slot)")
+        steps = [int(round(float(t) * per_gyration)) for t in p.dump_sample[3:]]
+        if not steps or min(steps) < 1 or max(steps) > n_steps:
+            raise ValueError("dump_sample needs times within the run")
+        for k, s in enumerate(steps):  # one output each: the only multiple of s inside the window is s
+            dump(f"sample_e{k}", "e", x0 * d_i, x1 * d_i, s, stride=stride, t_start=(s - 0.5) * dt,
+                 t_end=(s + 0.5) * dt)
+        dumps["sample"] = {"stride": stride, "x_di": [x0, x1], "steps": steps}
 
     r_cap = max(sh["r_set"], sh["r_mhd"])
     zero = {"cos": [0.0, 0.0, 0.0], "sin": [0.0, 0.0, 0.0]}
@@ -291,7 +341,7 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         "omega_ci_t_end": omega_ci * t_run,
         "x_shock_end": x_shock, "particles": particles, "per_column": 2 * p.ny * p.nz * p.ppc,
         "capacity_bytes": None if slot is None else slot * particles * cfg.capacity_factor,
-        "id_fraction": ids / ID_LIMIT,
+        "id_fraction": ids / ID_LIMIT, "dumps": dumps,
         "dims": cfg.dims, "notes": notes, "params": asdict(p)}
     lines = [
         "=== qpar-electron-conditions planner ===",
@@ -312,5 +362,12 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         f"capacity factor {cfg.capacity_factor:.2f}"
         + ("" if slot is None else f", {info['capacity_bytes'] / 2 ** 30:.1f} GiB of particle storage"),
     ]
+    if len(dumps) > 1:
+        parts = [f"{k} {v.get('x_di', [0.0, v.get('depth_di')])} d_i "
+                 + (f"at steps {v['steps']}" if "steps" in v else f"every {v['every']} steps")
+                 for k, v in dumps.items() if k != "p_d"]
+        lines.append(f"particle dumps above p_d = {p_e:g} (e), {p_i:g} (i) m_i v0 (sample: every "
+                     f"{dumps.get('sample', {}).get('stride', '-')}-th id, no threshold): " + "; ".join(parts)
+                     + ". The size of these in the output plan below ignores the region.")
     lines += [f"NOTE: {n}" for n in notes]
     return cfg, "\n".join(lines), info
