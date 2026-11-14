@@ -3,6 +3,66 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-14 — Set-up of the runs; purpose corrected; pilot P1a fixed
+
+- **Purpose corrected by the owner.** While writing the set-up I treated the differences from `guo2010effect`
+  (wave mix, variance, L_c) as things to match. The owner: the purpose is not to replicate prior work but to do the
+  next problem that the prior kinetic work left.
+  - My reading: the future work named in `fulat2023kinetic` and `fulat2026pic`. Stated to the owner twice; not yet
+    confirmed or rejected.
+  - Consequence: `guo2010effect` is the source of the mechanism only. `design/setup.md` records the differences as
+    facts (Sect. 2) and sets the set-up against the statements of Fulat et al. (Sect. 1).
+- **Corrections of earlier text:**
+  - Entry "Topic chosen and opened" (2026-11-13) and the README said both Fulat papers state "Future studies will
+    explore the effect of Alfvénic turbulence." That is the 2026 wording. 2023: "Further studies should explore the
+    effect of the Alfvénic turbulence, where the magnetic field fluctuations dominate." (arXiv texts, read
+    2026-11-14.) 2023 also names larger scales with a wider box, and lower M_A.
+  - README, E2 row: "waves that meet the shock at a fixed age" was wrong reasoning. The modes have k_x = 0, so the
+    upstream state depends on (y, t) only and has no age along x. The face supplies the wave for the plasma that
+    enters after t = 0.
+- **`guo2010effect` prescription verified** against the TeX source (arXiv:1003.5946): equal mixture of R and L,
+  forward and backward waves; P(k) ∝ 1 / (1 + (k L_c)^{5/3}), L_c = L_z; σ = δB²/B_1² = 0.3; δv = v_A δB/B_1;
+  loaded at t = 0 and injected at the inflow boundary; piston with a conducting wall.
+- **Upstream state chosen: one forward circular R wave**, rms δB_x/B0 = 0.6 (`design/setup-tables.md`, Table 1).
+  - Random phases: std / mean of |B|² = 0.21–0.37 at t = 0. The question says incompressible.
+  - Several modes with uniform |B| at t = 0 (Blaschke product): the spread reaches 0.142 at t = 40 for L_y = 50 d_i,
+    0.036 for 100, 0.010 for 200.
+  - One wave: 0 at all times (linear phases); exact cold two-fluid solution.
+  - Not read: any source on the parametric or modulational stability of the finite-amplitude wave at β = 2. The
+    pilot measures it; R and L are both run.
+- **Numbers that changed with the state** (new facts for the README amendments):
+  - Ξ = 4.4 / 8.8 / 17.7 / 35.3 at L_y = 50 / 100 / 200 / 400 d_i (was 3.4 / 6.9 / 13.6 / 27, random phases).
+  - Access ratio 0.85 at m_i/m_e = 100 (was 0.66).
+  - rms δB_x/B0 = 0.15 at L_y = 50 d_i gives Ξ = 1.10, not 0.85: the Ξ < 1 set needs a lower amplitude (0.1 gives
+    0.74), fixed after L_sh is measured.
+  - With one wave a "realization" is a shift along y: N4 becomes 4 particle seeds.
+- **How the wave meets the front** (`design/setup.md`, Sect. 5): the front holds all phases at once; local θ_Bn from
+  49.7° to 130.3°; local normal inflow 5.30 to 3.70 v_A; the pattern slides along the front at v_ph ≈ v_A; a field
+  line stays doubly connected for ξ_pp / U1 = 3.0–24 Ω_ci⁻¹.
+  - The laminar null must therefore sample the full circle of phases, with B_z and the bulk velocity of the wave.
+  - That needs a uniform B normal to the reflecting wall. `B0` cannot hold it (`docs/design/engine.md`, PIC-D12:
+    the wall zeroes the normal B of the Yee fields). External fields (PIC-D12) may be normal to a face; untested for
+    a piston shock. Called E4 from here on (not the dropped E4 of the first draft).
+- **Box and face:** nz = 2 (engine minimum), 2D3V, ppc 5 per species. For L_x = 200 d_i the plasma that entered
+  through the face reaches the shock at 44.4 Ω_ci⁻¹, a fast-mode signal from the face at 32.6 (uniform-state speeds).
+- **Smoke runs** (scratch, 8 GPUs, `configs/smoke.yaml`, on 458bfd9 with the untracked topic code): Gauss max
+  7.3e-13, div B max 5.3e-14, dE/E0 = +3.49e-3, 13.89 ms per step.
+  - Failed first: the periodic branch of `plan.py` passed `injection=None`; the engine needs `Injection()`. Fixed.
+- **Grid heating measured** (scratch, laminar periodic 4 × 10 d_i, 1 Ω_ci⁻¹, 5 cells per d_e, ppc 5):
+  - ω_pe/Ω_ce = 10 (λ_De/dx = 0.35): kinetic energy of the electrons +4.85 % per Ω_ci⁻¹ (first half +2.1 %); ions
+    −1.1 %; budget drift +7.5e-3.
+  - ω_pe/Ω_ce = 4 (λ_De/dx = 0.88): electrons −0.41 % (first half −0.34 %); ions −0.18 %; budget drift +3.4e-4.
+  - With `analyze.py` (thermal energy in the local bulk frame, 1 d_i blocks): +4.88 % and −0.31 %.
+  - ω_pe/Ω_ce = 4 is the candidate; one Ω_ci⁻¹ does not show the rate over 40.
+- **`analyze.py pilot`** written and tried on the scratch outputs.
+  - Bug found: `gauss` and `divB` scalars hold NaN between samples; `max` gave NaN. Now `nanmax`.
+- **Pilot fixed before the runs** (`design/setup.md`, Sect. 8): P1a = eight periodic boxes 10 × 50 d_i
+  (`configs/p1a-*.yaml`); criteria C1 (laminar |ΔT_e/T_e| ≤ 0.05 over 40 Ω_ci⁻¹), C2 (one wave: δn_e/n and |B|²
+  spread ≤ 0.05), C3 (rms δB_x/B0 ≥ 0.54 at t = 40), several modes within a factor 2 of the linear spread. Then
+  P1b, P2, P3.
+- **Review:** the owner asked for a cross-review of the set-up by Codex (sol 6.1 ultra) on a pull request, on
+  whether the way the shock meets the large-amplitude fluctuations is what the prior work intended.
+
 ## 2026-11-14 — Engine prerequisites merged
 
 - PR #50 merged into main (fa0972664): E1 (PIC-D24), E2 (PIC-D26), E3 (PIC-D25, OUT-D6). The Codex review (sol 6.1

@@ -1,0 +1,11 @@
+# Smoke test of the periodic box (not recorded): the comparison state with random phases and both helicities.
+wall: false
+state: random
+helicity: random
+ly: 10
+lx: 4
+kdi_max: 2.0
+t_end: 0.5
+frames: 2
+profiles: 5
+spectra: 2

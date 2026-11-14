@@ -1,0 +1,10 @@
+# Pilot P1a (design/setup.md, Sect. 8): laminar periodic box, omega_pe/Omega_ce = 4. Grid heating (C1), noise floors.
+wpe_wce: 4
+db: 0.0
+wall: false
+lx: 10
+ly: 50
+t_end: 40
+frames: 80
+profiles: 5
+spectra: 40

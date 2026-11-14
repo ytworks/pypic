@@ -1,0 +1,11 @@
+# Pilot P1a: as p1a-lam-w4 with twice the particles per cell: dependence of the heating on the particle number.
+wpe_wce: 4
+db: 0.0
+ppc: 10
+wall: false
+lx: 10
+ly: 50
+t_end: 40
+frames: 80
+profiles: 5
+spectra: 40

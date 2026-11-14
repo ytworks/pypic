@@ -64,7 +64,13 @@ The review found it was two questions; the draft is kept in the history of this 
   (ApJ 1005, 107).**
   - The turbulence is compressive and kinetic-scale: δn/n ≤ 15 %, δB/B ≈ 10 %.
   - At 90° there is no effect on electrons. At 60° the non-thermal fraction goes from 0.14 to 0.23 %.
-  - Both papers state: "Future studies will explore the effect of Alfvénic turbulence."
+  - `fulat2026pic`: "Future studies will explore the effect of Alfvénic turbulence, in which the magnetic-field
+    fluctuations dominate and may reach higher amplitudes without excessive heating." `fulat2023kinetic`: "Further
+    studies should explore the effect of the Alfvénic turbulence, where the magnetic field fluctuations dominate."
+    (Corrected 2026-11-14 from the arXiv texts: the first draft gave one sentence for both papers.)
+  - `fulat2023kinetic` also names larger scales ("a wider simulation box and thus more computational resources") and
+    lower Alfvénic Mach numbers as the places where the impact may be larger. `design/setup.md`, Sect. 1, sets this
+    topic's set-up against each statement; the topic takes up this open problem.
   - Why it was left open, as they state it: heating caps the amplitude of compressive turbulence (M_s ≳ 30 must be
     kept), and their set-up imposes no magnetic fluctuation.
 - **Laminar kinetic baseline: `xu2020electron`.** 1-D PIC at 63°, M_A ≈ 63: repeated SDA cycles between
@@ -82,16 +88,26 @@ The review found it was two questions; the draft is kept in the history of this 
   contour of A_z (`jokipii1993perpendicular`). Its intersections with the front, and an electron's encounters with
   the front along it, can then be counted directly.
 - **How meandering is separated from local obliquity** (review, Major 1):
-  - **(a) Local-θ_Bn null.** Laminar runs at uniform θ_Bn = 90, 80, 70, 60 and 45°, weighted by the distribution of
-    θ_loc measured at the front of the turbulent run. Multiple connection shows as the excess over this weighted sum.
-  - **(b) Ξ scan.** At fixed δB_x/B0 the distribution of θ_loc stays the same, while Ξ grows with the box width L_y
-    (`design/estimates.md`, Sect. 2): Ξ = 3.4, 6.9, 13.6, 27 for L_y = 50, 100, 200, 400 d_i at δB_x/B0 = 0.6.
+  - **(a) Local-state null.** Laminar runs at the uniform local states that the front of the turbulent run meets,
+    weighted by their distribution measured there. Multiple connection shows as the excess over this weighted sum.
+    - Amended 2026-11-14. New fact: the upstream state is one circular wave (Approach), so a local state has
+      B = B0 (b cos φ, 1, s b sin φ) and the wave's bulk velocity. Phases with the same acute θ_Bn differ in the
+      normal inflow speed by up to 1.6 v_A and in the sign of B_z (`design/setup.md`, Sect. 5–6).
+    - The null therefore samples the full circle of the phase φ. The first plan (θ_Bn = 90, 80, 70, 60, 45° with B0
+      tilted in the plane) had no B_z, no bulk velocity and one sign of B_x.
+  - **(b) Ξ scan.** The wave keeps its shape and scales with the box width L_y: the distribution of the local states
+    stays the same, while Ξ grows with L_y. Ξ = 4.4, 8.8, 17.7, 35.3 for L_y = 50, 100, 200, 400 d_i at rms
+    δB_x/B0 = 0.6 (`design/setup-tables.md`, Table 1).
+    - Amended 2026-11-14: the earlier 3.4, 6.9, 13.6, 27 were for a random-phase slab spectrum with L_c = L_y / 4
+      (`design/estimates.md`, Sect. 2), which is no longer the primary state.
   - **(c) Field-line labelling.** For every tracked electron: the number of front intersections of its A_z contour,
     the encounters made, and the gain per encounter, over the whole energized population.
 - **The access ratio is a second control number** (`design/estimates.md`, Sect. 2–3).
   - t_conn / t_along: the time a line stays multiply connected, ξ_pp / U1, over the thermal transit between two
     intersections, (L_y / 2) / v_te.
-  - It does not depend on L_y. It is about 0.66 at m_i/m_e = 100 and about 2.8 at 1836 (δB_x/B0 = 0.6, M_A = 4.5).
+  - It does not depend on L_y. For one circular wave it is 0.85 at m_i/m_e = 100, 1.7 at 400 and 3.6 at 1836 (rms
+    δB_x/B0 = 0.6, M_A = 4.5; `design/setup-tables.md`, Table 4). Amended 2026-11-14: 0.66 and 2.8 came from the
+    random-phase estimate of ξ_pp.
   - The fraction of thermal electrons that can stream upstream along the local field is 7 % at m_i/m_e = 100 and 29 %
     at 1836.
   - So the reduced mass ratio suppresses the channel. The mass ratio is an explicit variable: 100 and 400.
@@ -123,10 +139,14 @@ The review found it was two questions; the draft is kept in the history of this 
   - The claim would be the first self-consistent kinetic test of multiple connection as an injection channel: its
     excess over the local-obliquity null, as a function of Ξ and of the mass ratio.
 - **Objections an expert would raise:**
-  - L_c and L_y ≪ the solar-wind correlation length (about 10⁴ d_i), so the result holds for Ξ ≤ 27 only. Guo &
+  - L_c and L_y ≪ the solar-wind correlation length (about 10⁴ d_i), so the result holds for Ξ ≤ 35 only. Guo &
     Giacalone had Ξ ≈ 38.
   - m_i/m_e = 100 suppresses access (above). The step to 400 shows the trend only.
-  - 2-D restricts cross-field transport (`jokipii1993perpendicular`). A slab of waves is not turbulence.
+  - 2-D restricts cross-field transport (`jokipii1993perpendicular`). A slab of waves is not turbulence; the
+    primary state is one wave: no cascade, no spectrum, no oblique modes, and a circle of local states
+    (`design/setup.md`, Sect. 1 and 3).
+  - The sonic Mach number is 3.5, against M_s ≳ 30 in `fulat2023kinetic` and `fulat2026pic`: the result does not
+    transfer to their regime.
   - In a periodic slab a field line that touches the front always returns to it (A_z = −B0 x + a(y), a periodic).
     The runs test what multiple connection does, not how often field lines return in nature (`design/model.py`).
   - Turbulence alone accelerates electrons (`comisso2022ion`). Null N2 covers that.
@@ -140,9 +160,21 @@ production runs.
 **Geometry:**
 - x is the shock normal, with a reflecting wall at x = 0 (piston).
 - y lies along the front and is periodic. B0 = B0 ŷ, so θ_Bn = 90°.
-- Slab fluctuations δB_x(y), δv_x(y): linear Alfvén waves along B0, spectrum as in `guo2010effect`, L_c = L_y / 4.
-  Circular polarization is a check.
-- The laminar null runs tilt B0 in the plane: B0 = B0 (cos θ, sin θ, 0).
+- Fluctuations with k along B0 and k_x = 0, so the upstream state depends on (y, t) only. The runs are 2D3V
+  (nz = 2).
+- **Primary state (amended 2026-11-14): one forward circularly polarized wave** of wavelength L_y, helicity R, rms
+  δB_x/B0 = 0.6 (δB_z of the same size). New facts behind the change from "linear waves with the spectrum of
+  `guo2010effect`" (`design/setup.md`, Sect. 3):
+  - a random-phase state has a |B|² spread of 0.2–0.4 from the start, and the question asks for incompressible
+    fluctuations;
+  - a several-mode state with uniform |B| loses the uniformity within 40 Ω_ci⁻¹ unless L_y ≥ 200 d_i;
+  - one circular wave is an exact two-fluid solution with uniform |B| and density, and it does not rotate.
+- The several-mode state is a waveform test at L_y ≥ 200 d_i; the random-phase state is a comparison in the
+  periodic pilot.
+- `guo2010effect` is the source of the mechanism, not a set-up to reproduce (owner, 2026-11-14). The differences
+  are listed in `design/setup.md`, Sect. 2.
+- The laminar null runs carry the uniform local state of one phase: B = B0 (b cos φ, 1, s b sin φ) and the wave's
+  bulk velocity (Idea a).
 
 **Engine prerequisites.** Each one is done on main: a branch from main, a pull request, a review by Codex (sol 6.1
 ultra) repeated until it reports no findings, the gates of `pypic/`, then the merge, and `research-sync-main` into
@@ -151,7 +183,7 @@ trunk and this topic. Runs that need a change start after its merge (owner, 2026
 | ID | Change | Needed for |
 |---|---|---|
 | E1 | Non-uniform initial E tangential to a reflecting face (extends PIC-D18; today `initial_fields._check_tangential_E` refuses it) | δB_x(y) loaded over the whole upstream: E_z(y) = (v0 − δv_x) B0; pilot |
-| E2 | Turbulent inflow face: time-dependent δB and E = −v × B at the injection face, and δv(y, t) on the injected particles (extends PIC-D13, a boundary drive like PIC-D20) | waves that meet the shock at a fixed age; needed because a linear polarization rotates within 7 Ω_ci⁻¹ at L_y = 50 d_i (`design/estimates.md`, Sect. 1) |
+| E2 | Turbulent inflow face: time-dependent δB and E = −v × B at the injection face, and δv(y, t) on the injected particles (extends PIC-D13, a boundary drive like PIC-D20) | the upstream state of the plasma that enters after t = 0: the wave's fields and δv at the face (reason corrected 2026-11-14: with k_x = 0 the state depends on (y, t) only, so there is no age along x that the face could fix) |
 | E3 | Restart checkpoints (roadmap R2) | runs of 20–160 h |
 | Analysis | A_z labelling, encounter counting, offline pusher in stored filtered fields (topic code; output cadence to be planned) | Idea (a)–(c) and test electrons (ii) |
 
@@ -168,6 +200,11 @@ trunk and this topic. Runs that need a change start after its merge (owner, 2026
   - E3 as PIC-D25 / OUT-D6: `checkpoint: {every, keep}`, `restart:`, onto the same or another GPU layout; the
     output is appended.
 - E4 of the first draft (a relaxed turbulence slab) is not needed for this question and is dropped.
+- **Open engine question (2026-11-14), named E4 from here on; it is not the dropped E4.** The laminar null needs a
+  uniform B with a component normal to the reflecting wall. `B0` cannot hold it (the wall zeroes the normal B of
+  the Yee fields). Static external fields (PIC-D12) may be normal to a face; whether a piston shock runs correctly
+  with them is not known. A smoke run decides whether an engine change on main is needed (`design/setup.md`,
+  Sect. 6).
 - Alternative to E2, to be weighed in the plan of the engine work: a reflecting wall moving through a periodic
   plasma (`behar2024impact`).
 
@@ -177,6 +214,15 @@ trunk and this topic. Runs that need a change start after its merge (owner, 2026
   - ω_pe/Ω_ce = 4, which gives λ_De / dx ≈ 0.9;
   - more cells;
   - the energy-conserving implicit scheme (M5), which is slower per step.
+- **Measured 2026-11-14** (scratch runs, laminar periodic boxes, 1 Ω_ci⁻¹; `design/setup.md`, Sect. 7):
+  ΔT_e/T_e = +4.9 % per Ω_ci⁻¹ at ω_pe/Ω_ce = 10, with a growing rate; −0.4 % at ω_pe/Ω_ce = 4.
+  - ω_pe/Ω_ce = 4 is the candidate. Pilot P1a decides with criterion C1 over the full 40 Ω_ci⁻¹
+    (`design/setup.md`, Sect. 8).
+  - It makes T_e = 0.031 m_e c² and cuts the steps to 0.4 of those at ω_pe/Ω_ce = 10.
+
+**Pilot** (`design/setup.md`, Sect. 8; criteria fixed there before the runs): P1a periodic boxes without a shock
+(resolution C1, stability of the wave C2 and C3, heating); P1b a wide periodic box (oblique modes); P2 the laminar
+wall run (L_sh, shock speed); P3 the wall run with the wave (the face, L_x, the upstream state at arrival).
 
 **Runs** (m_i/m_e = 100 unless stated; M_A = 4.5; β_e = β_i = 1; δB_x/B0 = 0.6; 40 Ω_ci⁻¹; cost at 5 cells per d_e,
 20 particles per cell, ω_pe/Ω_ce = 10):
@@ -190,14 +236,26 @@ trunk and this topic. Runs that need a change start after its merge (owner, 2026
 | Mass ratio | m_i/m_e = 400 at L_y = 100 d_i, turbulent and laminar 90°, 1 each | 2 × 160 h |
 | Total | | about 700 h, about 29 days of the node |
 
+Amendments of this table (2026-11-14), each from a fact of `design/setup.md`; the table is rewritten with its
+numbers after the pilot:
+- **Laminar null:** local states on the full circle of φ, not five values of θ_Bn (Idea a). Their number is open
+  (with E4).
+- **"4 realizations" → 4 particle seeds.** With one wave a realization is a shift along y, which is no new state in
+  a periodic box.
+- **Ξ < 1:** with one wave, rms δB_x/B0 = 0.15 at L_y = 50 d_i gives Ξ = 1.10, not 0.85 (that was the random-phase
+  estimate); 0.1 gives Ξ = 0.74. The amplitude is fixed after P2 has measured L_sh.
+- **L_x:** a fast-mode signal from the face reaches the shock at 32.6 Ω_ci⁻¹ for L_x = 200 d_i. Either
+  L_x ≥ 246 d_i or the evaluation ends at 32.6 Ω_ci⁻¹; P3 decides.
+- **Cost:** at ω_pe/Ω_ce = 4 a 200 × 50 d_i run takes about 2 h instead of 5 h.
+
 **Controls and null tests** (to be fixed before the runs):
-- N1: the laminar runs (the local-θ_Bn null).
+- N1: the laminar runs (the local-state null).
 - N2: no shock.
 - N3: test electrons (i) and (ii) of the Idea.
-- N4: 4 realizations per turbulent case.
+- N4: 4 particle seeds per turbulent case (amended 2026-11-14, see above).
 - N5: twice the particles per cell, and twice the resolution, on one case.
 - N6: upstream δB_x/B0, δn/n, |B| variance, polarization angle and spectrum at arrival, vs time. A tolerance for
-  "equal upstream" is to be fixed.
+  "equal upstream" is to be fixed: from the heating and the |B|² spread measured in P1a and P3.
 
 **Definitions** (review, Major 7; to be fixed before the runs):
 - Thermal fits in patches of a few d_i, in the local bulk frame.
@@ -208,7 +266,7 @@ trunk and this topic. Runs that need a change start after its merge (owner, 2026
 
 **The claim would be shown wrong if** (amended 2026-11-13 by the minimal model, `design/model.md`; the first wording
 asked the excess to grow with Ξ, which the model does not predict):
-- the excess of the turbulent runs over the local-θ_Bn null does not exceed the spread of the 4 realizations at Ξ > 1;
+- the excess of the turbulent runs over the local-state null does not exceed the spread of the 4 seeds at Ξ > 1;
 - or the excess is also present at Ξ < 1;
 - or electrons with one front encounter (counted on their A_z contour) carry the same gain as those with several.
 
@@ -254,3 +312,14 @@ Open. Intended: a peer-reviewed journal paper (ApJ or JGR).
   (c70c322). Approach lists what each one provides.
 - **Next:** the pilot runs. They fix the resolution option, the box, the realization spread and the tolerance of
   N6, and they measure the face error of E2 in the topic's parameters before the criteria are fixed.
+- **Purpose restated by the owner:** the topic does not replicate prior work (`guo2010effect`); it does the next
+  problem that the prior kinetic work left. Read as the future work named in `fulat2023kinetic` and
+  `fulat2026pic`; the reading is stated to the owner and not yet confirmed (`design/setup.md`, head and
+  Sect. 1–2).
+- **Set-up of the runs written** (`design/setup.md`, tables in `design/setup-tables.md`): one forward circular
+  wave as the primary state; how it is loaded, enters and meets the front; the null on the circle of phases;
+  the measured grid heating; the pilot P1a–P3 with criteria C1–C3 fixed before the runs. Topic code: `plan.py`,
+  `run.py`, `analyze.py`, `configs/`.
+- **Under review:** the set-up, by Codex (owner's request), on the pull request of `claude/sat-setup-pilot`.
+- **Running next:** P1a (eight periodic boxes, one GPU each). Records go to `runs/`.
+- **Open:** see `design/setup.md`, Sect. 9.

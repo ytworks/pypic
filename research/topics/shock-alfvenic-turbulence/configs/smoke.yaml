@@ -1,0 +1,9 @@
+# Smoke test of the set-up (not recorded): the piston with a constant-|B| state of several modes on a small box.
+ly: 10
+lx: 20
+kdi_max: 2.0
+zeros: 1
+t_end: 0.5
+frames: 2
+profiles: 5
+spectra: 2
