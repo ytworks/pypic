@@ -3,6 +3,77 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-14 — Step 4, first part: the engine falls short in three places (PR #52); the topic planner
+
+Later on the same day as the entry below. Step 4 of the plan checks the engine with short pilots. All runs of this
+entry are scratch runs (diagnostic, not recorded in `runs/`): 1 GPU, 1500×2×2 cells, mass ratio 25,
+ω_pe/Ω_ce 4, flow 0.18 c, 20000 steps, engine main fa09726 unless noted.
+
+### What the pilots found on main fa09726
+1. **A `B0` normal to a reflecting wall breaks div B and is not refused.** max |div B| = 1.1 at the wall against
+   the contract 1e-12. Normal to an open face it is fine (1.6e-14).
+2. **The piston with an oblique field cannot be configured.** The normal component must be an external field (the
+   wall zeroes a normal Yee B); the tangential component and the motional E must be Yee fields (a wall does not
+   short an external E); the face must carry the uniform fields in (PIC-D26 table of zero amplitude). The engine
+   refuses `external_fields` together with `B0` / `E0`. With that one refusal bypassed the run holds Gauss
+   ≤ 1.2e-14 and div B ≤ 2.2e-13 at 30° and at 8°, and a shock forms.
+3. **Test species cannot enter through an injecting face.** A test species loaded in the box is swept into the
+   wall and is not replaced: after one crossing time the upstream holds no seed electrons.
+
+### The engine change (plan step 4, the route named there)
+- Branch `engine/qpar-piston` from main, draft PR #52, head fef8bde: `external_fields` together with `B0` / `E0`
+  (PIC-D12, PIC-D18 amended); a `B0` component normal to a reflecting face is refused; a test species listed in
+  `injection.species` enters as at a flux face, with no deposit (PIC-D13, PIC-D9 amended). No kernel change.
+  Detail and test results: `docs/plans/2026-11-14-oblique-piston-test-injection.md` on that branch.
+- State when this entry was written: CPU suite and the targeted GPU tests pass; Codex review round 1 reports no
+  findings; the full GPU gate on fef8bde is running. Not merged. Recorded runs wait for the merge and
+  `research-sync-main`.
+
+### Facts for the set-up of the runs
+- **Absorber depth at the PIC-D26 face.** With the default `npml = 12` the upstream state drifts next to the face
+  within 20000 steps: momentum 2.2e-4 u, B_y 7.4e-4, E_z 1.1e-3 (relative to the initial values). The same amounts
+  appear with an open x− instead of the wall; with the whole field in `B0` (90°) the momentum is off by 5.1e-4 u.
+  With `npml = 24`: 1.4e-5 u, 4.9e-5, 5.7e-5. The planner sets `npml = 24`. Not checked: longer runs, deeper layers.
+- **A seed species costs as many particles as the electrons.** `SimConfig.ppc` is one number for every beam of
+  every species. One seed species in a run adds 50 % to the particles. The plan's cost estimates (§6.2) do not
+  include this. Not decided: fewer seeds through a second, shorter run, or the cost as it is.
+- **No load balancing.** The decomposition is uniform, so the rank at the wall holds up to the compression times
+  the upstream particles and sets the step time. The plan's cost formula does not include this either. Measured
+  timings follow with the pilots.
+
+### An observation at the wall (30°, scratch pilot)
+- Measured: shock speed 0.078–0.079 c in the box and density compression 3.3. The fast shock of ideal MHD
+  (γ = 5/3) for the same inflow: 0.0725 c and 3.48.
+- Readings, none tested:
+  1. A conducting wall forces E_z = 0 at the wall, while the oblique jump leaves a tangential flow and a
+     tangential field downstream. A layer between the wall and the fast shock would then take part of the jump
+     (own reasoning).
+  2. The shock is young (20000 steps, 300 d_e of box) and has not reached a steady state.
+  3. The downstream of a kinetic shock at mass ratio 25 with 2 cells across need not have γ = 5/3 or the MHD
+     pressure balance (energetic particles, anisotropy).
+- `gupta2024electron` uses a reflecting piston with the field at 30° as well; what its downstream looks like next
+  to the piston was not looked up.
+- Consequence for the runs: the measured shock speed and compression of each run are recorded and used; the MHD
+  values of the planner's report are only the expectation.
+
+### Conventions used for V1 (run B1 of `gupta2024electron`)
+- From the source: M_A and M_s are defined on v_sh = 4 v_pt / 3; M_s = v_sh / √(kT/m_i); β = 4 (M_A/M_s)² is the
+  total of both species with T_e = T_i; dx = d_e/10, c dt/dx = 0.45, 200 particles per cell per species, 5 cells
+  across, 32 passes of the current filter.
+- Not found in the source: ω_pe/Ω_ce, and whether v_A holds the ion mass only.
+- Own working numbers (convention `r4` of `plan.py`; v_A with the ion mass only): b = Ω_ce/ω_pe = 0.0667,
+  v_A = 0.00667 c, Ω_ci = 6.67e-4 ω_pe, T_e/m_e c² = 1.1e-3, Debye length 0.33 Δx, electron sonic Mach number 4.0.
+  The MHD jump at these numbers gives r = 3.96 and M_A = 20.06 on its own shock speed: the two conventions differ
+  by 0.3 % here.
+- The Debye length is a third of a cell. How much the grid heats this plasma over 5 × 10⁶ steps is what N1
+  measures; the pilot N1 runs come next.
+
+### Topic code
+- `plan.py`, `run.py`, `configs/v1.yaml`, `configs/pilot-piston.yaml`, `configs/pilot-n1.yaml` (commit eef89a4).
+  They run only on an engine with PR #52.
+- V1 at 2000 particles per column in a fixed box of 2700 d_i: 2.7 × 10⁵ cells along x, 5.4 × 10⁸ particles at
+  t = 0, 5 × 10⁶ steps. The box length is not fixed; it follows the measured timings.
+
 ## 2026-11-14 — Second review applied: inputs corrected, criteria and thresholds fixed
 
 Later on the same day as the entry below. The second review by `research-reviewer` (README, `inputs.md`, plan) was
