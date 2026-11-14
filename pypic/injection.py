@@ -14,6 +14,10 @@ the next carrier entering in the same face column, which enters without a partne
 of a run lie on one axis: a neutraliser returned near an edge where two of them met could cross
 the other one again and again within its step.
 
+A test species (PIC-D9) with beams enters when ``injection.species`` lists it. It deposits nothing,
+so it has no part in the pairing: it is launched as at a ``flux`` face at every injecting face and
+leaves through a paired face as through an open one.
+
 A face can carry a prescribed fluctuation of the inflow (PIC-D26, ``check_fluctuation``): a sum of
 modes uniform along the normal of the face, each a field and a velocity per species, c cos(th) +
 s sin(th) with th = k . r - omega t + phase. The entering particles take its velocity at their
@@ -52,7 +56,8 @@ def inflow_table(beams, face, extra=0.0):
 
 
 def injected_species(cfg):
-    """Names of the species that enter through the injecting faces."""
+    """Names of the species that enter through the injecting faces: those listed, or every plasma
+    species with beams."""
     if cfg.injection.species is not None:
         return list(cfg.injection.species)
     return [s.name for s in cfg.species if s.beams and not s.test]
@@ -93,8 +98,8 @@ def check_config(cfg) -> bool:
         if n not in by_name:
             raise ValueError(f"injection: unknown species {n!r}")
         s = by_name[n]
-        if s.test or not s.beams:
-            raise ValueError(f"injection: species {n!r} must be a plasma species with beams")
+        if not s.beams:
+            raise ValueError(f"injection: species {n!r} has no beams to enter with")
         # shaped perturbations (PIC-D24) of the loaded plasma go with an inflow fluctuation (PIC-D26), which
         # carries the same pattern in; any other perturbation would differ from what enters
         shaped_ok = bool(inj.fluctuation)
@@ -111,17 +116,18 @@ def check_config(cfg) -> bool:
     if len({f >> 1 for f in paired}) > 1:
         raise ValueError("paired injection faces must lie on one axis: a neutralizer returned at one of two "
                          "paired faces that meet at an edge can leave through the other within its step")
-    if inj.neutralizer not in names:
-        raise ValueError("a paired injection face needs injection.neutralizer, one of the injected species")
+    plasma = [n for n in names if not by_name[n].test]  # a test species carries no charge: it is not paired
+    if inj.neutralizer not in plasma:
+        raise ValueError("a paired injection face needs injection.neutralizer, one of the injected plasma species")
     qn = by_name[inj.neutralizer].charge
-    carriers = [n for n in names if n != inj.neutralizer]
+    carriers = [n for n in plasma if n != inj.neutralizer]
     if not carriers or any(by_name[n].charge * qn >= 0.0 for n in carriers):
-        raise ValueError("a paired injection face needs at least one other injected species, each with a charge "
-                         "of the opposite sign to the neutralizer")
+        raise ValueError("a paired injection face needs at least one other injected plasma species, each with a "
+                         "charge of the opposite sign to the neutralizer")
     for f in paired:
         if not inflow_table(by_name[inj.neutralizer].beams, f)[-1][0] > 0.0:
             raise ValueError(f"paired face {FACES[f]!r}: the neutralizer has no inward flux")
-        for n in names:
+        for n in plasma:
             if sum(b.density * _inward_velocity(b, f) for b in by_name[n].beams) < 0.0:
                 raise ValueError(f"paired face {FACES[f]!r} is an inflow face: species {n!r} drifts out of it")
     return True
@@ -191,7 +197,8 @@ def check_fluctuation(cfg):
     "du_n": {species index: a bound of the change of the normal velocity, sum over the modes of
     sqrt(|u_cos|^2 + |u_sin|^2) (|dv/du| <= 1)}}``.
 
-    Every mode must satisfy Maxwell's equations with the current of the particles' velocities:
+    Every mode must satisfy Maxwell's equations with the current of the particles' velocities (those
+    of the plasma species: an injected test species has a velocity table and no charge):
     k . B = 0 and omega B = k x E, and the current curl B - dE/dt equal to sum_s q_s n_s du_s / gamma_s
     (both for the cos and the sin part; the velocity response of each beam of proper drift u_b is
     (du - v_b (v_b . du)) / gamma_b), within ``tolerance`` (default 1e-2) of the largest term. The
@@ -220,7 +227,8 @@ def check_fluctuation(cfg):
     if not modes:
         raise ValueError("injection.fluctuation needs at least one mode")
     rows = {index[n]: [] for n in names}
-    qn = sum(abs(cfg.species[index[n]].charge) * sum(b.density for b in cfg.species[index[n]].beams) for n in names)
+    qn = sum(abs(sc.charge) * sum(b.density for b in sc.beams)
+             for sc in (cfg.species[index[n]] for n in names) if not sc.test)
     du_n = {index[n]: 0.0 for n in names}
     out_modes = []
     for m in modes:
@@ -248,7 +256,7 @@ def check_fluctuation(cfg):
         for n in names:
             sc = cfg.species[index[n]]
             uc, usn = _pair(us.get(n), f"u[{n}]")
-            for b in sc.beams:
+            for b in ([] if sc.test else sc.beams):
                 # velocity response of a beam of proper drift u_b to du: (du - v_b (v_b . du)) / gamma_b
                 gam = math.sqrt(1.0 + _dot(b.drift, b.drift))
                 vb = [x / gam for x in b.drift]

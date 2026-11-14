@@ -17,9 +17,6 @@ def check_config(cfg) -> bool:
         return False
     if cfg.solver != "explicit":
         raise ValueError("external_fields are for the explicit solver only (PIC-D12)")
-    if any(cfg.B0) or any(cfg.E0):
-        raise ValueError("external_fields cannot be combined with B0 / E0: B0 and E0 are initial values of the "
-                         "Yee fields; give the uniform external fields in external_fields.B / .E")
     return True
 
 

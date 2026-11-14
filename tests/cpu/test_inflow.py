@@ -39,6 +39,17 @@ def test_a_consistent_mode_is_accepted():
     assert out["du_n"][1] == pytest.approx(abs(_mode()["u"]["i"]["sin"][0]))
 
 
+def test_a_listed_test_species_takes_the_velocity_but_carries_no_current():
+    """A test species (PIC-D9) that enters with the plasma gets its own velocity table; the charge
+    and the current of the Maxwell checks are those of the plasma species only."""
+    cfg = _cfg(_mode())
+    cfg.species.append(SpeciesConfig("s", 1, 16, [Beam(5.0, (-0.05, 0, 0), 1e-2)], test=True))
+    cfg.injection.species = ("e", "i", "s")
+    cfg.injection.fluctuation["modes"][0]["u"]["s"] = {"sin": [0.3, 0.0, 0.0]}
+    out = check_fluctuation(cfg)
+    assert out["rows"][2][0][8:] == [0.3, 0.0, 0.0] and out["du_n"][2] == pytest.approx(0.3)
+
+
 @pytest.mark.parametrize("change, error", [
     (lambda m: m.update(k=[0.1, K, 0.0]), "normal of the face"),
     (lambda m: m["B"]["cos"].__setitem__(1, 0.05), "k . B"),

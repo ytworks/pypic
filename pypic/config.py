@@ -350,7 +350,8 @@ class Injection:
     charge. The distribution is that of the species' own beams. Explicit solver only."""
 
     faces: dict = field(default_factory=dict)  # {"x-": "paired", "y-": "flux", ...}
-    species: tuple | None = None  # injected species names; None: every plasma species with beams
+    # injected species names; None: every plasma species with beams. A test species with beams enters when listed
+    species: tuple | None = None
     neutralizer: str | None = None  # needed by a paired face
     # a prescribed fluctuation carried in through one injecting face (PIC-D26; pypic.injection.check_fluctuation):
     # {"face": "x+", "modes": [{"k": [0, ky, kz], "omega": w, "phase": p, "B": {"cos": [..], "sin": [..]},
@@ -564,7 +565,7 @@ class SimConfig:
     precision: str = "fp64"
     implicit: ImplicitConfig = field(default_factory=ImplicitConfig)
     current_filter: CurrentFilter = field(default_factory=CurrentFilter)
-    # static fields felt by the particles on top of the Yee fields (PIC-D12); not together with B0 / E0
+    # static fields felt by the particles on top of the Yee fields (PIC-D12); B0 / E0 stay Yee fields
     external_fields: ExternalFields = field(default_factory=ExternalFields)
     injection: Injection = field(default_factory=Injection)  # plasma entering through open faces (PIC-D13)
     body: Body | None = None  # absorbing sphere (PIC-D14)
@@ -590,6 +591,11 @@ class SimConfig:
             raise ValueError("capacity_factor must be >= 1")
         if not 0.0 <= float(self.marder_zone) <= 1.0 / 6.0:
             raise ValueError("marder_zone is a Marder number: 0 (off) or 0 < nu <= 1/6")
+        for axis, b in enumerate(self.B0):
+            if float(b) != 0.0 and "reflecting" in self.boundaries[axis]:
+                raise ValueError(f"B0 has a component normal to the reflecting face of axis {'xyz'[axis]}: the wall "
+                                 "zeroes the normal B of the Yee fields, which breaks div B at the wall. Give this "
+                                 "component in external_fields.B (PIC-D12)")
         fields = []
         for f in self.initial_fields:
             f = dict(f)

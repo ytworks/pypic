@@ -424,7 +424,8 @@ class Simulation:
         modes = {FACES.index(k): v for k, v in cfg.injection.faces.items()}
         paired = [f for f, v in modes.items() if v == "paired"]
         ne = self.inj_neutral = index[cfg.injection.neutralizer] if paired else None
-        carriers = [si for si in names if si != ne]
+        # a test species (PIC-D9) has no partner and no bank: it enters every face as a flux face
+        carriers = [si for si in names if si != ne and not cfg.species[si].test]
         # ids (PIC-D8) of the injected particles follow those of the loaded ones: one block per
         # step, in it one sub-block of the extended grid (cells -1..N) per stream, then one per
         # stream for the partners born with its particles at a paired face
@@ -460,8 +461,10 @@ class Simulation:
             self.bank, self.binfo = cp.zeros(max(n_bank, 1)), cp.asarray(binfo)
             self.bank0 = self.bank.copy()  # the bank before a launch (inject_face)
         for face, g0, nl in injection.face_slabs(axes, cfg.n_cells, cfg.injection.faces):
-            pair = modes[face] == "paired"
-            for si in (carriers if pair else names):
+            for si in names:
+                pair = modes[face] == "paired" and not cfg.species[si].test
+                if pair and si == ne:
+                    continue
                 room = math.prod(nl) * cfg.ppc * len(cfg.species[si].beams)
                 self.inj_room[si] += room
                 if pair:
@@ -485,7 +488,8 @@ class Simulation:
             launch(self.k_inject, math.prod(nl) * cfg.ppc * len(self.inj_bt[si]), (
                 *sp.store, np.int64(sp.cap), np.int32(sp.n), self.flag[S + si:S + si + 1], self.sdiag[si],
                 self.flag[si:si + 1], lst, np.int32(lst.size), g.Jx, g.Jy, g.Jz,
-                np.float64(sp.q), np.float64(sp.m), *(np.int32(v) for v in g0), *(np.int32(v) for v in nl),
+                # the charge of inject_face is the deposited one (zero for a test species)
+                np.float64(sp.qdep), np.float64(sp.m), *(np.int32(v) for v in g0), *(np.int32(v) for v in nl),
                 *(np.int32(v) for v in cfg.n_cells), np.int32(cfg.ppc), np.uint64(cfg.seed),
                 np.int64(self.step_count), np.float64(id_step), self.inj_bt[si], np.int32(len(self.inj_bt[si])),
                 np.int32(face), np.int32(pair), *pt.store, np.int64(pt.cap), np.int32(pt.n),
@@ -1440,7 +1444,7 @@ class Simulation:
         mom = [sum(float(k[i]) for k in plasma) for i in (1, 2, 3)]
         lost = sum(float(v) for v, sp in zip(lost_s, self.species) if not sp.test)
         absorbed = sum(float(v) for v, sp in zip(sd[:, 9], self.species) if not sp.test)
-        injected = float(np.sum(sd[:, 6]))  # test species are never injected and deposit no charge
+        injected = sum(float(v) for v, sp in zip(sd[:, 6], self.species) if not sp.test)
         for sp, k in zip(self.species, kin):
             self.kinetic_species[sp.name].append(float(k[0]))
         tot = ke + float(fe[0]) + float(fe[1])

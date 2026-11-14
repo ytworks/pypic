@@ -1,6 +1,7 @@
 """Helper for the open-flow test: run with ``python -m pypic.launch -n N``.
 
-    mgpu_open_flow.py <dims> <variant>    dims like 2,2,1; variant inject | inject_filter | body | mixed | compact
+    mgpu_open_flow.py <dims> <variant>    dims like 2,2,1;
+                                          variant inject | inject_filter | body | mixed | compact | seeds
 
 A magnetised, oblique, thermal electron-ion flow through a box with six open faces (PIC-D13):
 x- is the paired inflow face, the y and z faces inject on their own (``flux``), x+ only removes.
@@ -12,6 +13,8 @@ the four ranks, with ``body.relax`` on the edges inside it. ``mixed`` is the com
 shock: filter, Marder zone, sphere, a dipole inside it (PIC-D12) and the float32 gather (PIC-D11),
 in a box of 20 cells per axis that holds the nodes left out of the Gauss check around the sphere.
 ``compact`` is ``mixed`` with the compact particle storage (PIC-D19).
+``seeds`` is ``inject`` with a hot test species (PIC-D9) listed in ``injection.species``: it enters through
+the five injecting faces, without a partner at the paired one, and leaves through all six.
 Prints the histories, the charge kept in the bank of the paired face and the global id sums.
 """
 import json
@@ -26,7 +29,7 @@ from pypic.simulation import Simulation
 
 dims = tuple(int(v) for v in sys.argv[1].split(","))
 variant = sys.argv[2]
-assert variant in ("inject", "inject_filter", "body", "mixed", "compact")
+assert variant in ("inject", "inject_filter", "body", "mixed", "compact", "seeds")
 extra = {"n_cells": (16, 16, 8)}
 if variant == "inject_filter":
     extra = {"n_cells": (8, 16, 12), "current_filter": CurrentFilter(1, True), "marder_zone": 0.125}
@@ -42,13 +45,16 @@ gamma = math.sqrt(1.0 + sum(c * c for c in u))
 v, bz = [c / gamma for c in u], 0.2
 # E = -v x B: the uniform flow is force-free
 external = ExternalFields(E=(-v[1] * bz, v[0] * bz, 0.0), B=(0.0, 0.0, bz), dipoles=dipoles)
+species = [SpeciesConfig("e", -1, 1, [Beam(1.0, u, 0.01)]), SpeciesConfig("i", 1, 16, [Beam(1.0, u, 0.01)])]
+listed = None
+if variant == "seeds":
+    species.append(SpeciesConfig("s", -1, 1, [Beam(0.2, u, 0.05)], test=True))
+    listed = ("e", "i", "s")
 cfg = SimConfig(dx=(0.5,) * 3, dt=0.2, n_steps=40, dims=dims, npml=6, **extra,
-                boundaries=(("open", "open"),) * 3,
-                species=[SpeciesConfig("e", -1, 1, [Beam(1.0, u, 0.01)]),
-                         SpeciesConfig("i", 1, 16, [Beam(1.0, u, 0.01)])],
+                boundaries=(("open", "open"),) * 3, species=species,
                 ppc=4, diag_interval=5, gauss_interval=5, external_fields=external,
                 injection=Injection(faces={"x-": "paired", "y-": "flux", "y+": "flux", "z-": "flux", "z+": "flux"},
-                                    neutralizer="e"))
+                                    species=listed, neutralizer="e"))
 sim = Simulation(cfg, verbose=False)
 sim.run()
 ids = cp.concatenate([sp.ids() for sp in sim.species])

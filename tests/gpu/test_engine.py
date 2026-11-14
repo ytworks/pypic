@@ -90,12 +90,15 @@ def test_exb_drift():
 @pytest.mark.parametrize("precision", ["fp64", "mixed"])
 def test_external_uniform_fields_give_the_orbits_of_grid_fields(precision):
     """Test particles in external uniform E and B (PIC-D12) move bit for bit as in the same
-    fields held by the grid (B0, E0): the initial half kick and the gather use the total field."""
+    fields held by the grid (B0, E0), and as with one part of the fields external and the other on
+    the grid: the initial half kick and the gather use the total field."""
     E, B = (0.0, 0.03, 0.01), (0.02, 0.0, 0.5)
     rng = np.random.default_rng(3)
     pts = [[*rng.uniform(0.5, 3.5, 3), *rng.uniform(-2.0, 2.0, 3)] for _ in range(50)]
     orbits = []
-    for fields in (dict(B0=B, E0=E), dict(external_fields=ExternalFields(E=E, B=B))):
+    split = dict(B0=(0.0, 0.0, B[2]), E0=(0.0, E[1], 0.0),
+                 external_fields=ExternalFields(E=(0.0, 0.0, E[2]), B=(B[0], 0.0, 0.0)))
+    for fields in (dict(B0=B, E0=E), dict(external_fields=ExternalFields(E=E, B=B)), split):
         cfg = SimConfig(n_cells=(8, 8, 8), dx=(0.5,) * 3, dt=0.05, precision=precision, diag_interval=0,
                         gauss_interval=0, species=[SpeciesConfig("t", -1, 1, [], test=True, particles=pts)], **fields)
         sim = Simulation(cfg, comm=SelfComm(), verbose=False)
@@ -103,7 +106,7 @@ def test_external_uniform_fields_give_the_orbits_of_grid_fields(precision):
             sim.step()
         orbits.append(cp.asnumpy(sim.species[0].rows()[:6, :50]))
         sim.close()
-    assert np.array_equal(*orbits)
+    assert np.array_equal(orbits[0], orbits[1]) and np.array_equal(orbits[0], orbits[2])
     assert np.max(np.abs(orbits[0][3:] - np.asarray(pts).T[3:])) > 0.1  # the fields did act
 
 
@@ -132,6 +135,46 @@ def test_exb_drifting_plasma_between_reflecting_walls_keeps_its_drift():
     for F, value in ((g.Ey, -beta0 * B), (g.Bz, B)):
         assert float(cp.max(cp.abs(F[g.physical_slice()][cells] / value - 1))) < 5e-4
     assert np.nanmax(sim.history["gauss"]) < 1e-10
+    sim.close()
+
+
+def test_oblique_piston_keeps_the_upstream_flow_and_the_field_contracts():
+    """A cold pair plasma that drifts at -beta0 along x into a reflecting wall at x-, in a field at
+    30 degrees to x, and enters through the open face x+. The component normal to the wall is an
+    external field (PIC-D12), the tangential one and E0 = -v x B0 are grid fields (PIC-D18), and the
+    face carries them in (PIC-D26, a table of zero amplitude). Outside the light cone of the wall the
+    plasma keeps its drift and the fields their values, up to the face; the plasma piles up at the
+    wall; Gauss's law and div B hold. The absorbing layer of the face is 24 cells deep: with the
+    default 12 the fields within 4 of the face are off by 2e-3 and the momenta by 2e-4 u, also without
+    a wall and without the external field."""
+    u0, B, nx, dx, dt, steps = 0.5, 0.5, 128, 0.25, 0.1, 71
+    beta0 = u0 / math.sqrt(1 + u0 * u0)
+    bn, bt = B * math.cos(math.radians(30.0)), B * math.sin(math.radians(30.0))
+    zero = {"cos": [0.0, 0.0, 0.0], "sin": [0.0, 0.0, 0.0]}
+    table = {"face": "x+", "modes": [{"k": [0.0, 0.0, 0.0], "omega": 0.0, "phase": 0.0, "B": zero, "E": zero,
+                                      "u": {"e": zero, "p": zero}}]}
+    bc = (("reflecting", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    beam = [Beam(1.0, (-u0, 0, 0), 0.0)]
+    cfg = SimConfig(n_cells=(nx, 4, 4), dx=(dx,) * 3, dt=dt, ppc=8, boundaries=bc, npml=24,
+                    external_fields=ExternalFields(B=(bn, 0.0, 0.0)), B0=(0, bt, 0), E0=(0, 0, beta0 * bt),
+                    species=[SpeciesConfig("e", -1, 1, beam), SpeciesConfig("p", 1, 1, beam)],
+                    injection=Injection(faces={"x+": "flux"}, fluctuation=table), diag_interval=5, gauss_interval=5)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    loaded = sim.species[0].n
+    sim.run(steps)
+    reach, L = steps * dt + 2.0, nx * dx  # the light cone of the wall and two skin depths
+    for sp in sim.species:
+        P = sp.rows()
+        upstream = (P[0] > reach) & (P[0] < L - 2.0)
+        assert int(upstream.sum()) > sp.n // 4
+        du = cp.stack([P[3] + u0, P[4], P[5]])[:, upstream]
+        assert float(cp.max(cp.abs(du))) < 1e-4 * u0
+        assert int((P[0] < 1.0).sum()) > 1.5 * loaded / L  # density above 1.5 within 1 of the wall
+    cells = slice(int(reach / dx) + 1, nx - int(2.0 / dx) - 1)
+    for comp, value in (("By", bt), ("Ez", beta0 * bt), ("Bx", bn)):
+        F = sim.total_field(comp)[sim.grid.physical_slice()][cells]
+        assert float(cp.max(cp.abs(F / value - 1))) < 5e-4, comp
+    assert np.nanmax(sim.history["gauss"]) < 1e-10 and np.nanmax(sim.history["divB"]) < 1e-12
     sim.close()
 
 
@@ -714,6 +757,38 @@ def test_injected_flux_is_the_inflow_of_the_drifting_maxwell_juttner_beams():
     assert np.nanmax(sim.history["gauss"]) < 1e-10
 
 
+def test_a_listed_test_species_enters_and_does_not_change_the_plasma():
+    """A test species with beams that ``injection.species`` lists (PIC-D9, PIC-D13) enters through the
+    injecting face with the inflow of its own beams, deposits nothing and is outside the budget: the
+    plasma's histories are those of the run without it."""
+    bc = (("open", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    drift, theta, steps = 0.3, 0.02, 50
+    plasma = [SpeciesConfig("e", -1, 1, [Beam(1.0, (drift, 0, 0), 0.01)]),
+              SpeciesConfig("i", 1, 16, [Beam(1.0, (drift, 0, 0), 0.001)])]
+    seeds = SpeciesConfig("s", -1, 1, [Beam(0.5, (drift, 0, 0), theta)], test=True)
+    sims = []
+    for species, listed in ((plasma, None), (plasma + [seeds], ("e", "i", "s"))):
+        cfg = SimConfig(n_cells=(16, 12, 12), dx=(0.5,) * 3, dt=0.2, boundaries=bc, ppc=8, npml=6, species=species,
+                        injection=Injection(faces={"x-": "flux"}, species=listed), diag_interval=10, gauss_interval=10)
+        sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+        sim.run(steps)
+        sims.append(sim)
+    ref, sim = sims
+    entered = float(sim.sdiag[2][8])
+    trials = 12 * 12 * 8 * steps
+    p = inflow_moments(drift, theta)[0] * 0.2 / 0.5
+    assert abs(entered - trials * p) < 5 * math.sqrt(trials * p * (1 - p))
+    # the plasma species entered as without it (the history counts every species)
+    assert [float(d[8]) for d in sim.sdiag[:2]] == [float(d[8]) for d in ref.sdiag] and float(ref.sdiag[0][8]) > 0
+    assert sim.history["n_injected"][-1] > ref.history["n_injected"][-1]
+    for k in ("kinetic", "electric", "injected_kinetic", "injected_charge", "budget"):
+        a, b = np.asarray(ref.history[k]), np.asarray(sim.history[k])
+        assert np.max(np.abs(a - b) / np.maximum(np.abs(a), 1e-30)) < 1e-12, k
+    assert np.nanmax(sim.history["gauss"]) < 1e-10
+    ids = cp.concatenate([sp.ids() for sp in sim.species])
+    assert int(cp.unique(ids).size) == int(ids.size)
+
+
 def test_cold_diagonal_inflow_through_two_faces_fills_the_edge_once():
     """A cold electron-ion beam along the x-y diagonal enters through x- and y-: the entering
     number is the volume swept into the box, the cells outside both faces are sampled once, the
@@ -1081,14 +1156,15 @@ def test_external_dipole_is_decomposition_independent():
 
 
 @pytest.mark.skipif(cp.cuda.runtime.getDeviceCount() < 4, reason="needs >= 4 GPUs")
-@pytest.mark.parametrize("variant", ["inject", "inject_filter", "body", "mixed", "compact"])
+@pytest.mark.parametrize("variant", ["inject", "inject_filter", "body", "mixed", "compact", "seeds"])
 def test_open_flow_is_decomposition_independent(variant):
     """A magnetised oblique flow through six open faces, one paired and four flux (PIC-D13): what
     enters depends on (seed, step, global cell, slot) only, so 1 GPU and a 2x2 rank grid give the
     same run, the same particles and the same charge in the bank, and Gauss's law holds. With the
     current filter and the Marder zone too (``inject_filter``, PIC-D15 and PIC-D16), with an absorbing
     sphere on the edge shared by the ranks (``body``, PIC-D14), with all of them, a dipole in the
-    sphere and the float32 gather (``mixed``), and with the compact storage too (``compact``, PIC-D19)."""
+    sphere and the float32 gather (``mixed``), and with the compact storage too (``compact``, PIC-D19).
+    ``seeds`` is ``inject`` with a listed test species that enters through the five injecting faces."""
     script = os.path.join(HERE, "mgpu_open_flow.py")
     outs = {}
     for n, dims in ((1, "1,1,1"), (4, "2,2,1")):
