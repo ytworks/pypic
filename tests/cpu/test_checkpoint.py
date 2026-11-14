@@ -9,7 +9,8 @@ import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
 from pypic import checkpoint as ck
-from pypic.config import Checkpoint, Diagnostic, OutputConfig
+from pypic.config import Checkpoint, Diagnostic, Injection, OutputConfig
+from pypic.injection import ids_per_step
 
 
 def _cfg(**kw):
@@ -51,6 +52,21 @@ def test_allowed_changes_and_refused_ones():
     seed.restart = "/runs/a/checkpoint/step-00000010"
     with pytest.raises(ValueError, match="seed"):
         ck.check_restart(seed, {"config": saved})
+
+
+def test_restart_of_a_run_with_injection_needs_the_id_block_of_the_checkpoint():
+    """The ids of the entering particles (PIC-D13) continue from a checkpoint only with the block per step that
+    its run used: with another one they could repeat ids already given. A checkpoint without the entry (written
+    before 2026-11-15) is refused for a run with injection and read for any other run."""
+    cfg = _cfg(boundaries=(("open", "open"), ("periodic", "periodic"), ("periodic", "periodic")),
+               injection=Injection(faces={"x-": "flux"}), restart="/runs/a/checkpoint")
+    saved = ck.jsonable(cfg.to_dict())
+    ck.check_restart(cfg, {"config": saved, "ids_per_step": ids_per_step(cfg)})
+    for meta in ({"config": saved}, {"config": saved, "ids_per_step": ids_per_step(cfg) + 1}):
+        with pytest.raises(ValueError, match="ids"):
+            ck.check_restart(cfg, meta)
+    plain = _cfg(restart="/runs/a/checkpoint")
+    ck.check_restart(plain, {"config": ck.jsonable(plain.to_dict())})
 
 
 def _complete(root, step, world=1):

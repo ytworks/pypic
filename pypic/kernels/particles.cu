@@ -1209,7 +1209,8 @@ __device__ bool layer_sample(const unsigned long long ks, const unsigned long lo
 // end their first step inside the box (layer_sample). The particle is appended at
 // n0 + ninj[0]++ (the caller made room) at the end of its step, and flagged if it belongs to
 // another rank. bt: per beam [weight, theta, udx, udy, udz, stream, id offset, partner id offset];
-// id = id_step + id offset + (cell of the extended grid (gn + 2)^3) * ppc + slot.
+// id = id_step + id offset + (cell of the plane of the face) * ppc + slot: id_step is the first
+// id of that plane in this step, the plane the extended grid (cells -1..gn) of the two other axes.
 //   paired = 0 (flux face): the current of the whole path, from the cell outside, is deposited.
 //   paired = 1: the particle enters together with a particle of the neutraliser species (Pe, qe,
 //     ...) born at the same point with the opposite charge: the pair appears inside the box,
@@ -1246,7 +1247,9 @@ extern "C" __global__ void inject_face(PSTORE, const long long cap, const int n0
     const unsigned long long ks = hash_key(seed ^ INJ_SALT, (unsigned long long)step, 0ULL);
     const unsigned long long gcell =
         ((unsigned long long)(gc[0] + 1) * (gny + 2) + (gc[1] + 1)) * (1ULL << 30) + (gc[2] + 1);
-    const long long lin = ((long long)(gc[0] + 1) * (gny + 2) + (gc[1] + 1)) * (long long)(gnz + 2) + (gc[2] + 1);
+    const int gn[3] = {gnx, gny, gnz};
+    const int fb = face >> 1 == 0 ? 1 : 0, fc = face >> 1 == 2 ? 1 : 2;  // the axes of the plane of the face
+    const long long lin = (long long)(gc[fb] + 1) * (gn[fc] + 2) + (gc[fc] + 1);
     const double* tb = bt + 8 * (turn % nbeam);
     double r0[3], u[3], r1[3], g;
     unsigned long long sm;

@@ -427,9 +427,11 @@ class Simulation:
         # a test species (PIC-D9) has no partner and no bank: it enters every face as a flux face
         carriers = [si for si in names if si != ne and not cfg.species[si].test]
         # ids (PIC-D8) of the injected particles follow those of the loaded ones: one block per
-        # step, in it one sub-block of the extended grid (cells -1..N) per stream, then one per
-        # stream for the partners born with its particles at a paired face
-        ext = math.prod(n + 2 for n in cfg.n_cells) * cfg.ppc
+        # step, in it one sub-block per stream, then one per stream for the partners born with its
+        # particles at a paired face; a sub-block holds the planes of the injecting faces
+        first, cells = injection.id_planes(cfg)
+        ext = cells * cfg.ppc
+        self._inj_first = {f: c * cfg.ppc for f, c in first.items()}  # of a face's plane in a sub-block
         n_streams = len(self._streams)
         self._inj_block = injection.ids_per_step(cfg)  # = 2 * n_streams * ext
         self.inj_bt = {}
@@ -491,7 +493,8 @@ class Simulation:
                 # the charge of inject_face is the deposited one (zero for a test species)
                 np.float64(sp.qdep), np.float64(sp.m), *(np.int32(v) for v in g0), *(np.int32(v) for v in nl),
                 *(np.int32(v) for v in cfg.n_cells), np.int32(cfg.ppc), np.uint64(cfg.seed),
-                np.int64(self.step_count), np.float64(id_step), self.inj_bt[si], np.int32(len(self.inj_bt[si])),
+                np.int64(self.step_count), np.float64(id_step + self._inj_first[face]), self.inj_bt[si],
+                np.int32(len(self.inj_bt[si])),
                 np.int32(face), np.int32(pair), *pt.store, np.int64(pt.cap), np.int32(pt.n),
                 self.flag[S + pi:S + pi + 1], self.sdiag[pi], self.flag[pi:pi + 1], lstp, np.int32(lstp.size),
                 np.float64(pt.q), self.inj_pstate, self.inj_pface, self.bank, self.bank0, self.binfo,

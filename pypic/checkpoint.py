@@ -8,7 +8,8 @@ A checkpoint is the directory ``<output.dir>/checkpoint/step-<n>/`` (n zero-padd
   the compact cell, fraction, momentum, weight and id) with n and the capacity, the injection bank,
   the per-rank cumulative counters (``sdiag``, the moving-window and antenna sums), the running sums
   of the averaged diagnostics, the ids of the tracks (rank 0), and the layout of the rank.
-- ``meta.json`` (rank 0): format, commit, the configuration, the layout, step and time, the scalar
+- ``meta.json`` (rank 0): format, commit, the configuration, the ids that a step takes for the
+  entering particles (PIC-D13; a restart with injection needs the same number), the layout, step and time, the scalar
   state (history, per-species kinetic energy, boundary flux, dissipated energy, Picard count, window
   shift), the per-rank counters reduced over the ranks, the particle numbers, and the state of the
   output manager.
@@ -34,6 +35,8 @@ import re
 import shutil
 
 import numpy as np
+
+from . import injection
 
 FORMAT = "pypic-checkpoint-1"
 ROOT = "checkpoint"
@@ -111,6 +114,13 @@ def check_restart(cfg, meta: dict) -> None:
     if diff:
         raise ValueError(f"restart from {cfg.restart}: the configuration differs from the stored one at "
                          f"{', '.join(diff)}; only {', '.join(ALLOWED)} may change (PIC-D25)")
+    # the ids of the entering particles go on from the step of the checkpoint: with another block per step than
+    # the one of the run that wrote it they could repeat ids already given
+    if cfg.injection.active and meta.get("ids_per_step") != injection.ids_per_step(cfg):
+        raise ValueError(f"restart from {cfg.restart}: the run that wrote the checkpoint took "
+                         f"{meta.get('ids_per_step', 'another number of')} ids per step for the entering particles, "
+                         f"this engine takes {injection.ids_per_step(cfg)} (PIC-D13); continue the run with the "
+                         "engine that wrote the checkpoint")
 
 
 # ------------------------------------------------------------------- directories (pure Python)
@@ -315,6 +325,7 @@ def save(sim) -> str:
         "run_id": out.run_id,  # the run that wrote it: a continued run appends only to that run's output (OUT-D6)
         "written": _dt.datetime.now().astimezone().isoformat(timespec="seconds"),
         "config": jsonable(cfg.to_dict()),
+        "ids_per_step": injection.ids_per_step(cfg),  # of the entering particles (PIC-D13); checked at a restart
         "layout": {"world": comm.size, "dims": list(sim.decomp.dims), "ghost": sim.grid.g},
         "step": n, "time": sim.time, "history": h, "kinetic_species": sim.kinetic_species,
         "flux_out": sim.flux_out, "dissipated": sim.dissipated, "picard_its": getattr(sim, "_picard_its", None),
