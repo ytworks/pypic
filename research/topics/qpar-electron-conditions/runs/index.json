@@ -1,0 +1,12 @@
+{
+ "entries": [
+  {
+   "file": "2026-11-15-pilot-piston-paired.json",
+   "record": "2026-11-15-pilot-piston-paired.md",
+   "commit": "ba98d45bd8aa22589a23003ade7d2807ffd6501b",
+   "kind": "pilot (plan step 4)",
+   "config": "configs/pilot-piston.yaml",
+   "gpus": 1
+  }
+ ]
+}

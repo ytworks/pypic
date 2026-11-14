@@ -16,13 +16,18 @@ E0 = (0, 0, v0 b sin theta_Bn).
   - the normal component is an external field (the wall zeroes a normal Yee B);
   - the tangential component and E0 are Yee fields (a wall does not short an external E);
   - the face x+ injects the flow (PIC-D13) and carries the uniform B0 / E0 in through a PIC-D26 table of zero
-    amplitude. The absorbing layer there is ``npml`` = 24 cells deep: with the default 12 the upstream state
-    drifts next to the face (notebook, 2026-11-14).
+    amplitude. The absorbing layer there is ``npml`` = 192 cells deep. The tangential field of the whole
+    upstream (B_y, and E_z = v0 B_y with it) rises at a rate set by that depth: in flow-through pilots of V1's
+    plasma (no wall, 40 d_i, to 8 / Omega_ci) B_y / B0y rose by 0.31 per 1 / Omega_ci with 12 cells, 0.019 with
+    24 (linear to the end), 0.0010 with 48; with 96 and 192 the fitted rate was within +-0.0003, of either sign
+    with the window, and the step time was the same at every depth (notebook, 2026-11-15). Not measured: runs
+    longer than 8 / Omega_ci, other plasmas.
   - ``face`` is the injection rule of that face. ``paired`` (default): the inflow face of a flow, the
     electrons are the neutraliser. ``flux``: every species is launched on its own. With ``flux`` the tangential
     field at the face decayed from 0.4-0.6 / Omega_ci on in the step-4 pilots (flow at 3 electron thermal
-    speeds, 30 and 8 degrees); with ``paired`` B_y at the face stayed within 6 % and B_z within 0.1 B0y to
-    2 / Omega_ci (notebook, 2026-11-15). Seeds enter as at a flux face with either rule.
+    speeds, 30 and 8 degrees); with ``paired`` the field kept its shape (B_z within 0.01 B0y to
+    8 / Omega_ci) and B_y changed only by the rise above (notebook, 2026-11-15). Seeds enter as at a flux face
+    with either rule.
 - ``wall: false``: every axis periodic, the whole field in the Yee arrays, no shock: the uniform flow of the
   null test N1 (numerical heating).
 
@@ -89,7 +94,7 @@ class TopicParams:
     filter_passes: int = 32
     filter_compensate: bool = False
     marder_zone: float = 0.125
-    npml: int = 24
+    npml: int = 192  # cells of the absorbing layer of the x+ face (see the docstring)
     precision: str = "compact"
     capacity: float | None = None  # capacity_factor; default 1.2 times the expected compression
     seed: int = 12345
