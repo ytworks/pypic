@@ -350,7 +350,8 @@ class Injection:
     charge. The distribution is that of the species' own beams. Explicit solver only."""
 
     faces: dict = field(default_factory=dict)  # {"x-": "paired", "y-": "flux", ...}
-    species: tuple | None = None  # injected species names; None: every plasma species with beams
+    # injected species names; None: every plasma species with beams. A test species with beams enters when listed
+    species: tuple | None = None
     neutralizer: str | None = None  # needed by a paired face
     # a prescribed fluctuation carried in through one injecting face (PIC-D26; pypic.injection.check_fluctuation):
     # {"face": "x+", "modes": [{"k": [0, ky, kz], "omega": w, "phase": p, "B": {"cos": [..], "sin": [..]},
