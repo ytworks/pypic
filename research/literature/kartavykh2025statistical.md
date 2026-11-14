@@ -27,8 +27,10 @@ candidate. Protons near 100 keV respond at most shocks, mainly parallel and quas
 - The same for the 4 shocks with an electron response: theta_Bn 68 +- 9 deg, 545 +- 81 km/s, M_A 6.1 +- 1.0
   (7.4, 3.2, 5.3, 8.4), M_fast 4.6 +- 0.7, gas compression 1.9 +- 0.3, beta 1.05 +- 0.34. The text repeats
   "6.1 +- 1.0 compared to 3.3 +- 0.3".
-- Each table entry carries a second value; for the four M_A it is not their median in our check, so it is
-  not used. The authors state uncertainties up to 20 % for theta_Bn or the speed of a single shock.
+- Each table entry carries a second value, which the table head calls the median. For the four shocks with a
+  response it is the midrange: M_A 5.8 = (3.2 + 8.4)/2, where the median is 6.35, and theta_Bn 65 deg =
+  (88 + 42)/2 (checked 2026-11-14). It is not used. The authors state uncertainties up to 20 % for theta_Bn
+  or the speed of a single shock.
 
 ## Assessment
 - The four electron cases have theta_Bn 42-88 deg; the authors call them oblique or quasi-perpendicular

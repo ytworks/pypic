@@ -5,7 +5,9 @@ Inputs: `inputs.md`.
 Sections follow `.claude/rules/research/stance.md`. Mark a section as open rather than guessing.
 
 Theme and question were fixed by the owner on 2026-11-14. The plan was approved by the owner on the same day and
-reviewed once by `research-reviewer` before approval. Citekeys marked (S) have their note on
+reviewed once by `research-reviewer` before approval. A second review (README, `inputs.md`, plan) followed step 3;
+the owner approved its recommendations on 2026-11-14, and the criteria and thresholds in Approach are fixed since
+then. Citekeys marked (S) have their note on
 `research/spherical-shock-injection`, (A) on `research/shock-alfvenic-turbulence`; neither is merged into trunk yet.
 
 ## Background
@@ -19,12 +21,15 @@ reviewed once by `research-reviewer` before approval. Citekeys marked (S) have t
     detector range (`masters2013electron`). Of 508 usable crossings 31 show a signal and 3 reach ~1 MeV
     (`masters2016suprathermal`). A quasi-perpendicular crossing at M_A ~15 has the same index above 100 keV within
     the errors (`masters2017situ`).
-  - Parker Solar Probe (PSP), 2023-03-13, 0.24 au: nearly parallel (θ_Bn ~8°); electrons isotropic to 6.7 MeV, near
-    the top of the instrument range (`jebaraj2024acceleration` (A)). M_A is 7-7.5 in the later analysis
-    (`jebaraj2026wave`); other works give ~4 for the same crossing (`giacalone2025source`,
-    `chiappetta2026evolution`).
+  - Parker Solar Probe (PSP), 2023-03-13, 0.24 au: nearly parallel (θ_Bn ~8°); an electron power law (δ ~2.7) from
+    50 keV to 2.5 MeV and similar intensities in two viewing directions up to ~6.7 MeV, near the top of the
+    instrument range (`jebaraj2024direct`). M_A is 7-7.5 in the later analysis (`jebaraj2026wave`); other works give
+    9.1 (`jebaraj2024acceleration` (A)) and ~4 for the same crossing (`giacalone2025source`;
+    `chiappetta2026evolution`, from a density its authors call a lower limit).
   - Earth: electrons above 100 keV appear with foreshock transients (`liu2019relativistic`, `raptis2025multi`,
-    `raptis2025revealing` (S)). Outside them THEMIS shows "only noise > 12 keV" (`wilson2016relativistic`). A
+    `raptis2025revealing` (S)). Outside them three example THEMIS distributions show "only noise > 12 keV"; the same
+    work finds enhancements at ≥ 30 keV in 10 of 30 foreshock disturbances, 5 of them SLAMS
+    (`wilson2016relativistic`). A
     data-constrained model of an Earth event stops near 20 keV without transients (`shi2025compound`).
   - Jupiter, Juno, 2023-10-01: ≥ 1 MeV electrons, inside a foreshock transient (`raptis2026relativistic`).
   - Interplanetary shocks near 1 au: electron effects are rare and belong to oblique or quasi-perpendicular shocks.
@@ -57,12 +62,16 @@ The cases. Every value, its source and its kind (measured, model, assumed, own) 
 
 | Case | M_A | Speed against the upstream | Relativistic electrons | Remarks |
 |---|---|---|---|---|
-| Earth, no transient | 5-15 (most crossings); ~8 as representative | 400-600 km/s | no (noise above 12 keV) | instrument limit, not a zero; no published connection time found |
-| PSP 2023-03-13 | 7-7.5 (other estimates ~4, 9.1) | ~2400 km/s (other estimate 1350) | yes (≥ 6.7 MeV) | shock ~4 h old; flank crossing |
-| Saturn 2007-02-03 | ~100 (solar wind model) | ~450 km/s (typical value, not measured) | yes (≥ ~1 MeV) | 3 of 508 crossings; seeds to ~100 keV upstream; density and shock motion not measured |
+| Earth, no transient | 5-15 (highest counts of crossings, all geometries); ~8 as representative | 400-600 km/s | no (three example distributions: noise above 12 keV) | not a statistical upper limit; bursts ≥ 30 keV at SLAMS (two readings, `inputs.md`); no published connection time found |
+| PSP 2023-03-13 | 7-7.5 (other estimates ~4, 4.68 from a lower-limit density, 9.1) | ~2400 km/s (other estimate 1350) | yes (power law to 2.5 MeV, seen to ~6.7 MeV) | shock ~4 h old; flank crossing |
+| Saturn 2007-02-03 | ~100 (solar wind model) | ~450 km/s (typical value, quoted for another crossing; not measured) | yes (≥ ~1 MeV) | 3 of 508 crossings; seeds to ~100 keV upstream; density and shock motion not measured |
 | 1 au quasi-parallel | not published for the subset; M_A 3.3 ± 0.3 and M_ms 1.3-2.9 in samples of all geometries | ~500 km/s (spacecraft frame, all geometries) | 40 keV increase at ~7 % of 15 | MeV cases at 1 au are oblique |
 
 The outcomes do not follow the order of M_A.
+
+Electron sonic Mach number, M_se = u_1/√(kT_e/m_e) (own values, `inputs.md`): PSP 0.90-1.28 (T_e 40-20 eV), Earth
+0.27-0.41, Saturn 0.34 (T_e 10 eV, its upper bound) to ~1 (T_e = T_i). In every case a large share of the thermal
+electrons already moves faster than the shock.
 
 Candidate explanations, all kept side by side:
 - **H1a time:** injection occurs in every case; the energy reached is set by D_e and the time of connection.
@@ -80,7 +89,8 @@ Candidate explanations, all kept side by side:
 - **H7 history:** the PSP shock travelled ~4 h from near the Sun; M_A, θ_Bn and B changed on the way
   (`dresing2025reason`, `chiappetta2026evolution`).
 - **H8 detection:** a small compression gives a steep spectrum; "yes" or "no" is an intensity against an instrument
-  background (`masters2016suprathermal`, `kouloumvakos2026wave` for the saturation at PSP).
+  background (`masters2016suprathermal`, `kouloumvakos2026wave` for the saturation at PSP). The measured δ ~2.7 at
+  PSP corresponds in DSA to a compression of ~2.8, not 4 (own; the authors: "DSA predicts δ=2").
 
 What the runs can test: H1-H3 and part of H6 directly; H4 with seed electrons as a test species; H8 through the
 predicted intensity. H5 and H7 only in the form "is the shock alone enough"; if not, they stay outside this topic.
@@ -89,7 +99,8 @@ candidates the kinetic measurement excludes and which remain.
 
 Open at the review of step 3: for protons at the PSP event, confinement is limited by wave growth, a factor of two
 below the age limit and below the size limit (`jebaraj2026diffusive`, a preprint). Whether this is a separate
-candidate for electrons, or is covered by measuring D̃_e in a growing precursor (null test N8), is not decided.
+candidate for electrons is not decided. What is fixed: null test N8 cannot carry D̃_e from the age of a run to the
+age of the PSP shock (Approach), so every transferred value is stated for the run's age.
 
 ## Prior work
 - **Direct predecessors:** `gupta2024electron` (S) and `gupta2025speed` (S).
@@ -119,18 +130,23 @@ candidate for electrons, or is covered by measuring D̃_e in a growing precursor
 
 ## Idea
 1. **Scaling leaves one quantity unmatched.** With M_A, β_e, β_i, θ_Bn and the mass ratio 1836 set to the event, the
-   electron sonic Mach number is matched as well. Only v_sh/c is not. Where the event has no measurement (T_e at
-   PSP; density, β_e and the speed at Saturn) the run takes a stated value from `inputs.md`.
+   electron sonic Mach number is matched as well (convention M_se = u_1/√(kT_e/m_e), as in `gupta2024electron` (S)).
+   Only v_sh/c is not. Where the event has no measurement (T_e at PSP; density, β_e and the speed at Saturn) the run
+   takes a stated value from `inputs.md`. T_e at PSP is 20 ± 5 eV as adopted in one work and "≲ 40 eV, unresolved"
+   in another, which gives M_se 1.28-0.90; the single value of P0 is not yet fixed and is fixed before P0 starts.
 2. **Measure the dependence on v_sh/c, then transfer.** D̃_e(x, p̃) and the injection rate are measured at three
    values of v_sh/c; the exponent and its error carry the result to the real v_sh/c through a transport model.
 3. **The age of the short cases is within reach.** The connection times at Earth and Saturn can be run. Our
-   estimates are ω_ci t 76-305 for Earth (size over speed; no published value found) and 46-112 for Saturn, where the
-   spacecraft saw the quasi-parallel connection for ≥ 60 min before the crossing (ω_ci t ≥ 34) (`inputs.md`). What a
+   estimates are ω_ci t 76-305 for Earth and 46-112 for Saturn; both are size over speed, a crossing-time proxy and
+   not a connection time (no published value found). At Saturn the spacecraft saw the quasi-parallel connection for
+   ≥ 60-65 min before the crossing (ω_ci t ≥ 34-37), a lower bound (`inputs.md`). What a
    run covers directly is the turbulence at that age, not the momentum the electrons reach: at equal ω_ci t and D̃ the
    formula of `gupta2025speed` (S) keeps p̃·u/v_pt, and simulated electrons have a smaller u/v_sh than real ones.
    Every case is therefore confronted through the transport model.
 4. **PSP offers a measured precursor.** The proton κ_eff and the wave amplitudes are known (`jebaraj2026wave`); the
-   precursor of the run can be compared with them directly.
+   precursor of the run can be compared with them, in the same window and band only. The scales differ: the ~10 %
+   and 5-6 % are values of the 58-minute precursor in 0.05-1 Hz, while a box of 10³ d_i is the last ~17 s before
+   the ramp (own), where `jebaraj2024acceleration` (A) reports δB/B ≥ 0.5.
 5. Said plainly: most of the difficulty is computing time. The idea is in 1-4: bring the runs into reach and carry
    what is out of reach with a stated error.
 
@@ -141,16 +157,22 @@ candidate for electrons, or is covered by measuring D̃_e in a growing precursor
   four full texts could not be obtained and were read as abstracts.
 - **Second search (2026-11-14), on the simulation side:** 26 keyword queries on OpenAlex for the methods next to
   PIC, for runs confronted with in-situ events, for laboratory shocks and for the border regimes; the abstracts of
-  about 90 works screened, 29 further notes (9 read in the body, 20 as abstracts). It is not exhaustive. What published simulations
-  state, with which limits, how they were tied to observations, and what the planned runs can and cannot state:
-  `simulation-claims.md`.
+  about 90 works screened, 29 further notes (9 read in the body, 20 as abstracts). It is not exhaustive. What
+  published simulations state, with which limits, how they were tied to observations, and what the planned runs can
+  and cannot state: `simulation-claims.md`.
 - **Novelty claimed, in two parts:**
   1. The injection rate and D̃_e(x, p̃) of electrons, measured in self-consistent kinetic simulations at the
      conditions of observed events, with the dependence on v_sh/c. The range that is certainly new is
      m_e/m_i ≲ p̃ ≲ 1; above it an electron has the rigidity of an ion and D is largely known
-     (`caprioli2014simulationsb`).
-  2. A transport model fed with these measurements, confronted with the events that did and did not accelerate
-     electrons, with errors, stating which of H1-H8 it excludes.
+     (`caprioli2014simulationsb`). The measured proton κ_eff at PSP applies at p̃ ≈ 6-9, outside that range. The
+     step is narrower than "event conditions" suggests for PSP: run B2_II of `gupta2024electron` (S) (M_A 5,
+     M_se 0.9, β 0.06, mass ratio 1836, θ_Bn 30°) is close, and the step from it is M_A 5 → 7.5, θ_Bn 30° → 8°,
+     β_i 0.03 → 0.2.
+  2. A transport model fed with these measurements, confronted with each event as an intensity or an upper limit at
+     a named energy, with errors, stating which of H1-H8 it excludes. The observed "no" is an upper limit, not an
+     absence: at Saturn "electron injection may have been taking place at all these crossings"
+     (`masters2016suprathermal`); at Earth bursts ≥ 30 keV occur at SLAMS (`wilson2016relativistic`); near 1 au
+     electron channels can be contaminated by protons.
 - **Not new, stated as such:**
   - D_e(p) at M_A 5 and 20, θ_Bn 30° (`gupta2025speed` (S)); the electron mean-square-displacement method in PIC
     (`grassi2023electron`, unmagnetized shocks); test electrons in hybrid fields (`hanusch2020electron`,
@@ -167,6 +189,9 @@ candidate for electrons, or is covered by measuring D̃_e in a growing precursor
   - Extending PIC results with test particles to longer scales (`hemler2025shock`, prescribed SLAMS).
 - **Reviewer's verdict before the survey:** part 1 "needs evidence, likely to hold after the survey"; part 2
   "needs rethinking" (answered by idea 3 and by confronting through the transport model only).
+- **Reviewer's verdict after step 3 (second review):** part 1 "needs evidence; narrower than written"; part 2
+  "needs rethinking in wording, not in aim". Both are applied in the two parts above. The topic keeps one question
+  provided H5 and H7 stay outside it.
 - **Strongest objections an expert would raise:**
   - The transfer in v_sh/c over more than one order of magnitude rests on three points.
   - A quasi-1-D run cannot hold the oblique whistlers seen at the PSP shock, nor reconnection in the transition
@@ -188,21 +213,40 @@ candidate for electrons, or is covered by measuring D̃_e in a growing precursor
   - "injection is, fundamentally, a 3D process" (`vanmarle2022diffusive`, on ions at oblique shocks).
 
 ## Approach
-Criteria and null tests below are proposals. They are fixed, with thresholds, after the review of step 3 and the
-owner's approval, before any production run.
+Criteria, thresholds and null tests below are fixed since 2026-11-14: they are the proposals of the second review,
+approved by the owner. They hold for every production run. A change needs a new fact, named first in `notebook.md`.
+Where the review required an item to be settled but gave no value, the item is marked "not yet fixed" with the
+facts, and is fixed before the first run that needs it.
 
 - **Set-up:** quasi-1-D (long in x, a few cells across), explicit scheme, a piston against a wall (downstream frame),
   inflow through the open x+ face (PIC-D13), Δx = d_e/10, ~1000 particles per cell column over both species,
-  precision `compact` or `mixed`, restart checkpoints (PIC-D25). Outputs under `/mnt/nvme/pypic`.
-- **Open points of the set-up after the second search** (the owner's to decide; nothing above is changed by them):
-  the frame, the particle number, the definition of the injection rate and its region, how H4 is stated with
-  passive seeds, and which border regimes belong to the question (`simulation-claims.md` §8).
+  precision `compact` or `mixed`, restart checkpoints (PIC-D25). Outputs under `/mnt/nvme/pypic`. V1 alone runs at
+  the particle number of `gupta2024electron` (S): 200 per cell per species over 5 cells, 2000 per column.
+- **Points of the set-up raised by the second search** (`simulation-claims.md` §8):
+  - Changed on the review's recommendation: the definition of the injection rate (measured quantity 2); the
+    particle number of V1; N1 at each v_sh/c.
+  - Kept as planned, because the review gave no recommendation and no new fact requires a change. The limit of each
+    is named with the results:
+    - the frame (downstream): published runs differ by a factor ≲ 2 in efficiency between frames; N1 measures the
+      numerical heating at each speed;
+    - ~1000 particles per column in the runs other than V1, the same at each speed of the v_sh/c scan: numerical
+      drag (`simulation-claims.md` §5); N2 doubles the number for P0;
+    - H4 with passive seeds: the test is whether seeds in the shock's own fields reach higher energy than thermal
+      electrons; the waves that seeds would drive are not included;
+    - the run list: the border regimes of `simulation-claims.md` §6.3 outside it are named as limits.
 - **Limits of 1-D:** no oblique whistlers; B_x cannot change, which overstates the superluminal cut-off
   (`gupta2024electron` (S)). Run X measures the difference to 2-D; the results name the limit.
 - **Measured quantities:**
   1. Momentum spectra of both species upstream and downstream in time; p_max(t); compression.
-  2. Injection rate: the share of electrons per unit time that pass p_inj, the momentum at which an electron can
-     outrun the shock upstream (the condition of `gupta2025speed` (S)).
+  2. Injection rate, first definition: the non-thermal fraction η_nt,e of `gupta2024electron` (S) (its Eqs. 3 and
+     6), the share of downstream electrons with p ≥ p_0,e = 5 p_th,e.
+     - The fact behind the change from the plan's definition (the share passing p_inj, the momentum at which an
+       electron outruns the shock, after `gupta2025speed` (S)): at the events' M_se thermal electrons already pass
+       that momentum, so the share does not measure injection.
+     - Not yet fixed: the review asks for a second definition beside the first and names none. It also asks for a
+       fixed downstream region shorter than the 1000 d_i "at late times" of `gupta2024electron` (S) and gives no
+       length; the downstream grows by M_A/4 d_i per ω_ci⁻¹ and reaches 750 d_i in V1 (t = 150) and 375 d_i in P0
+       (t = 200). Both are fixed before V1.
   3. D̃_e(x, p̃) by the method of `gupta2025speed` (S), appendix B (test electrons in saved fields), as a function of
      the distance from the shock up to the end of the box; independently from the tracked PIC electrons; with and
      without the wave electric field.
@@ -217,9 +261,9 @@ owner's approval, before any production run.
 
   | Stage | Run | Conditions | Purpose | ω_ci t | Estimate |
   |---|---|---|---|---|---|
-  | 1 | V1 | Gupta B1: M_A 20, mass ratio 100, θ 30°, v_pt 0.1 c | reproduce slope, p_max(t), D_e; fix conventions | 150 | 0.9 d |
+  | 1 | V1 | Gupta B1: M_A 20, mass ratio 100, θ 30°, v_pt 0.1 c, 2000 particles per column | reproduce slope, p_max(t), D_e at t = 135; fix conventions | 150 | 1.8 d |
   | 1 | V2 | Gupta B2_II: M_A 5, mass ratio 1836, β 0.06 | reproduce the stall at low M_A | 150 | 1.0 d |
-  | 2 | P0 | PSP: M_A 7.5, β_i 0.2, T_e 20-40 eV, θ 8°, mass ratio 1836, v_sh 0.133 c, seeds | injection, D̃_e, δB/B against data | 200 | 4.1 d |
+  | 2 | P0 | PSP: M_A 7.5, β_i 0.2, one T_e in 20-40 eV (not yet fixed), θ 8°, mass ratio 1836, v_sh 0.133 c, seeds | injection, D̃_e, δB/B against data | 200 | 4.1 d |
   | 2 | P0b | P0, another random seed | scatter | 100 | 1.0 d |
   | 2 | P5a, P5b | P0 at v_sh 0.067 c and 0.033 c | exponent in v_sh/c (N4) | 100 | 2.0, 4.1 d |
   | 2 | P6 | V1 at half v_sh/c | the same at M_A 20 | 100 | 0.8 d |
@@ -233,34 +277,91 @@ owner's approval, before any production run.
   | 3 | X | P0 in 2-D (width and time from the pilot) | injection and D̃_e (p̃ ≪ 1) against 1-D | 30-60 | 7-26 d |
 
   Cost formula (ours, reproduced by the reviewer): particle-steps ≈ 180 N_x (m_i/m_e) M_A² (ω_ci t)² / (v_sh/c),
-  at ~1.6 × 10¹⁰ particle-steps/s. Stage 3 may shrink or change after stage 2; each stage ends with a review.
+  at ~1.6 × 10¹⁰ particle-steps/s, for ~1000 particles per column; V1 is twice the plan's 0.9 d because the cost is
+  linear in the particle number. Stage 3 may shrink or change after stage 2; each stage ends with a review. A run
+  of the PSP case at M_A 9-10 is not in the list; whether it is added is decided after P0.
 - **Out of reach, stated:** the real v_sh/c (PSP 0.008; Earth 0.0013-0.0020; Saturn 0.0015); the real length of the
   electron precursor; Saturn with mass ratio ≥ 400 at a subluminal speed (Saturn claims are limited to mass ratio
-  100); the age (ω_ci t ~10⁵) and history of the PSP shock.
-- **Reproduction (V1, V2), proposed:** slope within ±0.3, p_max(t) and D_e within a factor 2 of the published values;
-  conventions (D_B = u r_L, ⟨Δx²⟩/t) fixed in V1. No further stage until a deviation is explained.
-- **Null tests, proposed:**
-  - N1 numerical heating: a uniform flow without a shock for the same time gives the detection floor.
-  - N2 statistics: twice the particles and another seed (P0b) leave the tail fraction and D̃_e unchanged.
-  - N3 resolution: half Δx (short).
-  - N4 extrapolation: exponents of D̃_e and of the injection rate in v_sh/c with errors, carried to the real
-    v_sh/c. A case whose predicted margin is smaller than this error is reported as "not decided".
+  100); the age (ω_ci t ~10⁵) and history of the PSP shock; an absolute intensity at Saturn as long as the density
+  and T_e of the event have no source.
+- **Reproduction (V1, V2), fixed.** Conventions (D_B = u r_L, ⟨Δx²⟩/t) are fixed in V1. No further stage until a
+  deviation is explained.
+  - V1 slope: q within ±0.3 of 4, fitted over [2 p_0,e, p_max/2] at the published time. ±0.3 is a factor 2 in f per
+    decade and can fail; the slope 4 holds only for M_A ≳ 10.
+  - V1 D_e: D_1,e in [0.3, 1.2] D_B0 at t = 135 ω_ci⁻¹ and p = m_i v_pt; D_2/D_1 in [0.05, 0.2]. That is a factor
+    2 around the published 0.6 and 0.1; the published D_1,e itself differs by 1.7 between t = 135 and the time
+    average, and a looser band would not exceed that spread.
+  - V2: no slope criterion, because there is no power law at M_A 5. p_max within a factor 2 of 0.8 m_i v_pt at
+    100-150 ω_ci⁻¹; η_nt,e within a factor 2 of the published value.
+- **Scatter σ_pt:** the scatter of one measured point. It is taken from the seed pair (P0, P0b) and from ≥ 5 time
+  blocks of ≥ 20 ω_ci⁻¹. Neither Gupta paper states a seed scatter; with ~10⁵ tail electrons the counting error is
+  negligible, so realisation and time variation dominate.
+- **Null tests, fixed:**
+  - N1 numerical heating: a uniform flow without a shock for the same time gives the detection floor. It is run at
+    each v_sh/c, because Δx/λ_D changes along the scan (0.75, 1.5 and 3.0 at 0.133, 0.067 and 0.033 c for
+    M_se 1). A signal counts if it is ≥ 5 times that floor and has ≥ 100 counts per bin.
+  - N2 statistics: twice the particles, and another seed (P0b). "Unchanged" means a difference ≤ 30 % in η_nt,e and
+    in the time-averaged D̃_e, and ≤ 0.15 in the slope. 30 % keeps the N4 factor ≤ 1.8 (PSP) and ≤ 2.8 (Earth,
+    Saturn).
+  - N3 resolution: half Δx (short). Change ≤ 2σ_pt.
+  - N4 extrapolation: exponents of D̃_e and of the injection rate in v_sh/c with errors, carried to the real v_sh/c.
+    - The power law is accepted if the residual of the three points is ≤ 2σ_pt, and if the 0.067 and 0.133 c
+      points agree with the weak dependence that `gupta2024electron` (S) reports.
+    - The extrapolated 1σ is 2.2σ_pt at PSP (0.008 c) and 3.9σ_pt at Earth and Saturn (0.0015 c). A case is
+      "decided" only if its margin exceeds twice that; otherwise it is reported as "not decided".
+    - Limit: with three points a pure power law is an assumption with one degree of freedom.
   - N5 mass ratio: one set at fixed electron sonic Mach number, one at fixed β_e (`shalaby2024energy`).
-  - N6 boundary: twice the box length (short).
-  - N7 method: the measurement code on synthetic fields with a known D; intervals where ⟨Δx²⟩ is not linear in
-    time are not used.
-  - N8 stationarity: D̃_e(p̃ ≤ 1) does not change in the second half of the run; otherwise the value is reported as
-    "at that age" only.
-- **Confrontation, proposed:** all comparisons are between the transport model's intensity and the instrument
-  background. H1 survives if the prediction falls on the observed side in every case within the errors of N4 and of
-  the inputs. H2, H3: the order of injection rate and D̃_e over P1, P0, P2, S. H4: seeds against thermal electrons in
-  one run. H6: the energy-gain budget. H8: predicted compression and intensity.
+  - N6 boundary: twice the box length (short). Change ≤ 2σ_pt.
+  - N7 method: the measurement code on synthetic fields recovers a known D within 10 % over 0.1-10 D_B; the
+    log-slope of ⟨Δx²⟩ is within 1 ± 0.1 over a factor 3 in time, and intervals outside that are not used. The
+    statistical error is ~√(2/N), about 1.4 % for 10⁴ electrons.
+  - N8 stationarity: |d ln D̃_e/d ln t| < 0.3 over the second half of the run gives the label "stationary within
+    the run"; otherwise the value is reported as "at that age" only. N8 alone licenses no transfer beyond the age
+    of the run: carrying D̃ from t = 200 to 1.1 × 10⁵ within a factor 2 needs a slope ≤ 0.11, which a run cannot
+    resolve.
+  - Added by the second review:
+    - N9 frozen against tracked: D̃_e from frozen field snapshots against D̃_e from tracked PIC electrons in the
+      evolving fields, at the same x and p̃. Agreement within a factor 1.5 at p̃ ≤ 1, which is below the 1.7 time
+      spread.
+    - N10 test-electron domain: its length 2L doubled, because the far-upstream curves of `gupta2025speed` (S),
+      appendix B, do not reach an asymptote. The review gives no threshold; the change is reported.
+    - N11 mechanism off: the measurement without the wave electric field is a control. The review gives no
+      threshold; the difference is reported with σ_pt.
+    - N12 wall: electrons that touched the piston region are left out of the spectra and the injection rate.
+    - N13 particle number of the reproduction: V1 at the particle number of `gupta2024electron` (S).
+- **Confrontation, fixed:** all comparisons are between the transport model's intensity and the instrument
+  background at a named energy.
+  - H1, observed side: "yes" if the predicted intensity is ≥ 3 times the background at the named energy; "no" if
+    it is ≤ 1/3; otherwise "not decided". A factor 3 is at or above the N4 factor at 30 % scatter. H1 survives if
+    the prediction falls on the observed side in every case within the errors of N4 and of the inputs.
+    - PSP: the spectrum of `jebaraj2024direct` up to 2.5 MeV. The result is stated "for M_A ≤ 7.5". If P0 stalls
+      there are two readings: the shock alone does not reproduce the event, so H5 or H7 is needed; or M_A is
+      really 9-10 and a run there grows.
+    - Saturn: the LEMMS channel backgrounds; a signal ≥ 10 times the seeds below 100 keV. Until the density and T_e
+      of the event have a source, S1-S3 decide orderings (H3), not an intensity. Which B enters H1b is not yet
+      fixed: e V B L is 87-210 keV at the event's 0.1 nT (own), below the observed ~1 MeV, and 0.2-2 MeV for
+      0.2-1.0 nT (`oka2025maximum`).
+    - Earth: the "no" in both readings of `inputs.md`: A, only noise above 12 keV outside the enhancements; B,
+      bursts ≥ 30 keV at SLAMS, which a run of the shock alone can form. H1a cannot be tested without a
+      connection time.
+    - 1 au: only shocks without proton contamination of the electron channels. Run W states a result for an M_A 3
+      shock at 30°, not for every quasi-parallel shock near 1 au.
+  - H2, H3: the order of injection rate and D̃_e over P1, P0, P2, S. An order counts only if adjacent runs differ
+    by more than 3σ_pt.
+  - H4: seeds against thermal electrons in one run.
+  - H6: the energy-gain budget over all tracked electrons above p_0 (≥ 10³ of them). "DSA" if ≥ 2/3 of the gain
+    comes in cycles with Δp/p within a factor 2 of the DSA prediction (`gupta2025speed` (S), its Eq. 1 and Fig. 2);
+    "not DSA" if ≤ 1/3; otherwise "mixed".
+  - H8: predicted compression and intensity.
+  - 1-D against 2-D (run X): "differ strongly" means by more than a factor 2 or by 3σ_pt, whichever is larger.
+  - δB/B of P0 against the measured precursor: in the same window and band only (idea 4).
 - **Outcomes that leave the question unanswered, named in advance:**
-  - P0 stalls near p ≈ m_i v_pt as B2_II does: D̃ above is not measured and nothing transfers to age 10⁵. The
+  - P0 stalls near p ≈ m_i v_pt as B2_II does (the reviewer holds this the likeliest of the three): D̃ above is not
+    measured and nothing transfers to age 10⁵. The
     statement is then limited to "a uniform upstream does not grow the turbulence within 200 ω_ci⁻¹" and to the
     comparison of δB/B with the measured precursor.
   - The N4 error is so large that every case is "not decided": the claim is limited to novelty part 1.
-  - 1-D and 2-D injection rates differ strongly: the 1-D transport results are bounds only.
+  - 1-D and 2-D injection rates differ strongly (as defined above): the 1-D transport results are bounds only.
 
 ## Claims and evidence
 No records yet. Everything below is a hypothesis.
@@ -293,15 +394,18 @@ Snapshot of 2026-11-14.
   quasi-parallel shocks state about electrons, the limits that recur, how runs were tied to observations, what each
   planned statement can and cannot rest on, an own estimate of numerical drag, and the boundary areas (neighbouring
   methods, laboratory shocks, border regimes, domain boundaries); 29 further notes.
-- Second review by `research-reviewer` (README, `inputs.md`, plan): done. Its corrections to `inputs.md` and its
-  proposed thresholds are not applied; they are proposals until the owner decides.
+- Second review by `research-reviewer` (README, `inputs.md`, plan): done. The owner approved its recommendations on
+  2026-11-14. Applied: its nine corrections to `inputs.md`, each checked in its source; its thresholds and added
+  null tests (Approach); the narrower wording of the novelty.
+- Not yet fixed, to be fixed before the first run that needs them (the review requires them and gives no value):
+  the second definition of the injection rate and the length of its downstream region (before V1); the single T_e
+  of P0 (before P0); which B enters H1b at Saturn (before the confrontation).
 - Missing: the inputs listed as open in `inputs.md` (instrument backgrounds as intensities; a published connection
-  time at Earth; Saturn's density, β_e and speed; T_e at PSP; Mach numbers of the quasi-parallel shocks at 1 au); the
-  fixed criteria and thresholds; Publication.
+  time at Earth; Saturn's density, β_e and speed; T_e at PSP; Mach numbers of the quasi-parallel shocks at 1 au);
+  Publication. The review lets these wait until stage 3 or the write-up.
 - Full texts not obtained (read as abstracts): `qin2026electron`, `bai2023electron`, `yang2019electron`,
   `giacalone2025source`, `wilson2025large`, `hemler2025shock`, `mitchell2021energetic`, `bessho2023electron`,
   `gupta2023regulates`, `galishnikova2026self`, `tsurutani1985acceleration`; `bebesi2019observations` only through a
   conference abstract.
-- Next: the owner's decisions on the open points of `simulation-claims.md` §8 and on the criteria and thresholds;
-  the reviewer's corrections to `inputs.md`, each checked in its source. Then the engine pilot (step 4), which
-  shares the GPUs with the pilot of `shock-alfvenic-turbulence`.
+- Next: the engine pilot (step 4), which shares the GPUs with the pilot of `shock-alfvenic-turbulence`; then stage
+  1 (V1, V2).

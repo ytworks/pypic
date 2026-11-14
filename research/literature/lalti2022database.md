@@ -18,7 +18,8 @@ their upstream parameters; the ion acceleration efficiency is higher at quasi-pa
 
 ## Numbers to compare against
 - 45.5 % quasi-parallel, 51.4 % quasi-perpendicular, 3.1 % undetermined.
-- Most crossings at M_A 5-15, as in the solar wind statistics; some values up to ~150 at very low field
+- "the highest counts between M_A = 5 and 15", over all crossings, not the quasi-parallel ones alone, as in
+  the solar wind statistics; some values up to ~150 at very low field
   with large uncertainty.
 - The compression approaches 4 at large M_A.
 - Ion acceleration efficiency 14 +- 11 % (quasi-parallel) against 8 +- 8 % (quasi-perpendicular); no clear

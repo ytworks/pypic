@@ -298,3 +298,7 @@ readings. No ranking.
 - Whether the v_sh/c scan varies the particle number at each speed.
 - How H4 is stated with passive seeds.
 - Which border regimes of §6.3 belong to the question and which are named as limits.
+
+State on 2026-11-14, after the second review and the owner's approval of its recommendations: the first definition
+of the injection rate is fixed, its second definition and region are not yet fixed; the other points are kept as
+planned with their limits named. Where each stands: README, Approach.

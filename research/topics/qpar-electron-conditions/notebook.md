@@ -3,6 +3,120 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-14 — Second review applied: inputs corrected, criteria and thresholds fixed
+
+Later on the same day as the entry below. The second review by `research-reviewer` (README, `inputs.md`, plan) was
+reported to the owner with its proposals and the open points.
+
+### Decision
+- The owner, 2026-11-14: proceed with the recommendations. Read as: the recommendations of the second review are
+  approved.
+- Where the review gives no recommendation, the approved plan stays as it is. No new fact requires a change there.
+- Where the review requires an item to be settled and names no value, no value is invented. The item is marked
+  "not yet fixed" with the facts and a point by which it must be fixed.
+
+### The nine corrections to `inputs.md`, each checked in its source before it was written
+1. **PSP electron spectrum.** δ ~2.7 from 50 keV to 2.5 MeV, the ~6.7 MeV and the isotropy are in
+   `jebaraj2024direct`, not in `jebaraj2024acceleration`, which says "to 6 MeV". It is a 10-minute average upstream
+   (07:03-07:13 UT). Above 2.5 MeV δ ~4.18 with "increased uncertainties due to the instrument's dynamic threshold
+   mode". The isotropy is read from two telescope directions with similar intensities.
+2. **Saturn speed.** ~450 km/s in `masters2017situ` is a typical value quoted for the quasi-perpendicular crossing.
+   No speed is given for 2007-02-03. The 500 km/s is the U_1 of the test-particle model of `guo2015acceleration`.
+3. **Saturn crossing time.** ~01:05 UT in `masters2017situ`, ~01:10 UT in `masters2013electron`. The connection at
+   the spacecraft is ≥ 60-65 min, ω_ci t ≥ 34-37. The reviewer's "01:08" was not found in our check; only ~01:10
+   is written.
+4. **PSP compression.** The ~4 of `jebaraj2024acceleration` follows from 184 ± 35 over 46.5 ± 15 cm⁻³ (own
+   propagation: 4.0 ± 1.5). In `kouloumvakos2026wave` 4 is the limit "expected at M_A ≃ 7.5", not a measurement.
+5. **M_A 4.68 ± 3.45.** It rests on the SPAN-i density, which `chiappetta2026evolution` calls "a lower limit
+   estimation, at least for the upstream side". It is biased low, not an equal third estimate.
+6. **Sizes.** The 15-25 R_E and 50-60 R_S of `oka2025maximum` are adopted characteristic sizes. Their kind is
+   "assumed"; ω_ci t from size over speed is a crossing-time proxy.
+7. **Earth M_A.** `lalti2022database` writes "the highest counts between M_A = 5 and 15", for all crossings. The
+   same work has one crossing with θ_Bn 87.3° from the model and 23° from local data, which bears on Saturn's
+   model normal.
+8. **Earth "no".** "only noise > 12 keV" describes three example distributions of `wilson2016relativistic`. Of the
+   10 enhancements 5 are at SLAMS, 2 at hot flow anomalies, 3 at foreshock bubbles.
+9. **Kartavykh's second table value** is the midrange, not the median: M_A 5.8 = (3.2 + 8.4)/2 against a median of
+   6.35; θ_Bn 65° = (88° + 42°)/2.
+
+The notes `kartavykh2025statistical`, `lalti2022database` and `wilson2016relativistic` carry corrections 7-9 too.
+
+### Added to `inputs.md` beside the corrections
+- **Convention:** M_se = u_1/√(kT_e/m_e), as in `gupta2024electron` and in the plan's formula. Own values: PSP 1.28
+  (T_e 20 eV) and 0.90 (40 eV) at 2400 km/s; Earth 0.27-0.41; Saturn 0.34 at T_e 10 eV and 1.07 at T_e ≈ 1.0 eV,
+  the value that M_s 25 implies with γ 5/3 and T_e = T_i.
+- **PSP densities:** 46.5 ± 15 and 184 ± 35 cm⁻³ from the plasma frequency; SPAN-i ~22 cm⁻³, "a lower limit".
+- **DSA and the measured index (own):** for relativistic electrons q = δ + 2 = 3r/(r − 1); δ 2.7 gives r ≈ 2.8.
+  The authors: "DSA predicts δ=2".
+- **Scale of the PSP precursor (own):** ~57 d_i per second at the spacecraft; a box of 10³ d_i is the last ~17 s.
+- **Saturn:** e V B L at the event's 0.1 nT is 87-210 keV (own), below the observed ~1 MeV; the shock motion of
+  100 km/s is an assumed value; the signal is ≥ 10 times the seeds below 100 keV; 28 of the 31 crossings with a
+  signal have it below 100 keV only; the authors hold that injection "may have been taking place at all these
+  crossings".
+- **1 au:** the four shocks left out of the averages of `kartavykh2025statistical`, among them the fast
+  quasi-parallel one of 2022-09-06 (M_A 7.4, θ_Bn 30°).
+- **Backgrounds:** split into what is collected as statements and what is not collected.
+
+### Fixed in the README (Approach), from the review's table, with its reasons
+- Reproduction: V1 slope within ±0.3 of 4; D_1,e in [0.3, 1.2] D_B0 at t = 135 and p = m_i v_pt; D_2/D_1 in
+  [0.05, 0.2]. V2: no slope criterion; p_max and η_nt,e within a factor 2.
+- σ_pt from the seed pair and ≥ 5 time blocks of ≥ 20 ω_ci⁻¹.
+- N1 at each v_sh/c, signal ≥ 5 times the floor and ≥ 100 counts per bin. N2 ≤ 30 % and ≤ 0.15 in slope. N3 and
+  N6 ≤ 2σ_pt. N4: residual ≤ 2σ_pt, "decided" only beyond twice the extrapolated σ. N7 within 10 % and a log-slope
+  of 1 ± 0.1. N8: slope < 0.3 gives "stationary within the run" and no transfer beyond the run's age.
+- Five tests added: N9 frozen against tracked (factor 1.5), N10 test-electron domain doubled, N11 without the wave
+  electric field, N12 electrons that touched the piston region left out, N13 V1 at Gupta's particle number.
+- Confrontation: H1 "yes" at ≥ 3 times the background at a named energy, "no" at ≤ 1/3, otherwise "not decided";
+  the observed side per case; H2/H3 orders only above 3σ_pt; H6 in three classes (2/3 and 1/3); "differ strongly"
+  for 1-D against 2-D as a factor 2 or 3σ_pt.
+- Own checks of the review's numbers: the N4 factor is 2.24 at 0.008 c and 3.6-4.1 at 0.0020-0.0013 c (review: 2.2
+  and 3.9); Δx/λ_D is 0.75, 1.49 and 3.03 at 0.133, 0.067 and 0.033 c for M_se 1; the downstream grows by M_A/4 d_i
+  per ω_ci⁻¹; Eq. 1 and Fig. 2 of `gupta2025speed` give the per-cycle gain that H6 uses.
+
+### Changes against the approved plan, each with the fact that requires it
+| Fact | Change |
+|---|---|
+| At the events' M_se (0.27-1.28) a large share of the thermal electrons already moves faster than the shock | The injection rate is no longer "the share passing p_inj". First definition: η_nt,e of `gupta2024electron`, p ≥ 5 p_th,e downstream |
+| `gupta2024electron` uses 200 particles per cell per species over 5 cells, 2000 per column; the plan has ~1000 | V1 runs at 2000 per column. Its estimate goes from 0.9 to 1.8 days (cost linear in the particle number) |
+| Δx/λ_D changes from 0.75 to 3.0 along the v_sh/c scan | N1 is run at each speed, not once |
+| Carrying D̃ from t = 200 to 1.1 × 10⁵ within a factor 2 needs a slope ≤ 0.11; a run resolves ~0.3-0.5 | N8 labels a value "stationary within the run" only. No value is transferred to the age of the PSP shock on N8 alone |
+| The published M_A of the PSP crossing (4.68 from a lower-limit density, 7-7.5, 9.1) lie at or below the M_A ≳ 10 of `gupta2024electron` | The PSP result is stated "for M_A ≤ 7.5". A run at M_A 9-10 is decided after P0 |
+| Run B2_II (M_A 5, M_se 0.9, β 0.06, mass ratio 1836) is close to the PSP conditions | Novelty part 1 names the step from B2_II: M_A 5 → 7.5, θ_Bn 30° → 8°, β_i 0.03 → 0.2 |
+| The observed "no" is an upper limit in every case (Saturn: channel backgrounds; Earth: three examples, bursts at SLAMS; 1 au: proton contamination) | Novelty part 2 and the confrontation are worded as intensities and upper limits at named energies |
+| The ~10 % and 5-6 % are values of the 58-minute precursor in 0.05-1 Hz; a box covers the last ~17 s | δB/B of a run is compared in the same window and band only |
+| Without n and T_e no absolute intensity follows at Saturn | S1-S3 decide orderings, not an intensity, until those inputs have a source |
+| W stands for an average over all geometries | W states a result for an M_A 3 shock at 30° only |
+
+### Kept as planned (no recommendation in the review, no new fact)
+- The frame (downstream), with N1 as its check.
+- ~1000 particles per column in the runs other than V1, the same at each speed of the scan.
+- H4 with passive seeds; the waves that seeds would drive are named as a limit.
+- The run list; the border regimes of `simulation-claims.md` §6.3 outside it are named as limits.
+- P0 at M_A 7.5 and θ 8°.
+
+### Not yet fixed (the review requires them and names no value)
+- The second definition of the injection rate, and the length of the fixed downstream region. Facts: Gupta's
+  1000 d_i "at late times" is not reached (750 d_i in V1 at t = 150, 375 d_i in P0 at t = 200). Before V1.
+- The single T_e of P0. Facts: 20 ± 5 eV adopted in `jebaraj2024acceleration`, "≲ 40 eV, unresolved" in
+  `jebaraj2026wave`; M_se 1.28-0.90. Before P0.
+- Which B enters H1b at Saturn. Facts: 87-210 keV at 0.1 nT (own), 0.2-2 MeV for 0.2-1.0 nT (`oka2025maximum`).
+  Before the confrontation.
+- Thresholds of N10 and N11: none given; the measured change is reported.
+- Whether wave-growth-limited confinement is a separate candidate for electrons (README, Research question).
+
+### Slips of our own, caught while applying
+- The DSA relation was first written as q = 2δ + 2, the non-relativistic form. Corrected to q = δ + 2.
+- "δB/B ≥ 0.5 close to the ramp" was written before the check. The source says it of the shock transition
+  "preceding the ramp-overshoot region"; the text now quotes it.
+- "the 477 crossings without a signal" was our arithmetic, not a number of the source. Removed.
+
+### Not checked, carried from the review (can wait until stage 3 or the write-up)
+- Sources: `dresing2016efficiency`, `talebpoursheshvan2023role`, `yang2019electron`, `tsurutani1985acceleration`
+  against the inputs; the M_A 9.4 / 33° example of `lalti2022database`; the full texts of `masters2011electron`,
+  `went2011new`, `achilleos2006orientation`.
+- Inputs: Saturn's density and T_e; a connection time at Earth; the quasi-parallel subset near 1 au; the Solar
+  Orbiter backgrounds.
+
 ## 2026-11-14 — Step 3, second part: what a simulation can state, and the boundary areas
 
 Later on the same day as the entry below. The first part of step 3 collected the observed side only. The research
