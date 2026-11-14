@@ -1,0 +1,15 @@
+# Step-4 control: V1's plasma flowing through a short box, x- open instead of the wall (no shock), paired face
+# at x+ with the planner's absorbing layer. Measures the rate at which the tangential field of the upstream
+# changes at that face (notebook, 2026-11-15): pilot_check.py gives B_y / B0y - 1 against time and its slope.
+mass_ratio: 100
+v0: 0.1
+mach_alfven: 20
+mach_convention: r4
+theta_bn: 30
+beta_e: 0.5
+beta_i: 0.5
+through: true
+lx: 40
+t_end: 40
+ppc: 125
+filter_passes: 32

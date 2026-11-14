@@ -7,7 +7,10 @@ CPU only (reads the output with ``pypic.analysis``). It prints numbers and judge
 - Temperature of a species from the moments of the ``profile`` lineout, per cell column:
   T = (2/3) (ekin / n - m (gamma_b - 1)), v_b = flux / n. It is the non-relativistic estimate (the error is of
   relative order v^2); the first output gives its value for the loaded plasma, so read changes against that.
-- Periodic box (N1): the temperatures averaged over x against time.
+- Periodic box (N1) and flow-through control: the temperatures averaged over x against time.
+- Flow-through control (``through``): B_y / B0y - 1, E_z / E0z - 1 and B_z / B0y, averaged over the box without
+  ``margin`` d_i at each end, against time; the slope of the first two per 1 / Omega_ci with its standard error
+  (straight-line fit that takes the outputs as independent) over t >= 1 / Omega_ci and over the second half.
 - Wall: the shock position is the largest x where the ion density, averaged over ``smooth`` d_i, is above 2;
   its speed is the slope over the second half of the run. The upstream numbers are taken between the shock
   + ``margin`` d_i and the face - ``margin`` d_i.
@@ -75,6 +78,23 @@ def main():
         out["uniform"] = {"omega_ci_t": t[pick].tolist()} | {
             f"T_{n}_over_loaded": (np.nanmean(temps[n][1], axis=1)[pick] / np.nanmean(temps[n][1][0])).tolist()
             for n in temps}
+        if info.get("through") and info["by"]:
+            zone = (x > a.margin * d_i) & (x < x[-1] - a.margin * d_i)
+            e0z = info["v0"] * info["by"]
+            series = {"By": prof["By"][:, zone].mean(axis=1) / info["by"] - 1.0,
+                      "Ez": prof["Ez"][:, zone].mean(axis=1) / e0z - 1.0,
+                      "Bz": prof["Bz"][:, zone].mean(axis=1) / info["by"]}
+            fld = {"zone_di": [float(x[zone][0] / d_i), float(x[zone][-1] / d_i)], "omega_ci_t": t[pick].tolist()}
+            fld |= {f"{k}_dev": v[pick].tolist() for k, v in series.items()}
+            for label, sel in (("from_1", t >= 1.0), ("second_half", t >= 0.5 * t[-1])):
+                if sel.sum() > 3:
+                    for k in ("By", "Ez"):
+                        c, cov = np.polyfit(t[sel], series[k][sel], 1, cov=True)
+                        res = series[k][sel] - np.polyval(c, t[sel])
+                        fld[f"{k}_slope_{label}"] = {"per_inv_omega_ci": float(c[0]),
+                                                     "stderr": float(np.sqrt(cov[0, 0])),
+                                                     "rms_about_fit": float(res.std())}
+            out["through"] = fld
     else:
         n_i = temps["i"][0]
         xs = shock_position(x, n_i, max(1, int(round(a.smooth * d_i / dx))))

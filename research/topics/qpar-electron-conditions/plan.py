@@ -28,6 +28,8 @@ E0 = (0, 0, v0 b sin theta_Bn).
     speeds, 30 and 8 degrees); with ``paired`` the field kept its shape (B_z within 0.01 B0y to
     8 / Omega_ci) and B_y changed only by the rise above (notebook, 2026-11-15). Seeds enter as at a flux face
     with either rule.
+- ``through: true`` (with ``wall: true``): x- is an open face instead of the wall. The flow leaves through it
+  and no shock forms: the control of the upstream state that the face x+ sets.
 - ``wall: false``: every axis periodic, the whole field in the Yee arrays, no shock: the uniform flow of the
   null test N1 (numerical heating).
 
@@ -83,6 +85,7 @@ class TopicParams:
     beta_i: float = 0.5
     seeds: list = field(default_factory=list)  # [{"name": str, "theta": float}], passive test electrons
     wall: bool = True
+    through: bool = False  # with a wall configuration: x- open instead of the wall (no shock; control run)
     face: str = "paired"  # injection rule of the x+ face with a wall (PIC-D13): "paired" or "flux"
     lx: float = 100.0  # d_i
     t_end: float = 10.0  # 1 / Omega_ci
@@ -218,14 +221,14 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
     r_cap = max(sh["r_set"], sh["r_mhd"])
     zero = {"cos": [0.0, 0.0, 0.0], "sin": [0.0, 0.0, 0.0]}
     if p.wall:
-        bc = (("reflecting", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+        bc = (("open" if p.through else "reflecting", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
         table = {"face": "x+", "modes": [{"k": [0.0, 0.0, 0.0], "omega": 0.0, "phase": 0.0, "B": zero, "E": zero,
                                           "u": {n: zero for n in names}}]}
         fields = dict(B0=(0.0, by, 0.0), E0=(0.0, 0.0, p.v0 * by), external_fields=ExternalFields(B=(bx, 0.0, 0.0)),
                       injection=Injection(faces={"x+": p.face}, species=tuple(names), fluctuation=table,
                                           neutralizer="e" if p.face == "paired" else None),
                       marder_zone=p.marder_zone)
-        capacity = p.capacity if p.capacity is not None else 1.2 * r_cap
+        capacity = p.capacity if p.capacity is not None else (1.3 if p.through else 1.2 * r_cap)
     else:
         bc = (("periodic", "periodic"),) * 3
         fields = dict(B0=(bx, by, 0.0), E0=(0.0, 0.0, p.v0 * by))
@@ -250,7 +253,8 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
     columns = nx * p.ny * p.nz
     particles = len(sp) * columns * p.ppc
     notes = []
-    if p.wall and x_shock > 0.8 * p.lx:
+    shock = p.wall and not p.through
+    if shock and x_shock > 0.8 * p.lx:
         notes.append(f"the shock reaches {x_shock:.0f} d_i of the {p.lx:g} d_i box (MHD reading)")
     debye = math.sqrt(theta_e) / dx
     if debye < 1.0:
@@ -260,7 +264,8 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         "b": b, "bx": bx, "by": by, "v_a": v_a, "v0": p.v0, "u0": u0, "d_i": d_i, "omega_ci": omega_ci,
         "theta_e": theta_e, "theta_i": theta_i, "beta": p.beta_e + p.beta_i, "shock": sh,
         "mach_sonic_i": sh["v_sh"] / math.sqrt(theta_i), "mach_sonic_e": sh["v_sh"] / math.sqrt(theta_e),
-        "debye_cells": debye, "wall": p.wall, "face": p.face if p.wall else None, "lx": lx,
+        "debye_cells": debye, "wall": shock, "through": p.wall and p.through,
+        "face": p.face if p.wall else None, "lx": lx,
         "omega_ci_t_end": omega_ci * t_run,
         "x_shock_end": x_shock, "particles": particles, "per_column": 2 * p.ny * p.nz * p.ppc,
         "capacity_bytes": None if slot is None else slot * particles * cfg.capacity_factor,
@@ -275,6 +280,7 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         f"Mach numbers on v_sh={sh['v_sh']:.5f} c: sonic (ions, sqrt(T/m_i)) {info['mach_sonic_i']:.1f}, "
         f"electron sonic {info['mach_sonic_e']:.2f}",
         (f"wall at x-, {p.face} face at x+ (npml {cfg.npml}); shock at {x_shock:.0f} d_i at t_end (MHD reading)"
+         if shock else f"open x-, {p.face} face at x+ (npml {cfg.npml}); flow-through control, no shock"
          if p.wall else "periodic box, no shock (N1)"),
         f"grid {cfg.n_cells} ({p.lx:g} d_i), dx={dx:g}, dt={dt:g}, {n_steps} steps to "
         f"{info['omega_ci_t_end']:.1f} / Omega_ci; filter {cfg.current_filter.passes} passes"
