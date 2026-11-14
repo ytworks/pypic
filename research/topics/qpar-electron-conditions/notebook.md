@@ -3,6 +3,169 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-15 — Third review applied: V1's open values fixed; pass criteria of the 40 / Ω_ci control fixed before it is read
+
+Third review by `research-reviewer` (the step-4 entry below, the README's "not yet fixed" items, the design of
+V1). The owner's order for reviews is to adopt the recommendations; where a review gives none, the approved plan
+stays and the limit is named. This entry is written while the recorded flow-through control
+(`configs/pilot-through.yaml`, commit 5bf6998, started 04:08 JST) is still running. Of that run only the
+progress line of step 100,000 has been read (step time and dE/E0); no field of it has been looked at.
+
+### New facts (they are the reasons for the changes below)
+1. The published spectra of run B1 are at t = 225 and 275 ω_ci⁻¹ (`gupta2024electron`, Figs. 1 and 3;
+   `gupta2025speed`, "measured at 275 ω_ci⁻¹"). V1 ends at 150. The README's "at the published time" names no
+   time that V1 reaches.
+2. V1 has 50 ω_ci⁻¹ (t = 100–150) in which the fixed downstream region below is clear of the wall. The README's
+   "≥ 5 time blocks of ≥ 20 ω_ci⁻¹" does not fit into it.
+3. `gupta2024electron` takes η_nt,e "over a region of 1000 d_i immediately downstream". With the downstream
+   growing by M_A/4 d_i per ω_ci⁻¹ that region does not exist before t = 200 in B1, and never in the M_A 5 runs
+   (375 d_i at t = 300). The region those runs used is not stated.
+4. `gupta2025speed` (text below its Fig. 3; read by me): the non-thermal electron tail is seen above
+   p_th,e ≈ 3 √(m_e/m_i) m_i v_pt, and the measurable fraction is η_e ≡ η_inj(p ≥ p_th,e) ~ 0.002 at m_R 100.
+   A published number with a fixed threshold exists.
+5. `gupta2025speed`, Fig. 7 (viewed by me; values read off a logarithmic axis, about ±10 %): the axis is
+   D_e(p) in units of D_B0,e(p̃ = 1), so the momentum of the figure is p = m_i v_pt. Snapshot t = 135 ω_ci⁻¹,
+   tracking time up to 20 ω_ci⁻¹, eight positions x̃ = x − x_sh:
+
+   | x̃ / (M_A d_i) | −17.5 | −12.5 | −7.5 | −2.5 | +2.5 | +7.5 | +12.5 | +17.5 |
+   |---|---|---|---|---|---|---|---|---|
+   | D_e / D_B0 | 0.28 | 0.12 | 0.078 | 0.042 | 0.55 | 0.72 | 0.9 | 4.2 (still rising) |
+
+   The text's "D_1,e ≈ 0.6 D_B0" and "D_2,e ≈ D_1,e/10" are the ±2.5 positions (ratio 0.076).
+6. `gupta2025speed`, Fig. 8 (viewed by me): the time-averaged D_e(p̃ = 1) of M_A 20 is about 1.4 D_B0 at +2.5
+   M_A d_i and 0.1 at −2.5; the shaded band of its variation over t = 100–275 at +2.5 spans about 0.2–4. The
+   time average is about 2.5 times the t = 135 value, not 1.7 as the README says (1.7 came from the text's
+   "0.6–1"), and the variation in time is wider than the README's band [0.3, 1.2].
+7. `gupta2025speed`, appendix B: the test electrons see the field through a second-order shape function;
+   `diffusion.py` interpolates linearly. Its domain is x_0 ± L with 2L comparable to
+   D_B(p)/v_sh = p̃² m_R/(γ M_A) d_i, mirrored to 4L; "D_e,1,2" of its Fig. 8(b) are "a region around
+   x = x_sh ± 2.5 M_A d_i".
+8. p_th of `gupta2024electron` is √(2 m k_B T), and its p⁴f of a Maxwellian peaks at √2 p_th (checked by me).
+9. The depth scans of the step-4 entry set `npml` for the whole grid: the layers of both open faces changed
+   together (`SimConfig.npml` is one number).
+10. N7 has a record: `runs/2026-11-15-n7-synthetic.md` (commit a24847d). Nine rows inside 0.1–10 D_B deviate
+    by at most 1.6 % from the known value (criterion 10 %); the ballistic control gives no value.
+
+### Adopted from the review
+- **Second definition of the injection rate (measured quantity 2):**
+  φ_e ≡ 4π p_ref³ f_2(p_ref) / n_2 at the fixed momentum p_ref = 6 √(m_e/m_i) m_i v_pt (0.60 m_i v_pt at mass
+  ratio 100, 0.14 at 1836), f averaged over ±0.1 dex, in the same region and at the same time as η_nt,e. For a
+  power law of index q, φ_e = (q − 3) η (p_ref/p_0)^(3−q).
+  - Third number, reported beside the two: the fixed-threshold fraction η_e of fact 4 (p ≥ 3 √(m_e/m_i) m_i v_pt).
+  - Decision rule: a difference between two runs counts only if η_nt,e and φ_e agree in sign and each exceeds
+    2 σ_pt.
+  - Limits: φ_e is valid only where its bins hold ≥ 100 counts and ≥ 5 times the N1 floor. No published φ_e
+    exists: it compares our runs with each other, not with Gupta's.
+  - Alternatives the review rejects: a Maxwellian-plus-kappa split, the fraction of tracked electrons with a
+    cycle, an extrapolation to p_inj.
+- **Downstream region D_fix** = [x_sh − 15 M_A d_i, x_sh − 2.5 M_A d_i] (V1: 50–300 d_i behind the shock;
+  P0: 19–113 d_i).
+  - Used only when the wall is ≥ 10 M_A d_i behind its far edge, i.e. from t = 100 ω_ci⁻¹ on. N12 holds in
+    addition.
+  - Comparison value: the last block before t = 150 ω_ci⁻¹; η(t) from t = 100 is shown.
+  - p_th,e: (momentum of the peak of p⁴f in D_fix) / √2, the same estimator in every run (fact 8).
+  - Sensitivity, fixed in advance: the same numbers in [x_sh − 15, x_sh] M_A d_i and in the two halves of
+    D_fix. A spread above 30 % is stated as the error of the definition.
+  - Limits: D_fix is not the region of `gupta2024electron` (fact 3); the factor ≲ 2 between frames.
+- **σ_pt in V1:** five blocks of 10 ω_ci⁻¹ over t = 100–150, with a linear trend removed (fact 2). The other
+  runs keep the README's rule.
+- **Box, particles, seeds of V1:** L_box ≥ x_sh(t_end) + k λ_max(t_end) with k ≥ 3 and
+  λ_max = D_1(p_max)/v_sh = M_A t̃ / [4 (1 + 4 D_2/D_1)] d_i. For V1 λ_max = 536 d_i and x_sh = 750 d_i, so
+  L ≥ 2360 d_i. V1 keeps 2700 d_i (k = 3.6; 1350 d_i would be k = 1.1), 2000 particles per column, and has no
+  seed species. The same rule gives about 1500 d_i for P0.
+  - In place of N6 for V1 (a box of twice the length cannot be run to the end): at t = 100, 125 and 150,
+    (a) the energy of the particles with p ≥ p_0 that left through x+ against the non-thermal energy in the
+    box, limit ≤ 5 %; (b) δB_⊥ in the last 200 d_i before the absorbing layer, limit ≤ 2 times the N1 level.
+  - Limits: k = 3 is the reviewer's choice; the free-escape estimate behind it was not checked against a
+    source.
+- **Early stop of V1 at t = 20 ω_ci⁻¹:** the mean shock speed over t = 10–20 within ±10 % of v_pt/3 and the
+  compression within 3.6–4.4. Otherwise the run stops and the numbers are reported.
+- **Slope criterion of V1 (fact 1):** q within ±0.3 of 4 at t = 150 ω_ci⁻¹ (last block, D_fix), fitted over
+  the fixed window [0.6, 2.4] m_i v_pt (p_max,e(150) ≈ 4.8 m_i v_pt from Eq. 3 of `gupta2025speed`). It is a
+  test against the DSA value 4, not against a published number. A comparison at t = 225 would need about
+  3500 d_i and 13 days.
+- **Upstream field during V1:** Q = (⟨B_y⟩/B_0y) / (⟨n⟩/n_0) in an outer zone, 5 to 200 d_i inside the
+  absorbing layer, in blocks of 5 Ω_ci⁻¹: |Q − 1| ≤ 0.05 up to t = 150. ⟨E_z⟩ against v_x ⟨B_y⟩ is reported
+  for the same zone. Reason for 5 %: it changes θ_Bn by 1.2° and M_A by −1.3 %. A block outside is reported
+  with its time, and the results from that time on are labelled as outside the tolerance.
+
+### Pass criteria of the flow-through control, fixed before its fields are read
+V1 starts only if all of the following pass.
+1. **Field (the review's criterion):** in the zone 30–37 d_i, the slope of ⟨B_y⟩/B_0y over t = 4–40 Ω_ci⁻¹
+   (straight-line fit over the outputs), plus two standard errors, is ≤ 3.3 × 10⁻⁴ per Ω_ci⁻¹ (5 % in 150);
+   and the slopes of the two halves (t = 4–22, 22–40) agree within two standard errors (of the difference).
+2. **Analysis A, the incoming electrons:** in a slab ≥ 10 d_i from the face, in the frame of the flow: T_∥ and
+   T_⊥ within 2 % of the loaded values; the fractions of electrons above 2, 3 and 4 v_th,e within 3σ of the
+   counting error of the loaded distribution's fractions.
+3. **Analysis B, the drift:** the mean electron–ion drift in that slab, each of the three components, at most
+   0.2 % of n_0 v_0 in magnitude; its standard error is given.
+4. δB_⊥ in the slab is reported against the N1 level (no threshold from the review).
+
+How 2–4 are measured (own specification; the review gives the thresholds, not the procedure):
+- Fact: the control writes the moments along x and histograms in (x, |u|). T_∥, T_⊥ and a tail in the flow
+  frame cannot be taken from them. So a second flow-through run is made with one more diagnostic, a
+  histogram of the electrons in (u_x, u_y, u_z) in the slab 20–30 d_i (64 bins per axis over ±6.4 √θ_e
+  around the loaded drift, 40 outputs). It is otherwise `pilot-through.yaml`, with another seed, which also
+  gives the control's slope a second realisation (the review's limit: the residuals at 96 and 192 cells share
+  one seed). Criterion 1 is applied to each of the two runs on its own.
+- T_∥ and T_⊥: the second moments of the histogram about its mean, along B (30° from x in the x-y plane) and
+  the mean of the two directions across it, each relative to the first output (the loaded plasma in the same
+  bins; this removes the binning term). Outputs t ≥ 4.
+- Fractions: the share of the histogram with |u − u_drift| > k √θ_e (bin centres, loaded drift), k = 2, 3, 4,
+  pooled over the outputs t ≥ 4, against the same share in the first output; σ from the counts of both.
+- Drift: (flux_e − flux_i)/(n_0 v_0) per component from the lineouts, mean over the slab and over the outputs
+  t ≥ 4; standard error from the scatter between outputs.
+- δB_⊥: rms over the slab of B_y − ⟨B_y⟩ and of B_z, in units of B_0, mean over the outputs t ≥ 4; the same
+  number from the periodic N1 run of 150 / Ω_ci beside it.
+
+Limits of the control, from the review:
+- It has no wall and no shock; it tests the faces and the flow, not the upstream of a shock.
+- Its rate holds for V1's plasma, mass ratio and time step only. Every other plasma needs its own control; at
+  M_se ≲ 1 (V2, P0, E) the face rule needs its own flow-through pilot before the run.
+- The face is an energy sink but not a particle sink for energetic electrons (PIC-D13 returns a neutraliser
+  with a momentum drawn from the inward flux of the loaded plasma). Electrons that escape far upstream therefore cannot be compared with Fig. 1(d2) of
+  `gupta2024electron`. The energy of the returned electrons is recorded against time in V1.
+
+### Kept as planned (no recommendation from the review; limits named)
+- **V1's D_e criterion:** the band stays, D_1,e in [0.3, 1.2] D_B0 and D_2/D_1 in [0.05, 0.2] at
+  t = 135 ω_ci⁻¹ and p = m_i v_pt. Specified now (own, from facts 5 and 7): D_1 is the value at
+  x̃ = +2.5 M_A d_i and D_2 the value at −2.5 M_A d_i, each in a domain of 2L = 200 d_i (p̃² m_R/(γ M_A) d_i at
+  p̃ = 1) centred there. The other six positions of fact 5 are reported against the figure's values.
+  - Limits: the published values are read off a figure; the band is around one snapshot of one realisation,
+    while the published variation in time is wider than the band (fact 6), so a value outside the band at
+    t = 135 is not by itself separable from that variation. For that case D_1 and D_2 are also reported at the
+    outputs over t = 100–150 against the figure's band (0.2–4 at +2.5 M_A d_i). Linear against second-order
+    interpolation of the fields (fact 7): not tested.
+- **V2's criteria** stand. No operational definition of p_max is fixed yet; it is fixed before V2.
+- **N9:** its "1.7 time spread" is fact 6's 2.5 at +2.5 M_A d_i; the factor 1.5 stays.
+
+### Corrections to the step-4 entry below (2026-11-15, second part)
+1. "the absorbing layer of the x+ face" / "the depth of the absorbing layer": the scans changed the layers of
+   both open faces together (fact 9). What follows the depth is the rise with the layers of the open faces;
+   which face matters was not separated.
+2. "about npml⁻⁴" is replaced by the measured rates, in B_0y per Ω_ci⁻¹ (unit of the tables below: B_y/B_0y − 1
+   per 1/Ω_ci): 12 cells +0.308; 24 cells +0.019; 48 cells +0.0010; 96 and 192 cells within ±0.0003. Three
+   points and two bounds do not fix a power law. The residuals at 96 and 192 cells come from one seed.
+3. "So they come from the shock side": that is one reading. B_z and the electron heating at the face appear
+   only with the wall and later in the longer box; the transient of the wall's start reaching the face is not
+   excluded by these runs (no run separates it from the shock).
+4. The cost table uses the line fitted to a uniform plasma for a rank filled at compression 4. It is an
+   estimate until a run with a shock is timed.
+5. div B reached 7.5 × 10⁻¹³ after 5 × 10⁶ steps in the periodic box; the contract is 10⁻¹². The margin is a
+   factor 1.3 at V1's number of steps, in a configuration without faces, wall or shock. V1's record gives the
+   largest div B.
+
+### Not adopted, not checked, still missing
+- Not located in the source by me: the review's "n_nt v_nt = 2 × 10⁻³ n_0 c (appendix A)" of
+  `gupta2024electron`. It enters no criterion.
+- Still missing after the review: the law by which Gupta's box recedes and its upstream length at
+  t = 135–150; the region used for η_nt,e in the M_A 5 runs (fact 3); a source for the free-escape estimate
+  behind k = 3; the face rule at M_se ≲ 1; the single T_e of P0 and the B of H1b at Saturn (unchanged);
+  whether the wall's transient reaches the face within the first crossing time (correction 3).
+- V1's cost: 6.6 days on 8 GPUs as configured (table of the step-4 entry; an estimate, correction 4). The
+  plan's 0.9 d and the README's 1.8 d are replaced by it.
+- V1's diagnostics (cadences, the escape record of (a), tracks) are set in a later entry before the start.
+
 ## 2026-11-15 — Step 4, second part: pilots on the merged engine; paired face, absorbing layer of 192 cells
 
 Step 4 of the plan, after the engine change. Unless noted, the runs of this entry are scratch runs (diagnostic,

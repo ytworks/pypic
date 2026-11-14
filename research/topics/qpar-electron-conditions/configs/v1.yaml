@@ -1,6 +1,6 @@
 # V1: run B1 of gupta2024electron (M_A 20, M_s 40, mass ratio 100, theta_Bn 30 deg, v_pt 0.1 c, beta 1),
 # 200 particles per cell per species over 5 cells in the source = 2000 per column here (2 x 2 cells, 250).
-# lx is not fixed yet: the step-4 pilot sets it from the measured timings.
+# lx 2700 d_i: at least x_sh(150) + 3 lambda_max = 2360 d_i (README, Approach; notebook 2026-11-15, third review).
 mass_ratio: 100
 v0: 0.1
 mach_alfven: 20

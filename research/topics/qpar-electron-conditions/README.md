@@ -215,6 +215,7 @@ age of the PSP shock (Approach), so every transferred value is stated for the ru
 ## Approach
 Criteria, thresholds and null tests below are fixed since 2026-11-14: they are the proposals of the second review,
 approved by the owner. They hold for every production run. A change needs a new fact, named first in `notebook.md`.
+Values marked "(third review, 2026-11-15)" were fixed on that date, before V1; their facts are in that notebook entry.
 Where the review required an item to be settled but gave no value, the item is marked "not yet fixed" with the
 facts, and is fixed before the first run that needs it.
 
@@ -243,10 +244,21 @@ facts, and is fixed before the first run that needs it.
      - The fact behind the change from the plan's definition (the share passing p_inj, the momentum at which an
        electron outruns the shock, after `gupta2025speed` (S)): at the events' M_se thermal electrons already pass
        that momentum, so the share does not measure injection.
-     - Not yet fixed: the review asks for a second definition beside the first and names none. It also asks for a
-       fixed downstream region shorter than the 1000 d_i "at late times" of `gupta2024electron` (S) and gives no
-       length; the downstream grows by M_A/4 d_i per ω_ci⁻¹ and reaches 750 d_i in V1 (t = 150) and 375 d_i in P0
-       (t = 200). Both are fixed before V1.
+     - Second definition (third review, 2026-11-15): φ_e ≡ 4π p_ref³ f_2(p_ref) / n_2 at the fixed momentum
+       p_ref = 6 √(m_e/m_i) m_i v_pt, f averaged over ±0.1 dex. Valid only where its bins hold ≥ 100 counts and
+       ≥ 5 times the N1 floor. No published φ_e exists: it compares our runs with each other.
+     - Third number, reported beside the two: the fixed-threshold fraction η_e(p ≥ 3 √(m_e/m_i) m_i v_pt) of
+       `gupta2025speed` (S).
+     - Decision rule: a difference between two runs counts only if η_nt,e and φ_e agree in sign and each exceeds
+       2 σ_pt.
+     - Downstream region (third review, 2026-11-15): D_fix = [x_sh − 15 M_A d_i, x_sh − 2.5 M_A d_i], used only
+       when the wall is ≥ 10 M_A d_i behind its far edge (from t = 100 ω_ci⁻¹ on); the comparison value is the
+       last block before t = 150 ω_ci⁻¹, and η(t) from t = 100 is shown. p_th,e = (momentum of the peak of p⁴f in
+       D_fix) / √2 in every run.
+     - Sensitivity, fixed in advance: the same numbers in [x_sh − 15, x_sh] M_A d_i and in the two halves of
+       D_fix; a spread above 30 % is stated as the error of the definition.
+     - Limit: D_fix is not the region of `gupta2024electron` (S). Its "1000 d_i" does not exist before t = 200 in
+       B1 and never in its M_A 5 runs; the region those runs used is not stated.
   3. D̃_e(x, p̃) by the method of `gupta2025speed` (S), appendix B (test electrons in saved fields), as a function of
      the distance from the shock up to the end of the box; independently from the tracked PIC electrons; with and
      without the wave electric field.
@@ -257,11 +269,12 @@ facts, and is fixed before the first run that needs it.
 - **Topic code (no engine change):** the D̃_e measurement; a transport model taking D̃(x, p̃) and the injection rate,
   with time, size (free-escape boundary) and compression, giving the spectrum j(E, t) as an intensity against each
   instrument's background; the comparison table.
-- **Runs** (cost estimates for 8 GPUs, to be replaced by pilot timings; read them with a factor 1.5-2):
+- **Runs** (cost estimates for 8 GPUs from the cost formula below, read with a factor 1.5-2; V1's is from the
+  step-4 timings):
 
   | Stage | Run | Conditions | Purpose | ω_ci t | Estimate |
   |---|---|---|---|---|---|
-  | 1 | V1 | Gupta B1: M_A 20, mass ratio 100, θ 30°, v_pt 0.1 c, 2000 particles per column | reproduce slope, p_max(t), D_e at t = 135; fix conventions | 150 | 1.8 d |
+  | 1 | V1 | Gupta B1: M_A 20, mass ratio 100, θ 30°, v_pt 0.1 c, 2000 particles per column | reproduce slope, p_max(t), D_e at t = 135; fix conventions | 150 | 6.6 d |
   | 1 | V2 | Gupta B2_II: M_A 5, mass ratio 1836, β 0.06 | reproduce the stall at low M_A | 150 | 1.0 d |
   | 2 | P0 | PSP: M_A 7.5, β_i 0.2, one T_e in 20-40 eV (not yet fixed), θ 8°, mass ratio 1836, v_sh 0.133 c, seeds | injection, D̃_e, δB/B against data | 200 | 4.1 d |
   | 2 | P0b | P0, another random seed | scatter | 100 | 1.0 d |
@@ -277,8 +290,13 @@ facts, and is fixed before the first run that needs it.
   | 3 | X | P0 in 2-D (width and time from the pilot) | injection and D̃_e (p̃ ≪ 1) against 1-D | 30-60 | 7-26 d |
 
   Cost formula (ours, reproduced by the reviewer): particle-steps ≈ 180 N_x (m_i/m_e) M_A² (ω_ci t)² / (v_sh/c),
-  at ~1.6 × 10¹⁰ particle-steps/s, for ~1000 particles per column; V1 is twice the plan's 0.9 d because the cost is
-  linear in the particle number. Stage 3 may shrink or change after stage 2; each stage ends with a review. A run
+  at ~1.6 × 10¹⁰ particle-steps/s, for ~1000 particles per column. V1's 6.6 d is not from this formula: it is from
+  the step times measured in step 4 on V1's box (2700 d_i, 2000 particles per column; `notebook.md`, 2026-11-15),
+  with a line fitted to a uniform plasma used for the compressed rank, so it is an estimate until a run with a
+  shock is timed. The formula gave 1.8 d for V1; the other rows have not been re-estimated from the timings.
+  V1's box (third review, 2026-11-15): L_box ≥ x_sh(t_end) + k λ_max(t_end), k ≥ 3,
+  λ_max = M_A t̃ / [4 (1 + 4 D_2/D_1)] d_i; that is ≥ 2360 d_i, and V1 keeps 2700 d_i (k = 3.6), 2000 particles per
+  column, no seed species. k = 3 is the reviewer's choice, not checked against a source. Stage 3 may shrink or change after stage 2; each stage ends with a review. A run
   of the PSP case at M_A 9-10 is not in the list; whether it is added is decided after P0.
 - **Out of reach, stated:** the real v_sh/c (PSP 0.008; Earth 0.0013-0.0020; Saturn 0.0015); the real length of the
   electron precursor; Saturn with mass ratio ≥ 400 at a subluminal speed (Saturn claims are limited to mass ratio
@@ -286,15 +304,28 @@ facts, and is fixed before the first run that needs it.
   and T_e of the event have no source.
 - **Reproduction (V1, V2), fixed.** Conventions (D_B = u r_L, ⟨Δx²⟩/t) are fixed in V1. No further stage until a
   deviation is explained.
-  - V1 slope: q within ±0.3 of 4, fitted over [2 p_0,e, p_max/2] at the published time. ±0.3 is a factor 2 in f per
-    decade and can fail; the slope 4 holds only for M_A ≳ 10.
+  - V1 slope: q within ±0.3 of 4 at t = 150 ω_ci⁻¹ (last block, D_fix), fitted over the fixed window
+    [0.6, 2.4] m_i v_pt (third review, 2026-11-15). ±0.3 is a factor 2 in f per decade and can fail; the slope 4
+    holds only for M_A ≳ 10. It is a test against the DSA value, not against a published number: the published
+    spectra of B1 are at t = 225 and 275 ω_ci⁻¹, which V1 does not reach.
+  - V1 early stop: at t = 20 ω_ci⁻¹ the mean shock speed over t = 10-20 is within ±10 % of v_pt/3 and the
+    compression within 3.6-4.4; otherwise the run stops and the numbers are reported.
   - V1 D_e: D_1,e in [0.3, 1.2] D_B0 at t = 135 ω_ci⁻¹ and p = m_i v_pt; D_2/D_1 in [0.05, 0.2]. That is a factor
-    2 around the published 0.6 and 0.1; the published D_1,e itself differs by 1.7 between t = 135 and the time
-    average, and a looser band would not exceed that spread.
+    2 around the published 0.6 and 0.1. D_1 is the value at x_sh + 2.5 M_A d_i and D_2 the value at
+    x_sh − 2.5 M_A d_i (Fig. 7 of `gupta2025speed` (S): 0.55 and 0.042 D_B0, read off the figure), each in a domain
+    of 200 d_i; the other six positions of that figure are reported against its values.
+    - Limit: the published time average at +2.5 M_A d_i is about 1.4 D_B0, 2.5 times the t = 135 value, and the
+      published variation over t = 100-275 spans about 0.2-4 (its Fig. 8; the "1.7" written here before came from
+      the text's "0.6-1"). A value outside the band at t = 135 is therefore not by itself separable from that
+      variation; D_1 and D_2 are also reported over t = 100-150 against the figure's band.
+    - Limit: `gupta2025speed` (S) interpolates the fields with a second-order shape, `diffusion.py` linearly.
+      Not tested.
   - V2: no slope criterion, because there is no power law at M_A 5. p_max within a factor 2 of 0.8 m_i v_pt at
-    100-150 ω_ci⁻¹; η_nt,e within a factor 2 of the published value.
+    100-150 ω_ci⁻¹; η_nt,e within a factor 2 of the published value. The operational definition of p_max is
+    not yet fixed; it is fixed before V2.
 - **Scatter σ_pt:** the scatter of one measured point. It is taken from the seed pair (P0, P0b) and from ≥ 5 time
-  blocks of ≥ 20 ω_ci⁻¹. Neither Gupta paper states a seed scatter; with ~10⁵ tail electrons the counting error is
+  blocks of ≥ 20 ω_ci⁻¹. In V1 (third review, 2026-11-15): five blocks of 10 ω_ci⁻¹ over t = 100-150 with a linear
+  trend removed, because D_fix is clear of the wall only in those 50 ω_ci⁻¹. Neither Gupta paper states a seed scatter; with ~10⁵ tail electrons the counting error is
   negligible, so realisation and time variation dominate.
 - **Null tests, fixed:**
   - N1 numerical heating: a uniform flow without a shock for the same time gives the detection floor. It is run at
@@ -311,7 +342,14 @@ facts, and is fixed before the first run that needs it.
       "decided" only if its margin exceeds twice that; otherwise it is reported as "not decided".
     - Limit: with three points a pure power law is an assumption with one degree of freedom.
   - N5 mass ratio: one set at fixed electron sonic Mach number, one at fixed β_e (`shalaby2024energy`).
-  - N6 boundary: twice the box length (short). Change ≤ 2σ_pt.
+  - N6 boundary: twice the box length (short). Change ≤ 2σ_pt. In V1 a box of twice the length cannot be run
+    to the end; in its place (third review, 2026-11-15), at t = 100, 125 and 150: the energy of the particles
+    with p ≥ p_0 that left through x+ is ≤ 5 % of the non-thermal energy in the box, and δB_⊥ in the last
+    200 d_i before the absorbing layer is ≤ 2 times the N1 level.
+  - Upstream field in V1 (third review, 2026-11-15): Q = (⟨B_y⟩/B_0y) / (⟨n⟩/n_0) in the zone 5 to 200 d_i
+    inside the absorbing layer, blocks of 5 Ω_ci⁻¹: |Q − 1| ≤ 0.05 up to t = 150 (5 % is 1.2° in θ_Bn and
+    −1.3 % in M_A). V1 starts only after the flow-through control passes its criteria (`notebook.md`,
+    2026-11-15, third review).
   - N7 method: the measurement code on synthetic fields recovers a known D within 10 % over 0.1-10 D_B; the
     log-slope of ⟨Δx²⟩ is within 1 ± 0.1 over a factor 3 in time, and intervals outside that are not used. The
     statistical error is ~√(2/N), about 1.4 % for 10⁴ electrons.
@@ -364,7 +402,9 @@ facts, and is fixed before the first run that needs it.
   - 1-D and 2-D injection rates differ strongly (as defined above): the 1-D transport results are bounds only.
 
 ## Claims and evidence
-No records yet. Everything below is a hypothesis.
+No claim has a record yet. Everything below is a hypothesis. Records so far are of null tests and pilots:
+N7 passes on synthetic fields (`runs/2026-11-15-n7-synthetic.md`: nine rows within 0.1-10 D_B deviate by at
+most 1.6 %, criterion 10 %; the ballistic control returns no value).
 
 - (hypothesis) The injection rate and D̃_e(x, p̃) at the PSP conditions differ from the M_A 5 and M_A 20 values of
   `gupta2025speed` (S) by more than the run-to-run scatter. Records: none. Planned: V1, V2, P0, P0b.
@@ -381,7 +421,7 @@ Open. Proposal in the plan: a peer-reviewed journal where the direct predecessor
 The owner decides.
 
 ## Status
-Snapshot of 2026-11-14.
+Snapshot of 2026-11-15.
 
 - Done: theme and question (owner); plan approved (owner) after one review; the survey (step 1); the literature notes
   (37 new notes, all dated 2026-11-14); this README.
@@ -397,9 +437,11 @@ Snapshot of 2026-11-14.
 - Second review by `research-reviewer` (README, `inputs.md`, plan): done. The owner approved its recommendations on
   2026-11-14. Applied: its nine corrections to `inputs.md`, each checked in its source; its thresholds and added
   null tests (Approach); the narrower wording of the novelty.
-- Not yet fixed, to be fixed before the first run that needs them (the review requires them and gives no value):
-  the second definition of the injection rate and the length of its downstream region (before V1); the single T_e
-  of P0 (before P0); which B enters H1b at Saturn (before the confrontation).
+- Third review (2026-11-15) applied: the second definition of the injection rate, the downstream region, V1's
+  box, slope time, early stop and upstream-field tolerance are fixed (Approach; `notebook.md`).
+- Not yet fixed, to be fixed before the first run that needs them: the operational definition of p_max (before
+  V2); the face rule at M_se ≲ 1 and each plasma's own flow-through control (before V2, P0, E); the single T_e of
+  P0 (before P0); which B enters H1b at Saturn (before the confrontation).
 - Missing: the inputs listed as open in `inputs.md` (instrument backgrounds as intensities; a published connection
   time at Earth; Saturn's density, β_e and speed; T_e at PSP; Mach numbers of the quasi-parallel shocks at 1 au);
   Publication. The review lets these wait until stage 3 or the write-up.
@@ -407,5 +449,8 @@ Snapshot of 2026-11-14.
   `giacalone2025source`, `wilson2025large`, `hemler2025shock`, `mitchell2021energetic`, `bessho2023electron`,
   `gupta2023regulates`, `galishnikova2026self`, `tsurutani1985acceleration`; `bebesi2019observations` only through a
   conference abstract.
-- Next: the engine pilot (step 4), which shares the GPUs with the pilot of `shock-alfvenic-turbulence`; then stage
-  1 (V1, V2).
+- Step 4: the engine change is merged (PR #52) and taken; pilots and N7 are recorded in `runs/`. Open: the
+  flow-through control to 40 / Ω_ci and its companion with velocity histograms; V1 starts only if they pass the
+  criteria fixed in `notebook.md` (2026-11-15, third review).
+- Next: close step 4 with the control; then stage 1 (V1, V2). The GPUs are shared with the pilot of
+  `shock-alfvenic-turbulence`.
