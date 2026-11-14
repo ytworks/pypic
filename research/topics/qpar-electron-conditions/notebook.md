@@ -3,6 +3,66 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-15 — Step 4: the dumps of N12 and N6 (a) on a real run; the Gauss / div B samples of three runs; div B grows with the step count
+
+Records: `runs/2026-11-15-pilot-dumps.md` (run d74ba7c, analysis 0c62c11), `runs/2026-11-15-n12-n6-synthetic.md`,
+`runs/2026-11-15-pilot-piston-t10.md`. The two flow-through controls are still running; none of their outputs has
+been read.
+
+### What was run and seen
+- `pilot-dumps` (V1's plasma, 60 d_i, 6 / Ω_ci, one GPU, 2649 s): the engine wrote all five kinds of dumps at the
+  planned steps. `n12_n6.py` with scaled arguments ran through: the dump reproduces the histogram counts above
+  p_d,e in D_fix to 1.8e-8 (README check: 1 %); five blocks, no dump missing; all exclusions and the three
+  N6 (a) branches "pass", "not decided", "none" occurred. The numbers are those of a 60 d_i box and say nothing
+  about V1 or about acceleration (limits in the record).
+- A first attempt was stopped by the session's time limit and is not used.
+
+### Details of `n12_n6.py` that the README does not fix (fixed in the code at 90256a3, before any real dump was read)
+- Dump against histogram: compared on the whole momentum bins at and above p_d,e (the bin cut by p_d,e is left
+  out; its logarithmic split is reported beside, and the dump holds 0.962–0.987 of it in the pilot).
+- A block's numbers come from the sum of its outputs; an output is skipped when D_fix is nearer to the wall than
+  `--clear` or leaves the dump's x range, and the count of skipped outputs is reported.
+- Bins that the subtraction of excluded electrons turns negative are kept and counted (pilot: at most 4 bins,
+  each above −1e-5 macro-particles).
+- N6 (a): U_far is taken from the dump nearest to the spectra output; the dump at an output enters the sums with
+  full weight (rectangle rule; the synthetic check gives +0.3 to +0.8 % against the exact integral).
+- N6 (a): a species with nothing above p_0 in the box gets no verdict, and that time then counts as "not a pass"
+  (pilot: ions at t = 3). In V1 this can only happen if a species has no particle above 5 p_th in the whole box
+  at t ≥ 100; it would be reported as such, not as a failed test.
+- Not exercised by any check so far: the rule for p_0,e < p_d,e, and the recomputation of p_0,e when p_th,e
+  changes by more than 2 % under (L) (the pilot's sample at t = 2 flags the change; the block rule was not hit).
+
+### New fact 1: Gauss and div B were sampled only at step 0 in `piston-t10` and will be in both controls
+- The engine evaluates them at steps that are multiples of both `diag_interval` and `gauss_interval`
+  (`pypic/simulation.py`, the history block). `plan.py` set n_steps // 1000 and n_steps // 100. For a step count
+  that is not round the two have a large least common multiple: 333,334 steps → 333 and 3333 → only step 0;
+  1,333,334 steps (both controls) → 1333 and 13,333 → only step 0. V1 (5,000,000) and `pilot-dumps` (200,000)
+  are not affected (101 samples each); `piston-paired` and `piston-pml192` have 10 samples.
+- Consequence: the record of `piston-t10` gives "Gauss max 3.9e-16, div B max 6.9e-17"; these are the values of
+  step 0. Its later values were not measured. A correction line is added to that record. The controls' records
+  will say the same. The controls' pass criteria (entry "281b14a") do not use Gauss or div B.
+- Change: `plan.py` now sets `gauss_interval = 10 * diag_interval`. V1's intervals are unchanged (5000, 50,000).
+
+### New fact 2: div B exceeds the gate number in the pilots with a shock
+- `pilot-dumps`: max |div B| 5.2e-14 at step 20,000, 9.6e-13 at 100,000, 1.8e-12 at 180,000 (largest 2.0e-12);
+  above 1e-12 from step 124,000. Gauss 6.2e-14 at most (gate number 1e-10).
+- Same plasma without a shock (`n1-full`, periodic, 5,000,000 steps): 3.5e-13 at 1.25 M steps, 7.3e-13 at
+  4.95 M (ratio 2.1 for 4 times the steps). With a shock: 5.6e-13 at step 65,934 (`piston-paired`,
+  `piston-pml192`).
+- The gate criterion `max|div B| ≤ 1e-12` (numerics-invariants) is checked by the gate cases; a run of the
+  topic is not a gate case. Relative size here: 2.0e-12 × dx / B_0 = 3e-12.
+- Readings, not separated: (a) round-off of the field update, accumulating as a random walk and larger where
+  the fields are larger (behind the shock |B| is several B_0; own estimate of that walk for 200,000 steps:
+  about 1e-12, same order); (b) a contribution of the wall, the face or the absorbing layer. The position of
+  the maximum was not measured. Against (a) alone: between steps 100,000 and 180,000 the growth is nearer to
+  linear than to a square root, while the shocked region also grows.
+- V1 has 5,000,000 steps: its div B is not known (a square root from the pilot gives about 1e-11, a linear law
+  about 5e-11). It will be reported in V1's record beside the gate number, with the history. No criterion of
+  the README uses div B; none is added.
+
+### Sizes
+- 29–32 bytes per dumped particle. V1's dumps: 1.6 GB (`origin_e`) and 6 GB (`wall_e`) with the pilot's shares,
+  at most about 150 + 160 + 330 GB if every particle of every zone passed the threshold; 2.5 TB are free.
 ## 2026-11-15 — V1's diagnostics: N12 and N6 (a) get forms that the engine can record (fourth review); a formula of the third-review entry corrected
 
 Nothing of V1 has run. The two flow-through controls and `piston-t10` are still running; none of their outputs

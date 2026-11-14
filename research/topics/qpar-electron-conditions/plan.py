@@ -299,11 +299,12 @@ def plan_topic(p: TopicParams, n_gpus: int = 1):
         dims = auto_dims(n_gpus, (nx, p.ny, p.nz))
     except ValueError:
         dims = None
+    diag = max(1, n_steps // 1000)  # the engine evaluates Gauss and div B only at steps that are multiples of both
     cfg = SimConfig(
         n_cells=(nx, p.ny, p.nz), dx=(dx,) * 3, dt=dt, n_steps=n_steps, species=sp, ppc=p.ppc, seed=p.seed,
         dims=dims, boundaries=bc, npml=p.npml, precision=p.precision,
         current_filter=CurrentFilter(p.filter_passes, p.filter_compensate), capacity_factor=capacity,
-        diag_interval=max(1, n_steps // 1000), gauss_interval=max(1, n_steps // 100), sort_interval=50,
+        diag_interval=diag, gauss_interval=10 * diag, sort_interval=50,
         checkpoint=Checkpoint(every=p.checkpoint_every),
         output=OutputConfig(diagnostics=diags, timescales={"ion_gyration": 2.0 * math.pi / omega_ci}), **fields)
     if p.overrides:

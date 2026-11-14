@@ -20,6 +20,10 @@ of the verdicts is V1's.
 ## Numbers (from the two JSON files)
 
 - Wall time 5685.9 s, 17.1 ms/step, 0.55 ns per particle and step. Gauss max 3.9e-16, div B max 6.9e-17.
+- Correction (added later on 2026-11-15): the two maxima above are the values of step 0. With 333,334 steps the
+  run's two diagnostic intervals (333 and 3333) have no common multiple inside the run, and the engine evaluates
+  Gauss and div B only at such steps. The later values of this run were not measured (notebook, entry of
+  2026-11-15 on the Gauss / div B samples).
 - Particles 12.00 M -> 30.74 M; 23.77 M entered through the face; largest fill of the storage 0.590.
 - Shock (largest x with n_i > 2, mean over 0.5 d_i), per 1 / Omega_ci:
   0, 12.77, 19.95, 19.52, 23.28, 26.41, 22.44, 29.01, 31.6, 30.43, 33.85 d_i.
