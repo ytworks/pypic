@@ -3,6 +3,299 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-15 — Step 4, second part: pilots on the merged engine; paired face, absorbing layer of 192 cells
+
+Step 4 of the plan, after the engine change. Unless noted, the runs of this entry are scratch runs (diagnostic,
+not recorded in `runs/`): 1 GPU, V1's plasma (`configs/pilot-piston.yaml`: M_A 20, mass ratio 100, θ_Bn 30°,
+v0 0.1 c, β_e = β_i = 0.5), 4000×2×2 cells (40 d_i), dx 0.1 d_e, dt 0.045, 32 filter passes, `compact`,
+`npml = 24` (unless the run's line gives another depth), seed 12345, engine tree 68b4926 (`pypic/` identical
+to main 70202df). Outputs:
+`/mnt/nvme/pypic/qpar/pilot/<name>`. Times are in 1/Ω_ci (15,000 ω_pe⁻¹ = 33,333 steps), fields in units of
+the loaded B0y and E0z = v0 B0y.
+
+### Engine
+- PR #52 merged on the owner's instruction: main 70202df (`external_fields` with `B0` / `E0`, the refusal of a
+  `B0` normal to a wall, injected test species). Taken into trunk (0df1f2e) and into this topic (d5b2162) with
+  `research-sync-main`. The topic code now runs on the topic branch itself.
+
+### N1 in a short box: the grid does not heat this plasma in 5 / Ω_ci when the current is filtered
+`configs/pilot-n1.yaml`: the same plasma, periodic, 2000×2×2 cells, 2000 particles per column, 166,667 steps.
+T is the moment temperature of `pilot_check.py`, averaged over the box, relative to the first output.
+
+| run | change | ms/step | Gauss | div B | T_e end | T_i end |
+|---|---|---|---|---|---|---|
+| n1-f32 | as configured (32 passes) | 1.55 | 2.7e-15 | 1.0e-13 | 0.99999 | 0.99986 |
+| n1-f4 | 4 passes | 1.49 | 6.0e-15 | 1.1e-13 | 0.99982 | 0.99986 |
+| n1-f0 | no filter | 1.47 | 9.8e-14 | 1.1e-13 | 1.02563 | 1.00148 |
+| n1-f32c | 32 passes + compensator | 1.56 | 3.8e-15 | 1.1e-13 | 0.99990 | 0.99997 |
+| n1-f32-fp64 | precision `fp64` | 1.90 | 7.1e-15 | 1.2e-13 | 0.99991 | 0.99990 |
+| n1-f32-ppc125 | 1000 per column | 0.91 | 2.7e-15 | 1.2e-13 | 0.99995 | 0.99991 |
+
+- Without the filter T_e is 1.2 % up at half time and 2.6 % up at the end (still rising). With 4 or 32 passes
+  every temperature stays within 2e-4 of the loaded one.
+- Share of the electron histogram above u0 + 5 √θ at the end: ≤ 5e-7 in every run (one histogram count); above
+  8 √θ: 0.
+- Limits: 5 / Ω_ci of V1's 150; one seed; a periodic box (no face, no wall, no shock). The full length is below.
+
+### N1 at full length (150 / Ω_ci)
+`n1-full`: `configs/pilot-n1.yaml` with `--set t_end=150` (2000×2×2 cells, periodic, 4.0 M particles, 1 GPU):
+5,000,000 steps in 7699.4 s (1.54 ms/step, 0.385 ns per particle and step), output 18 MB. A diagnostic pilot
+like the others of this entry, not a clean-tree record. `pilot_check` summary: scratch `n1-full.json`.
+
+- Gauss max 1.8e-14, div B max 7.5e-13, dE/E0 −2.6e-7.
+- T_e / first output at t = 0, 15, …, 150: 1, 0.99995, 0.99991, 0.99986, 0.99990, 0.99994, 0.99992, 0.99998,
+  0.99994, 0.99993, 0.99988.
+- T_i / first output: 1, 1.00004, 1.00009, 0.99998, 0.99999, 0.99986, 0.99983, 0.99985, 0.99987, 0.99983, 0.99985.
+- Share of the histograms above u0 + 5 √θ and above 8 √θ: 0 for electrons and ions, at the start and at the end.
+- The electron kinetic energy stays between 0.99916 and 1.00012 of its first value, without a trend (the mean
+  electron v_x / v0 moves within −0.99982 … −1.00038, the mean E_z within ±1 % of E0z, the mean B_y is constant).
+  The ion kinetic energy stays within 1e-5.
+- div B: 1.0e-13 after 166,667 steps (short box above), 7.5e-13 after 5,000,000. The contract is 1e-12. V1 has
+  the same number of steps. Two points do not give the growth law; a run with more steps may come close to the
+  contract.
+- Limits: one seed; a periodic box (no face, no wall, no shock).
+
+### Measured step times
+- 1 GPU, periodic (N1): 1.55 ms/step for 4.0 M particles (0.39 ns per particle and step), 0.91 ms for 2.0 M.
+- 1 GPU, wall or open faces (the pilots below): 12.5–14.3 ms/step for 4, 6, 8 and 16 M particles at t = 0. The
+  step time of these runs does not follow the particle number; what it follows was not looked at. (One run
+  without the Marder zone ran at 9.7 ms/step.)
+- 8 GPUs, V1's box (270,000×2×2 cells, wall, face, `-n 8`, uniform plasma at t = 0, no seeds):
+  540 M particles (2000 per column) 37.06 ms/step; 2.16 G particles (8000 per column) 136.79 ms/step.
+  Two points give: step ≈ 3.8 ms + 0.493 ns × (particles on one rank).
+- Own estimates for V1 (5.0 × 10⁶ steps) from that line. Assumptions: the wall rank fills at compression 4 behind
+  a shock at the MHD speed; uniform decomposition; no seed species; the line holds for a compressed rank
+  (not measured).
+
+  | V1 variant | days |
+  |---|---|
+  | as configured (2700 d_i, 2000 per column) | 6.6 |
+  | 1000 per column | 3.4 |
+  | box 1350 d_i | 3.7 |
+  | as configured, if the load were balanced | 2.9 |
+
+  The plan has 0.9 days and the entry of 2026-11-14 (second review) 1.8 days. One seed species adds 50 % to the
+  particles. Not decided: the box length, the particles per column, the seeds.
+
+### Observation: with the flux face the tangential field at the face decays from 0.4–0.6 / Ω_ci on
+The planner of eef89a4 used a `flux` face at x+ (the recommendation of PIC-D26 for a wave table). In the piston
+pilot the upstream field was gone at the end: B_y / B0y = −0.005 and E_z / E0z = 0.06 over 22.8–37.0 d_i at
+t = 2, with Gauss 2.1e-14 and div B 5.6e-13 (the conservation contracts hold; they do not see this).
+
+B_y / B0y − 1, mean over the 0.5 d_i next to the face:
+
+| t | piston | thru | thru-ns | wall-ns | wall-80 | wall-pml48 | wall-f0 | wall-m0 | flux-ppc500 | flux-th8 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0.2 | −0.000 | −0.003 | −0.003 | −0.003 | +0.009 | −0.006 | +0.026 | −0.011 | −0.009 | +0.003 |
+| 0.4 | +0.023 | +0.030 | +0.030 | +0.030 | +0.026 | +0.024 | −0.523 | +0.024 | +0.017 | +0.021 |
+| 0.6 | −0.502 | −0.507 | −0.507 | −0.512 | −0.337 | −0.389 | −0.458 | −0.225 | −0.586 | −0.835 |
+| 0.8 | −0.653 | −0.744 | −0.790 | −0.713 | −0.777 | −0.801 | −0.438 | −0.259 | −0.820 | −0.865 |
+| 1.0 | −0.699 | −0.622 | −0.743 | −0.781 | −0.792 | −0.799 | −0.707 | −0.570 | −0.762 | −0.807 |
+| 1.2 | −0.791 | −0.865 | −0.867 | −0.655 | −0.732 | −0.768 | −0.797 | −0.624 | −0.550 | −0.725 |
+
+Runs: `piston` as configured (wall, one seed species); `thru` x− open instead of the wall (no shock);
+`thru-ns` the same without seeds; `wall-ns` wall, no seeds; `wall-80` box 80 d_i; `wall-pml48` absorber 48
+cells; `wall-f0` no current filter; `wall-m0` no Marder zone; `flux-ppc500` four times the particles
+(no seeds); `flux-th8` θ_Bn 8° (no seeds).
+
+In the same zone and the same runs:
+- n_i − n_e rises from 0.001 (t = 0.2) to 0.02–0.09 n0 (t = 1.2): an electron deficit at the face.
+- The electron energy per particle rises from 0.0068 (loaded) to 0.025–0.054.
+- In `piston`, within 0.5 d_e of the face, E_x grows from t ≈ 0.40 on; the front of the changed field moves
+  inward at about the flow speed.
+
+What the table excludes as the cause: the wall and the shock (`thru`), the seed species (`thru-ns`,
+`wall-ns`), the box length (`wall-80`), the absorber depth 24 → 48 (`wall-pml48`), the current filter
+(`wall-f0`; without it the decay starts earlier), the Marder zone (`wall-m0`; without it the decay is slower
+but reaches −0.62), the field angle (`flux-th8`), particle noise at 1000 → 4000 per column (`flux-ppc500`;
+one run).
+
+Readings that remain, none tested further:
+1. The source sheath that PIC-D13 records for a flux face when the flow is supersonic for the electrons
+   (there: u / v_te = 2.5, density 1.51 at the face). Here u / v_te = 3.0. The charge layer and E_x at the face
+   fit this reading; PIC-D13 does not mention a loss of the tangential field.
+2. An interaction of that layer with the incident-field surface of PIC-D26 (the tangential field enters through
+   the face plane; a current layer on it changes what enters). Own thought.
+3. Something specific to this configuration (external B_x together with `B0` / `E0`). The PR #52 test of the
+   oblique piston runs 71 steps, so it does not reach this time.
+
+### The paired face holds the field; B_y at the face rises slowly
+The same pilots with `faces: {x+: paired}`, `neutralizer: e` (the inflow face of a wind in PIC-D13).
+B_y / B0y − 1 in the 0.5 d_i next to the face:
+
+| t | paired | paired-ns | paired-th8 | thru-paired | paired-80 | piston-paired |
+|---|---|---|---|---|---|---|
+| 0.2 | +0.009 | +0.009 | +0.020 | +0.009 | +0.003 | +0.009 |
+| 0.4 | +0.004 | +0.004 | +0.006 | +0.005 | +0.007 | +0.004 |
+| 0.6 | +0.013 | +0.011 | +0.009 | +0.011 | +0.014 | +0.019 |
+| 0.8 | +0.002 | +0.004 | −0.028 | +0.005 | +0.015 | +0.003 |
+| 1.0 | +0.019 | +0.024 | +0.021 | +0.020 | +0.014 | +0.025 |
+| 1.2 | +0.031 | +0.027 | +0.039 | +0.026 | +0.021 | +0.028 |
+
+Runs: `paired` wall and one seed species; `paired-ns` wall, no seeds; `paired-th8` θ_Bn 8°, no seeds;
+`thru-paired` x− open (no wall, no shock), no seeds; `paired-80` wall, box 80 d_i, no seeds; `piston-paired`
+the committed planner (below). The electron energy per particle at the face at t = 1.2 is 0.0071 (loaded 0.0068).
+
+At t = 2, the 0.5 d_i next to the face:
+
+| quantity | paired-ns (wall, 40 d_i) | thru-paired (no wall) | paired-80 (wall, 80 d_i) |
+|---|---|---|---|
+| B_y / B0y − 1 | +0.049 | +0.043 | +0.035 |
+| B_z / B0y | −0.097 | +0.000 | −0.005 |
+| electron energy per particle | 0.0090 | 0.0068 | 0.0069 |
+| n_i − n_e | +0.001 | −0.001 | −0.001 |
+
+- B_y at the face against time (paired-ns / thru-paired / paired-80): 0.6: +0.011 / +0.011 / +0.014;
+  1.0: +0.024 / +0.020 / +0.014; 1.4: +0.030 / +0.024 / +0.022; 1.8: +0.051 / +0.038 / +0.031;
+  2.0: +0.049 / +0.043 / +0.035. At 2–3 d_i from the face at t = 2: +0.059 / +0.036 / +0.038; at 10–11 d_i:
+  +0.031 / +0.022 / +0.017; at 20–21 d_i: (shock) / +0.004 / +0.014.
+- Electron energy per particle at t = 2, 10–11 d_i from the face: 0.0122 / 0.0067 / 0.0071; at 20–21 d_i:
+  0.0366 / 0.0067 / 0.0074.
+- `thru-paired` at t = 2, over the 64 d_e next to the face: B_y / B0y 1.035–1.045, E_z / E0z 0.985–1.031,
+  the electron and ion v_x within 0.7 % and 0.05 % of v0, density 0.976–1.016 n0 in the first cells and
+  1.000–1.001 beyond 8 d_e, electron energy 6.70–6.81e-3.
+
+What these numbers show:
+- B_z and the electron heating at the face appear only with the wall, and later in the longer box. They are
+  absent without a shock. So they come from the shock side (particles or waves of the shock reaching the
+  face), which is the matter of the box length (N6), not of the face rule.
+- The rise of B_y (about +0.02 B0y per 1/Ω_ci up to t = 2, E_z with it, spreading inward) is there without a
+  wall. It belongs to the face side (the paired rule, the incident-field surface or the absorbing layer).
+- These runs end at t = 2 and do not say whether the rise saturates. V1 runs to 150 / Ω_ci. The next section
+  follows the rise to t = 8.
+
+### The rise of B_y follows the depth of the absorbing layer
+Flow-through runs (scratch `thru_paired.py`: x− open, paired face at x+, no wall, no shock, no seeds; 40 d_i
+unless noted; the same seed in all). Slope of B_y / B0y − 1 per 1/Ω_ci (straight-line fit), mean over the
+10 d_i next to the face:
+
+| run | npml | change | fit t = 1–4 | fit t = 1–8 | fit t = 4–8 | last value |
+|---|---|---|---|---|---|---|
+| tp-pml12 | 12 | | +0.3080 | | | +1.128 at t = 4 |
+| tp-long | 24 | | +0.0193 | +0.0189 | +0.0189 | +0.145 at t = 8 |
+| tp-m0 | 24 | no Marder zone | +0.0193 | | | +0.069 at t = 4 |
+| tp-ppc500 | 24 | 4 times the particles | +0.0191 | | | +0.070 at t = 4 |
+| tp-80 | 24 | box 80 d_i | +0.0180 | | | +0.069 at t = 4 |
+| tp48-long | 48 | | +0.0014 | +0.0010 | +0.0010 | +0.0075 at t = 8 |
+| tp96-long | 96 | | +0.0003 | −0.0001 | −0.0001 | −0.0013 at t = 8 |
+| tp192-long | 192 | | +0.0002 | −0.0002 | −0.0001 | −0.0018 at t = 8 |
+
+- The whole box (0–37 d_i from the face), fit over t = 2–8: +0.0189 (24), +0.0010 (48), −0.0001 (96),
+  −0.0002 (192); rms about the fit 0.0003. The zone 30–37 d_i, t = 4–8: +0.0186, +0.0007, −0.0004, −0.0005.
+  The rise is the same over the whole box.
+- E_z / E0z − 1 has the same slopes within its errors (rms about the fit 0.005–0.014): E_z = v0 B_y holds.
+- B_y / B0y − 1 in the 0.5 d_i next to the face at t = 0.62, 1.23, …, 8.00 (13 outputs):
+  - 24: +0.011, +0.021, +0.039, +0.042, +0.059, +0.079, +0.083, +0.100, +0.100, +0.121, +0.124, +0.140, +0.156
+  - 48: +0.000, −0.001, +0.006, −0.002, +0.004, +0.014, +0.006, +0.013, +0.003, +0.011, +0.004, +0.008, +0.014
+  - 96: −0.001, −0.003, +0.004, −0.005, +0.001, +0.010, +0.001, +0.007, −0.003, +0.004, −0.004, −0.000, +0.005
+  - 192: −0.001, −0.003, +0.004, −0.005, −0.000, +0.010, +0.001, +0.007, −0.004, +0.004, −0.005, −0.001, +0.003
+
+  The fluctuations are common to the runs (same seed). Differences from these lists: (48 − 96) grows by about
+  +0.0011 per 1/Ω_ci; (192 − 96) reaches −0.0013 at t = 8.
+- In the four runs to t = 8: B_z within ±0.007 B0y, electron energy per particle 0.0067–0.0068 (loaded
+  0.0068), n_i − n_e within ±0.0016, the same at every depth.
+- Step time: 13.1, 12.8 and 13.1 ms/step with 48, 96 and 192 cells (266,667 steps in 3500, 3423 and 3503 s),
+  as with 24. The depth has no measurable cost.
+
+What the numbers show, and what they do not:
+1. With 24 cells the rise is linear to t = 8 and does not saturate. If it stayed linear it would be about
+   2.8 B0y over V1's 150 / Ω_ci. 24 cells are not usable for V1.
+2. The rate does not depend on the Marder zone, on the particle number (×4) or on the box length (40 → 80 d_i).
+3. The rate depends on the depth: a factor 16 from 12 to 24 cells and a factor 14–19 from 24 to 48, about
+   npml⁻⁴.
+4. With 96 and 192 cells the fitted slopes lie between −0.0002 and +0.0003 per 1/Ω_ci for the 10 d_i next to
+   the face and for the whole box, with either sign depending on the window; in the smaller zone 30–37 d_i over
+   t = 4–8 they are −0.0004 and −0.0005. The errors of these fits were not computed. In 8 / Ω_ci the rate is not
+   distinguished from zero at the level of 0.0003–0.0005. A linear rate of 0.0003 would be 4.5 % over
+   150 / Ω_ci, one of 0.0005 would be 7.5 %. The npml⁻⁴ line from 24 cells would give 7e-5 (1 % over
+   150 / Ω_ci) with 96 and 5e-6 (0.07 %) with 192; that is an extrapolation, not a measurement.
+5. With 48 cells the remaining +0.0010 per 1/Ω_ci would be 15 % over 150 / Ω_ci, if linear.
+6. The mechanism is not identified. An own, untested thought: the layer of the engine has no frequency shift
+   (`grid._init_pml`: coefficients `exp(-σ dt)`, `exp(-σ dt) − 1`), and PIC-D16 says that it does not relax a
+   static field; a uniform (δB_y, δE_z) scattered into the region beyond the face would then stay and add up.
+   This reading does not by itself give the dependence on the depth.
+7. Limits: V1's plasma only; no wall; 8 / Ω_ci of V1's 150. How the rate depends on the plasma, the mass ratio
+   or dt is not known, so another run group may need its own control.
+8. `docs/plans/2026-11-14-oblique-piston-test-injection.md` (main) says of this drift "gone with `npml ≥ 24`".
+   That held for the 71 steps of the PR #52 test; over 4–8 / Ω_ci it does not hold with 24 cells. The file is
+   main's and is not changed here.
+
+### Planner change: the face rule is a parameter, default `paired` (ba98d45)
+- `TopicParams.face`: `paired` (default) or `flux`; with `paired` the electrons are the neutraliser; seeds enter
+  as at a flux face with either rule (PIC-D13 as amended by PR #52).
+- Limits of `paired`, stated with it:
+  - PIC-D13: "at a paired face the neutraliser enters only as returned particles and partners, not with its own
+    thermal flux." The electrons that enter are not an independent draw of the upstream distribution.
+  - PIC-D26 recommends `flux` for a wave table, because a paired face ties the electrons' birth rate to the
+    ions' flux. The topic's table has zero amplitude; a run with upstream waves (not in the plan's table) would
+    meet this.
+  - PIC-D13 records a 9 % density gain with the paired rule where the normal velocity is thermal. Here the flow
+    is 3 v_te and the density at the face stays within about 2 %.
+  - The rise of B_y is not a limit of the rule as far as measured: its rate follows the depth of the absorbing
+    layer (section above). Whether it would also appear with a flux face was not tested (that face loses the
+    field first).
+
+### Recorded pilot: the committed planner (`runs/2026-11-15-pilot-piston-paired.md`)
+- Commit ba98d45, `configs/pilot-piston.yaml` as it is (wall, paired face, one seed species), t = 2, 1 GPU,
+  868.6 s. Gauss 2.3e-14, div B 5.7e-13. Particles 6.00 M → 10.12 M.
+- Shock at 18.7 d_i at the end; speed over the second half 0.0457 c and compression 2.52 against 0.0337 c and
+  3.96 of the MHD jump. In every piston pilot of this entry (1.2–2 / Ω_ci) the shock is faster and less
+  compressed than the MHD jump; at this age it is still forming, and nothing more is read from it.
+- Upstream (21.7–37.0 d_i) at the end: n_e 1.046, v_x / v0 0.945, B_y / B0y 1.043, E_z / E0z 1.034. Reflected
+  particles are in that region (moment "temperatures" 6.5 and 42.8 times the loaded ones).
+- Seeds: the weight in the box goes 16.0 → 24.96 (plasma species 16.0 → 28.0), so seeds enter with the flow and
+  the upstream keeps them. Share of the seeds above u0 + 5 √θ: 1.35e-5 → 6.7e-3.
+
+### Planner changes after these pilots
+- 92686fb: the absorbing layer of the x+ face is 192 cells deep by default (`TopicParams.npml`; before: 24).
+  The depth is a config value of the planner, so this needs no engine change. Chosen between the two depths
+  that the data do not separate (96, 192) because the depth has no measurable cost. The docstring of `plan.py`
+  gives the rate with 96 and 192 cells as "within ±0.0003"; that is the range of the fits next to the face and
+  over the whole box (point 4 above has the far zone too). It is replaced when the control below has its
+  number. `runs/index.json` added
+  (`check_branch.py` asks for it; the earlier record is listed).
+- 5bf6998: `through: true` opens x− instead of the wall (no shock), so that the control of the upstream state
+  is a planner configuration; `pilot_check.py` gives the field deviations against time and their slopes;
+  `configs/pilot-through.yaml` (V1's plasma, 40 d_i, 40 / Ω_ci).
+
+### Recorded pilot with 192 cells (`runs/2026-11-15-pilot-piston-pml192.md`)
+- Commit 92686fb, `configs/pilot-piston.yaml` as it is, t = 2, 1 GPU, 864.4 s (13.0 ms/step; 868.6 s with 24
+  cells). Gauss 2.1e-14, div B 5.6e-13. The same number of particles entered (4,787,763).
+- Shock at 19.9 d_i at the end; speed over the second half 0.0479 c, compression 2.56 (24 cells: 18.7 d_i,
+  0.0457 c, 2.52).
+- Upstream (22.9–37.0 d_i) at the end: n_e 1.027, v_x / v0 0.971, B_y / B0y 1.020, E_z / E0z 0.996 (24 cells,
+  21.7–37.0 d_i: 1.046, 0.945, 1.043, 1.034). The zones differ and both hold reflected particles, so this is
+  not the measurement of the face's own state; the flow-through runs above are.
+
+### Control started: the upstream state to 40 / Ω_ci with 192 cells
+- `configs/pilot-through.yaml` at commit 5bf6998 (clean tree), 1 GPU, 1,333,334 steps, output
+  `/mnt/nvme/pypic/qpar/pilot/through-pml192`. Started 2026-11-15 04:09 JST; about 4.9 h at the measured
+  13.2 ms/step.
+- Fixed before the run: the quantity is the slope of B_y / B0y − 1 (mean over the box without 3 d_i at each
+  end) per 1/Ω_ci with its standard error, fitted over t ≥ 1 and over the second half, and the value at the
+  end (`pilot_check.py`, block `through`). The run measures the rate; it has no pass threshold. Its result
+  times 150 is the stated limit of V1's upstream field.
+- The result goes into `runs/` and a new entry.
+
+### What step 4 has checked, against the list of the plan
+| item of the plan | state |
+|---|---|
+| piston shock with a field component normal to the wall | runs on main 70202df; Gauss and div B hold; a shock forms |
+| injection in a long quasi-1-D box, `compact` | flux face: the upstream field decays; paired face with 192 cells: fitted rate of B_y between −0.0005 and +0.0003 per 1/Ω_ci to t = 8 (no wall); control to t = 40 running |
+| test species | enter through the face and stay in the upstream (PR #52) |
+| numerical heating (N1) | with the filter none within 2e-4 in 5 / Ω_ci and in 150 / Ω_ci; no tail |
+| measured ms/step | above; own estimate for V1: 6.6 days as configured, 3.4 days with 1000 per column (plan: 0.9 days) |
+
+### Open after this entry
+- The control to 40 / Ω_ci (above).
+- V1's cost against the plan: the box length, the particles per column (2000 in `configs/v1.yaml`, about 1000
+  in the plan) and the seeds are not decided.
+- div B after 5.0e6 steps is 7.5e-13 against the contract 1e-12 (N1 at full length).
+- The flux face: the cause of the decay is not identified (three readings above). The topic does not use it.
+- The mechanism of the rise of B_y, and its rate for the other run groups (limit 7 above).
+- Unchanged from the entry of 2026-11-14: the second definition of the injection rate and the length of the
+  downstream region before V1; the single T_e before P0.
+
 ## 2026-11-14 — Step 4, first part: the engine falls short in three places (PR #52); the topic planner
 
 Later on the same day as the entry below. Step 4 of the plan checks the engine with short pilots. All runs of this
