@@ -1,5 +1,5 @@
 """CPU tests of the external static fields (PIC-D12): the dipole on the Yee faces and the
-combinations that are rejected."""
+combinations that are rejected, with the wall-normal ``B0`` that they replace."""
 from __future__ import annotations
 
 import numpy as np
@@ -56,10 +56,20 @@ def test_dipole_matches_the_regularised_dipole_formula():
     assert abs(fine[2][2, 2, 2] - 2.0) < 1e-3
 
 
-def test_external_fields_reject_the_implicit_solver_and_B0():
+def test_external_fields_go_with_B0_and_E0_and_reject_the_implicit_solver():
     ext = ExternalFields(B=(0.0, 0.0, 0.1))
     assert check_config(SimConfig(external_fields=ext)) and not check_config(SimConfig(B0=(0.0, 0.0, 0.1)))
+    assert check_config(SimConfig(B0=(0.0, 0.1, 0.0), E0=(0.0, 0.0, 0.01), external_fields=ext))
     with pytest.raises(ValueError, match="explicit"):
         check_config(SimConfig(solver="implicit", external_fields=ext))
-    with pytest.raises(ValueError, match="B0"):
-        check_config(SimConfig(B0=(0.0, 0.0, 0.1), external_fields=ext))
+
+
+def test_B0_normal_to_a_reflecting_face_is_refused():
+    """The wall zeroes the normal B of the Yee fields on its plane, which would leave div B = B0 / dx
+    in the cells at the wall: such a field is an external field (PIC-D12)."""
+    walls = (("reflecting", "open"), ("periodic", "periodic"), ("periodic", "periodic"))
+    with pytest.raises(ValueError, match="external_fields.B"):
+        SimConfig(boundaries=walls, B0=(0.1, 0.0, 0.0))
+    SimConfig(boundaries=walls, B0=(0.0, 0.1, 0.2))  # tangential to the wall
+    SimConfig(boundaries=(("open", "open"),) + walls[1:], B0=(0.1, 0.0, 0.0))  # normal to open faces
+    SimConfig(B0=(0.1, 0.0, 0.0))  # periodic
