@@ -15,10 +15,15 @@ Layout: `research/README.md`. Engine state: `PROGRESS.md` (read-only here).
 
 ## Engine baseline
 
-- main fa0972664 (2026-11-14, merge of PR #50), taken by `abc1099`.
-- Its `pypic/` tree is that of 9666c49. Gates all passed there: `bench/results/2026-11-14-9666c4972-gpu-gates.json`, `-mixed.json` and `-compact.json`.
+- main 70202dfab (2026-11-15, merge of PR #52), taken by `68a9e91`.
+- Its `pypic/` tree is that of fef8bde. Gates all passed there: `bench/results/2026-11-15-fef8bde19-gpu-gates.json`, `-mixed.json` and `-compact.json`.
 
 ## Change Log
+
+### 2026-11-15 — [progress] main 70202dfab taken
+- What: main merged into research/trunk (`--no-ff`). Engine additions: `external_fields` together with `B0` / `E0` (PIC-D12, PIC-D18 amended), so a piston shock with an oblique field can be configured (normal B external, tangential B and motional E on the grid, the PIC-D26 face at the open end); a `B0` component normal to a reflecting face is refused; a test species listed in `injection.species` enters through the injecting faces without a deposit (PIC-D13, PIC-D9 amended). No kernel change.
+- Why: engine prerequisites of topic qpar-electron-conditions (step 4 of its plan).
+- Refs: PR #52; `docs/plans/2026-11-14-oblique-piston-test-injection.md`; `bench/results/2026-11-15-fef8bde19-gpu-gates*.json`.
 
 ### 2026-11-14 — [progress] main fa0972664 taken
 - What: main merged into research/trunk (`--no-ff`). Engine additions: frozen-in initial states (`potential` initial fields, shaped velocity/displacement perturbations; PIC-D24), a turbulent inflow face (`injection.fluctuation`, TF/SF on the face plane; PIC-D26), restart checkpoints (`checkpoint:`/`restart:`, run.py `--restart`; PIC-D25, OUT-D6); example `examples/alfven_inflow`.
