@@ -17,6 +17,7 @@ import pytest
 from pypic import Beam, SimConfig, SpeciesConfig
 from pypic.body import relax_edges
 from pypic.config import Body, CurrentFilter, ExternalFields, Injection, Laser, Window
+from pypic.injection import ids_per_step
 from pypic.parallel.comm import SelfComm
 from pypic.simulation import Simulation
 
@@ -815,6 +816,27 @@ def test_cold_diagonal_inflow_through_two_faces_fills_the_edge_once():
     ids = cp.concatenate([sp.ids() for sp in sim.species])
     assert int(cp.unique(ids).size) == int(ids.size)
     assert max(sim.history["electric"]) < 1e-20
+
+
+def test_ids_of_particles_entering_through_faces_on_three_axes_are_unique_and_inside_the_blocks():
+    """The ids of the entering particles (PIC-D8, PIC-D13): a step takes one block, laid out by the planes of
+    the injecting faces. With faces on three axes of a box of unequal sides, a paired face and a listed test
+    species, no id is given twice and none lies behind the blocks of the steps taken."""
+    steps, u = 20, (0.1, 0.1, 0.05)
+    species = [SpeciesConfig("e", -1, 1, [Beam(1.0, u, 0.05)]), SpeciesConfig("i", 1, 16, [Beam(1.0, u, 0.05)]),
+               SpeciesConfig("s", -1, 1, [Beam(0.2, u, 0.05)], test=True)]
+    faces = {"x-": "paired", "y-": "flux", "y+": "flux", "z-": "flux", "z+": "flux"}
+    cfg = SimConfig(n_cells=(6, 8, 10), dx=(0.5,) * 3, dt=0.2, boundaries=(("open", "open"),) * 3, ppc=4, npml=6,
+                    species=species, injection=Injection(faces=faces, species=("e", "i", "s"), neutralizer="e"),
+                    diag_interval=10, gauss_interval=10)
+    sim = Simulation(cfg, comm=SelfComm(), verbose=False)
+    loaded = cp.concatenate([sp.ids() for sp in sim.species])
+    sim.run(steps)
+    ids = cp.concatenate([sp.ids() for sp in sim.species])
+    assert int(cp.unique(ids).size) == int(ids.size)
+    entered = ids[ids > loaded.max()]
+    assert all(float(d[8]) > 0 for d in sim.sdiag) and int(entered.size) > 0
+    assert float(entered.max()) <= float(loaded.max()) + steps * ids_per_step(cfg)
 
 
 def test_paired_face_keeps_the_charge_that_crossed_it_at_zero():

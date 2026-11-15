@@ -3,25 +3,27 @@ cell layers the ranks fill."""
 from __future__ import annotations
 
 import itertools
+import math
 
 import numpy as np
 import pytest
 
 from pypic import Beam, SimConfig, SpeciesConfig
-from pypic.config import FACES, Injection
-from pypic.injection import check_config, face_slabs, injected_species
+from pypic.config import FACES, ID_LIMIT, Injection
+from pypic.injection import check_config, face_slabs, ids_per_step, injected_species
 from pypic.parallel.decomp import Decomposition
 
 OPEN = (("open", "open"),) * 3
 
 
-def config(faces, boundaries=OPEN, electrons=None, ions=None, solver="explicit", seeds=None, **kw):
+def config(faces, boundaries=OPEN, electrons=None, ions=None, solver="explicit", seeds=None, n_cells=(8, 8, 8),
+           ppc=16, **kw):
     """Electrons ``e``, ions ``i``, a test species ``t`` without beams and one, ``s``, with the
     beams ``seeds`` (default: a fast electron beam along the flow)."""
     electrons = electrons or [Beam(1.0, (0.2, 0.0, 0.0), 0.01)]
     ions = ions or [Beam(1.0, (0.2, 0.0, 0.0), 0.001)]
     seeds = seeds or [Beam(0.1, (0.2, 0.0, 0.0), 0.1)]
-    return SimConfig(n_cells=(8, 8, 8), boundaries=boundaries, solver=solver, dt=0.05,
+    return SimConfig(n_cells=n_cells, ppc=ppc, boundaries=boundaries, solver=solver, dt=0.05,
                      species=[SpeciesConfig("e", -1, 1, electrons), SpeciesConfig("i", 1, 16, ions),
                               SpeciesConfig("t", -1, 1, test=True, particles=[[1.0, 1.0, 1.0, 0.0, 0.0, 0.0]]),
                               SpeciesConfig("s", -1, 1, seeds, test=True)],
@@ -100,3 +102,21 @@ def test_every_cell_of_the_layer_is_filled_once(dims):
         at = tuple(c + 1 for c in cell)
         assert count[at] == int(filled), cell
         assert owner[at] == (outside[0] if filled else -1), cell
+
+
+def test_ids_of_a_step_cover_its_layers_and_a_long_thin_run_stays_below_the_limit():
+    """A step reserves ids (PIC-D8) for the cells of its layers, not for the grid: a long box with one inflow
+    face runs millions of steps below 2^53 (with a block of the whole extended grid this one needed 3.6 times
+    the limit). The block still holds an id per stream, slot and layer cell."""
+    back = [Beam(1.0, (-0.2, 0.0, 0.0), 0.01)]
+    n, steps = (270000, 2, 2), 5_000_000
+    thin = config({"x+": "paired"}, neutralizer="e", species=("e", "i"), electrons=back, ions=back, n_cells=n,
+                  ppc=250)
+    loaded = sum(len(s.beams) for s in thin.species) * math.prod(n) * thin.ppc
+    assert loaded + steps * ids_per_step(thin) < ID_LIMIT
+    n = (4, 6, 8)
+    faces = {"x-": "paired", "y-": "flux", "y+": "flux", "z-": "flux"}
+    cfg = config(faces, neutralizer="e", species=("e", "i", "s"), n_cells=n)
+    cells = sum(math.prod(nl) for _, _, nl in face_slabs(Decomposition.build(n, (1, 1, 1), 0, OPEN, 4).axes, n, faces))
+    assert ids_per_step(cfg) >= 3 * cells * cfg.ppc
+    assert ids_per_step(config({})) == 0
