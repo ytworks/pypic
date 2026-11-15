@@ -84,6 +84,24 @@
    "kind": "pilot (plan step 4), flow-through control, diagnostic look",
    "config": "configs/pilot-through.yaml",
    "gpus": 1
+  },
+  {
+   "file": "2026-11-15-pilot-through-velocity.json",
+   "record": "2026-11-15-pilot-through-velocity.md",
+   "commit": "d7b01dd50a8ae5c97921503de58083986b5a89cc",
+   "analysis_commit": "1f0d14a54313a9dfe58ba016ed068208ae98f3ec",
+   "kind": "pilot (plan step 4), flow-through control with the velocity histogram",
+   "config": "configs/pilot-through-velocity.yaml",
+   "gpus": 1
+  },
+  {
+   "file": "2026-11-15-pilot-through-velocity-look.json",
+   "record": "2026-11-15-pilot-through-velocity.md",
+   "commit": "d7b01dd50a8ae5c97921503de58083986b5a89cc",
+   "analysis_commit": "8287f8d398171f1a2233b182c6a1a01cab2305fb",
+   "kind": "pilot (plan step 4), flow-through control, diagnostic look and comparison of the two controls",
+   "config": "configs/pilot-through-velocity.yaml",
+   "gpus": 1
   }
  ]
 }
