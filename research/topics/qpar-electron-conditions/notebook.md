@@ -3,6 +3,44 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-15 — Controls A–D stopped at about 72 / Ω_ci on the owner's instruction; state for the hand-over
+
+New fact: the owner ordered all work stopped (2026-11-15, about 20:05 JST). The four controls of the entry below
+were ended before their end (150 / Ω_ci). No output of them was opened, no number was read, K1 and K2 were not
+applied. Nothing is running; the GPUs are free.
+
+| Run | GPU | Seed | Layer (`npml`) | Output | Last logged step | Complete checkpoints |
+|---|---|---|---|---|---|---|
+| A | 0 | 12345 | 192 | `/mnt/nvme/pypic/qpar/pilot/long-A` (556 MB) | 2,400,000 at 20:02 JST | 1,000,000; 2,000,000 |
+| B | 1 | 34567 | 192 | `/mnt/nvme/pypic/qpar/pilot/long-B` (561 MB) | 2,400,000 at 19:53 JST | 1,000,000; 2,000,000 |
+| C | 2 | 45678 | 192 | `/mnt/nvme/pypic/qpar/pilot/long-C` (561 MB) | 2,400,000 at 19:51 JST | 1,000,000; 2,000,000 |
+| D | 3 | 12345 | 96 | `/mnt/nvme/pypic/qpar/pilot/long-D` (559 MB) | 2,400,000 at 19:59 JST | 1,000,000; 2,000,000 |
+
+- Start: about 11:15 JST from the clean commit aa73144; command of each run (from the topic directory):
+  `run.py --config configs/pilot-through.yaml --out <output> --overwrite --progress 100000 --set t_end=150`
+  `--set profiles=750 [--set seed=34567 | --set seed=45678 | --set npml=96] --set checkpoint.every=1000000`.
+  `checkpoint.every` is a safeguard against an interruption; it is not in the fixed details of the entry below.
+- Step 2,400,000 is 72 / Ω_ci; step 2,000,000 is 60 / Ω_ci. Measured 12.9–13.2 ms per step. The step at which each
+  process ended is not known beyond its last log line (the processes were ended between 20:02 and 20:08 JST).
+- The logs (a line every 100,000 steps: step time, dE / E0) are copied to `/mnt/nvme/pypic/qpar/pilot/long-logs/`.
+
+### What stands
+- K1, K2, the outcome rule and the details fixed in the entry below are unchanged. They need the runs to 150 / Ω_ci.
+- The two controls to 40 / Ω_ci and their records are unchanged.
+
+### Ways to complete the round (facts; none is taken in this entry)
+- Continue each run from its checkpoint: the same command without `--overwrite`, plus
+  `--restart <output>/checkpoint`. By the engine's design notes (PIC-D25, OUT-D6) a restart on the same layout
+  restores the state bit for bit and cuts the rows written from the checkpoint step on. 3,000,000 steps are left:
+  about 11 h on one GPU each.
+- Start the four runs again: about 18 h on one GPU each.
+- In both cases the record of each run states its command lines, and that a restart was used if it was.
+
+### Limits
+- A restart was not exercised on these four runs or on this configuration; PIC-D25 and OUT-D6 carry
+  `Status: Proposed` in the design notes.
+- The partial outputs (to about 72 / Ω_ci) do not decide K1: K1 is defined over t = 5–150.
+
 ## 2026-11-15 — Step 4: both controls fail the halves clause, V1 is not started; controls to 150 / Ω_ci (K1, K2)
 
 Records: `runs/2026-11-15-pilot-through-pml192.md` (seed 12345), `runs/2026-11-15-pilot-through-velocity.md`

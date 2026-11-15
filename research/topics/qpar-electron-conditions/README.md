@@ -527,5 +527,9 @@ Snapshot of 2026-11-15.
   at 62.5 / Ω_ci of 150 (`notebook.md`). `plan.py` refuses such a run. None of V1's numbers is changed; the id
   block of the entering particles is engine work on main (step 4 of the plan; PR #53, open), to be merged and
   taken before V1.
-- Next: the round of controls A–D (about 18 h, one GPU each); the engine change; then stage 1 (V1, V2). The GPUs
-  are shared with the pilot of `shock-alfvenic-turbulence`.
+- Stopped (2026-11-15, the owner's instruction): the controls A–D were ended at about 72 / Ω_ci of 150 (last
+  logged step 2,400,000; complete checkpoints at step 2,000,000 = 60 / Ω_ci). No output was opened; K1 and K2 are
+  not applied (`notebook.md`). Nothing is running. Hand-over notes: a comment on PR #53.
+- Next: complete the round A–D (by restart or again, `notebook.md`) and apply K1 and K2; the engine change
+  (PR #53: gated, merged only on the owner's instruction, then taken through trunk); then stage 1 (V1, V2). The
+  GPUs are shared with the pilot of `shock-alfvenic-turbulence`.
