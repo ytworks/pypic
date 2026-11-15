@@ -3,6 +3,132 @@
 Dated lab notes, newest first. Write down what was tried, what was seen, and what was decided, failed attempts included.
 Never rewrite a past entry. To correct one, add a new entry that refers to it.
 
+## 2026-11-15 — Step 4: both controls fail the halves clause, V1 is not started; controls to 150 / Ω_ci (K1, K2)
+
+Records: `runs/2026-11-15-pilot-through-pml192.md` (seed 12345), `runs/2026-11-15-pilot-through-velocity.md`
+(seed 23456). Review of the result by `research-reviewer` (2026-11-15); its arithmetic was checked here. The
+owner's order for review recommendations is "proceed with the recommendation" (2026-11-14).
+
+### New facts
+1. **Score by the criteria fixed before the runs** (entry "Pass criteria of the flow-through control"):
+
+   | | seed 12345 | seed 23456 |
+   |---|---|---|
+   | 1, slope + 2 SE ≤ 3.3e-4 | 2.50e-5, pass | 3.15e-5, pass |
+   | 1, halves agree within 2 SE | 1.65e-4 against 7.89e-5, **fail** | 8.95e-5 against 8.14e-5, **fail** |
+   | 2, temperatures and tails | needs the histogram of the other run | pass |
+   | 3, drift ≤ 0.2 % | pass | pass |
+   | 4, δB_⊥ / B_0 (reported) | 0.00584 | 0.00581 |
+
+   By the rule ("V1 starts only if all pass") V1 does not start. No criterion was changed after the read.
+2. **The halves clause, as a test** (facts about the test, found after the read; the clause was the third
+   review's and was adopted here):
+   - The flow crosses the 7 d_i zone in 0.467 / Ω_ci; the outputs are 0.2 / Ω_ci apart. Outputs closer than
+     the crossing time share plasma: correlation 1 − lag / crossing time = 0.571, 0.143, 0 at lags 1, 2, ≥ 3.
+     Measured: 0.560, 0.137 (seed 12345); 0.626, 0.185 (seed 23456). The standard error of a fit is then
+     √(1 + 2 (0.571 + 0.143)) = 1.56 times the one of independent outputs, which the clause used.
+   - Size: two standard errors of independent outputs are 1.28 σ. A stationary series fails the clause in 20 %
+     of runs, at least one of two runs in 36 %.
+   - Reach: a pass at the edge of the tolerance (7.9e-5 per Ω_ci⁻¹ between halves 18 / Ω_ci apart) still
+     allows 3.6 % at t = 150 if the curvature stays. A test over 36 / Ω_ci does not protect 150.
+   - With the factor 1.56 the difference of the halves is 2.7 σ (seed 12345) and 1.4 σ (seed 23456). The first
+     run fails in every corrected form of the clause. The result of fact 1 stands; these facts do not re-score
+     the runs. They are the reason for another criterion on new runs (below), and the halves clause is not
+     used for new runs.
+3. **Corrections to the two records** (their numbers stand): "AR(1), error factor 1.88 / 2.09" is contradicted
+   by the lag-2 values (AR(1) would give 0.31 and 0.39; measured 0.137 and 0.185): the form is the triangular
+   one above, factor 1.56. "Largest spectral lines" are the harmonics 1, 3, 5 and 3, 4, 9 of the 36 / Ω_ci
+   window, not lines.
+4. **Where the variations of the zone mean come from** (existing outputs; `control_long.py` at this commit,
+   scratch runs of it on the two controls, t = 5–40):
+   - The series of the zone 30–37 d_i and of the zone 2–9 d_i correlate at the advection time between them
+     (9 outputs for 28 d_i at 0.1 c) with 0.67 / 0.70 for single outputs and with 0.97 / 0.97 and 0.98 / 0.96
+     after boxcar means over 15 and 30 outputs (3 and 6 / Ω_ci); seed 12345 / 23456. At lag 0: 0.12 / −0.01,
+     0.47 / 0.29, 0.76 / 0.46. A series carried by the flow with no other part gives at lag 0 the overlap of
+     the boxcars: 0, 0.40, 0.70. In between, the zones 9–16, 16–23, 23–30 peak at 7, 5, 2 outputs (0.79, 0.82,
+     0.85 / 0.79, 0.81, 0.89); the flow needs 7.0, 4.7, 2.3.
+     (The numbers of the zones in between and of N1's zones are from scratch scripts, t = 4–40 and 4–150.)
+   - So at every time scale that 36 / Ω_ci resolve, what changes the zone mean enters on the x+ side and
+     travels through the box with the flow. A part uniform in the box is not needed by these numbers; one that
+     varies more slowly than about 6 / Ω_ci would not be separated by them.
+   - The periodic box N1 (20 d_i, no face) has the same kind of series: the mean of B_y over 7 d_i varies with
+     rms 1.14e-3 and 1.17e-3 of B_0y at 2000 particles per column (`n1-full`, t = 4–150, two zones) while the
+     mean over the box stays within 6e-6. Scaled by √2 to the controls' 1000 per column that is 1.6e-3; the
+     controls have 1.43e-3. The periodic box holds no wavelength above 20 d_i, so its slow part is not
+     comparable.
+   - δB_⊥ / B_0 (criterion 4): N1 at 1000 per column, slab 5–15 d_i, t = 4–5 (scratch `n1-f32-ppc125`):
+     0.00595; at 2000 per column 0.00430 (t = 4–5, scratch `n1-f32`) and 0.00469 (t = 4–150, `n1-full`). The
+     controls' 0.00584 and 0.00581 are the level of the periodic box at their particle number: no excess.
+5. **The K1 form on the two existing runs** (a look; K1 is fixed for the new runs, to 150): seven blocks of
+   5 / Ω_ci from t = 5; largest |⟨B_y⟩/B_0y − 1| 9.3e-4 and 1.36e-3, largest |Q − 1| 1.6e-3 and 1.3e-3. The
+   largest 6 / Ω_ci block is t = 22–28 in both.
+
+### Readings of the slow part (none is fixed by 36 / Ω_ci)
+- **Noise of the incoming plasma only.** The block means scatter as the fast part predicts: 4.1e-4 expected
+  for 30 outputs, χ²(5) of the six block means 9.7 (seed 12345) and 4.5 (seed 23456). Then nothing adds up,
+  and blocks of 5 / Ω_ci stay within about 4.5e-4 to 150.
+- **A slow change at the x+ face.** The first block is the lowest in both runs; all six block means of seed
+  23456 are positive (mean +5.6e-4, 3.4 σ); the largest block is 22–28 in both, the next lower by 8.3e-4 and
+  9.1e-4; the block means of the two seeds correlate with +0.76 (p ≈ 0.08 for six pairs) while the residuals
+  of single outputs correlate with +0.10 ± 0.11. A common part at fixed times would be the face's or the
+  layer's, not the seed's. Fact 4 says it would enter at x+ and be carried, as the fast part is.
+- **A curvature that continues.** At constant curvature the halves give −7.5 % (seed 12345) and −4.1 %
+  (seed 23456) at t = 150. This stands beside "every output of both runs within 0.9955–1.0051".
+- **A start-up effect** that ends: the first block lowest in both runs.
+- No cause in the plasma is known for a memory of 6–36 / Ω_ci: the flow is super-Alfvénic (M_A 15 in the box
+  frame, above the whistler limit of about 4.3) and replaces the plasma of the box every 2.7 / Ω_ci. A memory
+  of that length can sit in a boundary state (the static field of the unshifted layer, point 6 of the entry
+  "Step 4, second part"; or the x− face). The whole-box slopes of the second halves differ (−6.2e-5 ± 1.2e-5
+  and +5.4e-6 ± 1.4e-5 per Ω_ci⁻¹), while the layer drift measured earlier was the same over the box.
+
+### Adopted from the review: one round of controls to 150 / Ω_ci, criteria fixed before the runs
+Four runs of `configs/pilot-through.yaml` with `t_end=150`, `profiles=750` (outputs 0.2 / Ω_ci apart, as
+before), one GPU each, about 18 h each (13.0–13.1 ms per step measured, 5 × 10⁶ steps):
+
+| run | seed | `npml` | purpose |
+|---|---|---|---|
+| A | 12345 | 192 | the first control, continued to 150 |
+| B | 34567 | 192 | new seed |
+| C | 45678 | 192 | new seed |
+| D | 12345 | 96 | A's seed with another layer depth: A − D shows what the depth changes |
+
+- **K1 (decides):** in the zone 30–37 d_i, every block of 5 / Ω_ci from t = 5 to 150 has ⟨B_y⟩/B_0y and
+  Q = (⟨B_y⟩/B_0y) / (⟨n_i⟩/n_0) within 1 ± 0.01, in each of A, B and C. The threshold is the review's
+  recommendation, adopted under the owner's order. Its size: 1 % of B_y changes θ_Bn by 0.25° and M_A by
+  0.25 % (a fifth of the 5 % tolerance of V1's Q monitor); the block noise is about 4.5e-4.
+- **K2 (reported, decides nothing):** in B and C, whether the largest 6 / Ω_ci block of t = 4–40 is again
+  t = 22–28 (chance 1/6 per run if the seeds decide it).
+- **Outcome, by the largest deviation of a block in A, B, C:** ≤ 1 %: the field condition for V1 is met.
+  Between 1 % and 5 %: it is a measured systematic of θ_Bn and M_A; the owner decides. Above 5 %: no V1; the
+  layer goes to main as an engine matter.
+- **Reported without threshold:** A − D per block and the correlation of the residuals of A and D; the slope
+  over t = 5–150 with the error factor of the advection; the lag numbers of fact 4; Gauss law and div B
+  (sampled through the run since 7d5598b); δB_⊥; criteria 2–4 of the earlier entry are not repeated (they
+  passed and do not depend on the length).
+- **Details fixed now, before any output exists:** `control_long.py` at this commit is the measurement; n_0
+  is the first output between 10 % and 90 % of the box; a block counts if it has outputs; blocks start at
+  t = 5, 10, …, 145. D is not part of K1 (another depth). If the same seed does not give the same incoming
+  noise at another depth (the face sits 96 cells further out), A − D does not cancel the fast part; then D
+  is read as one more run at 96 cells, and that is said. `npml` sets the layers of both open faces (fact 9 of
+  the entry "Corrections to the step-4 entry"): A − D does not say which face.
+
+### Limits of what this round can show
+- No shock and no wall: V1's upstream holds reflected ions, waves and a current that the control does not
+  have. V1's own Q monitor (5 %, blocks of 5 / Ω_ci) stays the check of the run itself.
+- 40 d_i against V1's 2700 d_i; 125 against 250 particles per cell and species. How the slow part scales
+  with the box length and the particle number is not measured (the fast part scales with the particle number
+  as the periodic box does).
+- Criterion 2 at 4 v_th,e rests on 594 reference counts: it is sensitive to ±12 % only.
+- V1's plasma only; every other run group needs its own control (unchanged).
+
+### Still open
+- The mechanism of the layer's static field; whether the slow part is the face's or the plasma's noise.
+- div B: largest 2.0e-12 in `pilot-dumps`, a run with a shock (entry below); the cause is an engine matter
+  (main). The
+  two finished controls hold step-0 samples only (they ran before 7d5598b).
+- V1 further needs the engine with the larger id block (PR #53, open; merged only on the owner's
+  instruction) and all 8 GPUs.
+
 ## 2026-11-15 — Step 4: the dumps of N12 and N6 (a) on a real run; the Gauss / div B samples of three runs; div B grows with the step count
 
 Records: `runs/2026-11-15-pilot-dumps.md` (run d74ba7c, analysis 0c62c11), `runs/2026-11-15-n12-n6-synthetic.md`,

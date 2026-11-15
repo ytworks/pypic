@@ -69,3 +69,15 @@ velocity histogram that criterion 2 needs) has its own record.
   criterion of the notebook.
 - Limits: one seed; 125 particles per cell (V1: 250); a box of 40 d_i (V1: 2700 d_i); 40 of V1's 150 / Omega_ci;
   no shock, so nothing reaches the face from downstream.
+
+## Correction (added later, 2026-11-15)
+
+The numbers above stand. Two statements are corrected by `notebook.md` (2026-11-15, "controls to 150", facts
+2 and 3):
+
+- Reading (a), "AR(1), fit errors 1.88 times larger": the AR(1) form is contradicted by the lag-2 correlation
+  (AR(1) gives 0.31; measured 0.137). The outputs share plasma while the flow crosses the zone (0.467 /
+  Omega_ci): correlation 0.571, 0.143, 0 at lags 1, 2, >= 3, and the fit errors are 1.56 times those of
+  independent outputs. With 1.56 the difference of the halves is 2.7 standard errors: the fail stands.
+- "Largest spectral lines": the periods 35.8, 7.2 and 11.9 / Omega_ci are the harmonics 1, 5 and 3 of the
+  36 / Omega_ci window; they are not lines.

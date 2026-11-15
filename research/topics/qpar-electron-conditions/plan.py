@@ -21,8 +21,10 @@ E0 = (0, 0, v0 b sin theta_Bn).
     upstream (B_y, and E_z = v0 B_y with it) rises at a rate set by that depth: in flow-through pilots of V1's
     plasma (no wall, 40 d_i, to 8 / Omega_ci) B_y / B0y rose by 0.31 per 1 / Omega_ci with 12 cells, 0.019 with
     24 (linear to the end), 0.0010 with 48; with 96 and 192 the fitted rate was within +-0.0003, of either sign
-    with the window, and the step time was the same at every depth (notebook, 2026-11-15). Not measured: runs
-    longer than 8 / Omega_ci, other plasmas.
+    with the window, and the step time was the same at every depth (notebook, 2026-11-15). With 192, to
+    40 / Omega_ci (two seeds, zone 30-37 d_i): rate over t = 5-40 -7e-8 and +7.4e-6, each +- 1.7e-5; the means
+    over 5 / Omega_ci within 1.4e-3 of B0y (`runs/2026-11-15-pilot-through-*`). Not measured: runs longer than
+    40 / Omega_ci, other depths beyond 8 / Omega_ci, other plasmas.
   - ``face`` is the injection rule of that face. ``paired`` (default): the inflow face of a flow, the
     electrons are the neutraliser. ``flux``: every species is launched on its own. With ``flux`` the tangential
     field at the face decayed from 0.4-0.6 / Omega_ci on in the step-4 pilots (flow at 3 electron thermal

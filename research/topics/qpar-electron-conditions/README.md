@@ -377,7 +377,10 @@ facts, and is fixed before the first run that needs it.
   - Upstream field in V1 (third review, 2026-11-15): Q = (⟨B_y⟩/B_0y) / (⟨n⟩/n_0) in the zone 5 to 200 d_i
     inside the absorbing layer, blocks of 5 Ω_ci⁻¹: |Q − 1| ≤ 0.05 up to t = 150 (5 % is 1.2° in θ_Bn and
     −1.3 % in M_A). V1 starts only after the flow-through control passes its criteria (`notebook.md`,
-    2026-11-15, third review).
+    2026-11-15, third review). Both controls to 40 Ω_ci⁻¹ failed the halves clause of those criteria, so V1 was
+    not started. New facts about that clause (fifth review) set the condition for the new controls to
+    150 Ω_ci⁻¹: K1, every 5 Ω_ci⁻¹ block of ⟨B_y⟩/B_0y and of Q in the zone 30–37 d_i within 1 ± 0.01, in each
+    of three seeds; between 1 % and 5 % the owner decides; above 5 % no V1 (`notebook.md`, "controls to 150").
   - N7 method: the measurement code on synthetic fields recovers a known D within 10 % over 0.1-10 D_B; the
     log-slope of ⟨Δx²⟩ is within 1 ± 0.1 over a factor 3 in time, and intervals outside that are not used. The
     statistical error is ~√(2/N), about 1.4 % for 10⁴ electrons.
@@ -512,11 +515,17 @@ Snapshot of 2026-11-15.
   `giacalone2025source`, `wilson2025large`, `hemler2025shock`, `mitchell2021energetic`, `bessho2023electron`,
   `gupta2023regulates`, `galishnikova2026self`, `tsurutani1985acceleration`; `bebesi2019observations` only through a
   conference abstract.
-- Step 4: the engine change is merged (PR #52) and taken; pilots and N7 are recorded in `runs/`. Open: the
-  flow-through control to 40 / Ω_ci and its companion with velocity histograms; V1 starts only if they pass the
-  criteria fixed in `notebook.md` (2026-11-15, third review).
+- Step 4: the engine change is merged (PR #52) and taken; pilots and N7 are recorded in `runs/`. Both flow-through
+  controls to 40 / Ω_ci are recorded: the slope, the drift, criterion 2 and δB_⊥ pass; the halves clause of
+  criterion 1 fails on both (1.65e-4 against 7.89e-5; 8.95e-5 against 8.14e-5). By the fixed rule V1 is not started.
+- Fifth review (2026-11-15) applied: the halves clause is unsound as a test (outputs correlated by the flow's
+  crossing of the zone; 20 % false fails; no bound for t = 150) and is not used for new runs; the two results stand.
+  One round of four controls to 150 / Ω_ci (A, B, C: three seeds; D: half the layer depth) with K1 (every
+  5 / Ω_ci block of ⟨B_y⟩ / B_0y and of Q within 1 ± 0.01) and K2 fixed before the runs (`notebook.md`,
+  `control_long.py`). Outcome: ≤ 1 % the field condition of V1 is met; 1–5 % the owner decides; > 5 % no V1.
 - Blocker (2026-11-15): V1 as configured needs 2.40 times the engine's particle ids (2^53) and would be stopped
   at 62.5 / Ω_ci of 150 (`notebook.md`). `plan.py` refuses such a run. None of V1's numbers is changed; the id
-  block of the entering particles is engine work on main (step 4 of the plan), to be merged and taken before V1.
-- Next: the engine change; close step 4 with the control; then stage 1 (V1, V2). The GPUs are shared with the
-  pilot of `shock-alfvenic-turbulence`.
+  block of the entering particles is engine work on main (step 4 of the plan; PR #53, open), to be merged and
+  taken before V1.
+- Next: the round of controls A–D (about 18 h, one GPU each); the engine change; then stage 1 (V1, V2). The GPUs
+  are shared with the pilot of `shock-alfvenic-turbulence`.

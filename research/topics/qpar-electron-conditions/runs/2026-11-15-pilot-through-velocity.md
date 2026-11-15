@@ -74,3 +74,16 @@ of the electrons in (u_x, u_y, u_z) in the slab 20-30 d_i, which criterion 2 of 
   mean within -6.3e-4 to +1.23e-3, of the loaded B_0y. The tolerance of V1's Q monitor is 5 %.
 - Limits: two seeds; 125 particles per cell (V1: 250); a box of 40 d_i (V1: 2700 d_i); 40 of V1's 150 / Omega_ci;
   no shock.
+
+## Correction (added later, 2026-11-15)
+
+The numbers above stand. Two statements are corrected by `notebook.md` (2026-11-15, "controls to 150", facts
+2 and 3):
+
+- "too small by about 1.9 and 2.1 (AR(1) form assumed)": the AR(1) form is contradicted by the lag-2
+  correlations (AR(1) gives 0.31 and 0.39; measured 0.137 and 0.185). The outputs share plasma while the flow
+  crosses the zone (0.467 / Omega_ci): correlation 0.571, 0.143, 0 at lags 1, 2, >= 3, and the fit errors are
+  1.56 times those of independent outputs in both runs. With 1.56 the differences of the halves are 2.7 and
+  1.4 standard errors. The result by the fixed rule is not changed by this.
+- "Largest spectral lines": the periods 11.9, 8.9 and 4.0 / Omega_ci are the harmonics 3, 4 and 9 of the
+  36 / Omega_ci window; they are not lines.
