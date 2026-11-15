@@ -1,6 +1,6 @@
 # The ids of the entering particles: one block per step of the size of the layers
 
-Status: In progress (implemented; GPU tests of the injection pass; full gate not yet run)
+Status: Implemented and gated on 58166d1 (PR #53; not merged)
 Refs: PIC-D13 (amended: "Ids"), PIC-D25 (amended: `meta.json`), PIC-D8
 
 ## Context
@@ -77,4 +77,16 @@ Fixed before the first run of each test.
 
 ## Results
 
-(to be filled with the gate record)
+- Full gate on 58166d1 (2026-11-15, 8 GPUs, clean tree): ALL PASSED in `fp64` (32 gates), `mixed` (30) and
+  `compact` (28); `pytest tests/gpu` 165 passed. Records: `bench/results/2026-11-15-58166d1ad-gpu-gates.json`,
+  `-mixed.json`, `-compact.json`.
+- Against the record on fef8bde (main before this change): the growth errors, the implicit energy error (1.9e-10)
+  and the Gauss maximum of `fp64` and `mixed` (7.6e-12) are the same to the digits recorded in `PROGRESS.md`.
+  Different: the `buneman` growth error in `mixed` (-4.7 %, was -4.2 %) and in `compact` (-5.1 %, was -4.7 %; the
+  record on 9666c49 had -5.1 %), with `fp64` at -4.7 % in all three records; the Gauss maximum of `compact`
+  (2.5e-13, was 2.1e-13). Both are inside their criteria (10 %, 1e-10). Which of these differences come from this
+  change and which from run to run was not measured (no second gate on the same commit).
+- Step time (diagnostic): `alfven_inflow:gate` 11.5 / 11.6 / 12.1 ms per step in `fp64` / `mixed` / `compact`
+  (fef8bde: 11.9 / 12.0 / 12.0); the wall times of the three `bow_shock` gates are within 0.3 % of fef8bde's.
+- The run that showed the shortfall (270000 x 2 x 2 cells, 250 per cell, 5e6 steps) is accepted by the planner on
+  this branch: its ids take 8.9e-6 of 2^53.
