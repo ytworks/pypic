@@ -66,6 +66,24 @@
    "kind": "pilot (plan step 4), N12 and N6 (a) analysis",
    "config": "configs/pilot-dumps.yaml",
    "gpus": 1
+  },
+  {
+   "file": "2026-11-15-pilot-through-pml192.json",
+   "record": "2026-11-15-pilot-through-pml192.md",
+   "commit": "5bf6998bfd8ca2d44dfc69f6fea888182defea01",
+   "analysis_commit": "7d5598b0d8b13c90d5a3328d15ab149eefae5df2",
+   "kind": "pilot (plan step 4), flow-through control",
+   "config": "configs/pilot-through.yaml",
+   "gpus": 1
+  },
+  {
+   "file": "2026-11-15-pilot-through-pml192-look.json",
+   "record": "2026-11-15-pilot-through-pml192.md",
+   "commit": "5bf6998bfd8ca2d44dfc69f6fea888182defea01",
+   "analysis_commit": "d5ad433fd5a1ff9d7b59bc31205d038eb3d924a1",
+   "kind": "pilot (plan step 4), flow-through control, diagnostic look",
+   "config": "configs/pilot-through.yaml",
+   "gpus": 1
   }
  ]
 }
